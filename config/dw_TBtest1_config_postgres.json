@@ -1,0 +1,20 @@
+{
+"DESCRIPTION":"A test server operating in on localhost for tb testing",
+"PORT":8184,
+"IP":"127.0.0.1",
+"INPUTREF":"../reference/TB-ref.fasta",
+"PERSISTENCEDIR":"/home/dwyllie/data/relatednesstest/TB_SERVER/persist",
+"EXCLUDEFILE":"../reference/TB-exclude.txt",
+"SNPDIR":"/home/dwyllie/data/relatednesstest/TB_SERVER/snp",
+"DEBUGMODE":0,
+"SERVERNAME":"TBSNP",      
+"EDGEDB_CONNSTRING":"postgresql+psycopg2://ew2:ew2@localhost:5432/TB1_ew2_edges",
+"FNPERSISTENCE_CONNSTRING":"postgresql+psycopg2://ew2:ew2@localhost:5432/TB1_ew2_seqProps",
+"MAXN_STORAGE":350000,
+"NCOMPRESSIONCUTOFF":350000,
+"MAXN_PROP_DEFAULT":0.85,
+"LOGFILE":"/home/dwyllie/data/relatednesstest/TB_SERVER/log/logfile.log",
+"LOGLEVEL":"INFO",
+"SNPCEILING": 20,
+"MULTIPROCESSING": 0
+}

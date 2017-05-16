@@ -1,0 +1,20 @@
+{
+"DESCRIPTION":"A test server operating in on localhost for NGON testing",
+"PORT":8185,
+"IP":"127.0.0.1",
+"INPUTREF":"../reference/NGON-ref.fasta",
+"PERSISTENCEDIR":"/home/dwyllie/data/relatednesstest/NGON_SERVER/persist",
+"EXCLUDEFILE":"../reference/NGON-exclude.txt",
+"SNPDIR":"/home/dwyllie/data/relatednesstest/NGON_SERVER/snp",
+"DEBUGMODE":0,
+"SERVERNAME":"NGONSNP",      
+"EDGEDB_CONNSTRING":"postgresql+psycopg2://ew2:ew2@localhost:5432/NGON_ew2_edges",
+"FNPERSISTENCE_CONNSTRING":"postgresql+psycopg2://ew2:ew2@localhost:5432/NGON_ew2_seqProps",
+"MAXN_STORAGE":1000000,
+"NCOMPRESSIONCUTOFF":1000000,
+"MAXN_PROP_DEFAULT":0.70,
+"LOGFILE":"/home/dwyllie/data/relatednesstest/NGON_SERVER/log/logfile.log",
+"LOGLEVEL":"INFO",
+"SNPCEILING": 500,
+"MULTIPROCESSING": 0
+}

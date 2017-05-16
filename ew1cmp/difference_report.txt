@@ -1,0 +1,690 @@
+Read config file: {
+"DESCRIPTION":"A test server operating in on localhost for tb testing",
+"PORT":8184,
+"IP":"127.0.0.1",
+"INPUTREF":"../reference/TB-ref.fasta",
+"PERSISTENCEDIR":"/home/dwyllie/data/relatednesstest/TB_SERVER/persist",
+"EXCLUDEFILE":"../reference/TB-exclude.txt",
+"SNPDIR":"/home/dwyllie/data/relatednesstest/TB_SERVER/snp",
+"DEBUGMODE":0,
+"SERVERNAME":"TBSNP",      
+"EDGEDB_CONNSTRING":"postgresql+psycopg2://ew2:ew2@localhost:5432/TB1_ew2_edges",
+"FNPERSISTENCE_CONNSTRING":"postgresql+psycopg2://ew2:ew2@localhost:5432/TB1_ew2_seqProps",
+"MAXN_STORAGE":350000,
+"NCOMPRESSIONCUTOFF":350000,
+"MAXN_PROP_DEFAULT":0.85,
+"LOGFILE":"/home/dwyllie/data/relatednesstest/TB_SERVER/log/logfile.log",
+"LOGLEVEL":"INFO",
+"SNPCEILING": 20,
+"MULTIPROCESSING": 0
+}
+
+##################### opening ew1 connection ##############################
+Running self test
+Passed, connection is functional
+################### query_get_all_guids from ew2 ###########################
+################### query_get_all_guids from ew1 ###########################
+################### summary ###########################
+There are 21874 guids from ew1
+There are 15986 guids from ew2
+There are 15986 guids in both
+################### run comparison ###########################
+4	Discordant guid pair (50c9a038-aad9-440f-aa6a-7c19e50c3b51,b56fe33e-4f1e-48b5-973b-41ae71fdb1de)	EW1=10	EW2=9	delta=1	exact=9	pass = True
+4	Discordant guid pair (50c9a038-aad9-440f-aa6a-7c19e50c3b51,a979ea13-aa30-403a-9ad3-6b62f5236d0f)	EW1=14	EW2=12	delta=2	exact=12	pass = True
+6	Discordant guid pair (703dd8a7-18e4-4319-929c-466aeb561d4c,42e2d8a0-cda6-4e76-976e-a8e153764c0a)	EW1=13	EW2=12	delta=1	exact=12	pass = True
+18	Discordant guid pair (a15cbd17-e041-4339-b58d-09ecdc656768,c69834ee-d3dd-4c84-bdca-3e01b1647827)	EW1=5	EW2=4	delta=1	exact=4	pass = True
+18	Discordant guid pair (a15cbd17-e041-4339-b58d-09ecdc656768,968e8e1e-f659-4de7-8872-c01e671d6b97)	EW1=7	EW2=0	delta=7	exact=0	pass = True
+18	Discordant guid pair (a15cbd17-e041-4339-b58d-09ecdc656768,5045080c-a985-446b-b07c-6d08094563c3)	EW1=6	EW2=5	delta=1	exact=5	pass = True
+18	Discordant guid pair (a15cbd17-e041-4339-b58d-09ecdc656768,11fdd104-a80d-472c-b525-10bc07f970a9)	EW1=6	EW2=5	delta=1	exact=5	pass = True
+25	Discordant guid pair (730f5047-6d8a-4d64-966d-2dc9407008e1,b56fe33e-4f1e-48b5-973b-41ae71fdb1de)	EW1=16	EW2=15	delta=1	exact=15	pass = True
+25	Discordant guid pair (730f5047-6d8a-4d64-966d-2dc9407008e1,a979ea13-aa30-403a-9ad3-6b62f5236d0f)	EW1=20	EW2=18	delta=2	exact=18	pass = True
+46	Discordant guid pair (59eaddf6-a429-47ce-989c-f06457a52663,c69834ee-d3dd-4c84-bdca-3e01b1647827)	EW1=7	EW2=6	delta=1	exact=6	pass = True
+46	Discordant guid pair (59eaddf6-a429-47ce-989c-f06457a52663,968e8e1e-f659-4de7-8872-c01e671d6b97)	EW1=10	EW2=3	delta=7	exact=3	pass = True
+46	Discordant guid pair (59eaddf6-a429-47ce-989c-f06457a52663,5045080c-a985-446b-b07c-6d08094563c3)	EW1=8	EW2=7	delta=1	exact=7	pass = True
+46	Discordant guid pair (59eaddf6-a429-47ce-989c-f06457a52663,11fdd104-a80d-472c-b525-10bc07f970a9)	EW1=8	EW2=7	delta=1	exact=7	pass = True
+50	Discordant guid pair (454d1605-377b-45cf-a527-1f065cf332bd,4e810a90-c67e-4762-bcd0-6507bd27b736)	EW1=6	EW2=7	delta=-1	exact=6	pass = False
+50	Discordant guid pair (454d1605-377b-45cf-a527-1f065cf332bd,e2614720-9c56-4a07-9b0e-2a4a4e5181f1)	EW1=13	EW2=12	delta=1	exact=12	pass = True
+59	Discordant guid pair (e19acaa7-9c64-4997-ad94-fefd5cdb8668,a352ffca-9478-425e-aa27-d432e08a8bdb)	EW1=19	EW2=17	delta=2	exact=17	pass = True
+60	Discordant guid pair (cc4c657f-f9d2-4f0d-821a-a0f5ea95667a,2645bba7-b801-4c80-ac71-77034822b4d7)	EW1=20	EW2=19	delta=1	exact=19	pass = True
+68	Discordant guid pair (e888fd86-6459-4e1d-94b1-06a91f9548e9,c69834ee-d3dd-4c84-bdca-3e01b1647827)	EW1=6	EW2=5	delta=1	exact=5	pass = True
+68	Discordant guid pair (e888fd86-6459-4e1d-94b1-06a91f9548e9,968e8e1e-f659-4de7-8872-c01e671d6b97)	EW1=7	EW2=0	delta=7	exact=0	pass = True
+68	Discordant guid pair (e888fd86-6459-4e1d-94b1-06a91f9548e9,5045080c-a985-446b-b07c-6d08094563c3)	EW1=7	EW2=6	delta=1	exact=6	pass = True
+68	Discordant guid pair (e888fd86-6459-4e1d-94b1-06a91f9548e9,11fdd104-a80d-472c-b525-10bc07f970a9)	EW1=7	EW2=6	delta=1	exact=6	pass = True
+69	Discordant guid pair (842b2001-3db7-4198-aa5a-93224dce0bae,33eeb6c9-9516-424d-9052-3baf515113e6)	EW1=11	EW2=10	delta=1	exact=10	pass = True
+69	Discordant guid pair (842b2001-3db7-4198-aa5a-93224dce0bae,4b5465f9-f96f-4fca-9b3e-ac3471b9ce39)	EW1=9	EW2=8	delta=1	exact=8	pass = True
+69	Discordant guid pair (842b2001-3db7-4198-aa5a-93224dce0bae,edfd1111-d250-47af-865e-0758985b9cf2)	EW1=9	EW2=8	delta=1	exact=8	pass = True
+69	Discordant guid pair (842b2001-3db7-4198-aa5a-93224dce0bae,0cb0cc63-f504-49a4-84e6-7661b3b81f52)	EW1=9	EW2=8	delta=1	exact=8	pass = True
+69	Discordant guid pair (842b2001-3db7-4198-aa5a-93224dce0bae,e5f38ba4-9316-480d-9599-647130968f5f)	EW1=10	EW2=9	delta=1	exact=9	pass = True
+69	Discordant guid pair (842b2001-3db7-4198-aa5a-93224dce0bae,237d6943-9c6a-45e0-bb9e-3d2fd7dad77c)	EW1=14	EW2=13	delta=1	exact=13	pass = True
+69	Discordant guid pair (842b2001-3db7-4198-aa5a-93224dce0bae,af13a6f7-d89e-4cc4-826d-7fb18bb3e7e9)	EW1=9	EW2=8	delta=1	exact=8	pass = True
+69	Discordant guid pair (842b2001-3db7-4198-aa5a-93224dce0bae,2561558f-3da3-4695-a140-60f5bdaec1d3)	EW1=12	EW2=11	delta=1	exact=11	pass = True
+69	Discordant guid pair (842b2001-3db7-4198-aa5a-93224dce0bae,b2dfc126-c695-4f31-bd13-fe9d88cd511e)	EW1=12	EW2=11	delta=1	exact=11	pass = True
+69	Discordant guid pair (842b2001-3db7-4198-aa5a-93224dce0bae,96821094-162b-49fa-a918-02f5349bfaf8)	EW1=10	EW2=8	delta=2	exact=8	pass = True
+69	Discordant guid pair (842b2001-3db7-4198-aa5a-93224dce0bae,ee3df126-ed5a-4bcd-904f-d28240bc396b)	EW1=8	EW2=7	delta=1	exact=7	pass = True
+69	Discordant guid pair (842b2001-3db7-4198-aa5a-93224dce0bae,023e658f-161a-4d5d-817a-77a0446d46ca)	EW1=7	EW2=5	delta=2	exact=5	pass = True
+69	Discordant guid pair (842b2001-3db7-4198-aa5a-93224dce0bae,4aa7c166-c715-4e2b-be29-e1bcf282abec)	EW1=10	EW2=9	delta=1	exact=9	pass = True
+73	Discordant guid pair (0b7529b0-12d1-455f-be6b-8cffa63cac96,00b13ae3-6f93-4b4b-ad2f-ef0e1d6960b3)	EW1=16	EW2=14	delta=2	exact=14	pass = True
+73	Discordant guid pair (0b7529b0-12d1-455f-be6b-8cffa63cac96,60b0176c-960c-4eea-b2c2-e02ea61942fe)	EW1=20	EW2=19	delta=1	exact=19	pass = True
+73	Discordant guid pair (0b7529b0-12d1-455f-be6b-8cffa63cac96,cf01a50a-50fc-4d1e-8c67-5877a60fbb09)	EW1=19	EW2=18	delta=1	exact=18	pass = True
+73	Discordant guid pair (0b7529b0-12d1-455f-be6b-8cffa63cac96,92e5062b-7b67-4ea6-9a1b-95137b6ab931)	EW1=13	EW2=12	delta=1	exact=12	pass = True
+73	Discordant guid pair (0b7529b0-12d1-455f-be6b-8cffa63cac96,a7834db2-f224-4342-9ce3-69539995994e)	EW1=19	EW2=17	delta=2	exact=17	pass = True
+73	Discordant guid pair (0b7529b0-12d1-455f-be6b-8cffa63cac96,587c2a3a-d20b-4c00-8b43-17144394e88a)	EW1=17	EW2=16	delta=1	exact=16	pass = True
+86	Discordant guid pair (600e45a2-4ae3-4663-b99f-7944cb9800cb,37c13fcc-07b4-47f5-b14e-a85cf5e35294)	EW1=4	EW2=2	delta=2	exact=2	pass = True
+86	Discordant guid pair (600e45a2-4ae3-4663-b99f-7944cb9800cb,c1101971-a5d1-4644-b2b7-782ebec17b26)	EW1=7	EW2=5	delta=2	exact=5	pass = True
+86	Discordant guid pair (600e45a2-4ae3-4663-b99f-7944cb9800cb,ec7083e2-24e5-40f4-adf9-164dbe51a4f1)	EW1=13	EW2=11	delta=2	exact=11	pass = True
+86	Discordant guid pair (600e45a2-4ae3-4663-b99f-7944cb9800cb,6b6173ba-4ffc-44f5-9212-e2e53314491f)	EW1=5	EW2=3	delta=2	exact=3	pass = True
+86	Discordant guid pair (600e45a2-4ae3-4663-b99f-7944cb9800cb,172eb74e-0891-467b-9960-2269982ad934)	EW1=3	EW2=1	delta=2	exact=1	pass = True
+86	Discordant guid pair (600e45a2-4ae3-4663-b99f-7944cb9800cb,01a63e13-4e03-478b-b58e-07c4d97e54c2)	EW1=11	EW2=9	delta=2	exact=9	pass = True
+86	Discordant guid pair (600e45a2-4ae3-4663-b99f-7944cb9800cb,934dbc9e-1923-42e6-8d9a-4c84e1aa91bf)	EW1=5	EW2=3	delta=2	exact=3	pass = True
+86	Discordant guid pair (600e45a2-4ae3-4663-b99f-7944cb9800cb,4ddddd43-6651-43e0-b200-f299c5265abf)	EW1=6	EW2=4	delta=2	exact=4	pass = True
+86	Discordant guid pair (600e45a2-4ae3-4663-b99f-7944cb9800cb,98be38e1-9dbc-44c0-9044-e0afe581df61)	EW1=3	EW2=1	delta=2	exact=1	pass = True
+86	Discordant guid pair (600e45a2-4ae3-4663-b99f-7944cb9800cb,5c97d861-5468-4559-9de8-dfffc7196fa7)	EW1=12	EW2=10	delta=2	exact=10	pass = True
+86	Discordant guid pair (600e45a2-4ae3-4663-b99f-7944cb9800cb,67701049-7f58-4f84-b597-a60074da8c00)	EW1=2	EW2=0	delta=2	exact=0	pass = True
+86	Discordant guid pair (600e45a2-4ae3-4663-b99f-7944cb9800cb,f2ec0d80-2ebe-4199-a1ea-f4b64eb523f9)	EW1=13	EW2=11	delta=2	exact=11	pass = True
+86	Discordant guid pair (600e45a2-4ae3-4663-b99f-7944cb9800cb,bf767c76-b035-45ac-bd15-529bf3328a0b)	EW1=4	EW2=2	delta=2	exact=2	pass = True
+86	Discordant guid pair (600e45a2-4ae3-4663-b99f-7944cb9800cb,b0ab2577-4c4a-4bb7-abc0-ba552371d55f)	EW1=12	EW2=10	delta=2	exact=10	pass = True
+86	Discordant guid pair (600e45a2-4ae3-4663-b99f-7944cb9800cb,f4b0771c-0527-4e9a-9667-a909b4072c01)	EW1=6	EW2=4	delta=2	exact=4	pass = True
+86	Discordant guid pair (600e45a2-4ae3-4663-b99f-7944cb9800cb,cb2c2de4-ff26-493d-97a5-d4ae27b88b9b)	EW1=5	EW2=3	delta=2	exact=3	pass = True
+86	Discordant guid pair (600e45a2-4ae3-4663-b99f-7944cb9800cb,c451855c-8185-4c27-869b-df35683a5060)	EW1=17	EW2=15	delta=2	exact=15	pass = True
+86	Discordant guid pair (600e45a2-4ae3-4663-b99f-7944cb9800cb,e781b2fd-e7a0-4b6f-ba5d-52d1a4029ccf)	EW1=4	EW2=2	delta=2	exact=2	pass = True
+86	Discordant guid pair (600e45a2-4ae3-4663-b99f-7944cb9800cb,f195dd44-8b8d-4545-96d9-27c43f37bb9d)	EW1=11	EW2=9	delta=2	exact=9	pass = True
+86	Discordant guid pair (600e45a2-4ae3-4663-b99f-7944cb9800cb,7653d13a-4a76-4632-ac3d-9babad6132b0)	EW1=4	EW2=2	delta=2	exact=2	pass = True
+86	Discordant guid pair (600e45a2-4ae3-4663-b99f-7944cb9800cb,bb35934e-4ec7-43e0-a331-162e8e50ea98)	EW1=7	EW2=5	delta=2	exact=5	pass = True
+86	Discordant guid pair (600e45a2-4ae3-4663-b99f-7944cb9800cb,6010a79a-3afb-4d25-8a33-81bb35a0d54b)	EW1=11	EW2=9	delta=2	exact=9	pass = True
+87	Variation between guid pair (71ef7469-89cb-4f84-a72c-84c8df18dcf6,04a7d726-dead-43c2-8ffa-f3863f67959d)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+101	Variation between guid pair (d56e5154-a5c6-4c70-b28f-da91c27be26a,ad0820c6-5e14-42fc-92d0-3f82fbe6f163)	EW1= >cutoff	EW2= 7	EW2 detail= 7 	exact = 7	pass = True
+101	Variation between guid pair (d56e5154-a5c6-4c70-b28f-da91c27be26a,e40c9223-5f79-4ee4-8455-3ee81df24b43)	EW1= >cutoff	EW2= 6	EW2 detail= 6 	exact = 6	pass = True
+102	Discordant guid pair (6c76d27c-5d0c-460e-8dfd-8cc627190f2d,c69834ee-d3dd-4c84-bdca-3e01b1647827)	EW1=5	EW2=4	delta=1	exact=4	pass = True
+102	Discordant guid pair (6c76d27c-5d0c-460e-8dfd-8cc627190f2d,968e8e1e-f659-4de7-8872-c01e671d6b97)	EW1=7	EW2=0	delta=7	exact=0	pass = True
+102	Discordant guid pair (6c76d27c-5d0c-460e-8dfd-8cc627190f2d,5045080c-a985-446b-b07c-6d08094563c3)	EW1=6	EW2=5	delta=1	exact=5	pass = True
+102	Discordant guid pair (6c76d27c-5d0c-460e-8dfd-8cc627190f2d,11fdd104-a80d-472c-b525-10bc07f970a9)	EW1=6	EW2=5	delta=1	exact=5	pass = True
+107	Discordant guid pair (c9e15d51-c2a7-4f4b-a91a-5a8a2128d6c0,c69834ee-d3dd-4c84-bdca-3e01b1647827)	EW1=6	EW2=5	delta=1	exact=5	pass = True
+107	Discordant guid pair (c9e15d51-c2a7-4f4b-a91a-5a8a2128d6c0,968e8e1e-f659-4de7-8872-c01e671d6b97)	EW1=7	EW2=0	delta=7	exact=0	pass = True
+107	Discordant guid pair (c9e15d51-c2a7-4f4b-a91a-5a8a2128d6c0,5045080c-a985-446b-b07c-6d08094563c3)	EW1=7	EW2=6	delta=1	exact=6	pass = True
+107	Discordant guid pair (c9e15d51-c2a7-4f4b-a91a-5a8a2128d6c0,11fdd104-a80d-472c-b525-10bc07f970a9)	EW1=7	EW2=6	delta=1	exact=6	pass = True
+108	Discordant guid pair (5168357a-44fb-4d90-ae64-267b024c26c8,f269bf4e-6435-48bd-87e5-8ee50ec897a3)	EW1=11	EW2=9	delta=2	exact=9	pass = True
+108	Discordant guid pair (5168357a-44fb-4d90-ae64-267b024c26c8,96148375-d833-4c9c-a844-1095539969f2)	EW1=9	EW2=8	delta=1	exact=8	pass = True
+108	Discordant guid pair (5168357a-44fb-4d90-ae64-267b024c26c8,17056b8f-a3e9-4769-86e6-97473140a735)	EW1=9	EW2=8	delta=1	exact=8	pass = True
+108	Discordant guid pair (5168357a-44fb-4d90-ae64-267b024c26c8,77821e24-17b2-4291-baf8-d191473ff217)	EW1=9	EW2=8	delta=1	exact=8	pass = True
+108	Discordant guid pair (5168357a-44fb-4d90-ae64-267b024c26c8,f0b10398-8c99-408a-860c-92ea01fb3486)	EW1=14	EW2=12	delta=2	exact=12	pass = True
+114	Variation between guid pair (6beea675-d79a-4672-9fa7-eb24aa269e21,5e2f25b1-0411-428b-979e-2d4fae90fe99)	EW1= >cutoff	EW2= 0	EW2 detail= 0 	exact = 0	pass = True
+120	Discordant guid pair (312b8778-dbdb-4dce-bc69-bacfea3b69b4,bf6c9cff-017a-43e2-a3f6-066cc0e654fb)	EW1=8	EW2=0	delta=8	exact=0	pass = True
+123	Variation between guid pair (f96f9f74-eb4e-4d8f-a966-1d9ff8747222,a70a04ee-7105-4b12-985c-5acf1a032448)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+123	Variation between guid pair (f96f9f74-eb4e-4d8f-a966-1d9ff8747222,fb0c8892-66d4-4459-bfb1-b99483cd1f28)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+123	Variation between guid pair (f96f9f74-eb4e-4d8f-a966-1d9ff8747222,c82de69e-73c7-4296-91a0-79f8f95bf176)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+123	Variation between guid pair (f96f9f74-eb4e-4d8f-a966-1d9ff8747222,f4a85dd4-b659-4a38-a708-d5eb25c9a182)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+123	Variation between guid pair (f96f9f74-eb4e-4d8f-a966-1d9ff8747222,86f4212e-4415-4afa-a1a2-29635aa718ce)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+123	Variation between guid pair (f96f9f74-eb4e-4d8f-a966-1d9ff8747222,18a96aff-42d6-49d1-8204-4a3c34b262c1)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+123	Variation between guid pair (f96f9f74-eb4e-4d8f-a966-1d9ff8747222,86f17875-707a-4b63-a7a2-35d7fdb1c44c)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+124	Discordant guid pair (f19ad481-09e3-467f-9f3d-77f55b235f36,b56fe33e-4f1e-48b5-973b-41ae71fdb1de)	EW1=14	EW2=13	delta=1	exact=13	pass = True
+124	Discordant guid pair (f19ad481-09e3-467f-9f3d-77f55b235f36,a979ea13-aa30-403a-9ad3-6b62f5236d0f)	EW1=18	EW2=16	delta=2	exact=16	pass = True
+127	Discordant guid pair (d83b5d97-13a5-4feb-9e76-8f0593c1067a,c69834ee-d3dd-4c84-bdca-3e01b1647827)	EW1=6	EW2=5	delta=1	exact=5	pass = True
+127	Discordant guid pair (d83b5d97-13a5-4feb-9e76-8f0593c1067a,968e8e1e-f659-4de7-8872-c01e671d6b97)	EW1=7	EW2=0	delta=7	exact=0	pass = True
+127	Discordant guid pair (d83b5d97-13a5-4feb-9e76-8f0593c1067a,5045080c-a985-446b-b07c-6d08094563c3)	EW1=7	EW2=6	delta=1	exact=6	pass = True
+127	Discordant guid pair (d83b5d97-13a5-4feb-9e76-8f0593c1067a,11fdd104-a80d-472c-b525-10bc07f970a9)	EW1=7	EW2=6	delta=1	exact=6	pass = True
+128	Discordant guid pair (9c5c5202-fdd1-4557-9e3e-8a6702b5ad0e,c69834ee-d3dd-4c84-bdca-3e01b1647827)	EW1=6	EW2=5	delta=1	exact=5	pass = True
+128	Discordant guid pair (9c5c5202-fdd1-4557-9e3e-8a6702b5ad0e,968e8e1e-f659-4de7-8872-c01e671d6b97)	EW1=9	EW2=2	delta=7	exact=2	pass = True
+128	Discordant guid pair (9c5c5202-fdd1-4557-9e3e-8a6702b5ad0e,5045080c-a985-446b-b07c-6d08094563c3)	EW1=7	EW2=6	delta=1	exact=6	pass = True
+128	Discordant guid pair (9c5c5202-fdd1-4557-9e3e-8a6702b5ad0e,11fdd104-a80d-472c-b525-10bc07f970a9)	EW1=7	EW2=6	delta=1	exact=6	pass = True
+129	Discordant guid pair (4a826283-ecd1-46da-9e34-202a8940a9ed,233380b0-093e-4c50-8129-a52a7354d293)	EW1=19	EW2=18	delta=1	exact=18	pass = True
+129	Discordant guid pair (4a826283-ecd1-46da-9e34-202a8940a9ed,d3700209-b66e-44eb-be51-25272e04379a)	EW1=19	EW2=18	delta=1	exact=18	pass = True
+129	Discordant guid pair (4a826283-ecd1-46da-9e34-202a8940a9ed,1b4502a6-17ca-4143-8f8b-5f8c88555081)	EW1=19	EW2=18	delta=1	exact=18	pass = True
+129	Discordant guid pair (4a826283-ecd1-46da-9e34-202a8940a9ed,5d9da9c9-17ff-4027-8210-1b9d19d36087)	EW1=19	EW2=18	delta=1	exact=18	pass = True
+129	Discordant guid pair (4a826283-ecd1-46da-9e34-202a8940a9ed,e34a0f66-43c3-46a8-98bd-af80aeff8c43)	EW1=18	EW2=17	delta=1	exact=17	pass = True
+132	Variation between guid pair (2f028c5b-ac3b-4b8f-a937-fc3472eb21d1,975187aa-96f6-4f7a-aa1c-627d52179c95)	EW1= >cutoff	EW2= 17	EW2 detail= 17 	exact = 17	pass = True
+132	Variation between guid pair (2f028c5b-ac3b-4b8f-a937-fc3472eb21d1,0c77ad7a-83c9-49bf-889a-f9ac2806e9e3)	EW1= >cutoff	EW2= 17	EW2 detail= 17 	exact = 17	pass = True
+132	Variation between guid pair (2f028c5b-ac3b-4b8f-a937-fc3472eb21d1,1fdc7480-1de8-4248-9c6f-84879acfebb6)	EW1= >cutoff	EW2= 15	EW2 detail= 15 	exact = 15	pass = True
+132	Variation between guid pair (2f028c5b-ac3b-4b8f-a937-fc3472eb21d1,73be554a-2675-414b-9bb3-3b1dd7200c48)	EW1= >cutoff	EW2= 15	EW2 detail= 15 	exact = 15	pass = True
+137	Discordant guid pair (cb2c2de4-ff26-493d-97a5-d4ae27b88b9b,600e45a2-4ae3-4663-b99f-7944cb9800cb)	EW1=5	EW2=3	delta=2	exact=3	pass = True
+138	Discordant guid pair (2dd94d7c-b1c7-4ec6-92ff-169fadd3afa9,ca6d7438-e8d6-4141-b65e-b9e22914cd10)	EW1=5	EW2=3	delta=2	exact=3	pass = True
+159	Discordant guid pair (05b93383-b748-427f-965b-b7ddf757e6d0,d17acbc6-eee1-4ba6-84b8-f8f588f63baa)	EW1=18	EW2=17	delta=1	exact=17	pass = True
+160	Discordant guid pair (d68f197a-e6d2-4573-85d3-f4b94feb4146,c69834ee-d3dd-4c84-bdca-3e01b1647827)	EW1=5	EW2=4	delta=1	exact=4	pass = True
+160	Discordant guid pair (d68f197a-e6d2-4573-85d3-f4b94feb4146,968e8e1e-f659-4de7-8872-c01e671d6b97)	EW1=8	EW2=1	delta=7	exact=1	pass = True
+160	Discordant guid pair (d68f197a-e6d2-4573-85d3-f4b94feb4146,5045080c-a985-446b-b07c-6d08094563c3)	EW1=6	EW2=5	delta=1	exact=5	pass = True
+160	Discordant guid pair (d68f197a-e6d2-4573-85d3-f4b94feb4146,11fdd104-a80d-472c-b525-10bc07f970a9)	EW1=6	EW2=5	delta=1	exact=5	pass = True
+166	Discordant guid pair (7b7feb74-ad71-4297-885e-3fb8677a332c,17851781-599f-420b-99c2-975624b8ad3a)	EW1=8	EW2=2	delta=6	exact=2	pass = True
+167	Discordant guid pair (2cebe4a6-8ca3-446d-b2bd-94d4b090e1b3,ce05f5d9-89e8-4a32-b412-d52fade658b3)	EW1=16	EW2=12	delta=4	exact=12	pass = True
+175	Discordant guid pair (7bc0ace0-d872-488d-8b30-5b7840427fea,6e3e27b1-c877-4c1a-aa51-27b77843172d)	EW1=10	EW2=9	delta=1	exact=9	pass = True
+183	Variation between guid pair (43886a20-7e7c-4ee4-9c9e-2357ed058c8e,a5203387-1e36-41c9-b488-29be1c535564)	EW1= >cutoff	EW2= 17	EW2 detail= 17 	exact = 17	pass = True
+183	Variation between guid pair (43886a20-7e7c-4ee4-9c9e-2357ed058c8e,9b354090-8971-4575-ae24-573b3c65edef)	EW1= >cutoff	EW2= 17	EW2 detail= 17 	exact = 17	pass = True
+187	Discordant guid pair (89699c62-bc3c-44a0-b8b3-9e83a5bf947a,f92f0a2e-26d5-4eef-b4ce-569fffa8309b)	EW1=2	EW2=0	delta=2	exact=0	pass = True
+187	Discordant guid pair (89699c62-bc3c-44a0-b8b3-9e83a5bf947a,ca8ccab8-1378-4c21-b3f9-f34f2d01fd36)	EW1=5	EW2=0	delta=5	exact=0	pass = True
+187	Discordant guid pair (89699c62-bc3c-44a0-b8b3-9e83a5bf947a,a513cc5e-f042-4978-98be-b5b456442a9f)	EW1=5	EW2=0	delta=5	exact=0	pass = True
+191	Discordant guid pair (8779797f-e3e0-455b-a76c-fcf4d19af98f,d17acbc6-eee1-4ba6-84b8-f8f588f63baa)	EW1=17	EW2=16	delta=1	exact=16	pass = True
+192	Discordant guid pair (d0e9aa5f-a470-47f5-a834-67fe7b9f402d,57e96636-0908-40f5-bd68-5562cf222c42)	EW1=18	EW2=17	delta=1	exact=17	pass = True
+202	Variation between guid pair (b68d573e-7855-4ee8-8f81-34dd6cd2cdc9,66756704-0be7-433a-99ce-09d5cb734451)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+202	Variation between guid pair (b68d573e-7855-4ee8-8f81-34dd6cd2cdc9,ec3af362-27ae-47a1-85b1-99dcb5920837)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+202	Variation between guid pair (b68d573e-7855-4ee8-8f81-34dd6cd2cdc9,92427b18-c698-4430-8e9a-5d1f4784719e)	EW1= >cutoff	EW2= 19	EW2 detail= 19 	exact = 19	pass = True
+202	Variation between guid pair (b68d573e-7855-4ee8-8f81-34dd6cd2cdc9,616629d4-9e5a-44ef-b191-ff09063bbaaa)	EW1= >cutoff	EW2= 19	EW2 detail= 19 	exact = 19	pass = True
+205	Discordant guid pair (919ec99f-da6e-4b6b-9d85-598fea96a7c8,2e862f08-0ff0-4f35-ae61-c722b2b7a7a7)	EW1=5	EW2=4	delta=1	exact=4	pass = True
+205	Discordant guid pair (919ec99f-da6e-4b6b-9d85-598fea96a7c8,d48d6a3c-2ac8-45ee-a92b-e0b9797d6412)	EW1=1	EW2=0	delta=1	exact=0	pass = True
+205	Discordant guid pair (919ec99f-da6e-4b6b-9d85-598fea96a7c8,6c1f2d5d-3890-4a33-ab01-58870083e1c7)	EW1=5	EW2=4	delta=1	exact=4	pass = True
+205	Discordant guid pair (919ec99f-da6e-4b6b-9d85-598fea96a7c8,ce5874ad-93e8-4e15-ae77-fe74666d26ab)	EW1=1	EW2=0	delta=1	exact=0	pass = True
+208	Discordant guid pair (d006e0ed-740f-47e2-b31e-d9cbb644642d,58ad7ebf-e9de-457d-8209-5036552020e0)	EW1=16	EW2=6	delta=10	exact=6	pass = True
+208	Discordant guid pair (d006e0ed-740f-47e2-b31e-d9cbb644642d,1e96358f-54ad-4ff3-904b-5914ead8a3ce)	EW1=7	EW2=6	delta=1	exact=6	pass = True
+208	Discordant guid pair (d006e0ed-740f-47e2-b31e-d9cbb644642d,0200c8f0-1fad-434c-b51d-01a07048e3cb)	EW1=19	EW2=8	delta=11	exact=8	pass = True
+208	Discordant guid pair (d006e0ed-740f-47e2-b31e-d9cbb644642d,c01a7690-7780-47d7-9ca8-af2150ae576d)	EW1=7	EW2=6	delta=1	exact=6	pass = True
+212	Discordant guid pair (b0b32f04-62c7-4d3d-a326-b010a5822857,c69834ee-d3dd-4c84-bdca-3e01b1647827)	EW1=7	EW2=6	delta=1	exact=6	pass = True
+212	Discordant guid pair (b0b32f04-62c7-4d3d-a326-b010a5822857,968e8e1e-f659-4de7-8872-c01e671d6b97)	EW1=9	EW2=2	delta=7	exact=2	pass = True
+212	Discordant guid pair (b0b32f04-62c7-4d3d-a326-b010a5822857,5045080c-a985-446b-b07c-6d08094563c3)	EW1=8	EW2=7	delta=1	exact=7	pass = True
+212	Discordant guid pair (b0b32f04-62c7-4d3d-a326-b010a5822857,11fdd104-a80d-472c-b525-10bc07f970a9)	EW1=8	EW2=7	delta=1	exact=7	pass = True
+213	Variation between guid pair (ccc29fa8-a588-4592-a728-be3c7b811914,29995956-e4d0-49ad-8686-1725095a0352)	EW1= >cutoff	EW2= 19	EW2 detail= 19 	exact = 19	pass = True
+213	Variation between guid pair (ccc29fa8-a588-4592-a728-be3c7b811914,dd308b91-3d21-455e-8385-a911debfb9e3)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+213	Variation between guid pair (ccc29fa8-a588-4592-a728-be3c7b811914,a2d82a28-8b1c-4593-8c7a-3e778dd24d87)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+226	Variation between guid pair (95d16f18-cedd-4582-ae9c-6b7448fe3ca8,975187aa-96f6-4f7a-aa1c-627d52179c95)	EW1= >cutoff	EW2= 18	EW2 detail= 18 	exact = 18	pass = True
+226	Variation between guid pair (95d16f18-cedd-4582-ae9c-6b7448fe3ca8,0c77ad7a-83c9-49bf-889a-f9ac2806e9e3)	EW1= >cutoff	EW2= 18	EW2 detail= 18 	exact = 18	pass = True
+226	Variation between guid pair (95d16f18-cedd-4582-ae9c-6b7448fe3ca8,46ff4cc2-b05f-420d-bcd9-8d6f0c043315)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+226	Variation between guid pair (95d16f18-cedd-4582-ae9c-6b7448fe3ca8,73be554a-2675-414b-9bb3-3b1dd7200c48)	EW1= >cutoff	EW2= 16	EW2 detail= 16 	exact = 16	pass = True
+226	Variation between guid pair (95d16f18-cedd-4582-ae9c-6b7448fe3ca8,853d2192-5631-4a91-8608-e6b4eaf6534a)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+226	Variation between guid pair (95d16f18-cedd-4582-ae9c-6b7448fe3ca8,1fdc7480-1de8-4248-9c6f-84879acfebb6)	EW1= >cutoff	EW2= 16	EW2 detail= 16 	exact = 16	pass = True
+226	Variation between guid pair (95d16f18-cedd-4582-ae9c-6b7448fe3ca8,a567d596-fdca-40eb-892d-da2dd5315271)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+226	Variation between guid pair (95d16f18-cedd-4582-ae9c-6b7448fe3ca8,012895e2-574d-4a95-a517-76430e04403b)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+226	Variation between guid pair (95d16f18-cedd-4582-ae9c-6b7448fe3ca8,6861ac7c-a830-4cbd-8b90-e4efe0a5d50b)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+226	Variation between guid pair (95d16f18-cedd-4582-ae9c-6b7448fe3ca8,4d9b8a09-59b2-425a-b838-f0762f63ea44)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+226	Variation between guid pair (95d16f18-cedd-4582-ae9c-6b7448fe3ca8,4d4df0a8-d9f0-442c-9492-7e2689a4f4cb)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+226	Variation between guid pair (95d16f18-cedd-4582-ae9c-6b7448fe3ca8,8cbc4936-9229-4fee-b5e8-a8856fc684e9)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+226	Variation between guid pair (95d16f18-cedd-4582-ae9c-6b7448fe3ca8,fc9f92f8-8187-4108-9256-08ded2526026)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+226	Variation between guid pair (95d16f18-cedd-4582-ae9c-6b7448fe3ca8,2f11bec2-cecc-4c4a-98ca-2a07afcea7fa)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+228	Discordant guid pair (a56eaea9-c2ce-4452-87e9-790774cccc82,bf02406a-8660-4ea2-a0d4-7ad1db9e362d)	EW1=6	EW2=0	delta=6	exact=0	pass = True
+230	Variation between guid pair (957ae41a-6717-48ea-97a6-c2c2f3cd82c0,7f707909-40b3-4614-847a-306b3885ef53)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+239	Variation between guid pair (8c1e0c99-1a88-4acb-aad9-fc341ccbbe85,fad99199-c839-497d-ba4e-59bc258854f3)	EW1= >cutoff	EW2= 0	EW2 detail= 0 	exact = 0	pass = True
+240	Discordant guid pair (b9b1fc8c-15bf-4966-be78-2f791901cdb6,c3ae5441-5ce4-4bd3-b23d-a4fdc34609db)	EW1=9	EW2=7	delta=2	exact=7	pass = True
+243	Discordant guid pair (cd05b391-0eb5-4026-af5f-bca81e9d3464,75540c85-7c2e-4b37-9072-7f0f505a22cf)	EW1=16	EW2=15	delta=1	exact=15	pass = True
+252	Variation between guid pair (934c0def-8aad-41ec-83d1-1738e4857ae5,0d8b4d52-c7ae-4020-a5c7-19b08d63d12c)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,a81cc574-7d3f-4efe-9a9a-75dd1ffdd3f2)	EW1=12	EW2=8	delta=4	exact=8	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,5e0ef182-d3ae-423b-864f-e2900de2a886)	EW1=13	EW2=9	delta=4	exact=9	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,19c2c45a-70ed-48cc-9e88-77863ef3d152)	EW1=15	EW2=11	delta=4	exact=11	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,c37fed3e-0e6e-4ed1-8ff2-55376a06fdb8)	EW1=17	EW2=13	delta=4	exact=13	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,e0ec681e-ea2b-4605-9bfa-d03b3b61c9a4)	EW1=14	EW2=11	delta=3	exact=11	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,698fcc4d-24c9-428a-86ec-36ca3ec87a4a)	EW1=14	EW2=10	delta=4	exact=10	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,04a3248b-8fa6-42f0-b1ab-4d4da08a3c7a)	EW1=16	EW2=12	delta=4	exact=12	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,1a57ccf4-d764-4e70-81c0-6fabf6e872c4)	EW1=10	EW2=6	delta=4	exact=6	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,ea4faddb-5496-48fa-8883-4faa3c60277c)	EW1=16	EW2=12	delta=4	exact=12	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,65682cd3-9b12-418a-8863-25495f8eb32e)	EW1=12	EW2=10	delta=2	exact=10	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,02b3c6ed-5448-4ec2-8124-75b28dae4dec)	EW1=6	EW2=2	delta=4	exact=2	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,7d0c46bc-5673-4d16-b3d0-98f9030c5b11)	EW1=8	EW2=4	delta=4	exact=4	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,93df0960-bb25-4291-a58f-914f9f59e489)	EW1=15	EW2=11	delta=4	exact=11	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,9c8411bd-6d1f-4fd6-b6e9-ada311ea2362)	EW1=10	EW2=6	delta=4	exact=6	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,47036313-5389-4879-81ef-ea064234fffb)	EW1=10	EW2=6	delta=4	exact=6	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,f88a20e4-bd7c-4e26-947c-b573e778e719)	EW1=8	EW2=4	delta=4	exact=4	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,e54c87e3-d628-4bfc-b967-75f1a963762a)	EW1=5	EW2=1	delta=4	exact=1	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,295f4ca8-ad52-47e6-9724-fec072950701)	EW1=6	EW2=2	delta=4	exact=2	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,96b0103c-40bb-4cc8-9139-465715c457a3)	EW1=17	EW2=13	delta=4	exact=13	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,4207f3b3-4d56-439c-98df-46c0de70c332)	EW1=16	EW2=12	delta=4	exact=12	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,391c7123-9767-4b70-9049-1bf9c09cfae6)	EW1=4	EW2=2	delta=2	exact=2	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,944a0ac5-d652-4a45-a41d-79e66fd4a235)	EW1=12	EW2=10	delta=2	exact=10	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,21f1c0f0-729b-49be-a785-d975a17282ae)	EW1=19	EW2=15	delta=4	exact=15	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,b4f31860-e752-4940-914a-73f09592a951)	EW1=15	EW2=11	delta=4	exact=11	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,0cad3bfa-5a09-4a97-93ef-dca9755b1b09)	EW1=16	EW2=12	delta=4	exact=12	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,227c0897-fcb0-4fdd-8668-1a1025d7e982)	EW1=12	EW2=8	delta=4	exact=8	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,58999a9a-af25-4110-96d6-718e84e17c1f)	EW1=3	EW2=1	delta=2	exact=1	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,dedd13c6-7a5f-4324-b437-38a80b2e9ef2)	EW1=15	EW2=11	delta=4	exact=11	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,e6d74a7d-d334-4875-8ea2-8b542293a67e)	EW1=17	EW2=13	delta=4	exact=13	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,df3d237a-a150-4af0-8f84-2f88c6ea7aee)	EW1=16	EW2=13	delta=3	exact=13	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,546c86a7-de60-44c9-a67e-79d4dac4ae86)	EW1=8	EW2=4	delta=4	exact=4	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,cfc04a4d-8093-4a64-8622-20b644fd7515)	EW1=17	EW2=13	delta=4	exact=13	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,d296b714-90b3-4f60-80b2-ad2a6899635e)	EW1=15	EW2=11	delta=4	exact=11	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,4bda478c-c242-414d-8e8c-20d154e5c17d)	EW1=12	EW2=8	delta=4	exact=8	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,a553cc1f-6043-4532-9737-957e585766bd)	EW1=10	EW2=6	delta=4	exact=6	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,52abc735-4f45-4ece-aae5-e019c9f2681b)	EW1=15	EW2=11	delta=4	exact=11	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,427f03ad-4082-4937-995d-0dfedb38c2ff)	EW1=14	EW2=10	delta=4	exact=10	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,fdc88622-6d99-447d-8428-cfbd0fa32ee4)	EW1=8	EW2=4	delta=4	exact=4	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,99b8c72f-8c81-483a-a9f5-9420e6503a0a)	EW1=10	EW2=6	delta=4	exact=6	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,2cebe4a6-8ca3-446d-b2bd-94d4b090e1b3)	EW1=16	EW2=12	delta=4	exact=12	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,b24803c3-839b-4f91-9930-f9ecf437d4c9)	EW1=4	EW2=1	delta=3	exact=1	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,475ba0b0-7109-4577-93d2-f1c112933af9)	EW1=18	EW2=14	delta=4	exact=14	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,8568d78d-91d0-4283-976c-ec641e4480b7)	EW1=16	EW2=12	delta=4	exact=12	pass = True
+258	Discordant guid pair (ce05f5d9-89e8-4a32-b412-d52fade658b3,ea9943e7-da56-45ed-9021-edaf97d0c4a7)	EW1=12	EW2=8	delta=4	exact=8	pass = True
+264	Variation between guid pair (7b68fc8b-f199-4ab9-8c6f-fbd928b08df8,f5859755-60d9-4643-abcd-2316311ac9e5)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+264	Variation between guid pair (7b68fc8b-f199-4ab9-8c6f-fbd928b08df8,392c98c5-1e17-40d0-9c24-527d6dd6c7ea)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+264	Variation between guid pair (7b68fc8b-f199-4ab9-8c6f-fbd928b08df8,ba26ff2a-058f-43fe-8877-f406d962f0df)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+264	Variation between guid pair (7b68fc8b-f199-4ab9-8c6f-fbd928b08df8,eb8d97f2-84ab-42cf-ab77-9d9ad203d1ca)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+264	Variation between guid pair (7b68fc8b-f199-4ab9-8c6f-fbd928b08df8,fc511cbe-f9a0-49ed-9bdc-fcb2ef25aa98)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+264	Variation between guid pair (7b68fc8b-f199-4ab9-8c6f-fbd928b08df8,d1f1e911-7c2c-4ea6-98c3-021f091346f6)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+264	Variation between guid pair (7b68fc8b-f199-4ab9-8c6f-fbd928b08df8,b97d6791-f9d2-48bd-84d2-1d539573685d)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+264	Variation between guid pair (7b68fc8b-f199-4ab9-8c6f-fbd928b08df8,75a5ab5e-6bd1-4731-bfbf-2489c0153a1b)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+264	Variation between guid pair (7b68fc8b-f199-4ab9-8c6f-fbd928b08df8,85f71982-74af-45c3-9b86-e9b92c8f3d26)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+264	Variation between guid pair (7b68fc8b-f199-4ab9-8c6f-fbd928b08df8,6adb7937-3721-4dec-aa06-6005461e57be)	EW1= >cutoff	EW2= 19	EW2 detail= 19 	exact = 19	pass = True
+264	Variation between guid pair (7b68fc8b-f199-4ab9-8c6f-fbd928b08df8,8ae4c802-1c69-4d36-b9fc-879d2d32256b)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+264	Variation between guid pair (7b68fc8b-f199-4ab9-8c6f-fbd928b08df8,94822ef6-1a55-4cf2-a380-f04ab29f07b8)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+264	Variation between guid pair (7b68fc8b-f199-4ab9-8c6f-fbd928b08df8,a8c308dd-1ba6-44e0-8899-3de434a908a9)	EW1= >cutoff	EW2= 18	EW2 detail= 18 	exact = 18	pass = True
+264	Variation between guid pair (7b68fc8b-f199-4ab9-8c6f-fbd928b08df8,2badf620-a2e5-4267-8869-5a4e882afbd8)	EW1= >cutoff	EW2= 18	EW2 detail= 18 	exact = 18	pass = True
+264	Variation between guid pair (7b68fc8b-f199-4ab9-8c6f-fbd928b08df8,dd308b91-3d21-455e-8385-a911debfb9e3)	EW1= >cutoff	EW2= 19	EW2 detail= 19 	exact = 19	pass = True
+264	Variation between guid pair (7b68fc8b-f199-4ab9-8c6f-fbd928b08df8,6355e91c-ca13-49d7-82be-05227cdc7495)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+264	Variation between guid pair (7b68fc8b-f199-4ab9-8c6f-fbd928b08df8,f673b949-e813-481b-813a-81645d7c1178)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+265	Variation between guid pair (11f33d30-8f48-4070-8ede-66c9d1c08f3e,975187aa-96f6-4f7a-aa1c-627d52179c95)	EW1= >cutoff	EW2= 12	EW2 detail= 12 	exact = 12	pass = True
+265	Variation between guid pair (11f33d30-8f48-4070-8ede-66c9d1c08f3e,0c77ad7a-83c9-49bf-889a-f9ac2806e9e3)	EW1= >cutoff	EW2= 12	EW2 detail= 12 	exact = 12	pass = True
+266	Discordant guid pair (02cdb692-9175-4f0c-9254-564435bb3903,0d8b4d52-c7ae-4020-a5c7-19b08d63d12c)	EW1=18	EW2=17	delta=1	exact=17	pass = True
+267	Variation between guid pair (25726215-a827-4ad5-8d53-6a34e1218bc5,da55f370-26e9-4799-ba43-e4a6b94b3ced)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+272	Discordant guid pair (3bdcb581-2ef2-4c2d-8800-0e92ea3b7207,f149de53-a21b-4552-b0ce-33cfb687b716)	EW1=1	EW2=0	delta=1	exact=0	pass = True
+275	Variation between guid pair (ee92b324-5fa6-412d-adc6-0d313177e4a7,9a750f74-5943-4928-8820-f239a4a097a5)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+275	Variation between guid pair (ee92b324-5fa6-412d-adc6-0d313177e4a7,4e3483a9-b1dc-4a90-be7d-877dcb016bda)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+275	Variation between guid pair (ee92b324-5fa6-412d-adc6-0d313177e4a7,f6430421-9688-4f6e-af86-3896dbcf5bd0)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+281	Variation between guid pair (cb41fac4-4141-4d9d-beb7-f302ea424c29,8721d1b1-ecdc-4b3f-a24b-2119e336f558)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+282	Variation between guid pair (27eb748e-be34-4793-8429-6370ea67cdbe,8cce0142-6682-4808-9c28-38e182d93d2b)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+282	Variation between guid pair (27eb748e-be34-4793-8429-6370ea67cdbe,34199fed-6d0c-4f9c-b99a-cf4eb714934c)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+282	Variation between guid pair (27eb748e-be34-4793-8429-6370ea67cdbe,91321205-b82a-429e-8cfa-c1f540452b4f)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+285	Discordant guid pair (3374ea0c-d6c1-4e02-8c33-880c46650bc4,33eeb6c9-9516-424d-9052-3baf515113e6)	EW1=6	EW2=5	delta=1	exact=5	pass = True
+285	Discordant guid pair (3374ea0c-d6c1-4e02-8c33-880c46650bc4,4b5465f9-f96f-4fca-9b3e-ac3471b9ce39)	EW1=4	EW2=3	delta=1	exact=3	pass = True
+285	Discordant guid pair (3374ea0c-d6c1-4e02-8c33-880c46650bc4,edfd1111-d250-47af-865e-0758985b9cf2)	EW1=4	EW2=3	delta=1	exact=3	pass = True
+285	Discordant guid pair (3374ea0c-d6c1-4e02-8c33-880c46650bc4,0cb0cc63-f504-49a4-84e6-7661b3b81f52)	EW1=4	EW2=3	delta=1	exact=3	pass = True
+285	Discordant guid pair (3374ea0c-d6c1-4e02-8c33-880c46650bc4,e5f38ba4-9316-480d-9599-647130968f5f)	EW1=5	EW2=4	delta=1	exact=4	pass = True
+285	Discordant guid pair (3374ea0c-d6c1-4e02-8c33-880c46650bc4,237d6943-9c6a-45e0-bb9e-3d2fd7dad77c)	EW1=9	EW2=8	delta=1	exact=8	pass = True
+285	Discordant guid pair (3374ea0c-d6c1-4e02-8c33-880c46650bc4,af13a6f7-d89e-4cc4-826d-7fb18bb3e7e9)	EW1=4	EW2=3	delta=1	exact=3	pass = True
+285	Discordant guid pair (3374ea0c-d6c1-4e02-8c33-880c46650bc4,2561558f-3da3-4695-a140-60f5bdaec1d3)	EW1=20	EW2=6	delta=14	exact=6	pass = True
+285	Discordant guid pair (3374ea0c-d6c1-4e02-8c33-880c46650bc4,b2dfc126-c695-4f31-bd13-fe9d88cd511e)	EW1=7	EW2=6	delta=1	exact=6	pass = True
+285	Discordant guid pair (3374ea0c-d6c1-4e02-8c33-880c46650bc4,96821094-162b-49fa-a918-02f5349bfaf8)	EW1=5	EW2=3	delta=2	exact=3	pass = True
+285	Discordant guid pair (3374ea0c-d6c1-4e02-8c33-880c46650bc4,ee3df126-ed5a-4bcd-904f-d28240bc396b)	EW1=3	EW2=2	delta=1	exact=2	pass = True
+285	Discordant guid pair (3374ea0c-d6c1-4e02-8c33-880c46650bc4,023e658f-161a-4d5d-817a-77a0446d46ca)	EW1=2	EW2=0	delta=2	exact=0	pass = True
+285	Discordant guid pair (3374ea0c-d6c1-4e02-8c33-880c46650bc4,1c9de321-25ea-486a-b1c9-ffc47077a9a0)	EW1=6	EW2=5	delta=1	exact=5	pass = True
+285	Discordant guid pair (3374ea0c-d6c1-4e02-8c33-880c46650bc4,4aa7c166-c715-4e2b-be29-e1bcf282abec)	EW1=5	EW2=4	delta=1	exact=4	pass = True
+291	Discordant guid pair (1e9f0cd0-654a-418c-b041-5cc5170c8e49,d292950c-1c45-4baf-8bd2-f98abaa134d4)	EW1=9	EW2=0	delta=9	exact=0	pass = True
+292	Variation between guid pair (abc70e6c-d2ff-4a0e-8132-fb30e05170a9,0200c8f0-1fad-434c-b51d-01a07048e3cb)	EW1= >cutoff	EW2= 11	EW2 detail= 11 	exact = 11	pass = True
+294	Variation between guid pair (eef3d946-7e0b-48fd-be12-56199c75857b,cf01a50a-50fc-4d1e-8c67-5877a60fbb09)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+294	Variation between guid pair (eef3d946-7e0b-48fd-be12-56199c75857b,a7834db2-f224-4342-9ce3-69539995994e)	EW1= >cutoff	EW2= 19	EW2 detail= 19 	exact = 19	pass = True
+299	Discordant guid pair (588ba23c-73af-445b-9ba3-d569ad8732e0,27d6be29-7f50-4ddb-81ec-8f211d0bec9e)	EW1=9	EW2=7	delta=2	exact=7	pass = True
+299	Discordant guid pair (588ba23c-73af-445b-9ba3-d569ad8732e0,420eeec7-8808-4f3c-83e0-6803b65ca01f)	EW1=15	EW2=14	delta=1	exact=14	pass = True
+302	Discordant guid pair (f9de834a-775b-4f0d-8980-6c2a5b1f75c8,f760d0f9-7bcb-4957-a62e-7f3228941502)	EW1=2	EW2=0	delta=2	exact=0	pass = True
+302	Discordant guid pair (f9de834a-775b-4f0d-8980-6c2a5b1f75c8,b8179fbd-844f-4bbb-af5c-8af24513ea3e)	EW1=4	EW2=0	delta=4	exact=0	pass = True
+302	Discordant guid pair (f9de834a-775b-4f0d-8980-6c2a5b1f75c8,131e66cd-9cde-4db0-b73c-536f6983810d)	EW1=4	EW2=0	delta=4	exact=0	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,b88a5620-0728-49e9-b29d-09461d030a75)	EW1= >cutoff	EW2= 6	EW2 detail= 6 	exact = 6	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,82f5bcf6-3d8a-459f-af25-70b94269fa75)	EW1= >cutoff	EW2= 2	EW2 detail= 2 	exact = 2	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,eb2c7ddb-3829-4b53-8e6d-da4641aa08e5)	EW1= >cutoff	EW2= 2	EW2 detail= 2 	exact = 2	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,d4415f3e-8433-4430-a2b5-0248da20cad1)	EW1= >cutoff	EW2= 18	EW2 detail= 18 	exact = 18	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,c48d1658-5c88-4cac-b1d4-88be8bba114f)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,d0cbd997-dd8f-4047-804b-4aedb1d345a8)	EW1= >cutoff	EW2= 17	EW2 detail= 17 	exact = 17	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,e609f35a-e416-47bc-85bf-dab744aeabb5)	EW1= >cutoff	EW2= 14	EW2 detail= 14 	exact = 14	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,9eb30302-c9ea-4fd4-88f7-54ce44ff723c)	EW1= >cutoff	EW2= 12	EW2 detail= 12 	exact = 12	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,88ef015e-8aa8-4328-82f6-b7b44a680d26)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,bae21443-ec3a-47c4-b72a-63d5245d31fd)	EW1= >cutoff	EW2= 15	EW2 detail= 15 	exact = 15	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,9751ffd9-1a0f-4f3f-b255-ef68f0fc90d5)	EW1= >cutoff	EW2= 15	EW2 detail= 15 	exact = 15	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,04774d22-5eb2-41cc-971c-3a837e2a09f7)	EW1= >cutoff	EW2= 12	EW2 detail= 12 	exact = 12	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,56e11800-1b19-48dd-90fa-1f19cb474711)	EW1= >cutoff	EW2= 8	EW2 detail= 8 	exact = 8	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,6fdca971-f672-4b51-96f9-521800ecae5e)	EW1= >cutoff	EW2= 12	EW2 detail= 12 	exact = 12	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,a61f7d61-43e4-4f05-8ca4-3fb6f530997b)	EW1= >cutoff	EW2= 6	EW2 detail= 6 	exact = 6	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,2bb40726-8ac8-4a6e-ba3c-894a240ab498)	EW1= >cutoff	EW2= 16	EW2 detail= 16 	exact = 16	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,af6b5d2c-15d9-4f95-a788-7a791bbc0800)	EW1= >cutoff	EW2= 13	EW2 detail= 13 	exact = 13	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,1f0fceaa-2d6e-4699-bc49-329927809591)	EW1= >cutoff	EW2= 10	EW2 detail= 10 	exact = 10	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,d243b66c-a3f4-4097-aec2-2e2ba6affa7d)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,ebee3df5-ecf8-4d72-980b-b516d338064c)	EW1= >cutoff	EW2= 15	EW2 detail= 15 	exact = 15	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,4c00c1d2-caec-4dc2-a4cd-7037cbe3e40a)	EW1= >cutoff	EW2= 2	EW2 detail= 2 	exact = 2	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,d4fc26ab-ff0d-4440-9505-dc529f9c8288)	EW1= >cutoff	EW2= 12	EW2 detail= 12 	exact = 12	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,11f33d30-8f48-4070-8ede-66c9d1c08f3e)	EW1= >cutoff	EW2= 12	EW2 detail= 12 	exact = 12	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,f7724a8d-efd6-4151-8b60-d79c905f9277)	EW1= >cutoff	EW2= 16	EW2 detail= 16 	exact = 16	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,93d032ed-f9a7-4323-a780-a794634f91b6)	EW1= >cutoff	EW2= 10	EW2 detail= 10 	exact = 10	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,5685f830-c8f2-4808-965f-433c4d98d0e0)	EW1= >cutoff	EW2= 16	EW2 detail= 16 	exact = 16	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,d6de1672-c36d-46c6-bfe4-44a5bb10a3bf)	EW1= >cutoff	EW2= 19	EW2 detail= 19 	exact = 19	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,3363a8d5-8768-49e9-9c46-53bb3dab45b9)	EW1= >cutoff	EW2= 12	EW2 detail= 12 	exact = 12	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,ccdb963d-4dd7-4e2c-8359-9e13167df5c5)	EW1= >cutoff	EW2= 10	EW2 detail= 10 	exact = 10	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,5eac2ff2-604d-460b-8e22-f1aa1d9d319d)	EW1= >cutoff	EW2= 13	EW2 detail= 13 	exact = 13	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,633d397b-ae77-4ebd-a3b7-ef2ce6b15a13)	EW1= >cutoff	EW2= 11	EW2 detail= 11 	exact = 11	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,619a1f32-192d-45b1-a5a3-6ffdd7aa28be)	EW1= >cutoff	EW2= 15	EW2 detail= 15 	exact = 15	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,1fa73ea9-6fd4-46b1-87d8-83551650fd3d)	EW1= >cutoff	EW2= 15	EW2 detail= 15 	exact = 15	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,19efc996-6a28-4e60-9ee4-c0eec221b689)	EW1= >cutoff	EW2= 14	EW2 detail= 14 	exact = 14	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,f39da8f2-b5bb-486c-9ce3-4cab60f43a63)	EW1= >cutoff	EW2= 8	EW2 detail= 8 	exact = 8	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,8cbc4936-9229-4fee-b5e8-a8856fc684e9)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,96f03988-aac3-4c97-831b-e9931e89c5c2)	EW1= >cutoff	EW2= 14	EW2 detail= 14 	exact = 14	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,20bbdf85-4596-452a-9a7f-e656afc08c3e)	EW1= >cutoff	EW2= 19	EW2 detail= 19 	exact = 19	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,abfba86a-347f-44eb-9b66-4add4afe20e6)	EW1= >cutoff	EW2= 5	EW2 detail= 5 	exact = 5	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,1f793659-c4e4-4320-aed1-80c34688ac38)	EW1= >cutoff	EW2= 15	EW2 detail= 15 	exact = 15	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,6f165e72-b9de-4a16-bd44-051be4e87243)	EW1= >cutoff	EW2= 8	EW2 detail= 8 	exact = 8	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,4203f15e-d926-4d9b-8968-d352e184eafe)	EW1= >cutoff	EW2= 2	EW2 detail= 2 	exact = 2	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,c7299a83-3926-47a4-96a4-f5f7d87a9cb3)	EW1= >cutoff	EW2= 19	EW2 detail= 19 	exact = 19	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,917c8971-c781-4fcf-9c89-d45714120470)	EW1= >cutoff	EW2= 9	EW2 detail= 9 	exact = 9	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,6902d1dc-c85c-4fe3-8205-426fb99c2081)	EW1= >cutoff	EW2= 12	EW2 detail= 12 	exact = 12	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,9b7483e9-e39c-4bef-8f5a-1d94056c7498)	EW1= >cutoff	EW2= 8	EW2 detail= 8 	exact = 8	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,3e2821b5-24e4-484d-926d-25bbb362d899)	EW1= >cutoff	EW2= 12	EW2 detail= 12 	exact = 12	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,60a34799-12c4-445d-8fdd-a1eb42b172c3)	EW1= >cutoff	EW2= 13	EW2 detail= 13 	exact = 13	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,6f2b0a1d-0db1-44bc-86f4-8e9b840568a3)	EW1= >cutoff	EW2= 15	EW2 detail= 15 	exact = 15	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,d58e5dfb-3cd8-4e6a-aeb1-1e1b3f457819)	EW1= >cutoff	EW2= 10	EW2 detail= 10 	exact = 10	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,3920195c-dffc-447e-89bf-cfd5c1c621c1)	EW1= >cutoff	EW2= 8	EW2 detail= 8 	exact = 8	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,c3fb7506-7681-4c00-8ffb-7d8fdb15de7a)	EW1= >cutoff	EW2= 12	EW2 detail= 12 	exact = 12	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,0aa8e0a4-714c-47f8-aabc-3bb49a112d6c)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,0adf3f5e-ad05-4e94-a087-f8fece29b164)	EW1= >cutoff	EW2= 13	EW2 detail= 13 	exact = 13	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,e5b4a1dd-7ea3-4334-bdb4-67db2e065de6)	EW1= >cutoff	EW2= 15	EW2 detail= 15 	exact = 15	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,86f0aecd-b91f-441f-bf43-6b0ce0cfacd1)	EW1= >cutoff	EW2= 13	EW2 detail= 13 	exact = 13	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,0893a8c0-79c0-48e5-8973-04e67d1cfed5)	EW1= >cutoff	EW2= 11	EW2 detail= 11 	exact = 11	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,a61bdf87-00f4-4941-9524-331ce81f8543)	EW1= >cutoff	EW2= 12	EW2 detail= 12 	exact = 12	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,11be0048-5e23-4736-a53b-6c95a4ce7ea3)	EW1= >cutoff	EW2= 18	EW2 detail= 18 	exact = 18	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,2b1a9d9b-1415-4dec-8a5d-7336d1e82408)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,59842a5f-9268-4917-b99c-bc5956653b68)	EW1= >cutoff	EW2= 16	EW2 detail= 16 	exact = 16	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,fc8a8731-86d2-462f-a3a0-2b1e819785b7)	EW1= >cutoff	EW2= 4	EW2 detail= 4 	exact = 4	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,4f43ce72-3faf-4a45-88ad-dc299dce155e)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,51a4e944-52d0-4391-b2f8-b42fa2274a79)	EW1= >cutoff	EW2= 8	EW2 detail= 8 	exact = 8	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,653dc738-86c8-4e62-af8f-c50f9c7b85f8)	EW1= >cutoff	EW2= 3	EW2 detail= 3 	exact = 3	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,c7d201fc-fb4f-4c69-9959-96f3780b19b3)	EW1= >cutoff	EW2= 10	EW2 detail= 10 	exact = 10	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,04eb5113-3ed5-41e1-9899-3de461f49b94)	EW1= >cutoff	EW2= 14	EW2 detail= 14 	exact = 14	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,b7f80e68-f804-43d5-99eb-1aa369a0551b)	EW1= >cutoff	EW2= 14	EW2 detail= 14 	exact = 14	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,572520b1-d411-4390-9b1a-4ee76cbaea53)	EW1= >cutoff	EW2= 8	EW2 detail= 8 	exact = 8	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,da52b691-d1f9-4bab-bdac-dcf3edacfbfe)	EW1= >cutoff	EW2= 8	EW2 detail= 8 	exact = 8	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,a23d2c56-62bc-4af4-bd1b-13d7c63392ec)	EW1= >cutoff	EW2= 15	EW2 detail= 15 	exact = 15	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,43a8b60f-7d4f-4f79-b1f9-83cae882a776)	EW1= >cutoff	EW2= 18	EW2 detail= 18 	exact = 18	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,fa5c27fa-1ff9-46d3-94b4-f547fc1bfc0b)	EW1= >cutoff	EW2= 12	EW2 detail= 12 	exact = 12	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,0525a744-63da-46d1-901e-c2a2becee498)	EW1= >cutoff	EW2= 9	EW2 detail= 9 	exact = 9	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,4e8e95d9-c51f-4997-81c8-48ffc331e331)	EW1= >cutoff	EW2= 12	EW2 detail= 12 	exact = 12	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,388a0051-de02-4b7b-be3f-dc02cb57933f)	EW1= >cutoff	EW2= 18	EW2 detail= 18 	exact = 18	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,fc9f92f8-8187-4108-9256-08ded2526026)	EW1= >cutoff	EW2= 19	EW2 detail= 19 	exact = 19	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,b750f7f3-a671-4035-8bc8-c4567844eaa8)	EW1= >cutoff	EW2= 12	EW2 detail= 12 	exact = 12	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,b1b444e5-ff0e-488a-a74b-fec183be1740)	EW1= >cutoff	EW2= 0	EW2 detail= 0 	exact = 0	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,7b4f4ab6-3076-4973-b57e-012b0c96dc49)	EW1= >cutoff	EW2= 0	EW2 detail= 0 	exact = 0	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,885b227a-84c2-4d8c-ab17-47c3b3158a6f)	EW1= >cutoff	EW2= 19	EW2 detail= 19 	exact = 19	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,859364d5-6bf0-4128-8a41-8cb868dbb5d4)	EW1= >cutoff	EW2= 13	EW2 detail= 13 	exact = 13	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,447d96c6-ea0e-43f0-bf23-da5d1a01b896)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,8d1c4e86-6d91-467a-87e7-3e951c61f862)	EW1= >cutoff	EW2= 13	EW2 detail= 13 	exact = 13	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,0899047b-861e-4009-93e3-1a5ca3b5ba85)	EW1= >cutoff	EW2= 2	EW2 detail= 2 	exact = 2	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,0e9d0534-d17b-4834-831d-50ceec916224)	EW1= >cutoff	EW2= 1	EW2 detail= 1 	exact = 1	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,72d3b166-3061-44e6-9c8c-af4e19fa6ad5)	EW1= >cutoff	EW2= 14	EW2 detail= 14 	exact = 14	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,9f65be3d-4ea1-49ce-b126-249c6adc72ba)	EW1= >cutoff	EW2= 19	EW2 detail= 19 	exact = 19	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,468c33f7-a24a-435e-864c-81bc9a86391f)	EW1= >cutoff	EW2= 16	EW2 detail= 16 	exact = 16	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,e7d51497-1ff9-46dd-a348-d5048026bfac)	EW1= >cutoff	EW2= 2	EW2 detail= 2 	exact = 2	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,bd7b53f7-2bbb-4ddd-8057-ad95e5ea9f9b)	EW1= >cutoff	EW2= 18	EW2 detail= 18 	exact = 18	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,77c874bd-698c-41f1-8380-099ed843b955)	EW1= >cutoff	EW2= 13	EW2 detail= 13 	exact = 13	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,542ccf30-b01a-416a-ad16-409ef626805b)	EW1= >cutoff	EW2= 17	EW2 detail= 17 	exact = 17	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,747aaa4e-2b3f-40a7-b235-5f0207a74e89)	EW1= >cutoff	EW2= 2	EW2 detail= 2 	exact = 2	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,1f6f330c-0116-4267-88d5-f1f31b94467b)	EW1= >cutoff	EW2= 11	EW2 detail= 11 	exact = 11	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,1f67a4b1-9f17-4871-9183-fbe252779148)	EW1= >cutoff	EW2= 19	EW2 detail= 19 	exact = 19	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,012895e2-574d-4a95-a517-76430e04403b)	EW1= >cutoff	EW2= 6	EW2 detail= 6 	exact = 6	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,ff113d0c-ed9d-445c-b0aa-9d15bb7aab95)	EW1= >cutoff	EW2= 15	EW2 detail= 15 	exact = 15	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,46dc45e7-04b0-4b3b-80c3-6f253522a0e0)	EW1= >cutoff	EW2= 13	EW2 detail= 13 	exact = 13	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,d9fe852b-507a-4b3f-99c4-7668705594d6)	EW1= >cutoff	EW2= 12	EW2 detail= 12 	exact = 12	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,338f69b4-9c9c-4106-bf57-9e893d707a2d)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,5cb4d2b2-e08f-4578-ac80-131beaf4cb64)	EW1= >cutoff	EW2= 12	EW2 detail= 12 	exact = 12	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,4de4a8b8-2af9-490c-a7fd-c95236cc07a8)	EW1= >cutoff	EW2= 1	EW2 detail= 1 	exact = 1	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,4a7c7793-50dd-4f4e-bd35-e64ef19128a7)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,853d2192-5631-4a91-8608-e6b4eaf6534a)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,816480f6-fd05-490f-b016-45b136eb3913)	EW1= >cutoff	EW2= 10	EW2 detail= 10 	exact = 10	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,31acd26f-ca3e-43c1-8656-404dc27849c8)	EW1= >cutoff	EW2= 15	EW2 detail= 15 	exact = 15	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,9d995a98-e194-499d-afa8-aa3d4689126d)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,7ca1cf9a-0f3f-45d0-b1f3-c9704cc4e185)	EW1= >cutoff	EW2= 15	EW2 detail= 15 	exact = 15	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,8fcf3c5a-7b5b-4181-aed8-67bf09751118)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,2f028c5b-ac3b-4b8f-a937-fc3472eb21d1)	EW1= >cutoff	EW2= 17	EW2 detail= 17 	exact = 17	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,5468d5c9-fa3b-458e-954a-5d60905aec88)	EW1= >cutoff	EW2= 19	EW2 detail= 19 	exact = 19	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,68fe354c-a2ab-474c-9656-0dbb28f164fd)	EW1= >cutoff	EW2= 12	EW2 detail= 12 	exact = 12	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,a5f4c5d7-860e-4144-82d8-4ad6f8b72e90)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,4cf324b8-7468-4d6d-9bc0-b496414d3af4)	EW1= >cutoff	EW2= 14	EW2 detail= 14 	exact = 14	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,41a84d6d-d160-480c-9a74-19301f9132f0)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,aa0e7908-0063-4df1-8b42-d14449c28735)	EW1= >cutoff	EW2= 18	EW2 detail= 18 	exact = 18	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,8c35afa7-d3e0-46c8-9ebe-786d3fd146bc)	EW1= >cutoff	EW2= 18	EW2 detail= 18 	exact = 18	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,33082af6-28da-46e6-b396-dbc090560cea)	EW1= >cutoff	EW2= 16	EW2 detail= 16 	exact = 16	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,a567d596-fdca-40eb-892d-da2dd5315271)	EW1= >cutoff	EW2= 19	EW2 detail= 19 	exact = 19	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,1e6669d9-f7e2-4142-80ba-9218c63d8802)	EW1= >cutoff	EW2= 10	EW2 detail= 10 	exact = 10	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,5fbfd0bf-7655-4f2c-8380-21dfdea9c8f6)	EW1= >cutoff	EW2= 5	EW2 detail= 5 	exact = 5	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,f8267434-30d2-4380-9661-2f6657f19402)	EW1= >cutoff	EW2= 14	EW2 detail= 14 	exact = 14	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,72111f79-3759-4dce-979b-cbdfd8e1ace1)	EW1= >cutoff	EW2= 11	EW2 detail= 11 	exact = 11	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,4d9b8a09-59b2-425a-b838-f0762f63ea44)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,48f3eecf-2e39-47c0-a3f8-0f6f332878c7)	EW1= >cutoff	EW2= 4	EW2 detail= 4 	exact = 4	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,9c680767-1695-42c5-bc9a-da543479ea58)	EW1= >cutoff	EW2= 2	EW2 detail= 2 	exact = 2	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,a4cbf330-b454-4ae9-8f72-b2c96cbb38a9)	EW1= >cutoff	EW2= 13	EW2 detail= 13 	exact = 13	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,e7c3d93f-17c9-42d4-b0e7-b7d2026431d0)	EW1= >cutoff	EW2= 13	EW2 detail= 13 	exact = 13	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,98b98d00-6020-4043-b18b-8f9827103cd7)	EW1= >cutoff	EW2= 19	EW2 detail= 19 	exact = 19	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,d18db476-fb26-4d6d-b800-b76b44f2bd39)	EW1= >cutoff	EW2= 17	EW2 detail= 17 	exact = 17	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,bce713d3-e65f-4071-b89d-721256781942)	EW1= >cutoff	EW2= 2	EW2 detail= 2 	exact = 2	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,337db15a-a8e4-458c-b341-a575448a6d5c)	EW1= >cutoff	EW2= 15	EW2 detail= 15 	exact = 15	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,2f11bec2-cecc-4c4a-98ca-2a07afcea7fa)	EW1= >cutoff	EW2= 12	EW2 detail= 12 	exact = 12	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,8606e408-49ef-41c3-a3b7-8487c5b9abd4)	EW1= >cutoff	EW2= 16	EW2 detail= 16 	exact = 16	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,fdf57db9-e0f2-47bc-82b7-1a2a68225ae2)	EW1= >cutoff	EW2= 7	EW2 detail= 7 	exact = 7	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,9d7f31ef-cc2b-4f04-ac05-17c1375d29b1)	EW1= >cutoff	EW2= 13	EW2 detail= 13 	exact = 13	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,6043cd98-c15b-4252-bdb7-446762c0bc56)	EW1= >cutoff	EW2= 10	EW2 detail= 10 	exact = 10	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,9df3a825-ce07-45c5-9486-6279ab119730)	EW1= >cutoff	EW2= 12	EW2 detail= 12 	exact = 12	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,133a1e36-4529-4598-9a04-00894e01a1ec)	EW1= >cutoff	EW2= 13	EW2 detail= 13 	exact = 13	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,755c82a0-78ec-4506-a5f5-e6e35cee517e)	EW1= >cutoff	EW2= 2	EW2 detail= 2 	exact = 2	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,5ad45b2b-af5d-4d90-82f2-872344adbf3e)	EW1= >cutoff	EW2= 17	EW2 detail= 17 	exact = 17	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,1ffcf56b-abba-4ebf-8fc7-02d6ed83d416)	EW1= >cutoff	EW2= 19	EW2 detail= 19 	exact = 19	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,d95b4ae0-227b-4cf8-a777-b279b8656aad)	EW1= >cutoff	EW2= 4	EW2 detail= 4 	exact = 4	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,494f5b50-29eb-4d81-9a53-16ca0eb84b79)	EW1= >cutoff	EW2= 15	EW2 detail= 15 	exact = 15	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,50a3a8a6-17b9-478d-999a-a9d9282dc591)	EW1= >cutoff	EW2= 19	EW2 detail= 19 	exact = 19	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,524e4ee9-a9e2-417c-836d-f187a156798d)	EW1= >cutoff	EW2= 7	EW2 detail= 7 	exact = 7	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,b4fb6e21-060a-480d-bf8a-7d0024350882)	EW1= >cutoff	EW2= 6	EW2 detail= 6 	exact = 6	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,62661454-739d-47e1-8695-ad80d1eb5f50)	EW1= >cutoff	EW2= 9	EW2 detail= 9 	exact = 9	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,bca1ccd2-e6e9-4113-bddb-845e7eb1c213)	EW1= >cutoff	EW2= 14	EW2 detail= 14 	exact = 14	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,d050cd53-efa4-4e50-b1f5-8685279de760)	EW1= >cutoff	EW2= 16	EW2 detail= 16 	exact = 16	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,051608b1-89c4-4d92-9f6f-a85f97fb010a)	EW1= >cutoff	EW2= 12	EW2 detail= 12 	exact = 12	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,bc7a2475-0eec-413d-9750-2863c95fd0a2)	EW1= >cutoff	EW2= 10	EW2 detail= 10 	exact = 10	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,859c2dc2-0ea4-49b2-8aa4-052c50f8c4e7)	EW1= >cutoff	EW2= 17	EW2 detail= 17 	exact = 17	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,13749d76-a615-43ae-95e5-2d535e03cbc2)	EW1= >cutoff	EW2= 17	EW2 detail= 17 	exact = 17	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,fdac7194-8ad7-4c4d-9807-b0801f7f82e5)	EW1= >cutoff	EW2= 8	EW2 detail= 8 	exact = 8	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,040f19b3-10a1-4899-9ff9-9558a7664976)	EW1= >cutoff	EW2= 12	EW2 detail= 12 	exact = 12	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,69689173-20e1-4a1c-8f0f-3bad613b4198)	EW1= >cutoff	EW2= 14	EW2 detail= 14 	exact = 14	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,bb6cad3e-a1fc-41b7-98b2-f5a603d3c226)	EW1= >cutoff	EW2= 15	EW2 detail= 15 	exact = 15	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,24bc4333-1631-427b-a854-f912f4e23710)	EW1= >cutoff	EW2= 14	EW2 detail= 14 	exact = 14	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,b11ed4c6-d54e-421a-ada9-f209d899b385)	EW1= >cutoff	EW2= 12	EW2 detail= 12 	exact = 12	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,fecb79ac-f399-4a58-941e-72980e9b3300)	EW1= >cutoff	EW2= 5	EW2 detail= 5 	exact = 5	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,baf98f3b-9de4-4dc5-bdf7-9566d1c4db59)	EW1= >cutoff	EW2= 5	EW2 detail= 5 	exact = 5	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,d947ffff-430a-49b3-ad58-ba6f95211c36)	EW1= >cutoff	EW2= 2	EW2 detail= 2 	exact = 2	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,130d34fb-a105-4c83-9e6d-1764c277c689)	EW1= >cutoff	EW2= 17	EW2 detail= 17 	exact = 17	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,3e2addcc-2b74-4689-8e96-3eaedd051b02)	EW1= >cutoff	EW2= 10	EW2 detail= 10 	exact = 10	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,fe96dcb5-cf30-40dd-b67e-8ce2eafb02a5)	EW1= >cutoff	EW2= 12	EW2 detail= 12 	exact = 12	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,af38b0c8-63ec-4072-86a8-53649b9034b6)	EW1= >cutoff	EW2= 12	EW2 detail= 12 	exact = 12	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,961d9ac4-4674-4560-a956-28f39216b01b)	EW1= >cutoff	EW2= 14	EW2 detail= 14 	exact = 14	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,e710cb2f-82eb-4cac-8f5d-d194c83fb641)	EW1= >cutoff	EW2= 14	EW2 detail= 14 	exact = 14	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,cb443d0c-a7b3-4608-bade-6defdd42d185)	EW1= >cutoff	EW2= 8	EW2 detail= 8 	exact = 8	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,c6a5a6e9-4a4b-4a02-a108-d9ac6415fce8)	EW1= >cutoff	EW2= 2	EW2 detail= 2 	exact = 2	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,67226b24-7b29-4ed6-9084-a0972da187a0)	EW1= >cutoff	EW2= 2	EW2 detail= 2 	exact = 2	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,601114c7-decb-4ed0-a02f-52a01366e69a)	EW1= >cutoff	EW2= 16	EW2 detail= 16 	exact = 16	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,f5aaac5b-3261-4cdc-8e8b-8ae2b2cdb6d5)	EW1= >cutoff	EW2= 16	EW2 detail= 16 	exact = 16	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,a73c019b-de56-4a1f-9446-f3940ddc393f)	EW1= >cutoff	EW2= 19	EW2 detail= 19 	exact = 19	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,29e0268b-7cb5-49ef-a294-c9e768124b92)	EW1= >cutoff	EW2= 8	EW2 detail= 8 	exact = 8	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,d3957607-dab0-4436-a609-91a8080b29b5)	EW1= >cutoff	EW2= 8	EW2 detail= 8 	exact = 8	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,6861ac7c-a830-4cbd-8b90-e4efe0a5d50b)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,4a56acf5-87e6-4a28-9e80-d982ff1cffda)	EW1= >cutoff	EW2= 13	EW2 detail= 13 	exact = 13	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,d91fec38-3479-466f-a382-afc72023741b)	EW1= >cutoff	EW2= 17	EW2 detail= 17 	exact = 17	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,96f5a5ad-d4ba-407f-86a4-3de215d95d5f)	EW1= >cutoff	EW2= 19	EW2 detail= 19 	exact = 19	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,2e954b50-cc08-4e85-b9bb-859fba831cb1)	EW1= >cutoff	EW2= 10	EW2 detail= 10 	exact = 10	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,7dd1f815-453d-46c8-9d9a-9fd153db9f55)	EW1= >cutoff	EW2= 15	EW2 detail= 15 	exact = 15	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,1dce40b5-9b7c-4efe-a63e-e9edb9eac00e)	EW1= >cutoff	EW2= 15	EW2 detail= 15 	exact = 15	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,cf6c48e2-faed-4956-9251-268603475aad)	EW1= >cutoff	EW2= 14	EW2 detail= 14 	exact = 14	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,8e648242-4104-46d9-ac9e-2782a6dcdcd1)	EW1= >cutoff	EW2= 5	EW2 detail= 5 	exact = 5	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,85da69fa-6156-41be-8ae8-f7b8572ca80f)	EW1= >cutoff	EW2= 17	EW2 detail= 17 	exact = 17	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,f9d868e6-5905-4cd1-973d-ac0cde1edf09)	EW1= >cutoff	EW2= 18	EW2 detail= 18 	exact = 18	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,31b22ead-f191-47a5-99bf-decfeac6e186)	EW1= >cutoff	EW2= 13	EW2 detail= 13 	exact = 13	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,dc416b7b-4e9e-424b-88a6-68e6860f810c)	EW1= >cutoff	EW2= 19	EW2 detail= 19 	exact = 19	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,eed4f65e-cae8-44da-8b47-e1fd4e2e31c2)	EW1= >cutoff	EW2= 14	EW2 detail= 14 	exact = 14	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,924d8a47-e579-49d0-a01b-6d505fb7c610)	EW1= >cutoff	EW2= 11	EW2 detail= 11 	exact = 11	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,cc54d700-cb9f-4868-a626-3b1566e539c3)	EW1= >cutoff	EW2= 9	EW2 detail= 9 	exact = 9	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,0c1acfb2-0d70-47bf-8892-9784775d2492)	EW1= >cutoff	EW2= 8	EW2 detail= 8 	exact = 8	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,6798f368-c868-4b66-92a6-e82af267241d)	EW1= >cutoff	EW2= 17	EW2 detail= 17 	exact = 17	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,7ea707a7-c6b8-405c-91f2-aa32d3bb73f3)	EW1= >cutoff	EW2= 12	EW2 detail= 12 	exact = 12	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,c3d24de1-07e9-43df-a86a-df61cc53583b)	EW1= >cutoff	EW2= 16	EW2 detail= 16 	exact = 16	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,246806e3-9846-4153-88e7-400724dacc4f)	EW1= >cutoff	EW2= 13	EW2 detail= 13 	exact = 13	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,134ff381-6e1d-405b-a807-57dc05db7d65)	EW1= >cutoff	EW2= 5	EW2 detail= 5 	exact = 5	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,353ab175-140a-4713-abea-ce6d5edd6e17)	EW1= >cutoff	EW2= 14	EW2 detail= 14 	exact = 14	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,70ae23ad-b68a-47a9-b81a-43c7567fe1a5)	EW1= >cutoff	EW2= 13	EW2 detail= 13 	exact = 13	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,6c23588f-0230-47ee-973a-7d3bc5a71019)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,95d16f18-cedd-4582-ae9c-6b7448fe3ca8)	EW1= >cutoff	EW2= 18	EW2 detail= 18 	exact = 18	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,46ff4cc2-b05f-420d-bcd9-8d6f0c043315)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,e30e38b7-0a68-45b9-91d2-23956574028d)	EW1= >cutoff	EW2= 4	EW2 detail= 4 	exact = 4	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,255ca78e-fcfc-4d31-815e-46e58b4d681d)	EW1= >cutoff	EW2= 13	EW2 detail= 13 	exact = 13	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,a088f243-167b-455b-8bc1-b058eee8a655)	EW1= >cutoff	EW2= 6	EW2 detail= 6 	exact = 6	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,c1dadd48-027a-493b-afb3-4cd656319e0e)	EW1= >cutoff	EW2= 14	EW2 detail= 14 	exact = 14	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,b1001954-53a3-4806-9f86-bfa8a5df3a9f)	EW1= >cutoff	EW2= 16	EW2 detail= 16 	exact = 16	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,2b7a65ef-634b-489c-b2aa-88e37d87b24a)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,493cba30-48c7-4a0d-acce-c3f5a3f74f69)	EW1= >cutoff	EW2= 13	EW2 detail= 13 	exact = 13	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,f17737f0-7dee-40d5-b547-0cb73ba6928b)	EW1= >cutoff	EW2= 17	EW2 detail= 17 	exact = 17	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,b6df62c9-65d9-48dd-8347-b4d1cf295eb3)	EW1= >cutoff	EW2= 16	EW2 detail= 16 	exact = 16	pass = True
+304	Variation between guid pair (975187aa-96f6-4f7a-aa1c-627d52179c95,5f0fd7ce-9824-44fc-8b60-b55a4c4c0892)	EW1= >cutoff	EW2= 12	EW2 detail= 12 	exact = 12	pass = True
+314	Variation between guid pair (de8a137e-f104-4367-af2a-fd0948e5881c,0e33d927-2dba-4f00-b9be-b9358637ece7)	EW1= >cutoff	EW2= 3	EW2 detail= 3 	exact = 3	pass = True
+315	Discordant guid pair (dc3fed9d-155c-4ab1-81cb-a517fab14daf,b9ba537b-a2de-4381-8580-f7b31436733a)	EW1=4	EW2=1	delta=3	exact=1	pass = True
+318	Discordant guid pair (d4d0f280-9a48-4dd0-844d-b9e5f99df1f1,42e2d8a0-cda6-4e76-976e-a8e153764c0a)	EW1=7	EW2=6	delta=1	exact=6	pass = True
+327	Discordant guid pair (2acab216-7fff-4de0-9abd-31f69a986bc6,c69834ee-d3dd-4c84-bdca-3e01b1647827)	EW1=6	EW2=5	delta=1	exact=5	pass = True
+327	Discordant guid pair (2acab216-7fff-4de0-9abd-31f69a986bc6,968e8e1e-f659-4de7-8872-c01e671d6b97)	EW1=7	EW2=0	delta=7	exact=0	pass = True
+327	Discordant guid pair (2acab216-7fff-4de0-9abd-31f69a986bc6,5045080c-a985-446b-b07c-6d08094563c3)	EW1=7	EW2=6	delta=1	exact=6	pass = True
+327	Discordant guid pair (2acab216-7fff-4de0-9abd-31f69a986bc6,11fdd104-a80d-472c-b525-10bc07f970a9)	EW1=7	EW2=6	delta=1	exact=6	pass = True
+328	Discordant guid pair (41372a09-d0d5-45c0-9fda-24cf006921e6,fbfcbc1e-b118-4db9-85bb-9213f4c6dd86)	EW1=8	EW2=0	delta=8	exact=0	pass = True
+329	Variation between guid pair (9b132a86-0d8b-4dbb-90c9-1eb1bbadc0d1,dc25d4b5-1bdc-487b-a649-37cf64f4e955)	EW1= >cutoff	EW2= 0	EW2 detail= 0 	exact = 0	pass = True
+332	Variation between guid pair (a1f6932c-0871-4712-a250-4cce3cb4d818,37129936-c09a-4af2-be6a-c16949202019)	EW1= >cutoff	EW2= 19	EW2 detail= 19 	exact = 19	pass = True
+337	Discordant guid pair (8abbaf11-7780-4227-82ea-5a0834001b12,06be5a9c-a4a1-470e-bf4e-03b80c8570e3)	EW1=3	EW2=1	delta=2	exact=1	pass = True
+337	Discordant guid pair (8abbaf11-7780-4227-82ea-5a0834001b12,85fc6e86-3669-4445-b670-a99172dbf6b6)	EW1=3	EW2=1	delta=2	exact=1	pass = True
+352	Discordant guid pair (4edce1c4-6cc3-4cc6-8f7b-3a056c86c0cd,92e5062b-7b67-4ea6-9a1b-95137b6ab931)	EW1=13	EW2=12	delta=1	exact=12	pass = True
+363	Discordant guid pair (006efc51-027d-4bd6-a2ca-d992afb32a91,70a10cb2-1b3a-4420-85ca-12a3a9050813)	EW1=8	EW2=7	delta=1	exact=7	pass = True
+367	Variation between guid pair (595f222e-2928-41c0-a7e3-979e2522ed9b,d58f8362-448d-46d2-b522-a24e256383c3)	EW1= >cutoff	EW2= 1	EW2 detail= 1 	exact = 1	pass = True
+367	Variation between guid pair (595f222e-2928-41c0-a7e3-979e2522ed9b,13e4ea49-0069-4cea-89bc-da99522696cc)	EW1= >cutoff	EW2= 0	EW2 detail= 0 	exact = 0	pass = True
+367	Variation between guid pair (595f222e-2928-41c0-a7e3-979e2522ed9b,e4143f4e-a5c1-4904-9188-d19b5ddaa1bb)	EW1= >cutoff	EW2= 0	EW2 detail= 0 	exact = 0	pass = True
+367	Variation between guid pair (595f222e-2928-41c0-a7e3-979e2522ed9b,9adfc971-05fd-40fa-b8ae-f75390ff591f)	EW1= >cutoff	EW2= 1	EW2 detail= 1 	exact = 1	pass = True
+367	Variation between guid pair (595f222e-2928-41c0-a7e3-979e2522ed9b,c7dc218c-60f5-46cc-a55a-fa023c853fd1)	EW1= >cutoff	EW2= 10	EW2 detail= 10 	exact = 10	pass = True
+371	Variation between guid pair (4679e031-fedc-47e1-bdd0-dd6c249f09df,1af451c2-0a1c-4be0-a3fe-87021f0565e1)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+372	Variation between guid pair (679fcac4-3cd1-40af-82f0-96778217ee56,cf01a50a-50fc-4d1e-8c67-5877a60fbb09)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+387	Discordant guid pair (fb591021-e4a5-43ed-8e35-3adff9559ddf,58ad7ebf-e9de-457d-8209-5036552020e0)	EW1=16	EW2=6	delta=10	exact=6	pass = True
+387	Discordant guid pair (fb591021-e4a5-43ed-8e35-3adff9559ddf,1e96358f-54ad-4ff3-904b-5914ead8a3ce)	EW1=6	EW2=5	delta=1	exact=5	pass = True
+387	Discordant guid pair (fb591021-e4a5-43ed-8e35-3adff9559ddf,0200c8f0-1fad-434c-b51d-01a07048e3cb)	EW1=19	EW2=8	delta=11	exact=8	pass = True
+387	Discordant guid pair (fb591021-e4a5-43ed-8e35-3adff9559ddf,c01a7690-7780-47d7-9ca8-af2150ae576d)	EW1=7	EW2=6	delta=1	exact=6	pass = True
+389	Variation between guid pair (d9b7e4c4-abd9-4c5f-a6e0-54970f19eec3,f418e8ae-af2a-43b1-8c05-eb4e5be83a01)	EW1= >cutoff	EW2= 7	EW2 detail= 7 	exact = 7	pass = True
+397	Discordant guid pair (6c474c91-fbab-4401-9c08-6a2254a74720,53e4cfcb-eecc-478a-a0bc-d8af3e14b1a3)	EW1=20	EW2=18	delta=2	exact=18	pass = True
+404	Variation between guid pair (84a3e03e-6879-49bb-8df5-2fa93015e064,0e33d927-2dba-4f00-b9be-b9358637ece7)	EW1= >cutoff	EW2= 2	EW2 detail= 2 	exact = 2	pass = True
+405	Discordant guid pair (9dcfc596-c3ea-4ca8-bcdb-81ca08b5df7a,b773fa46-dae8-40e8-a587-f952aa23eef8)	EW1=18	EW2=12	delta=6	exact=12	pass = True
+405	Discordant guid pair (9dcfc596-c3ea-4ca8-bcdb-81ca08b5df7a,4a919876-7076-40bf-8839-cfe3a5343f16)	EW1=20	EW2=14	delta=6	exact=14	pass = True
+406	Discordant guid pair (5aa39b19-f45b-4720-b85f-22fa6ba01429,eacb262a-0709-470b-98f2-583ef5ee4e6b)	EW1=18	EW2=17	delta=1	exact=17	pass = True
+416	Variation between guid pair (1054882d-f96c-4341-bafd-aa02edf7d925,508f9103-8ec5-462e-abff-51d3bfc659f1)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+420	Discordant guid pair (b160ea2b-09d3-4e33-8a79-c7122c27b36c,3f8ca8cc-91d4-4b43-b22c-6f3c3371cef5)	EW1=9	EW2=8	delta=1	exact=8	pass = True
+420	Discordant guid pair (b160ea2b-09d3-4e33-8a79-c7122c27b36c,8090d783-95c4-44cd-8d4c-65d9a8d385a7)	EW1=9	EW2=8	delta=1	exact=8	pass = True
+425	Discordant guid pair (93bc3c46-b7b8-45f7-bef7-008178f40acf,c69834ee-d3dd-4c84-bdca-3e01b1647827)	EW1=6	EW2=5	delta=1	exact=5	pass = True
+425	Discordant guid pair (93bc3c46-b7b8-45f7-bef7-008178f40acf,968e8e1e-f659-4de7-8872-c01e671d6b97)	EW1=7	EW2=0	delta=7	exact=0	pass = True
+425	Discordant guid pair (93bc3c46-b7b8-45f7-bef7-008178f40acf,5045080c-a985-446b-b07c-6d08094563c3)	EW1=7	EW2=6	delta=1	exact=6	pass = True
+425	Discordant guid pair (93bc3c46-b7b8-45f7-bef7-008178f40acf,11fdd104-a80d-472c-b525-10bc07f970a9)	EW1=7	EW2=6	delta=1	exact=6	pass = True
+426	Discordant guid pair (e1819720-d554-44b6-8b64-046fee2ae10c,b58dc6d4-fa72-4d16-9538-035d36d198d4)	EW1=11	EW2=8	delta=3	exact=8	pass = True
+429	Discordant guid pair (e0a1c1b9-6ec0-40b9-95a1-386dc49f4908,58ad7ebf-e9de-457d-8209-5036552020e0)	EW1=14	EW2=4	delta=10	exact=4	pass = True
+429	Discordant guid pair (e0a1c1b9-6ec0-40b9-95a1-386dc49f4908,1e96358f-54ad-4ff3-904b-5914ead8a3ce)	EW1=5	EW2=4	delta=1	exact=4	pass = True
+429	Discordant guid pair (e0a1c1b9-6ec0-40b9-95a1-386dc49f4908,0200c8f0-1fad-434c-b51d-01a07048e3cb)	EW1=17	EW2=6	delta=11	exact=6	pass = True
+429	Discordant guid pair (e0a1c1b9-6ec0-40b9-95a1-386dc49f4908,c01a7690-7780-47d7-9ca8-af2150ae576d)	EW1=5	EW2=4	delta=1	exact=4	pass = True
+432	Variation between guid pair (4a5f874f-74fa-483e-aabc-d21bb2103ad5,cf01a50a-50fc-4d1e-8c67-5877a60fbb09)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+432	Variation between guid pair (4a5f874f-74fa-483e-aabc-d21bb2103ad5,a7834db2-f224-4342-9ce3-69539995994e)	EW1= >cutoff	EW2= 19	EW2 detail= 19 	exact = 19	pass = True
+457	Discordant guid pair (0a383e37-699d-45c4-af4a-8f03a6bce191,00a94d65-96a3-4eab-9ee1-8d65435c69df)	EW1=11	EW2=4	delta=7	exact=4	pass = True
+459	Variation between guid pair (70e7c37d-3ecf-4452-a9c4-76dd4f8cf379,f4d22646-6018-4392-a4cb-3b2ca2e588fd)	EW1= >cutoff	EW2= 4	EW2 detail= 4 	exact = 4	pass = True
+460	Variation between guid pair (038f05ed-bd5f-4a6f-b64b-e864574b80d3,92e5062b-7b67-4ea6-9a1b-95137b6ab931)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+461	Discordant guid pair (fbe028e3-fb9b-4e71-a6bf-5b6fda1173d6,f269bf4e-6435-48bd-87e5-8ee50ec897a3)	EW1=14	EW2=12	delta=2	exact=12	pass = True
+461	Discordant guid pair (fbe028e3-fb9b-4e71-a6bf-5b6fda1173d6,96148375-d833-4c9c-a844-1095539969f2)	EW1=6	EW2=5	delta=1	exact=5	pass = True
+461	Discordant guid pair (fbe028e3-fb9b-4e71-a6bf-5b6fda1173d6,17056b8f-a3e9-4769-86e6-97473140a735)	EW1=12	EW2=11	delta=1	exact=11	pass = True
+461	Discordant guid pair (fbe028e3-fb9b-4e71-a6bf-5b6fda1173d6,77821e24-17b2-4291-baf8-d191473ff217)	EW1=6	EW2=5	delta=1	exact=5	pass = True
+461	Discordant guid pair (fbe028e3-fb9b-4e71-a6bf-5b6fda1173d6,f0b10398-8c99-408a-860c-92ea01fb3486)	EW1=17	EW2=15	delta=2	exact=15	pass = True
+472	Discordant guid pair (ce3c1382-95a0-489a-84cc-7682814e8d32,70af9607-8e2c-42df-840b-4cc39e003cda)	EW1=16	EW2=13	delta=3	exact=13	pass = True
+472	Discordant guid pair (ce3c1382-95a0-489a-84cc-7682814e8d32,87fe6ac6-69a6-4242-8052-5605b3c51c5d)	EW1=12	EW2=10	delta=2	exact=10	pass = True
+472	Discordant guid pair (ce3c1382-95a0-489a-84cc-7682814e8d32,3b510c78-88aa-49a6-991a-6f77f041fb93)	EW1=12	EW2=10	delta=2	exact=10	pass = True
+472	Discordant guid pair (ce3c1382-95a0-489a-84cc-7682814e8d32,f631a25f-1f9e-49dc-81cb-5db3b714fa2c)	EW1=18	EW2=17	delta=1	exact=17	pass = True
+472	Discordant guid pair (ce3c1382-95a0-489a-84cc-7682814e8d32,b1baa819-9b51-4f50-ba89-84b2f2b99ca4)	EW1=14	EW2=12	delta=2	exact=12	pass = True
+472	Discordant guid pair (ce3c1382-95a0-489a-84cc-7682814e8d32,eba0ce2f-87f4-44e6-b178-fdf43d64d3f1)	EW1=11	EW2=9	delta=2	exact=9	pass = True
+473	Discordant guid pair (b9c191b3-d34c-4832-9675-ca751bd32005,58ad7ebf-e9de-457d-8209-5036552020e0)	EW1=15	EW2=5	delta=10	exact=5	pass = True
+473	Discordant guid pair (b9c191b3-d34c-4832-9675-ca751bd32005,1e96358f-54ad-4ff3-904b-5914ead8a3ce)	EW1=6	EW2=5	delta=1	exact=5	pass = True
+473	Discordant guid pair (b9c191b3-d34c-4832-9675-ca751bd32005,0200c8f0-1fad-434c-b51d-01a07048e3cb)	EW1=18	EW2=7	delta=11	exact=7	pass = True
+473	Discordant guid pair (b9c191b3-d34c-4832-9675-ca751bd32005,c01a7690-7780-47d7-9ca8-af2150ae576d)	EW1=6	EW2=5	delta=1	exact=5	pass = True
+481	Variation between guid pair (60f8d715-1b4c-4504-a0af-6c3f3bc20e2e,65e2cb8b-5d6e-4ffc-a6ce-e9cf1b701fd6)	EW1= >cutoff	EW2= 18	EW2 detail= 18 	exact = 18	pass = True
+483	Discordant guid pair (489fa88c-e4fa-40b2-b3e9-3cb848642b27,69f602b1-a826-4c31-8cc0-56775e3bcbc4)	EW1=10	EW2=7	delta=3	exact=7	pass = True
+485	Discordant guid pair (d6e993b7-c59d-414d-afce-6d62dc4c6c14,42e2d8a0-cda6-4e76-976e-a8e153764c0a)	EW1=8	EW2=7	delta=1	exact=7	pass = True
+486	Discordant guid pair (005665b8-d2db-43cd-a098-78357273ab56,58ad7ebf-e9de-457d-8209-5036552020e0)	EW1=13	EW2=3	delta=10	exact=3	pass = True
+486	Discordant guid pair (005665b8-d2db-43cd-a098-78357273ab56,1e96358f-54ad-4ff3-904b-5914ead8a3ce)	EW1=4	EW2=3	delta=1	exact=3	pass = True
+486	Discordant guid pair (005665b8-d2db-43cd-a098-78357273ab56,0200c8f0-1fad-434c-b51d-01a07048e3cb)	EW1=16	EW2=5	delta=11	exact=5	pass = True
+486	Discordant guid pair (005665b8-d2db-43cd-a098-78357273ab56,c01a7690-7780-47d7-9ca8-af2150ae576d)	EW1=4	EW2=3	delta=1	exact=3	pass = True
+488	Discordant guid pair (818f09e8-4644-4df5-b258-f8d2e6aad2c3,aa21d21b-85de-4587-b0ba-3142ab865ab5)	EW1=2	EW2=0	delta=2	exact=0	pass = True
+494	Discordant guid pair (6e224a9a-59bc-4024-9421-ae85f01b079e,3cc0e466-48ec-406f-bd93-30f193a488f3)	EW1=20	EW2=19	delta=1	exact=19	pass = True
+494	Discordant guid pair (6e224a9a-59bc-4024-9421-ae85f01b079e,8cac7c67-cde2-4311-9486-354dbba1c5f0)	EW1=20	EW2=19	delta=1	exact=19	pass = True
+494	Discordant guid pair (6e224a9a-59bc-4024-9421-ae85f01b079e,91ed8182-27aa-4a2b-907c-e35e410aaa9d)	EW1=20	EW2=19	delta=1	exact=19	pass = True
+494	Discordant guid pair (6e224a9a-59bc-4024-9421-ae85f01b079e,26ca3ddc-5b2d-49fe-bf5a-ac8d62b45fd0)	EW1=20	EW2=19	delta=1	exact=19	pass = True
+494	Discordant guid pair (6e224a9a-59bc-4024-9421-ae85f01b079e,feb2a530-729b-47cd-9cc5-680940e9f62e)	EW1=17	EW2=16	delta=1	exact=16	pass = True
+494	Discordant guid pair (6e224a9a-59bc-4024-9421-ae85f01b079e,e7f03e72-6060-4f17-9a36-08985b932b0d)	EW1=20	EW2=19	delta=1	exact=19	pass = True
+502	Discordant guid pair (b201fce2-de58-4ce3-8852-6cc020cbb648,c69834ee-d3dd-4c84-bdca-3e01b1647827)	EW1=5	EW2=4	delta=1	exact=4	pass = True
+502	Discordant guid pair (b201fce2-de58-4ce3-8852-6cc020cbb648,968e8e1e-f659-4de7-8872-c01e671d6b97)	EW1=7	EW2=0	delta=7	exact=0	pass = True
+502	Discordant guid pair (b201fce2-de58-4ce3-8852-6cc020cbb648,5045080c-a985-446b-b07c-6d08094563c3)	EW1=6	EW2=5	delta=1	exact=5	pass = True
+502	Discordant guid pair (b201fce2-de58-4ce3-8852-6cc020cbb648,11fdd104-a80d-472c-b525-10bc07f970a9)	EW1=6	EW2=5	delta=1	exact=5	pass = True
+507	Discordant guid pair (751fc42d-a28c-43bc-a78d-8fd742ec3734,ca26b662-a104-4038-9edc-287dbaa47ffd)	EW1=12	EW2=10	delta=2	exact=10	pass = True
+513	Discordant guid pair (933843f9-b8fb-4c23-a8e2-a0a2560786e1,c69834ee-d3dd-4c84-bdca-3e01b1647827)	EW1=6	EW2=5	delta=1	exact=5	pass = True
+513	Discordant guid pair (933843f9-b8fb-4c23-a8e2-a0a2560786e1,968e8e1e-f659-4de7-8872-c01e671d6b97)	EW1=7	EW2=0	delta=7	exact=0	pass = True
+513	Discordant guid pair (933843f9-b8fb-4c23-a8e2-a0a2560786e1,5045080c-a985-446b-b07c-6d08094563c3)	EW1=7	EW2=6	delta=1	exact=6	pass = True
+513	Discordant guid pair (933843f9-b8fb-4c23-a8e2-a0a2560786e1,11fdd104-a80d-472c-b525-10bc07f970a9)	EW1=7	EW2=6	delta=1	exact=6	pass = True
+524	Discordant guid pair (b1cd618d-711d-4b54-b343-958ca9107ca3,c69834ee-d3dd-4c84-bdca-3e01b1647827)	EW1=6	EW2=5	delta=1	exact=5	pass = True
+524	Discordant guid pair (b1cd618d-711d-4b54-b343-958ca9107ca3,968e8e1e-f659-4de7-8872-c01e671d6b97)	EW1=7	EW2=0	delta=7	exact=0	pass = True
+524	Discordant guid pair (b1cd618d-711d-4b54-b343-958ca9107ca3,5045080c-a985-446b-b07c-6d08094563c3)	EW1=7	EW2=6	delta=1	exact=6	pass = True
+524	Discordant guid pair (b1cd618d-711d-4b54-b343-958ca9107ca3,11fdd104-a80d-472c-b525-10bc07f970a9)	EW1=7	EW2=6	delta=1	exact=6	pass = True
+528	Discordant guid pair (f0e3d0c1-f667-47b7-a48c-f80e48380c02,30c2805c-3731-4c53-b39b-a3cea19055d9)	EW1=12	EW2=11	delta=1	exact=11	pass = True
+528	Discordant guid pair (f0e3d0c1-f667-47b7-a48c-f80e48380c02,224a59fc-c945-4024-902a-263b70ed5b2c)	EW1=19	EW2=18	delta=1	exact=18	pass = True
+532	Discordant guid pair (ee4810e6-16ed-47af-a80f-23eb2ecb4f38,c69834ee-d3dd-4c84-bdca-3e01b1647827)	EW1=6	EW2=5	delta=1	exact=5	pass = True
+532	Discordant guid pair (ee4810e6-16ed-47af-a80f-23eb2ecb4f38,968e8e1e-f659-4de7-8872-c01e671d6b97)	EW1=7	EW2=0	delta=7	exact=0	pass = True
+532	Discordant guid pair (ee4810e6-16ed-47af-a80f-23eb2ecb4f38,5045080c-a985-446b-b07c-6d08094563c3)	EW1=7	EW2=6	delta=1	exact=6	pass = True
+532	Discordant guid pair (ee4810e6-16ed-47af-a80f-23eb2ecb4f38,11fdd104-a80d-472c-b525-10bc07f970a9)	EW1=7	EW2=6	delta=1	exact=6	pass = True
+533	Discordant guid pair (155e5a02-b384-41b5-b039-50fcbca5755c,f27459cb-773c-4762-899e-a6ad37445de1)	EW1=1	EW2=0	delta=1	exact=0	pass = True
+533	Discordant guid pair (155e5a02-b384-41b5-b039-50fcbca5755c,a6c66dca-713c-4105-b490-dc2c06473f4f)	EW1=1	EW2=0	delta=1	exact=0	pass = True
+534	Variation between guid pair (dba26538-d29d-4cb4-ac27-d46e863f1a90,88dea649-3e74-4a1b-907b-330c272ca7cf)	EW1= >cutoff	EW2= 19	EW2 detail= 19 	exact = 19	pass = True
+534	Variation between guid pair (dba26538-d29d-4cb4-ac27-d46e863f1a90,3f834f0a-5bba-4191-ae1f-9127aa310328)	EW1= >cutoff	EW2= 18	EW2 detail= 18 	exact = 18	pass = True
+543	Variation between guid pair (008b3c08-1077-4ebe-a879-b0d96bbf6344,823e80c1-0929-49cb-a1db-d1a5f81256a8)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+557	Discordant guid pair (a513cc5e-f042-4978-98be-b5b456442a9f,89699c62-bc3c-44a0-b8b3-9e83a5bf947a)	EW1=5	EW2=0	delta=5	exact=0	pass = True
+557	Discordant guid pair (a513cc5e-f042-4978-98be-b5b456442a9f,5c1d3ca7-2285-4b31-9673-7c795c52e28f)	EW1=5	EW2=0	delta=5	exact=0	pass = True
+564	Discordant guid pair (c8f1cd17-fc5c-4427-9ed2-9283ef25f3e3,833dbc2b-fd50-4757-b01a-cdfb7298a74b)	EW1=15	EW2=14	delta=1	exact=14	pass = True
+576	Variation between guid pair (f6de37fa-b3c9-4a63-8e18-976d5762b0aa,d69b6292-e603-4136-99c2-bce53568d370)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+576	Variation between guid pair (f6de37fa-b3c9-4a63-8e18-976d5762b0aa,fe8402ed-7e29-4196-ac1a-c0da906fb1fb)	EW1= >cutoff	EW2= 19	EW2 detail= 19 	exact = 19	pass = True
+576	Variation between guid pair (f6de37fa-b3c9-4a63-8e18-976d5762b0aa,587c2a3a-d20b-4c00-8b43-17144394e88a)	EW1= >cutoff	EW2= 19	EW2 detail= 19 	exact = 19	pass = True
+580	Discordant guid pair (e74e7192-c1ca-49ad-808f-40b0db3c54a2,c69834ee-d3dd-4c84-bdca-3e01b1647827)	EW1=6	EW2=5	delta=1	exact=5	pass = True
+580	Discordant guid pair (e74e7192-c1ca-49ad-808f-40b0db3c54a2,968e8e1e-f659-4de7-8872-c01e671d6b97)	EW1=7	EW2=0	delta=7	exact=0	pass = True
+580	Discordant guid pair (e74e7192-c1ca-49ad-808f-40b0db3c54a2,5045080c-a985-446b-b07c-6d08094563c3)	EW1=7	EW2=6	delta=1	exact=6	pass = True
+580	Discordant guid pair (e74e7192-c1ca-49ad-808f-40b0db3c54a2,11fdd104-a80d-472c-b525-10bc07f970a9)	EW1=7	EW2=6	delta=1	exact=6	pass = True
+583	Variation between guid pair (983383dd-e159-4d50-b7e4-eaf0ecd22d0e,eb2c7ddb-3829-4b53-8e6d-da4641aa08e5)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+583	Variation between guid pair (983383dd-e159-4d50-b7e4-eaf0ecd22d0e,130d34fb-a105-4c83-9e6d-1764c277c689)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+583	Variation between guid pair (983383dd-e159-4d50-b7e4-eaf0ecd22d0e,31acd26f-ca3e-43c1-8656-404dc27849c8)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+583	Variation between guid pair (983383dd-e159-4d50-b7e4-eaf0ecd22d0e,e5b4a1dd-7ea3-4334-bdb4-67db2e065de6)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+583	Variation between guid pair (983383dd-e159-4d50-b7e4-eaf0ecd22d0e,bae21443-ec3a-47c4-b72a-63d5245d31fd)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+583	Variation between guid pair (983383dd-e159-4d50-b7e4-eaf0ecd22d0e,7ca1cf9a-0f3f-45d0-b1f3-c9704cc4e185)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+583	Variation between guid pair (983383dd-e159-4d50-b7e4-eaf0ecd22d0e,9751ffd9-1a0f-4f3f-b255-ef68f0fc90d5)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+583	Variation between guid pair (983383dd-e159-4d50-b7e4-eaf0ecd22d0e,9d3d33b5-eb65-4b97-b8dd-0c0e233d7d3a)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+583	Variation between guid pair (983383dd-e159-4d50-b7e4-eaf0ecd22d0e,0a06532d-3a5f-4b73-a3d1-a5a6de3cefe2)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+583	Variation between guid pair (983383dd-e159-4d50-b7e4-eaf0ecd22d0e,73be554a-2675-414b-9bb3-3b1dd7200c48)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+583	Variation between guid pair (983383dd-e159-4d50-b7e4-eaf0ecd22d0e,1fdc7480-1de8-4248-9c6f-84879acfebb6)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+583	Variation between guid pair (983383dd-e159-4d50-b7e4-eaf0ecd22d0e,ebee3df5-ecf8-4d72-980b-b516d338064c)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+583	Variation between guid pair (983383dd-e159-4d50-b7e4-eaf0ecd22d0e,337db15a-a8e4-458c-b341-a575448a6d5c)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+583	Variation between guid pair (983383dd-e159-4d50-b7e4-eaf0ecd22d0e,1dce40b5-9b7c-4efe-a63e-e9edb9eac00e)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+583	Variation between guid pair (983383dd-e159-4d50-b7e4-eaf0ecd22d0e,8e648242-4104-46d9-ac9e-2782a6dcdcd1)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+583	Variation between guid pair (983383dd-e159-4d50-b7e4-eaf0ecd22d0e,619a1f32-192d-45b1-a5a3-6ffdd7aa28be)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+583	Variation between guid pair (983383dd-e159-4d50-b7e4-eaf0ecd22d0e,1fa73ea9-6fd4-46b1-87d8-83551650fd3d)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+583	Variation between guid pair (983383dd-e159-4d50-b7e4-eaf0ecd22d0e,d0193acd-f240-4d99-8df9-3fa2ecf65bc9)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+583	Variation between guid pair (983383dd-e159-4d50-b7e4-eaf0ecd22d0e,6a0a686f-eb72-47ab-99a4-b292c973bde4)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+583	Variation between guid pair (983383dd-e159-4d50-b7e4-eaf0ecd22d0e,524e4ee9-a9e2-417c-836d-f187a156798d)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+583	Variation between guid pair (983383dd-e159-4d50-b7e4-eaf0ecd22d0e,134ff381-6e1d-405b-a807-57dc05db7d65)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+583	Variation between guid pair (983383dd-e159-4d50-b7e4-eaf0ecd22d0e,abfba86a-347f-44eb-9b66-4add4afe20e6)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+583	Variation between guid pair (983383dd-e159-4d50-b7e4-eaf0ecd22d0e,70ae23ad-b68a-47a9-b81a-43c7567fe1a5)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+583	Variation between guid pair (983383dd-e159-4d50-b7e4-eaf0ecd22d0e,5b86544f-b363-475b-bc23-f5d332f82dd0)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+583	Variation between guid pair (983383dd-e159-4d50-b7e4-eaf0ecd22d0e,1f793659-c4e4-4320-aed1-80c34688ac38)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+583	Variation between guid pair (983383dd-e159-4d50-b7e4-eaf0ecd22d0e,542ccf30-b01a-416a-ad16-409ef626805b)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+583	Variation between guid pair (983383dd-e159-4d50-b7e4-eaf0ecd22d0e,859c2dc2-0ea4-49b2-8aa4-052c50f8c4e7)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+583	Variation between guid pair (983383dd-e159-4d50-b7e4-eaf0ecd22d0e,fdac7194-8ad7-4c4d-9807-b0801f7f82e5)	EW1= >cutoff	EW2= 19	EW2 detail= 19 	exact = 19	pass = True
+583	Variation between guid pair (983383dd-e159-4d50-b7e4-eaf0ecd22d0e,ff113d0c-ed9d-445c-b0aa-9d15bb7aab95)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+583	Variation between guid pair (983383dd-e159-4d50-b7e4-eaf0ecd22d0e,bb6cad3e-a1fc-41b7-98b2-f5a603d3c226)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+587	Discordant guid pair (17f7e0dc-54be-4cb5-a163-448cc9f89126,f269bf4e-6435-48bd-87e5-8ee50ec897a3)	EW1=15	EW2=13	delta=2	exact=13	pass = True
+587	Discordant guid pair (17f7e0dc-54be-4cb5-a163-448cc9f89126,96148375-d833-4c9c-a844-1095539969f2)	EW1=7	EW2=6	delta=1	exact=6	pass = True
+587	Discordant guid pair (17f7e0dc-54be-4cb5-a163-448cc9f89126,17056b8f-a3e9-4769-86e6-97473140a735)	EW1=13	EW2=12	delta=1	exact=12	pass = True
+587	Discordant guid pair (17f7e0dc-54be-4cb5-a163-448cc9f89126,77821e24-17b2-4291-baf8-d191473ff217)	EW1=7	EW2=6	delta=1	exact=6	pass = True
+587	Discordant guid pair (17f7e0dc-54be-4cb5-a163-448cc9f89126,f0b10398-8c99-408a-860c-92ea01fb3486)	EW1=18	EW2=16	delta=2	exact=16	pass = True
+602	Variation between guid pair (07650caa-7bdf-4cc9-b310-ebf9e18b636d,ddf5bcab-7691-4668-a54a-c28a2737fb8a)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+609	Variation between guid pair (1d937583-18bf-4fc7-913e-b9ce18758be6,ad0820c6-5e14-42fc-92d0-3f82fbe6f163)	EW1= >cutoff	EW2= 7	EW2 detail= 7 	exact = 7	pass = True
+609	Variation between guid pair (1d937583-18bf-4fc7-913e-b9ce18758be6,e40c9223-5f79-4ee4-8455-3ee81df24b43)	EW1= >cutoff	EW2= 6	EW2 detail= 6 	exact = 6	pass = True
+628	Discordant guid pair (52e6f519-f8c8-4d7c-8e87-f44bd6f4203b,c69834ee-d3dd-4c84-bdca-3e01b1647827)	EW1=5	EW2=4	delta=1	exact=4	pass = True
+628	Discordant guid pair (52e6f519-f8c8-4d7c-8e87-f44bd6f4203b,968e8e1e-f659-4de7-8872-c01e671d6b97)	EW1=7	EW2=0	delta=7	exact=0	pass = True
+628	Discordant guid pair (52e6f519-f8c8-4d7c-8e87-f44bd6f4203b,5045080c-a985-446b-b07c-6d08094563c3)	EW1=6	EW2=5	delta=1	exact=5	pass = True
+628	Discordant guid pair (52e6f519-f8c8-4d7c-8e87-f44bd6f4203b,11fdd104-a80d-472c-b525-10bc07f970a9)	EW1=6	EW2=5	delta=1	exact=5	pass = True
+636	Variation between guid pair (191a04c5-7dd2-4167-b720-76f1523f63e5,23bca2ab-d42e-4788-9860-5ef063ec1220)	EW1= >cutoff	EW2= 18	EW2 detail= 18 	exact = 18	pass = True
+636	Variation between guid pair (191a04c5-7dd2-4167-b720-76f1523f63e5,660fe734-650d-44db-91ec-e06681d8c7d0)	EW1= >cutoff	EW2= 6	EW2 detail= 6 	exact = 6	pass = True
+636	Variation between guid pair (191a04c5-7dd2-4167-b720-76f1523f63e5,a65804f3-82b3-42d5-8154-5995c45fb744)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+636	Variation between guid pair (191a04c5-7dd2-4167-b720-76f1523f63e5,78487f59-78a3-499c-b68c-dde840700890)	EW1= >cutoff	EW2= 18	EW2 detail= 18 	exact = 18	pass = True
+636	Variation between guid pair (191a04c5-7dd2-4167-b720-76f1523f63e5,b8005e28-d601-419e-b4e0-541679f2b258)	EW1= >cutoff	EW2= 18	EW2 detail= 18 	exact = 18	pass = True
+641	Variation between guid pair (901feb86-b414-4a0e-b716-9cb52a1e5538,3616f997-2cfe-46ea-bfc0-42e6cd8b916e)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+643	Discordant guid pair (e1280559-9485-470d-b518-ad176c2404f6,29995956-e4d0-49ad-8686-1725095a0352)	EW1=19	EW2=17	delta=2	exact=17	pass = True
+643	Discordant guid pair (e1280559-9485-470d-b518-ad176c2404f6,ef58170c-dc6b-46ec-b0c2-8d8cf8ea7bdf)	EW1=18	EW2=17	delta=1	exact=17	pass = True
+643	Discordant guid pair (e1280559-9485-470d-b518-ad176c2404f6,758213a6-ed58-4415-9ec0-36d54bfcddab)	EW1=19	EW2=18	delta=1	exact=18	pass = True
+643	Discordant guid pair (e1280559-9485-470d-b518-ad176c2404f6,a2d82a28-8b1c-4593-8c7a-3e778dd24d87)	EW1=19	EW2=18	delta=1	exact=18	pass = True
+643	Discordant guid pair (e1280559-9485-470d-b518-ad176c2404f6,dd308b91-3d21-455e-8385-a911debfb9e3)	EW1=5	EW2=4	delta=1	exact=4	pass = True
+645	Discordant guid pair (00bacb99-72cd-418e-8b31-e6adcb98ac0a,c69834ee-d3dd-4c84-bdca-3e01b1647827)	EW1=5	EW2=4	delta=1	exact=4	pass = True
+645	Discordant guid pair (00bacb99-72cd-418e-8b31-e6adcb98ac0a,968e8e1e-f659-4de7-8872-c01e671d6b97)	EW1=7	EW2=0	delta=7	exact=0	pass = True
+645	Discordant guid pair (00bacb99-72cd-418e-8b31-e6adcb98ac0a,5045080c-a985-446b-b07c-6d08094563c3)	EW1=6	EW2=5	delta=1	exact=5	pass = True
+645	Discordant guid pair (00bacb99-72cd-418e-8b31-e6adcb98ac0a,11fdd104-a80d-472c-b525-10bc07f970a9)	EW1=6	EW2=5	delta=1	exact=5	pass = True
+648	Variation between guid pair (4a7c7793-50dd-4f4e-bd35-e64ef19128a7,975187aa-96f6-4f7a-aa1c-627d52179c95)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+648	Variation between guid pair (4a7c7793-50dd-4f4e-bd35-e64ef19128a7,62661454-739d-47e1-8695-ad80d1eb5f50)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+648	Variation between guid pair (4a7c7793-50dd-4f4e-bd35-e64ef19128a7,653dc738-86c8-4e62-af8f-c50f9c7b85f8)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+648	Variation between guid pair (4a7c7793-50dd-4f4e-bd35-e64ef19128a7,7dd1f815-453d-46c8-9d9a-9fd153db9f55)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+648	Variation between guid pair (4a7c7793-50dd-4f4e-bd35-e64ef19128a7,542ccf30-b01a-416a-ad16-409ef626805b)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+648	Variation between guid pair (4a7c7793-50dd-4f4e-bd35-e64ef19128a7,2bf38cb7-5954-4535-b8bb-dbfd6e9633f1)	EW1= >cutoff	EW2= 17	EW2 detail= 17 	exact = 17	pass = True
+648	Variation between guid pair (4a7c7793-50dd-4f4e-bd35-e64ef19128a7,73be554a-2675-414b-9bb3-3b1dd7200c48)	EW1= >cutoff	EW2= 19	EW2 detail= 19 	exact = 19	pass = True
+648	Variation between guid pair (4a7c7793-50dd-4f4e-bd35-e64ef19128a7,130d34fb-a105-4c83-9e6d-1764c277c689)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+648	Variation between guid pair (4a7c7793-50dd-4f4e-bd35-e64ef19128a7,1fdc7480-1de8-4248-9c6f-84879acfebb6)	EW1= >cutoff	EW2= 19	EW2 detail= 19 	exact = 19	pass = True
+648	Variation between guid pair (4a7c7793-50dd-4f4e-bd35-e64ef19128a7,85da69fa-6156-41be-8ae8-f7b8572ca80f)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+648	Variation between guid pair (4a7c7793-50dd-4f4e-bd35-e64ef19128a7,0c1acfb2-0d70-47bf-8892-9784775d2492)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+648	Variation between guid pair (4a7c7793-50dd-4f4e-bd35-e64ef19128a7,d0193acd-f240-4d99-8df9-3fa2ecf65bc9)	EW1= >cutoff	EW2= 18	EW2 detail= 18 	exact = 18	pass = True
+648	Variation between guid pair (4a7c7793-50dd-4f4e-bd35-e64ef19128a7,6798f368-c868-4b66-92a6-e82af267241d)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+648	Variation between guid pair (4a7c7793-50dd-4f4e-bd35-e64ef19128a7,e30e38b7-0a68-45b9-91d2-23956574028d)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+648	Variation between guid pair (4a7c7793-50dd-4f4e-bd35-e64ef19128a7,cb443d0c-a7b3-4608-bade-6defdd42d185)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+648	Variation between guid pair (4a7c7793-50dd-4f4e-bd35-e64ef19128a7,917c8971-c781-4fcf-9c89-d45714120470)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+648	Variation between guid pair (4a7c7793-50dd-4f4e-bd35-e64ef19128a7,a5963c8d-e9a4-4686-9457-413aaeb7b9d7)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True
+648	Variation between guid pair (4a7c7793-50dd-4f4e-bd35-e64ef19128a7,fdf57db9-e0f2-47bc-82b7-1a2a68225ae2)	EW1= >cutoff	EW2= 20	EW2 detail= 20 	exact = 20	pass = True

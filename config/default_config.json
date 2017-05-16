@@ -1,0 +1,18 @@
+{
+"DESCRIPTION":"A test server operating in ../unittest_tmp, only suitable for testing",
+"PORT":8184,
+"IP":"127.0.0.1",
+"INPUTREF":"../reference/reference.fasta",
+"PERSISTENCEDIR":"../unittest_tmp/",
+"EXCLUDEFILE":"../reference/TB.txt",
+"SNPDIR":"../unittest_tmp",
+"DEBUGMODE":0,
+"SERVERNAME":"TBSNP",      
+"EDGEDB_CONNSTRING":"sqlite:///<<DEFAULT>>/{0}.db",
+"FNPERSISTENCE_CONNSTRING":"sqlite:///<<DEFAULT>>/findNeighbour.db",
+"MAXN_STORAGE":100000,
+"NCOMPRESSIONCUTOFF":100000,
+"MASKER":["rrl","rrs"],						
+"LOGFILE":"../unittest_tmp/logfile.log",
+"LOGLEVEL":"INFO"	
+}
