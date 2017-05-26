@@ -7,9 +7,11 @@ i.e. the first and only argument.
 
 An example of such a file would read:
 {
-"DESCRIPTION":"A test server operating in ../unittest_tmp, only suitable for testing",
-"PORT":8184,
-"GLOBPATH":"/home/dwyllie/data/relatednesstest/TB_FASTA/*_v3.fasta" }
+	"DESCRIPTION":"A test server operating in ../unittest_tmp, only suitable for testing",
+	"PORT":8185,
+	"IP":"127.0.0.1",
+	"TMP_FASTA":"/home/compass/tmpFasta", # to covert fasta.gz to fasta
+	"GLOBPATH":"/home/compass/data/relatednesstest/TB_FASTA/*_v3.fasta" }
 """
 import logging
 import readline
@@ -24,6 +26,7 @@ import sys
 import os
 import glob
 import sys
+import ntpath
 from Bio import SeqIO
 
 # set up logging
@@ -40,8 +43,8 @@ with open(json_config_file, 'rt') as f:
 if not type(CONFIG)==dict:
 	raise KeyError("CONFIG must be either a dictionary or a JSON string encoding a dictionary.  It is: {0}".format(CONFIG))
 	
-if not set(CONFIG.keys()) == set(['DESCRIPTION','IP','PORT','GLOBPATH']):
-	raise KeyError("The dictionary must have four components: DESCRIPTION, IP, PORT, and GLOBPATH.  The latter is passed to glob.glob to find the files.  The dictionary actually looks like this: {0}".format(CONFIG))
+if not set(CONFIG.keys()) == set(['DESCRIPTION','IP','PORT','TMP_FASTA','GLOBPATH']):
+	raise KeyError("The dictionary must have five components: DESCRIPTION, IP, PORT,TMP_FASTA and GLOBPATH.  The latter is passed to glob.glob to find the files.  The dictionary actually looks like this: {0}".format(CONFIG))
 
 # try to start the client.  Will throw and error if it cannot connect.
 # should wrap with try/catch to log to logfile, if any
@@ -51,7 +54,6 @@ try:
 except Exception as e:
 	logging.exception(e)
 	raise e
-
 
 logging.info("Connected, checking existing guids ...")
 guidlist = json.loads(client.get_all_guids())
@@ -63,19 +65,36 @@ nAdded=0
 
 logging.info("Connected, checking existing guids vs. those found using the glob pattern  ...")
 fastaFiles = glob.glob(CONFIG['GLOBPATH'])
-for fastaFile in fastaFiles:
+for fastaFileGz in fastaFiles:
+	#Check if the sample is already in EW
+	guid = str(ntpath.basename(fastaFileGz)[0:36])
+	if guid in guids:
+		print ('Sample ' + guid + ' is already in the database')
+		continue
+
+	#Convert fasta.gz to fasta to a tmp file
+	fastaFile=CONFIG['TMP_FASTA'] + ntpath.basename(fastaFileGz) 
+	fastaFile=fastaFile.replace('.gz','')
+	fo=open(fastaFile,'wb')
+        	# it appears that BioPython can't cope with reading the gzip file on the fly
+	with gzip.open(fastaFileGz,'rb') as fi:
+        	fileContent=fi.read()
+        	fo.write(fileContent)     # so we decompress it
+	fo.close()
+	#Process the tmp fasta file
 	with open(fastaFile, 'rt') as f:
 		for seq_record in SeqIO.parse(f, 'fasta'):
 			guid = str(os.path.basename(fastaFile)[0:36])
 			nTested += 1
 			if nTested % 250==0:
 				logging.info("{1} checked {0}".format(nTested, datetime.datetime.now()))
-			if not guid in guids:				
-				if not client.exist_sample(guid):
-					seq = str(seq_record.seq)
-					result = client.insert(guid,seq)
-					nAdded += 1
-		#if nTested>500:
-		#	break
+			if not client.exist_sample(guid):
+				seq = str(seq_record.seq)
+				print ('Inserting: ' + guid)
+				print ('					DONE') 
+				result = client.insert(guid,seq)
+				nAdded += 1
+	#Delete the tmp file
+	os.remove(fastaFile)
 
 logging.info("Scan finished.  Added {0}".format(nAdded))
