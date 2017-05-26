@@ -21,7 +21,7 @@ Dependencies
 * pandas
 * banyan
 * psycopg2 (if using postgres as database)
-* pymysql (if using mysqlas database)
+* pymysql (if using mysql as database)
 
 Database backend
 ----------------
