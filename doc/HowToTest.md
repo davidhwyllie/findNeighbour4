@@ -12,13 +12,16 @@ If you have two versions of python (e.g. python for 2.7, and python3 for python3
 Dependencies
 ------------
 
-* Python 3.5+  
+* Python 3.4+. You may need to install pip3 with: sudo apt-get install python3-pip. Then install the following packages:
 * BioPython  
 * sqlalchemy  
 * psutil  
-* queue  
+* queue
+* numpy
 * pandas
-* psycopg2 (if using postgres as a backend)
+* banyan
+* psycopg2 (if using postgres as database)
+* pymysql (if using mysqlas database)
 
 Database backend
 ----------------
@@ -74,8 +77,8 @@ The json file should look something like this
 ```
 {
 "DESCRIPTION":"The production server used for the PHE relatedness test",
-"PORT":8184,
-"IP":"127.0.0.1",
+"PORT":8185,
+"IP":"IP of the machine that run this service",
 "INPUTREF":"../reference/reference.fasta",
 "PERSISTENCEDIR":"/home/dwyllie/data/relatednesstest/TB_SERVER/persist",
 "EXCLUDEFILE":"../reference/TB.txt",
