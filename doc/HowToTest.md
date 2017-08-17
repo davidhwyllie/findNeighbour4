@@ -2,19 +2,6 @@
 Description of how to test and use the system
 =============================================
 
-Protocol for configuring a clean Linux ubuntu 14.04 instance
-============================================================
-sudo apt-get update
-sudo apt-get upgrade
-sudo apt-get install git
-sudo apt-get install python3
-sudo apt-get install -y python3-pip --force-yes
-sudo apt-get install build-essential libssl-dev libffi-dev python3-dev
-sudo apt-get install python3-numpy
-sudo apt-get install postgres postgres-dev-all
-sudo apt-get install postgres-client postgres-contrib YY
-sudo pip3 install sqlalchemy psutil numpy pandas banyan psycopg2 biopython --proxy http://[url of proxy]
-
 Python version
 --------------
 This application does not work with python 2.7.  
@@ -43,40 +30,133 @@ Please use this for initial testing; if you wish to use a more scalable database
 please see the section on configuration files below.
 
 
+Protocol for configuring a clean Linux ubuntu 14.04 instance
+============================================================
+Note that this protocol does not use a virtual environment.
+no
+```
+sudo apt-get update  
+sudo apt-get upgrade  
+sudo apt-get install git  
+sudo apt-get install python3  
+sudo apt-get install -y python3-pip --force-yes  
+sudo apt-get install build-essential libssl-dev libffi-dev python3-dev  
+sudo apt-get install python3-numpy  
+sudo apt-get install postgres postgres-dev-all  
+sudo apt-get install postgres-client postgres-contrib   
+
+# use of --proxy depends on whether the server is using one
+sudo pip3 install sqlalchemy --proxy http://[ip of proxy] 
+sudo pip3 install psutil --proxy http://[ip of proxy] 
+sudo pip3 install numpy --proxy http://[ip of proxy] 
+sudo pip3 install pandas --proxy http://[ip of proxy]
+sudo pip3 install banyan --proxy http://[ip of proxy] 
+sudo pip3 install psycopg2 --proxy http://[ip of proxy] 
+sudo pip3 install biopython --proxy http://[ip of proxy] 
+
+# optionally inform git of the proxy's location, depending whether there is one
+git config --global http.proxy http://[ip of proxy]
+
+# clone repository
+git clone https://github.com/davidhwyllie/findNeighbour2.git
+
+# configure postgres; assumes you're logged in as 'user'
+sudo -u postgres createuser user
+sudo -u postgres createuser ew2  
+sudo -u postgres createdb user   # may be unnecessary if you installed postgres, cf. https://stackoverflow.com/questions/17633422/psql-fatal-database-user-does-not-exist
+
+sudo -u postgres psql
+```
+
+The following commands are issued via the psql terminal.
+
+```
+CREATE ROLE ew2_daemon;
+CREATE DATABASE "TB_ew2_edges" WITH OWNER = ew2_daemon ENCODING = 'UTF8' TABLESPACE = pg_default LC_COLLATE='en_GB.UTF-8' LC_CTYPE='en_GB.UTF-8' CONNECTION LIMIT = -1;
+
+CREATE DATABASE "TB_ew2_edges"
+  WITH OWNER = ew2_daemon
+       ENCODING = 'UTF8'
+       TABLESPACE = pg_default
+       LC_COLLATE = 'en_GB.UTF-8'
+       LC_CTYPE = 'en_GB.UTF-8'
+       CONNECTION LIMIT = -1;
+
+COMMENT ON DATABASE "TB_ew2_edges"
+  IS 'Edge list maintained by the EW2 server';
+  
+CREATE DATABASE "TB_ew2_seqProps"
+  WITH OWNER = ew2_daemon
+       ENCODING = 'UTF8'
+       TABLESPACE = pg_default
+       LC_COLLATE = 'en_GB.UTF-8'
+       LC_CTYPE = 'en_GB.UTF-8'
+       CONNECTION LIMIT = -1;
+
+COMMENT ON DATABASE "TB_ew2_seqProps"
+  IS 'Meta-data (apart from edges) related to EW2 server sequences';
+  
+-- assign permissions to the EW2 daemon.  This assigns permission on all the tables;
+-- more restricted permissions are possible
+ALTER DEFAULT PRIVILEGES 
+    GRANT INSERT, SELECT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLES
+    TO ew2_daemon;
+    
+ALTER USER "ew2" WITH PASSWORD "ew2"
+```
+
+After this, please follow the below steps.
+
+
 Start the server
 -----------------
 
 To start the server, go to the findNeighbour2 *src* folder and run the command:
 
+
 ```
-nohup python webservice-server.py {configfile.json} &  
+python3 webservice-server.py
+```
+Note: This application doesn't work with python2, so be sure to use python 3.
+
+This will try to start the webserver with a default configuration using SQLite.  If it fails to start, it's probably due to missing dependencies (which it will report).  Install them, then try again.  When it works, terminate the server, and kill the process.
+
+The more general form for starting the server is:
+```
+nohup python3 webservice-server.py {configfile.json} &  
 ```
 
 * If {configfile.json} is not provided, then it will use a default config file, config/default_config.json  
 This is suitable for testing. It runs a test instance on localhost using an SQLite backend in ../unittest_Tmp/.
 ** It is unsuitable for production.  A warning is emitted if the server is running with this default configuration.  **  
 
-If it doesn't start, check the dependencies.
 
 Unit tests
 ----------
 
 At the moment, some kinds of unit testing assume a server is running.  Unit tests don't start the server.
-After this, you can run unittests:
+After this, you can run unit tests:
 
 ```
-
-python3 unittest -m webservice-server  
-python3 unittest -m seqComparer  
-python3 unittest -m ewsnpstore  
-python3 unittest -m FN  
+nohup python3 webservice-server.py &
+python3 -m unittest  webservice-server  
+python3 -m unittest  seqComparer  
+python3 -m unittest  ewsnpstore  
+python3 -m unittest  FN  
 
 ```
 All should pass.
+Now kill the webserver
 
+```
+ps -x
+kill -9 <pid>
+```
+  
 Using the technology without a web server
 -----------------------------------------
-Please see the example in testdrive.py.
+If you are interested in doing this (which is unlikely)
+please see the example in testdrive.py.
 This uses all the components of EW2 without the web server interface.
 
 Using the web server
@@ -86,7 +166,7 @@ You need to start the web server with a sensible configuration, e.g. something l
 nohup python3 webservice-server.py config/tbproduction.json
 ```
 
-The json file should look something like this
+The json file should look something like this:
 ```
 {
 "DESCRIPTION":"The production server used for the PHE relatedness test",
@@ -131,11 +211,13 @@ LOGFILE| The location the server logs to |/home/dwyllie/data/relatednesstest/TB_
 LOGLEVEL| The logging level used. |INFO
 SNPCEILING | The maximum SNP distance to report | 20
 
+Edit this as appropriate.
+
 Database backend
 ----------------
 If you wish to use a database, you will need to create two databases for each server.
 * Their names must match those in the configuration string in the config.json
-* Their permissions must be set correctly so that the user connecting to the database (in this case, the 'ew2' user, which is part of the 'ew2_daemon' group.)
+* Their permissions must be set correctly so that the user connecting to the database (in this case, the 'ew2' user, which is part of the 'ew2_' group.)
 has relevant permissions.
 * SQL configuring two postgres databases is shown below.
 
