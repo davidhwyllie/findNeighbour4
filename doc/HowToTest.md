@@ -2,6 +2,19 @@
 Description of how to test and use the system
 =============================================
 
+Protocol for configuring a clean Linux ubuntu 14.04 instance
+============================================================
+sudo apt-get update
+sudo apt-get upgrade
+sudo apt-get install git
+sudo apt-get install python3
+sudo apt-get install -y python3-pip --force-yes
+sudo apt-get install build-essential libssl-dev libffi-dev python3-dev
+sudo apt-get install python3-numpy
+sudo apt-get install postgres postgres-dev-all
+sudo apt-get install postgres-client postgres-contrib YY
+sudo pip3 install sqlalchemy psutil numpy pandas banyan psycopg2 biopython --proxy http://[url of proxy]
+
 Python version
 --------------
 This application does not work with python 2.7.  
