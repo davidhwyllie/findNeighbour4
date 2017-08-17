@@ -674,7 +674,7 @@ class Test_EWSnpStore_neighbours(unittest.TestCase):
             self.assertEqual(len(res),2)
         res0=ewc.neighboursOf('91273e18-da11-447d-8c54-6590faf6b754', cutoff=0)
         res12=ewc.neighboursOf('91273e18-da11-447d-8c54-6590faf6b754', cutoff=4)
-        self.assertEqual(len(res20['neighbours']),8)
+        self.assertEqual(len(res20['neighbours']),14)
         self.assertEqual(len(res12['neighbours']),2)
         self.assertEqual(len(res0['neighbours']),0)
             
@@ -758,7 +758,7 @@ class Test_EWSnpStore_neighbours_format2(unittest.TestCase):
         
         for res in res20['neighbours']:
             self.assertEqual(len(res),5)
-        self.assertEqual(len(res20['neighbours']),8)
+        self.assertEqual(len(res20['neighbours']),14)
         self.assertEqual(len(res12['neighbours']),2)
         self.assertEqual(len(res0['neighbours']),0)
             
