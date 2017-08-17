@@ -64,24 +64,28 @@ class ElephantWalk():
 		
 		An example CONFIG is below:
 		
-			{
-			"DESCRIPTION":"A test server operating in on localhost for tb testing",
-			"PORT":8184,
-			"IP":"127.0.0.1",
-			"INPUTREF":"../reference/reference.fasta",
-			"PERSISTENCEDIR":"/home/dwyllie/data/relatednesstest/TB_SERVER/persist",
-			"EXCLUDEFILE":"../reference/TB.txt",
-			"SNPDIR":"/home/dwyllie/data/relatednesstest/TB_SERVER/snp",
-			"DEBUGMODE":0,
-			"SERVERNAME":"TBSNP",      
-			"EDGEDB_CONNSTRING":"sqlite:///<<DEFAULT>>/{0}.db",
-			"FNPERSISTENCE_CONNSTRING":"sqlite:///<<DEFAULT>>/findNeighbour.db",
-			"MAXN_STORAGE":100000,
-			"NCOMPRESSIONCUTOFF":100000,
-			"MAXN_PROP_DEFAULT":0.85,
-			"LOGFILE":"/home/dwyllie/data/relatednesstest/TB_SERVER/log/logfile.log",
-			"LOGLEVEL":"INFO"	
-			}     
+		{			
+		"DESCRIPTION":"A test server operating in ../unittest_tmp, only suitable for testing",
+		"PORT":8184,
+		"IP":"127.0.0.1",
+		"INPUTREF":"../reference/TB-ref.fasta",
+		"PERSISTENCEDIR":"../unittest_tmp/",
+		"EXCLUDEFILE":"../reference/TB-exclude.txt",
+		"SNPDIR":"../unittest_tmp",
+		"DEBUGMODE":0,
+		"SERVERNAME":"TBSNP",
+		"EDGEDB_CONNSTRING":"sqlite:///<<DEFAULT>>/{0}.db",
+		"FNPERSISTENCE_CONNSTRING":"sqlite:///<<DEFAULT>>/findNeighbour.db",
+		"MAXN_STORAGE":100000,
+		"MAXN_PROP_DEFAULT":0.70,
+		"NCOMPRESSIONCUTOFF":100000,
+		"MASKER":["rrl","rrs"],
+		"LOGFILE":"../unittest_tmp/logfile.log",
+		"LOGLEVEL":"INFO",
+		"SNPCEILING": 20,
+		"MULTIPROCESSING":0
+		}
+    
 	
 		"""
 		
@@ -95,7 +99,7 @@ class ElephantWalk():
 		
 		# check that the keys of config are as expected.
 		required_keys=set(['IP','PORT','INPUTREF','PERSISTENCEDIR','EXCLUDEFILE','SNPDIR','DEBUGMODE','SERVERNAME',
-						   'EDGEDB_CONNSTRING','MAXN_STORAGE', 'MAXN_PROP_DEFAULT'])
+						   'EDGEDB_CONNSTRING','MAXN_STORAGE', 'MAXN_PROP_DEFAULT', 'SNPCEILING', 'MULTIPROCESSING'])
 		missing=required_keys-set(CONFIG.keys())
 		if not missing == set([]):
 			raise KeyError("Required keys were not found in CONFIG. Missing are {0}".format(missing))
