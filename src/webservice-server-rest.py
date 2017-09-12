@@ -36,6 +36,7 @@ python3 -m unittest webservice-server-rest
 """
  
 # import libraries
+import os
 import sys
 import requests
 import json
@@ -57,7 +58,7 @@ from urllib.parse import urlparse as urlparser
 from urllib.parse import urljoin as urljoiner
 
 # default parameters for unit testing only.
-RESTBASEURL = "http://127.0.0.1:5000"
+RESTBASEURL   = "http://127.0.0.1:5000"
 XMLRPCBASEURL = "http://127.0.0.1:8184"
 ISDEBUG = True
 
@@ -292,7 +293,7 @@ class test_get_all_guids_examination_time_2(unittest.TestCase):
         guidlist = json.loads(str(res.text))
         print(guidlist)
         self.assertEqual(res.status_code, 200)
-		
+
 @app.route('/sample/annotation/<string:reference>', methods=['GET'])
 @app.route('/v2/annotations', methods=['GET'])
 def get_guids_annotations(**kwargs):
@@ -540,7 +541,7 @@ if __name__ == '__main__':
 	if len(sys.argv) == 2:			 
 		try:
 			with open(sys.argv[1],'r') as f:
-				CONFIG_STRING=f.read()
+				CONFIG=f.read()
 		except FileNotFoundError:
 			raise FileNotFoundError("Passed one parameter, which should be a CONFIG file name; tried to open a config file at {0} but it does not exist ".format(sys.argv[1]))
 
@@ -561,8 +562,8 @@ if __name__ == '__main__':
 		isDebug = False
 		
 		# construct the required global variables
-		RESTBASEURL = "http://{0}:{1}".format(CONFIG['IP'], CONFIG['RES_PORT'], CONFIG['PORT'])
-		XMLRPCBASEURL = "http://{0}:{2}".format(CONFIG['IP'], CONFIG['RES_PORT'], CONFIG['PORT'])
+		RESTBASEURL = "http://{0}:{1}".format(CONFIG['IP'], CONFIG['REST_PORT'], CONFIG['PORT'])
+		XMLRPCBASEURL = "http://{0}:{2}".format(CONFIG['IP'], CONFIG['REST_PORT'], CONFIG['PORT'])
 		
 		########################### SET UP LOGGING #####################################
 		# defaults to INFO.  WARN and DEBUG also supported.
@@ -577,8 +578,9 @@ if __name__ == '__main__':
 
 		if 'LOGFILE' in CONFIG.keys():
 				logfile=os.path.abspath(CONFIG['LOGFILE'])
-				print("Logging to {0}".format(logfile))
-				app.logger.basicConfig(filename=logfile, format='%(asctime)s|%(levelname)s|%(message)s', level=loglevel)
+				print("Currently Logging to {0} disabled".format(logfile))
+				# currently disabled
+				#app.logger.basicConfig(filename=logfile, format='%(asctime)s|%(levelname)s|%(message)s', level=loglevel)
 		else:
 			warnings.warn("No LOGFILE entry in CONFIG, so no logging to file in place.")
 			app.logger.basicConfig(format='%(asctime)s|%(levelname)s|%(message)s', level=loglevel)
