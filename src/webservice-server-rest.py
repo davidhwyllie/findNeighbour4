@@ -61,7 +61,7 @@ from urllib.parse import urljoin as urljoiner
 RESTBASEURL   = "http://127.0.0.1:5000"
 XMLRPCBASEURL = "http://127.0.0.1:8184"
 ISDEBUG = True
-
+LISTEN_TO = '127.0.0.1'		# only local addresses
  
 app = Flask(__name__)
 app.logger.setLevel(logging.DEBUG)
@@ -239,6 +239,8 @@ class test_get_all_guids_2(unittest.TestCase):
 
 @app.route('/sample/guids_cutoff/<string:reference>/<float:cutoff>', methods=['GET'])		
 @app.route('/v2/guids_with_quality_over/<float:cutoff>', methods=['GET'])
+@app.route('/sample/guids_cutoff/<string:reference>/<int:cutoff>', methods=['GET'])		
+@app.route('/v2/guids_with_quality_over/<int:cutoff>', methods=['GET'])
 def get_all_filtered_guids(cutoff, **kwargs):
 	""" returns all guids with quality score >= cutoff.
 	reference, if provided, ignored."""
@@ -350,10 +352,13 @@ class test_exist_sample(unittest.TestCase):
 
 @app.route('/sample/walks/snp/<string:guid>/<string:reference>/<int:threshold>/<string:method>', methods = ['GET'])
 @app.route('/sample/findneighbour/snp/<string:guid>/<string:reference>/<int:threshold>/<string:method>/<float:cutoff>', methods = ['GET'])
+@app.route('/sample/findneighbour/snp/<string:guid>/<string:reference>/<int:threshold>/<string:method>/<int:cutoff>', methods = ['GET'])
 @app.route('/sample/neighbours/<string:guid>/<string:reference>/<int:threshold>/<string:method>', methods=['GET'])
 @app.route('/v2/<string:guid>/neighbours_within<int:threshold>', methods=['GET'])
 @app.route('/v2/<string:guid>/<int:threshold>/neighbours_within/<float:cutoff>', methods=['GET'])
 @app.route('/v2/<string:guid>/<int:threshold>/neighbours_within/<float:cutoff>/<int:returned_format>', methods=['GET'])
+@app.route('/v2/<string:guid>/<int:threshold>/neighbours_within/<int:cutoff>', methods=['GET'])
+@app.route('/v2/<string:guid>/<int:threshold>/neighbours_within/<int:cutoff>/<int:returned_format>', methods=['GET'])
 def query_get_value_snp(guid, threshold, **kwargs):
 	""" get a guid's neighbours, within a threshold """
 	
@@ -439,7 +444,7 @@ class test_query_get_value_snp_4(unittest.TestCase):
         self.assertTrue(("missing" in res.text) | ("Not found" in res.text))
         self.assertEqual(res.status_code, 404)
 
-@app.route('/<string:guid1>/<string:guid2>/detailed_comparison', methods=['GET'])
+@app.route('/v2/<string:guid1>/<string:guid2>/detailed_comparison', methods=['GET'])
 def get_detail(guid1, guid2):
 	""" detailed comparison of two guids """
 	try:
@@ -455,7 +460,7 @@ def get_detail(guid1, guid2):
 class test_query_get_detail(unittest.TestCase):
     """ tests route /query_get_detail """
     def runTest(self):
-        relpath = "/guid1/guid2/detailed_comparison"
+        relpath = "/v2/guid1/guid2/detailed_comparison"
         res = do_GET(relpath)
         print(res.text)
         self.assertEqual(res.text, '{"guid1_exists": false, "success": 0, "guid2_exists": false}')
@@ -559,8 +564,8 @@ if __name__ == '__main__':
 		if not missing == set([]):
 			raise KeyError("Required keys were not found in CONFIG. Missing are {0}".format(missing))
 
-		isDebug = False
-		
+		IS_DEBUG = False
+		LISTEN_TO = '0.0.0.0'
 		# construct the required global variables
 		RESTBASEURL = "http://{0}:{1}".format(CONFIG['IP'], CONFIG['REST_PORT'], CONFIG['PORT'])
 		XMLRPCBASEURL = "http://{0}:{2}".format(CONFIG['IP'], CONFIG['REST_PORT'], CONFIG['PORT'])
@@ -590,9 +595,9 @@ if __name__ == '__main__':
 		# use default which may be inappropriate in production
 		warnings.warn("No config file name supplied as a single argument; using a configuration suitable only for testing, not for production. ")
 		warnings.warn("This test configuration assumes the findNeighbour2 XMLRPC server is running on {0} ".format(XMLRPCBASEURL))
-		isDebug = True	
+		IS_DEBUG = True	
 
 
 	########################  START THE SERVER ###################################
 	app.logger.info("REST Server operating on {0} expects communication with XMLRPC server on {1}".format(RESTBASEURL, XMLRPCBASEURL))
-	app.run(debug=isDebug)
+	app.run(host=LISTEN_TO, debug=IS_DEBUG)
