@@ -484,11 +484,12 @@ def insert():
 
 	app.logger.critical("getting seq and guid")				
 	if 'seq' in data_keys and 'guid' in data_keys:
-		seq = str(payload['seq'])
-		guid = payload['guid']
+		guid = str(payload['guid'])
 		app.logger.critical(guid)
+		seq = str(payload['seq'])
 		app.logger.critical(seq[0:100])
-		
+
+		app.logger.critical("about to insert")	
 		result = client.insert(guid, seq)
 		app.logger.critical("completed insert")
 	else:
