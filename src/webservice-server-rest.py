@@ -469,35 +469,26 @@ class test_query_get_detail(unittest.TestCase):
 @app.route('/v2/insert', methods=['POST'])
 def insert():
 	""" inserts a guids with sequence, which it expects gzipped."""
-	#try:
-	app.logger.critical("Loading data keys")
-	data_keys = set()
-	for key in request.form.keys():
-		data_keys.add(key)
-	app.logger.critical("Loading payload")
-	payload = {}
-	for key in data_keys:
-		payload[key]= request.form[key]
-	app.logger.critical("Payload:",payload)		
-	app.logger.critical("getting client")
-	client=get_client()
-
-	app.logger.critical("getting seq and guid")				
-	if 'seq' in data_keys and 'guid' in data_keys:
-		guid = str(payload['guid'])
-		app.logger.critical(guid)
-		seq = str(payload['seq'])
-		app.logger.critical(seq[0:100])
-
-		app.logger.critical("about to insert")	
-		result = client.insert(guid, seq)
-		app.logger.critical("completed insert")
-	else:
-		abort(501, 'seq and guid are not present in the POSTed data {0}'.format(data_keys))
+	try:
+		data_keys = set()
+		for key in request.form.keys():
+			data_keys.add(key)
+		payload = {}
+		for key in data_keys:
+			payload[key]= request.form[key]
+		client=get_client()
 	
-	#except Exception as e:
-	#	print("Exception raised", e)
-	#	abort(500, e)
+		app.logger.critical("getting seq and guid")				
+		if 'seq' in data_keys and 'guid' in data_keys:
+			guid = str(payload['guid'])
+			seq = str(payload['seq'])
+			result = client.insert(guid, seq)
+		else:
+			abort(501, 'seq and guid are not present in the POSTed data {0}'.format(data_keys))
+		
+	except Exception as e:
+		print("Exception raised", e)
+		abort(500, e)
 		
 	return(str(result))
 
