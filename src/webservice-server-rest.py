@@ -470,27 +470,27 @@ class test_query_get_detail(unittest.TestCase):
 def insert():
 	""" inserts a guids with sequence, which it expects gzipped."""
 	#try:
-	app.logging.critical("Loading data keys")
+	app.logger.critical("Loading data keys")
 	data_keys = set()
 	for key in request.form.keys():
 		data_keys.add(key)
-	app.logging.critical("Loading payload")
+	app.logger.critical("Loading payload")
 	payload = {}
 	for key in data_keys:
 		payload[key]= request.form[key]
 		
-	app.logging.critical("getting client")
+	app.logger.critical("getting client")
 	client=get_client()
 
-	app.logging.critical("getting seq and guid")				
+	app.logger.critical("getting seq and guid")				
 	if 'seq' in data_keys and 'guid' in data_keys:
 		seq = str(payload['seq'])
 		guid = payload['guid']
-		app.logging.critical(guid)
-		app.logging.critical(seq[0:100])
+		app.logger.critical(guid)
+		app.logger.critical(seq[0:100])
 		
 		result = client.insert(guid, seq)
-		app.logging.critical("completed insert")
+		app.logger.critical("completed insert")
 	else:
 		abort(501, 'seq and guid are not present in the POSTed data {0}'.seq_data.keys())
 	
