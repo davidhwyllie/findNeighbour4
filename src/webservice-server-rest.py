@@ -473,7 +473,6 @@ def insert():
 	""" inserts a guids with sequence, which it expects gzipped."""
 	try:
 		client=get_client()
-		print(request.headers)		
 		seq_data = request.form
 		seq_data_keys = set()
 		for key in seq_data.keys():
@@ -482,7 +481,6 @@ def insert():
 		if 'seq' in seq_data_keys and 'guid' in seq_data_keys:
 			seq = seq_data['seq']
 			guid = seq_data['guid']
-			print(seq_data_keys, guid)
 			result = client.insert(guid, seq)
 		else:
 			abort(501, 'seq and guid are not present in the POSTed data {0}'.seq_data.keys())
@@ -492,6 +490,25 @@ def insert():
 		abort(500, e)
 		
 	return(str(result))
+
+@app.route('/v2/mirror', methods=['POST'])
+def mirror():
+	""" receives data, returns the dictionary it was passed. Takes no other action.
+	Used for testing that gateways etc don't remove data."""
+	try:
+		print(request.headers)		
+		data_keys = set()
+		for key in request.form.keys():
+			data_keys.add(key)
+		payload = {}
+		for key in data_keys:
+			payload[key]= request.form[key]
+	except Exception as e:
+		print("Exception raised", e)
+		abort(500, e)		
+			
+	return(json.dumps(payload))
+
 class test_insert(unittest.TestCase):
     """ tests route /v2/insert """
     def runTest(self):
@@ -521,6 +538,18 @@ class test_insert(unittest.TestCase):
         relpath = "/v2/{0}/exists".format(guid_to_insert)
         res = do_GET(relpath)
         self.assertEqual(res.text, 'True')
+
+class test_mirror(unittest.TestCase):
+    """ tests route /v2/mirror """
+    def runTest(self):
+        
+        relpath = "/v2/mirror"
+        payload = {'guid':'1','seq':"ACTG"}
+        res = do_POST(relpath, payload = payload)
+        res_dict = json.loads(res.text)
+        self.assertEqual(payload, res_dict)
+        self.assertTrue(isinstance(res_dict, dict))
+        print(res.text)
 
 @app.route('/v2/neighbours_within/<int:threshold>', methods=['GET'])
 def get_all_values(threshold):
