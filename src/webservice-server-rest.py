@@ -539,6 +539,7 @@ class test_insert(unittest.TestCase):
         res = do_GET(relpath)
         self.assertEqual(res.text, 'True')
 
+
 class test_mirror(unittest.TestCase):
     """ tests route /v2/mirror """
     def runTest(self):
@@ -550,6 +551,7 @@ class test_mirror(unittest.TestCase):
         self.assertEqual(payload, res_dict)
         self.assertTrue(isinstance(res_dict, dict))
         print(res.text)
+
 
 @app.route('/v2/neighbours_within/<int:threshold>', methods=['GET'])
 def get_all_values(threshold):

@@ -85,7 +85,7 @@ class ElephantWalk():
 		"SNPCEILING": 20,
 		"MULTIPROCESSING":0
 		}
-    
+
 	
 		"""
 		
