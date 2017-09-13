@@ -492,7 +492,7 @@ def insert():
 		result = client.insert(guid, seq)
 		app.logger.critical("completed insert")
 	else:
-		abort(501, 'seq and guid are not present in the POSTed data {0}'.seq_data.keys())
+		abort(501, 'seq and guid are not present in the POSTed data {0}'.format(data.keys()))
 	
 	#except Exception as e:
 	#	print("Exception raised", e)
