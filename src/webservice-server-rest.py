@@ -467,16 +467,23 @@ class test_query_get_detail(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
 
 
+
 @app.route('/v2/insert', methods=['POST'])
 def insert():
 	""" inserts a guids with sequence, which it expects gzipped."""
 	try:
 		client=get_client()
-		
+		print(request.headers)		
 		seq_data = request.form
-		if 'seq' in seq_data.keys() and 'guid' in seq_data.keys():
-			seq = seq_data['seq']				
-			result = client.insert(seq_data['guid'], seq_data['seq'])
+		seq_data_keys = set()
+		for key in seq_data.keys():
+			seq_data_keys.add(key)
+			
+		if 'seq' in seq_data_keys and 'guid' in seq_data_keys:
+			seq = seq_data['seq']
+			guid = seq_data['guid']
+			print(seq_data_keys, guid)
+			result = client.insert(guid, seq)
 		else:
 			abort(501, 'seq and guid are not present in the POSTed data {0}'.seq_data.keys())
 		
