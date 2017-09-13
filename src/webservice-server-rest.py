@@ -478,7 +478,7 @@ def insert():
 	payload = {}
 	for key in data_keys:
 		payload[key]= request.form[key]
-		
+	app.logger.critical("Payload:",payload)		
 	app.logger.critical("getting client")
 	client=get_client()
 
