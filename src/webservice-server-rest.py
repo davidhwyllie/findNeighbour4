@@ -105,7 +105,7 @@ def do_GET(relpath):
 	session.trust_env = False
 
 	# print out diagnostics
-	print("About to contact url {0}".format(url))
+	print("About to GET from url {0}".format(url))
 	response = session.get(url=url, timeout=None)
 
 	print("Result:")
@@ -127,8 +127,6 @@ def do_POST(relpath, payload):
 		payload should be a dictionary"""
 	
 	url = urljoiner(RESTBASEURL, relpath)
-	print("POSTING to: {0}".format(url))
-
 	session = requests.Session()
 	session.trust_env = False
 
@@ -472,15 +470,19 @@ class test_query_get_detail(unittest.TestCase):
 def insert():
 	""" inserts a guids with sequence, which it expects gzipped."""
 	try:
+		data_keys = set()
+		for key in request.form.keys():
+			data_keys.add(key)
+		payload = {}
+		for key in data_keys:
+			payload[key]= request.form[key]
 		client=get_client()
-		seq_data = request.form
-		seq_data_keys = set()
-		for key in seq_data.keys():
-			seq_data_keys.add(key)
-			
-		if 'seq' in seq_data_keys and 'guid' in seq_data_keys:
-			seq = seq_data['seq']
-			guid = seq_data['guid']
+					
+		if 'seq' in data_keys and 'guid' in data_keys:
+			seq = str(payload['seq'])
+			guid = payload['guid']
+			print(guid)
+			print(seq[0:100])
 			result = client.insert(guid, seq)
 		else:
 			abort(501, 'seq and guid are not present in the POSTed data {0}'.seq_data.keys())
@@ -631,11 +633,14 @@ if __name__ == '__main__':
 
 	else:
 		# use default which may be inappropriate in production
-		warnings.warn("No config file name supplied as a single argument; using a configuration suitable only for testing, not for production. ")
-		warnings.warn("This test configuration assumes the findNeighbour2 XMLRPC server is running on {0} ".format(XMLRPCBASEURL))
 		IS_DEBUG = True	
-
-
+		RESTBASEURL   = "http://127.0.0.1:5000"
+		XMLRPCBASEURL = "http://127.0.0.1:8184"
+		ISDEBUG = True
+		LISTEN_TO = '127.0.0.1'		# only local addresses
+		warnings.warn("No config file name supplied ; using a configuration suitable only for testing, not for production. ")
+		warnings.warn("This test configuration assumes the findNeighbour2 XMLRPC server is running on {0} ".format(XMLRPCBASEURL))
+		
 	########################  START THE SERVER ###################################
 	app.logger.info("REST Server operating on {0} expects communication with XMLRPC server on {1}".format(RESTBASEURL, XMLRPCBASEURL))
 	app.run(host=LISTEN_TO, debug=IS_DEBUG)
