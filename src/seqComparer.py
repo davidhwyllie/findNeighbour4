@@ -20,6 +20,7 @@ import random
 import itertools
 from banyan import SortedSet, OverlappingIntervalsUpdator
 
+
 class seqComparer():
     def __init__(self,
                     reference,

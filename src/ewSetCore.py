@@ -25,6 +25,7 @@ from seqComparer import seqComparer
 from ewsnpstore import db_ewss, ElephantWalkDataSNPaccessor
 
 
+
 class ewSetCore():
     """ implements reference compressed, set based in-memory comparisons of reference mapped sequences
     
