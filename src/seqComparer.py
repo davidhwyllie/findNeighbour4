@@ -819,7 +819,7 @@ class test_seqComparer_37(unittest.TestCase):
         refSeq='ACTG'
         sc=seqComparer(NCompressionCutoff = 1e8, maxNs = 1e8, reference=refSeq, startAfresh=True, snpCeiling =1)
         self.assertEqual( sc.excluded_hash(), 'Excl 288069 nt [8f54bda50f4762505df84c5a02e7d6a5]')
-        self.assertEqual(sc.countDifferences(method='one'),1)
+
 class test_seqComparer_38(unittest.TestCase):
     """ tests the loading of an exclusion file """
     def runTest(self):
