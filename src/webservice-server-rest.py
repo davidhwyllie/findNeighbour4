@@ -460,8 +460,8 @@ class test_query_get_detail(unittest.TestCase):
     def runTest(self):
         relpath = "/v2/guid1/guid2/detailed_comparison"
         res = do_GET(relpath)
-        print(res.text)
-        self.assertEqual(res.text, '{"guid1_exists": false, "success": 0, "guid2_exists": false}')
+        retVal = json.loads(res.text)
+        self.assertEqual(retVal, {"guid1_exists": False, "success": 0, "guid2_exists": False})
         self.assertEqual(res.status_code, 200)
 
 
@@ -574,7 +574,35 @@ class test_get_all_values(unittest.TestCase):
         resList = json.loads(res.text)
         self.assertTrue(isinstance(resList, list))
         self.assertEqual(res.status_code, 200)
+
+@app.route('/v2/nucleotides_excluded', methods=['GET'])
+def get_nucleotides_excluded():
+	""" returns all nucleotides excluded by the server.
+	Useful for clients which need to to ensure that server
+	and client masking are identical. """
+	
+	try:
+		client=get_client()
+		result = client.server_nucleotides_excluded()
+		
+	except Exception as e:
+		print("Exception raised", e)
+		abort(500, e)
+
+	return(str(result))
+
+class test_get_nucleotides_excluded(unittest.TestCase):
+    """ tests route /v2/nucleotides_excluded"""
+    def runTest(self):
+        relpath = "v2/nucleotides_excluded"
+        res = do_GET(relpath)
+        print(res.text[0:100])
+        resDict = json.loads(res.text)
+        self.assertTrue(isinstance(resDict, dict))
+        self.assertEqual(set(resDict.keys()), set(['exclusion_id', 'excluded_nt']))
+        self.assertEqual(res.status_code, 200)
  
+
 if __name__ == '__main__':
 
 	# command line usage.  Pass the location of a config file as a single argument.
