@@ -202,7 +202,16 @@ class seqComparer():
         for a,b in itertools.groupby( tups, self._delta):
             b=list(b)
             yield(b[0][1], b[-1][1])
-
+    def excluded_hash(self):
+        """ returns a string containing the number of nt excluded, and a hash of their positions.
+        This is useful for version tracking """
+        l = sorted(list(self.excluded))
+        len_l = len(l)
+        h = hashlib.md5()
+        h.update(json.dumps(l).encode('utf-8'))
+        md5_l = h.hexdigest()
+        return("Excl {0} nt [{1}]".format(len_l, md5_l))
+    
     def compress(self, sequence):
         """ reads a string sequence and extracts position - genome information from it.
         returns a dictionary consisting of zero-indexed positions of non-reference bases. """
@@ -802,4 +811,24 @@ class test_seqComparer_36(unittest.TestCase):
         sc.setComparator1(sequence='TTAA')
         sc.setComparator2(sequence='--AG')
         self.assertEqual(sc.countDifferences(method='one'),1)
+class test_seqComparer_37(unittest.TestCase):
+    """ tests the loading of an exclusion file """
+    def runTest(self):
+        
+        # default exclusion file
+        refSeq='ACTG'
+        sc=seqComparer(NCompressionCutoff = 1e8, maxNs = 1e8, reference=refSeq, startAfresh=True, snpCeiling =1)
+        self.assertEqual( sc.excluded_hash(), 'Excl 288069 nt [8f54bda50f4762505df84c5a02e7d6a5]')
+        self.assertEqual(sc.countDifferences(method='one'),1)
+class test_seqComparer_38(unittest.TestCase):
+    """ tests the loading of an exclusion file """
+    def runTest(self):
+        
+        # no exclusion file
+        refSeq='ACTG'
+        sc=seqComparer(NCompressionCutoff = 1e8, maxNs = 1e8, excludeFile=None, reference=refSeq, startAfresh=True, snpCeiling =1)
+        self.assertEqual( sc.excluded_hash(), 'Excl 0 nt [d751713988987e9331980363e24189ce]')
+
+      
+      
       
