@@ -12,8 +12,9 @@ The service can be queried with strings containing DNA sequence information and 
 The software is designed for, has been extensively tested with, mapped data from bacterial genome sequencing.
 
 # Requirements
-findNeighbour2 is written entirely in python and has two major components:
-* webservice-server, built on [web.py](http://webpy.org), handles API calls.  The component doing this is webservice-server.py.
+findNeighbour2 is written entirely in python and has three major components:
+* webservice-server-rest, which is a Flask application implementing restful endpoints.  This calls the xmlrpc endpoints transparently.
+* webservice-server, built on [web.py](http://webpy.org), which is an xmlrpc server.  The component doing this is webservice-server.py.
 * seqComparer, a class which implements reference-based compression, in-memory storage of a compressed representation of the sequence,
 fast sequence comparisons, and disc-based persistence. 
 

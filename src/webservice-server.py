@@ -85,7 +85,7 @@ class ElephantWalk():
 		"SNPCEILING": 20,
 		"MULTIPROCESSING":0
 		}
-    
+
 	
 		"""
 		
@@ -109,7 +109,7 @@ class ElephantWalk():
 		self.CONFIG=CONFIG
 		self.objExaminer=NucleicAcid()
 		self.ewsc=ewSetCore(CONFIG=self.CONFIG)
-		print ("EW2 is Ready")
+		print ("EW2 is Ready; ({0})".format(self.ewsc.sc.excluded_hash()))
 		
 	def insert(self,sname,dna):
 		""" insert DNA called sname into the server
@@ -157,6 +157,11 @@ class ElephantWalk():
 		backend databases and perhaps connection strings with passwords.
 		"""
 		return json.dumps(self.CONFIG)
+
+	def server_nucleotides_excluded(self):
+		""" returns the nucleotides excluded by the server """
+		l = sorted(list(self.ewsc.sc.excluded))
+		return json.dumps({"exclusion_id":self.ewsc.sc.excluded_hash(), "excluded_nt":l})
 	
 
 	def server_memory_usage(self):

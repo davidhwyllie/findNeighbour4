@@ -17,5 +17,6 @@
 "LOGFILE":"../unittest_tmp/logfile.log",
 "LOGLEVEL":"INFO",
 "SNPCEILING": 20,
-"MULTIPROCESSING":0
+"MULTIPROCESSING":0,
+"REST_PORT":5000
 }

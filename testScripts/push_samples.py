@@ -32,15 +32,15 @@ client=xmlrpc.client.ServerProxy("http://{0}:{1}".format(CONFIG['IP'],CONFIG['PO
 startParse=datetime.datetime.now()
 nTested=0
 keyList=[]
-# we are going to read the sequences from a test file provided by Trien.
-testpath="/home/dwyllie/data/relatednesstest/TB_FASTA/*_v3.fasta" 
+# we are going to read the sequences from a test data set
+testpath="/home/dwyllie/data/relatednesstest/TB_FASTA_2/*_v3.fasta" 
 nRead=0
 fastaFiles=glob.glob(testpath)
 for fastaFile in fastaFiles:
 	with open(fastaFile, 'rt') as f:
 		for seq_record in SeqIO.parse(f, 'fasta'):
 			guid=str(os.path.basename(fastaFile)[0:36])
-			if True: 	# not client.exist_sample(guid):
+			if not client.exist_sample(guid):
 				seq = str(seq_record.seq)
 				print(datetime.datetime.now(), nTested, guid,len(seq),seq[0:25])
 				nTested+=1

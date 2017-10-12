@@ -4,6 +4,7 @@
   linked to this are SQL alchemy table definition classes FN*
 * NucleicAcid, a class which cleans and validates DNA sequences """
 
+
           
 import os
 import unittest
@@ -24,6 +25,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy import exc  # exceptions
+
 
 ### beginning of NucleicAcid code and tests
 class NucleicAcid():
