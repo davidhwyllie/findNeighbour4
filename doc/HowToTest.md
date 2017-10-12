@@ -138,8 +138,17 @@ At the moment, some kinds of unit testing assume a server is running.  Unit test
 After this, you can run unit tests:
 
 ```
+# start the xmlrpc server
 nohup python3 webservice-server.py &
-python3 -m unittest  webservice-server  
+
+# starting a test RESTFUL server
+nohup python3 webservice-server-rest.py &
+
+# And then (e.g. in a different terminal) launching unit tests with
+python3 -m unittest webservice-server-rest
+# all should pass
+
+# you can also test the internal classes used by findNeighbour2; all should pass
 python3 -m unittest  seqComparer  
 python3 -m unittest  ewsnpstore  
 python3 -m unittest  FN  
@@ -149,7 +158,8 @@ All should pass.
 Now kill the webserver
 
 ```
-ps -x
+ps -x | greop webservice-server
+# kill both xmlrpc and restful servers:
 kill -9 <pid>
 ```
   
