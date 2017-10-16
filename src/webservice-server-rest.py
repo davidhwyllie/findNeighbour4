@@ -2,7 +2,7 @@
 """ 
 provides restful interface to ElephantWalk2 functions
  
-The endpoint provides designed as an internal API.
+The endpoint provided is designed as an internal API.
 As implemented, it is not protected by authentication.
 
 requires python3.
