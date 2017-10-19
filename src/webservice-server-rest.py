@@ -66,7 +66,18 @@ LISTEN_TO = '127.0.0.1'		# only local addresses
 app = Flask(__name__)
 app.logger.setLevel(logging.DEBUG)
 
+
+def isjson(content):
+        """ returns true if content parses as json, otherwise false. used by unit testing. """
+        try:
+            x = json.loads(content.decode('utf-8'))
+            print("JSON DECODE SUCCEEDED : {0}".format(content.decode('utf-8')))
+            return True
  
+        except json.decoder.JSONDecodeError:
+            print("JSON DECODE FAILED : {0}".format(content.decode('utf-8')))
+            return False
+		
 # --------------------------------------------------------------------------------------------------
 @app.errorhandler(404)
 def not_found(error):
@@ -152,13 +163,16 @@ def server_config():
 	except Exception as e:
 		print("Exception raised", e)
 		abort(502, e)
-	return(str(result))	
+
+	return(result)	
 class test_server_config(unittest.TestCase):
     """ tests route v2/server_config"""
     def runTest(self):
         relpath = "/v2/server_config"
         res = do_GET(relpath)
-        config_dict = json.loads(str(res.text))
+        self.assertTrue(isjson(content = res.content))
+
+        config_dict = json.loads(res.content.decode('utf-8'))
         self.assertTrue('MASKER' in config_dict.keys())
         print(res)
         self.assertEqual(res.status_code, 200)
@@ -170,17 +184,21 @@ def server_memory_usage():
 	try:
 		client=get_client()
 		result = client.server_memory_usage()
-		
+
 	except Exception as e:
 		print("Exception raised", e)
 		abort(500, e)
-	return(str(result))		
+	return(result)
+
+
 class test_server_memory_usage(unittest.TestCase):
     """ tests route /v2/server_memory_usage"""
     def runTest(self):
         relpath = "/v2/server_memory_usage"
         res = do_GET(relpath)
-        config_dict = json.loads(str(res.text))
+        self.assertTrue(isjson(content = res.content))
+
+        config_dict = json.loads(res.content.decode('utf-8'))
         self.assertTrue('note' in config_dict.keys())
         print(res)
         self.assertEqual(res.status_code, 200)
@@ -195,18 +213,19 @@ def server_time():
 		
 	except Exception as e:
 		abort(500, e)
-	return(str(result))
+	return(result)
 
 class test_server_time(unittest.TestCase):
     """ tests route /v2/server_time"""
     def runTest(self):
         relpath = "/v2/server_time"
         res = do_GET(relpath)
-        print(res)
-        config_dict = json.loads(str(res.text))
+        self.assertTrue(isjson(content = res.content))
+        config_dict = json.loads(res.content.decode('utf-8'))
         self.assertTrue('server_time' in config_dict.keys())
-
         self.assertEqual(res.status_code, 200)
+
+	
 @app.route('/sample/guids/<string:reference>', methods= ['GET'])
 @app.route('/v2/guids', methods=['GET'])
 def get_all_guids(**kwargs):
@@ -217,21 +236,26 @@ def get_all_guids(**kwargs):
 	except Exception as e:
 		print("Exception raised", e)
 		abort(500, e)
-	return(str(result))
+	return(result)
+
+
 class test_get_all_guids_1(unittest.TestCase):
     """ tests route /v2/guids"""
     def runTest(self):
         relpath = "/v2/guids"
         res = do_GET(relpath)
-        guidlist = json.loads(str(res.text))
+        self.assertTrue(isjson(content = res.content))
+        guidlist = json.loads(str(res.content.decode('utf-8')))
         print(guidlist)
         self.assertEqual(res.status_code, 200)
+
 class test_get_all_guids_2(unittest.TestCase):
     """ tests route /sample/guids"""
     def runTest(self):
         relpath = "/sample/guids/R00039"
         res = do_GET(relpath)
-        guidlist = json.loads(str(res.text))
+        self.assertTrue(isjson(content = res.content))
+        guidlist = json.loads(res.content.decode('utf-8'))
         print(guidlist)
         self.assertEqual(res.status_code, 200)
 
@@ -248,15 +272,20 @@ def get_all_filtered_guids(cutoff, **kwargs):
 	except Exception as e:
 		print("Exception raised", e)
 		abort(500, e)
-	return(str(result))
+	return(result)
+
+
 class test_get_all_filtered_guids_1(unittest.TestCase):
     """ tests route /v2/guids_with_quality_over"""
     def runTest(self):
         relpath = "/v2/guids_with_quality_over/0.7"
         res = do_GET(relpath)
-        guidlist = json.loads(str(res.text))
+        self.assertTrue(isjson(content = res.content))
+        guidlist = json.loads(res.content.decode('utf-8'))
         print(guidlist)
         self.assertEqual(res.status_code, 200)
+
+		
 class test_get_all_filtered_guids_2(unittest.TestCase):
     """ tests route /sample/guids_cutoff"""
     def runTest(self):
@@ -265,6 +294,8 @@ class test_get_all_filtered_guids_2(unittest.TestCase):
         guidlist = json.loads(str(res.text))
         print(guidlist)
         self.assertEqual(res.status_code, 200)
+		
+		
 @app.route('/sample/guids_and_time/<string:reference>', methods=['GET'])
 @app.route('/v2/guids_and_examination_times', methods=['GET'])
 def get_guids_examtime(**kwargs):
@@ -276,21 +307,27 @@ def get_guids_examtime(**kwargs):
 	except Exception as e:
 		print("Exception raised", e)
 		abort(500, e)
-	return(str(result))
+	return(result)
+
+
 class test_get_all_guids_examination_time_1(unittest.TestCase):
     """ tests route /v2/guids_and_examination_times"""
     def runTest(self):
         relpath = "/v2/guids_and_examination_times"
         res = do_GET(relpath)
-        guidlist = json.loads(str(res.text))
+        self.assertTrue(isjson(content = res.content))
+        guidlist = json.loads(res.content.decode('utf-8'))
         print(guidlist)
         self.assertEqual(res.status_code, 200)
+		
 class test_get_all_guids_examination_time_2(unittest.TestCase):
     """ tests route /sample/guids_and_time/R00039"""
     def runTest(self):
         relpath = "/sample/guids_and_time/R00039"
         res = do_GET(relpath)
-        guidlist = json.loads(str(res.text))
+        self.assertTrue(isjson(content = res.content))
+ 
+        guidlist = json.loads(res.content.decode('utf-8'))
         print(guidlist)
         self.assertEqual(res.status_code, 200)
 
@@ -307,23 +344,32 @@ def get_guids_annotations(**kwargs):
 	except Exception as e:
 		abort(500, e)
 		
-	return(str(result))
+	return(result)
+
+
 class test_get_guids_annotations_1(unittest.TestCase):
     """ tests route /v2/annotations """
     def runTest(self):
         relpath = "/v2/annotations"
         res = do_GET(relpath)
-        guidlist = json.loads(str(res.text))
-        print(guidlist)
         self.assertEqual(res.status_code, 200)
+        self.assertTrue(isjson(content = res.content))
+ 
+        guidlist = json.loads(res.content.decode('utf-8'))
+        print(guidlist)
+
+		
 class test_get_guids_annotations_2(unittest.TestCase):
     """ tests route /sample/annotation/R0039 """
     def runTest(self):
         relpath = "/sample/annotation/R0039"
         res = do_GET(relpath)
-        guidlist = json.loads(str(res.text))
-        print(guidlist)
         self.assertEqual(res.status_code, 200)
+        self.assertTrue(isjson(content = res.content))
+ 
+        guidlist = json.loads(res.content.decode('utf-8'))
+        print(guidlist)
+
 
 @app.route('/sample/walks/processed/<string:guid>/<string:reference>/<string:method>', methods=['GET'])
 @app.route('/v2/<string:guid>/exists', methods=['GET'])
@@ -338,15 +384,19 @@ def exist_sample(guid, **kwargs):
 	except Exception as e:
 		abort(500, e)
 		
-	return(str(result))
+	return(json.dumps(result))
+
 class test_exist_sample(unittest.TestCase):
     """ tests route /v2/guid/exists """
     def runTest(self):
         relpath = "/v2/non_existent_guid/exists"
         res = do_GET(relpath)
        
-        self.assertEqual(res.text, 'False')
         self.assertEqual(res.status_code, 200)
+        self.assertTrue(isjson(content = res.content))
+        info = json.loads(res.content.decode('utf-8'))
+        self.assertEqual(type(info), bool)
+        self.assertEqual(info, False)
 
 @app.route('/sample/walks/snp/<string:guid>/<string:reference>/<int:threshold>/<string:method>', methods = ['GET'])
 @app.route('/sample/findneighbour/snp/<string:guid>/<string:reference>/<int:threshold>/<string:method>/<float:cutoff>', methods = ['GET'])
@@ -382,40 +432,47 @@ def query_get_value_snp(guid, threshold, **kwargs):
 	try:
 		client=get_client()	
 		result = client.query_get_value_snp_filter(guid, threshold, cutoff, returned_format)
-		
+	
 	except Exception as e:
 		abort(500, e)
 	
-	return(str(result))
+	return json.dumps(result)
 
 class test_query_get_value_snp_0a(unittest.TestCase):
     """ tests route /sample/findneighbour/snp/nonexistent_guid/R00039/12/elephantwalk/0.85	"""
     def runTest(self):
         relpath = "/sample/findneighbour/snp/nonexistent_guid/R00039/12/elephantwalk/0.85"
+
         res = do_GET(relpath)
-        print(res)
-        print(res.text)
-        self.assertTrue(("missing" in res.text) | ("Not found" in res.text))
         self.assertEqual(res.status_code, 200)
+        self.assertTrue(isjson(content = res.content))
+        info = json.loads(res.content.decode('utf-8'))
+       
+        self.assertTrue(info[1] == "missing sample")
+        self.assertTrue(info[0] == "Err")
 
 class test_query_get_value_snp_0b(unittest.TestCase):
     """ tests route '/sample/neighbours/<string:guid>/<string:reference>/<int:threshold>/<string:method>' """
     def runTest(self):
         relpath = "/sample/neighbours/nonexistent_guid/R00039/12/elephantwalk"
         res = do_GET(relpath)
-        print(res)
-        print(res.text)
-        self.assertTrue(("missing" in res.text) | ("Not found" in res.text))
         self.assertEqual(res.status_code, 200)
+        self.assertTrue(isjson(content = res.content))
+        info = json.loads(res.content.decode('utf-8'))
+       
+        self.assertTrue(info[1] == "missing sample")
+        self.assertTrue(info[0] == "Err")
+
 		
 class test_query_get_value_snp_1(unittest.TestCase):
     """ tests route /v2/guid/neighbours_within/ """
     def runTest(self):
         relpath = "/v2/non_existent_guid/neighbours_within/12"
         res = do_GET(relpath)
-        print(res)
-        print(res.text)
-        self.assertTrue(("missing" in res.text) | ("Not found" in res.text))
+        self.assertTrue(isjson(content = res.content))
+        info = json.loads(res.content.decode('utf-8'))
+        self.assertEqual(type(info), dict)
+        self.assertTrue('error' in info.keys())
         self.assertEqual(res.status_code, 404)
 
 class test_query_get_value_snp_2(unittest.TestCase):
@@ -423,7 +480,10 @@ class test_query_get_value_snp_2(unittest.TestCase):
     def runTest(self):
         relpath = "/v2/non_existent_guid/neighbours_within/12/0.5"
         res = do_GET(relpath)
-        self.assertTrue(("missing" in res.text) | ("Not found" in res.text))
+        self.assertTrue(isjson(content = res.content))
+        info = json.loads(res.content.decode('utf-8'))
+        self.assertEqual(type(info), dict)
+        self.assertTrue('error' in info.keys())
         self.assertEqual(res.status_code, 404)
 
 class test_query_get_value_snp_3(unittest.TestCase):
@@ -431,7 +491,10 @@ class test_query_get_value_snp_3(unittest.TestCase):
     def runTest(self):
         relpath = "/v2/non_existent_guid/neighbours_within/12/0.5/1"
         res = do_GET(relpath)
-        self.assertTrue(("missing" in res.text) | ("Not found" in res.text))
+        self.assertTrue(isjson(content = res.content))
+        info = json.loads(res.content.decode('utf-8'))
+        self.assertEqual(type(info), dict)
+        self.assertTrue('error' in info.keys())
         self.assertEqual(res.status_code, 404)
 
 class test_query_get_value_snp_4(unittest.TestCase):
@@ -439,7 +502,10 @@ class test_query_get_value_snp_4(unittest.TestCase):
     def runTest(self):
         relpath = "/v2/query_get_value_snp/non_existent_guid/12/0.5/2"
         res = do_GET(relpath)
-        self.assertTrue(("missing" in res.text) | ("Not found" in res.text))
+        self.assertTrue(isjson(content = res.content))
+        info = json.loads(res.content.decode('utf-8'))
+        self.assertEqual(type(info), dict)
+        self.assertTrue('error' in info.keys())
         self.assertEqual(res.status_code, 404)
 
 @app.route('/v2/<string:guid1>/<string:guid2>/detailed_comparison', methods=['GET'])
@@ -453,15 +519,19 @@ def get_detail(guid1, guid2):
 		print("Exception raised", e)
 		abort(500, e)
 		
-	return(str(result))
+	return(result)
 
 class test_query_get_detail(unittest.TestCase):
     """ tests route /query_get_detail """
     def runTest(self):
         relpath = "/v2/guid1/guid2/detailed_comparison"
         res = do_GET(relpath)
-        retVal = json.loads(res.text)
-        self.assertEqual(retVal, {"guid1_exists": False, "success": 0, "guid2_exists": False})
+
+        self.assertTrue(isjson(content = res.content))
+        info = json.loads(res.content.decode('utf-8'))
+        self.assertEqual(type(info), dict)
+
+        self.assertEqual(info, {"guid1_exists": False, "success": 0, "guid2_exists": False})
         self.assertEqual(res.status_code, 200)
 
 
@@ -481,7 +551,7 @@ def insert():
 		app.logger.critical("getting seq and guid")				
 		if 'seq' in data_keys and 'guid' in data_keys:
 			guid = str(payload['guid'])
-			seq = str(payload['seq'])
+			seq  = str(payload['seq'])
 			result = client.insert(guid, seq)
 		else:
 			abort(501, 'seq and guid are not present in the POSTed data {0}'.format(data_keys))
@@ -490,7 +560,7 @@ def insert():
 		print("Exception raised", e)
 		abort(500, e)
 		
-	return(str(result))
+	return(result)
 
 @app.route('/v2/mirror', methods=['POST'])
 def mirror():
@@ -529,16 +599,24 @@ class test_insert(unittest.TestCase):
 
         relpath = "/v2/insert"
         res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
-        
+        self.assertTrue(isjson(content = res.content))
+        info = json.loads(res.content.decode('utf-8'))
+        self.assertEqual(info, ['OK'])
+
         relpath = "/v2/guids"
         res = do_GET(relpath)
-        n_post = len(json.loads(str(res.text)))
-        
+        n_post = len(json.loads(res.content.decode('utf-8')))
         self.assertEqual(n_pre+1, n_post)
+                
 
+        # check if it exists
         relpath = "/v2/{0}/exists".format(guid_to_insert)
         res = do_GET(relpath)
-        self.assertEqual(res.text, 'True')
+        self.assertTrue(isjson(content = res.content))
+        info = json.loads(res.content.decode('utf-8'))
+        self.assertEqual(type(info), bool)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(info, True)
 
 
 class test_mirror(unittest.TestCase):
@@ -548,7 +626,7 @@ class test_mirror(unittest.TestCase):
         relpath = "/v2/mirror"
         payload = {'guid':'1','seq':"ACTG"}
         res = do_POST(relpath, payload = payload)
-        res_dict = json.loads(res.text)
+        res_dict = json.loads(res.content.decode('utf-8'))
         self.assertEqual(payload, res_dict)
         self.assertTrue(isinstance(res_dict, dict))
         print(res.text)

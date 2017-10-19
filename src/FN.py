@@ -447,8 +447,14 @@ class FNPersistence():
                 to crosstabulate """
                 
                 rows=[]
+                nRows = 0
                 for (guid, nameSpace,tag, value) in self.allAnnotations():     # load into pandas
+                        nRows+=1
                         rows.append({'guid':guid, 'tag':nameSpace+":"+tag, 'value':value})
+                
+                if nRows==0:
+                        return(json.dumps([]))          # no data
+                
                 df=pd.DataFrame.from_records(rows)
                 xt=pd.crosstab(index=df['guid'], columns=df['tag'], values=df['value'], aggfunc=max)  # cross tab; only one entry per cell, so 'max' is OK as a summary function;
                 return(xt.to_json(date_format='iso'))
