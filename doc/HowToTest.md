@@ -318,10 +318,10 @@ Ensuring the services restart with the server
 * create a file “start_fn2” in /etc/init.d which runs a shell script as below, 
 ```
 #!/bin/sh -e
-su -l compass -c "sh <directory>/startup_fn2.sh"
+su -l <entity_under_which_server_runs> -c "sh <directory>/startup_fn2.sh"
 ```
 
-The shell script in turn starts the required web services:
+The shell script, located in <directory> in turn starts the required web services:
 
 ```
 #!/bin/bash
