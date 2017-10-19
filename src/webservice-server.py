@@ -232,8 +232,8 @@ class ElephantWalk():
 			if item[0] in goodGuids:
 				finalOutput.append(item)
 				
-		rs=["OK", finalOutput]
-		return json.dumps(rs)
+		#rs=["OK", finalOutput]
+		return json.dumps(finalOutput)
 	
 
 	def get_all_guids(self):
