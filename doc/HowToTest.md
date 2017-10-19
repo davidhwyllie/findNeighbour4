@@ -311,3 +311,29 @@ Services available
 These are listed [here](endpoints.md).
 
 
+Ensuring the services restart with the server
+=============================================
+(thanks to Hemanth M for this)
+
+* create a file “start_fn2” in /etc/init.d which runs a shell script as below, 
+```
+#!/bin/sh -e
+su -l compass -c "sh <directory>/startup_fn2.sh"
+```
+
+The shell script in turn starts the required web services:
+
+```
+#!/bin/bash
+cd <directory into which project cloned>/src
+nohup python3 webservice-server.py <options> &
+nohup python3 webservice-server-rest.py <options> &
+```
+
+Run the following to change the file permissions of the script and init.d file 
+sudo chmod +x /etc/init.d/startup_fn2.sh
+
+Update the run levels to start our script at boot, by running the following command.
+sudo update-rc.d /etc/init.d/startup_fn2.sh defaults
+
+Test the changes by restarting the server.
