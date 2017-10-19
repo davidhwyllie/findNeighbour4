@@ -436,7 +436,7 @@ def query_get_value_snp(guid, threshold, **kwargs):
 	except Exception as e:
 		abort(500, e)
 	
-	return json.dumps(result)
+	return(result)		# already json
 
 class test_query_get_value_snp_0a(unittest.TestCase):
     """ tests route /sample/findneighbour/snp/nonexistent_guid/R00039/12/elephantwalk/0.85	"""
