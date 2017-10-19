@@ -137,9 +137,9 @@ class ElephantWalk():
 			self.write_semaphore.acquire()				    # addition should be an atomic operation
 			self.ewsc.insert(sname, cleaned_dna)			# insert the DNA sequence into the server.
 			self.write_semaphore.release()                  # release the write semaphore
-			return "['OK']"									# a response object with a 200 code would be better
+			return json.dumps(["OK"])									# a response object with a 200 code would be better
 		else:
-			return "['Already present']"
+			return json.dumps(["Already present"])
 	
 	def exist_sample(self,sname):
 		""" determine whether the sample exists """
@@ -232,7 +232,7 @@ class ElephantWalk():
 			if item[0] in goodGuids:
 				finalOutput.append(item)
 				
-		rs=['OK', finalOutput]
+		rs=["OK", finalOutput]
 		return json.dumps(rs)
 	
 
@@ -242,7 +242,7 @@ class ElephantWalk():
 	def get_all_filtered_guids(self,cutoff=0.66):
 		rs=ElephantWalk.PERSIST.asJson_propACTG_filteredSequenceGuids(float(cutoff))
 		if rs==None:
-			return "[]"
+			return json.dumps([])
 		else:
 			return rs
 		
