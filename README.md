@@ -28,7 +28,7 @@ fast sequence comparisons, and disc-based persistence.
 A publication describing this work is under review. 
 
 # Large test data sets
-Test data sets of N. meningitidis, M. tuberculosis and S. enterica data are [freely available](https://ora.ox.ac.uk/objects/uuid:82ce6500-fa71-496a-8ba5-ba822b6cbb50)
+Test data sets of *N. meningitidis*, *M. tuberculosis* and *S. enterica* data are [freely available](https://ora.ox.ac.uk/objects/uuid:82ce6500-fa71-496a-8ba5-ba822b6cbb50).
 
 # Note
 During development, findNeighbour2 was referred to as ElephantWalk2, and you may find references to ElephantWalk2 or EW2 in the code base.
