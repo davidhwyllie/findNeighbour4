@@ -190,9 +190,9 @@ class ElephantWalk():
 
 		inScore = ElephantWalk.PERSIST.testIndividualGuidQuality(sname,float(cutoff))
 		if inScore == None:
-			return ['Err','missing sample']
+			return json.dumps(['Err','missing sample'])
 		elif inScore == False:
-			return ['Bad','bad sequence']
+			return json.dumps(['Bad','bad sequence'])
 
 		# if it is of good quality, then we look for links
 		idList=list()
