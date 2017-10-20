@@ -548,7 +548,6 @@ def insert():
 			payload[key]= request.form[key]
 		client=get_client()
 	
-		app.logger.critical("getting seq and guid")				
 		if 'seq' in data_keys and 'guid' in data_keys:
 			guid = str(payload['guid'])
 			seq  = str(payload['seq'])
