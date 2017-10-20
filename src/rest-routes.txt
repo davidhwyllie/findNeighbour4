@@ -25,3 +25,4 @@
 /v2/<string:guid1>/<string:guid2>/detailed_comparison
 /v2/insert
 /v2/neighbours_within/<int:threshold>
+/v2/nucleotides_excluded
