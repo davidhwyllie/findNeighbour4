@@ -11,7 +11,7 @@ The inputs to the service are strings containing DNA sequence information, typic
 The service can be queried with strings containing DNA sequence information and a single nucleotide polymorphism threshold; it returns a list of similar samples.
 The software is designed for, has been extensively tested with, mapped data from bacterial genome sequencing.
 
-It was produced as part of the [Modernising Medical Microbiology] (http://modmedmicro.nsms.ox.ac.uk/) initiative, who use it, as do [Public Health England] (https://www.gov.uk/government/organisations/public-health-england).
+It was produced as part of the [Modernising Medical Microbiology](http://modmedmicro.nsms.ox.ac.uk/) initiative, who use it, as do [Public Health England](https://www.gov.uk/government/organisations/public-health-england).
 
 # Requirements
 findNeighbour2 is written entirely in python and has three major components:
@@ -28,7 +28,7 @@ fast sequence comparisons, and disc-based persistence.
 A publication describing this work is under review. 
 
 # Large test data sets
-Test data sets of N. meningitidis, M. tuberculosis and S. enterica data are [available] (https://ora.ox.ac.uk/objects/uuid:82ce6500-fa71-496a-8ba5-ba822b6cbb50)
+Test data sets of N. meningitidis, M. tuberculosis and S. enterica data are [freely available](https://ora.ox.ac.uk/objects/uuid:82ce6500-fa71-496a-8ba5-ba822b6cbb50)
 
 # Note
 During development, findNeighbour2 was referred to as ElephantWalk2, and you may find references to ElephantWalk2 or EW2 in the code base.
