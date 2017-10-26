@@ -102,8 +102,9 @@ ALTER DEFAULT PRIVILEGES
     GRANT INSERT, SELECT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLES
     TO ew2_daemon;
     
-ALTER USER "ew2" WITH PASSWORD "ew2"
+ALTER USER "ew2_daemon" WITH PASSWORD "ew2"
 ```
+ALTER ROLE "ew2_daemon" WITH LOGIN;
 
 After this, please follow the below steps.
 
