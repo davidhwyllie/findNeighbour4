@@ -174,7 +174,10 @@ Using the web server
 --------------------
 You need to start the web server with a sensible configuration, e.g. something like
 ```
+# start the xmlrpc server
 nohup python3 webservice-server.py config/tbproduction.json
+# start the restful server
+nohup python3 webservice-server-rest.py config/tbproduction.json
 ```
 
 The json file should look something like this:
@@ -182,6 +185,7 @@ The json file should look something like this:
 {
 "DESCRIPTION":"The production server used for the PHE relatedness test",
 "PORT":8185,
+"RESTPORT":8186,
 "IP":"IP of the machine that run this service",
 "INPUTREF":"../reference/reference.fasta",
 "PERSISTENCEDIR":"/home/dwyllie/data/relatednesstest/TB_SERVER/persist",
@@ -205,7 +209,8 @@ Notes on the configuration file are as follows:
 Tag | Meaning | Example
 --- | --- | ---
 DESCRIPTION| A user readable description of the server |The production server used for the PHE relatedness test
-PORT| The port it is communicating on  |8184
+PORT| The port the xml rpc server is communicating on  |8185
+RESTPORT| The port the RESTful server is communicating on  |8186
 IP| The IP of the server |127.0.0.1
 INPUTREF| The reference sequence to which the sequence has been mapped, in fasta format |../reference/reference.fasta
 PERSISTENCEDIR| The directory to which the reference compressed sequences are stored.  This directory is read by the server on startup, to load sequences into RAM. | home/dwyllie/data/relatednesstest/TB_SERVER/persist
