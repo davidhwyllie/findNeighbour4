@@ -46,8 +46,8 @@ import gzip
 import warnings
 from flask import Flask, make_response, jsonify
 from flask import request, abort
- 
- 
+from logging.config import dictConfig
+
 # only used for unit testing
 from Bio import SeqIO
 from Bio.Seq import Seq
@@ -77,7 +77,8 @@ def isjson(content):
         except json.decoder.JSONDecodeError:
             print("JSON DECODE FAILED : {0}".format(content.decode('utf-8')))
             return False
-		
+
+
 # --------------------------------------------------------------------------------------------------
 @app.errorhandler(404)
 def not_found(error):
@@ -294,8 +295,7 @@ class test_get_all_filtered_guids_2(unittest.TestCase):
         guidlist = json.loads(str(res.text))
         print(guidlist)
         self.assertEqual(res.status_code, 200)
-		
-		
+
 @app.route('/sample/guids_and_time/<string:reference>', methods=['GET'])
 @app.route('/v2/guids_and_examination_times', methods=['GET'])
 def get_guids_examtime(**kwargs):
@@ -682,69 +682,85 @@ class test_get_nucleotides_excluded(unittest.TestCase):
 
 if __name__ == '__main__':
 
-	# command line usage.  Pass the location of a config file as a single argument.
-	# an example config file is default_config.json
+        # command line usage.  Pass the location of a config file as a single argument.
+        # an example config file is default_test_config.json
+               
+        ############################ LOAD CONFIG ######################################
+        root = logging.getLogger()
+        root.setLevel(logging.DEBUG)
+        
+        if len(sys.argv) == 2:
+                configFile = sys.argv[1]
+        else:
+                configFile = os.path.join('..','config','default_test_config.json')
+                warnings.warn("No config file name supplied ; using a configuration ('default_test_config.json') suitable only for testing, not for production. ")
+   
+        # open the config file
+        try:
+                with open(configFile,'r') as f:
+                        CONFIG=f.read()
+        except FileNotFoundError:
+                raise FileNotFoundError("Passed one parameter, which should be a CONFIG file name; tried to open a config file at {0} but it does not exist ".format(sys.argv[1]))
 
-	############################ LOAD CONFIG ######################################
-	logging.basicConfig(level=logging.INFO)
-	if len(sys.argv) == 2:			 
-		try:
-			with open(sys.argv[1],'r') as f:
-				CONFIG=f.read()
-		except FileNotFoundError:
-			raise FileNotFoundError("Passed one parameter, which should be a CONFIG file name; tried to open a config file at {0} but it does not exist ".format(sys.argv[1]))
+        if isinstance(CONFIG, str):
+                CONFIG=json.loads(CONFIG)	# assume JSON string; convert.
 
-
-		if isinstance(CONFIG, str):
-			CONFIG=json.loads(CONFIG)	# assume JSON string; convert.
-		
-		# check it is a dictionary	
-		if not isinstance(CONFIG, dict):
-			raise KeyError("CONFIG must be either a dictionary or a JSON string encoding a dictionary.  It is: {0}".format(CONFIG))
-		
-		# check that the keys of config are as expected.
-		required_keys=set(['IP','REST_PORT', 'PORT'])
-		missing=required_keys-set(CONFIG.keys())
-		if not missing == set([]):
-			raise KeyError("Required keys were not found in CONFIG. Missing are {0}".format(missing))
-
-		IS_DEBUG = False
-		LISTEN_TO = '0.0.0.0'
-		# construct the required global variables
-		RESTBASEURL = "http://{0}:{1}".format(CONFIG['IP'], CONFIG['REST_PORT'], CONFIG['PORT'])
-		XMLRPCBASEURL = "http://{0}:{2}".format(CONFIG['IP'], CONFIG['REST_PORT'], CONFIG['PORT'])
-		
-		########################### SET UP LOGGING #####################################
-		# defaults to INFO.  WARN and DEBUG also supported.
-		loglevel=logging.INFO
-	
-		if 'LOGLEVEL' in CONFIG.keys():
-			if CONFIG['LOGLEVEL']=='WARN':
-				loglevel=logging.WARN
-			elif CONFIG['LOGLEVEL']=='DEBUG':
-				loglevel=logging.DEBUG
-			app.logger.setLevel(loglevel)
-
-		if 'LOGFILE' in CONFIG.keys():
-				logfile=os.path.abspath(CONFIG['LOGFILE'])
-				print("Currently Logging to {0} disabled".format(logfile))
-				# currently disabled
-				#app.logger.basicConfig(filename=logfile, format='%(asctime)s|%(levelname)s|%(message)s', level=loglevel)
-		else:
-			warnings.warn("No LOGFILE entry in CONFIG, so no logging to file in place.")
-			app.logger.basicConfig(format='%(asctime)s|%(levelname)s|%(message)s', level=loglevel)
+        # check CONFIG is a dictionary	
+        if not isinstance(CONFIG, dict):
+                raise KeyError("CONFIG must be either a dictionary or a JSON string encoding a dictionary.  It is: {0}".format(CONFIG))
+        
+        # check that the keys of config are as expected.
+        required_keys=set(['IP','REST_PORT', 'PORT', 'DEBUGMODE', 'LOGFILE'])
+        missing=required_keys-set(CONFIG.keys())
+        if not missing == set([]):
+                raise KeyError("Required keys were not found in CONFIG. Missing are {0}".format(missing))
 
 
-	else:
-		# use default which may be inappropriate in production
-		IS_DEBUG = True	
-		RESTBASEURL   = "http://127.0.0.1:5000"
-		XMLRPCBASEURL = "http://127.0.0.1:8184"
-		ISDEBUG = True
-		LISTEN_TO = '127.0.0.1'		# only local addresses
-		warnings.warn("No config file name supplied ; using a configuration suitable only for testing, not for production. ")
-		warnings.warn("This test configuration assumes the findNeighbour2 XMLRPC server is running on {0} ".format(XMLRPCBASEURL))
-		
-	########################  START THE SERVER ###################################
-	app.logger.info("REST Server operating on {0} expects communication with XMLRPC server on {1}".format(RESTBASEURL, XMLRPCBASEURL))
-	app.run(host=LISTEN_TO, debug=IS_DEBUG)
+       ########################### SET UP LOGGING #####################################
+        # see http://flask.pocoo.org/docs/dev/logging/               
+        loglevel=logging.INFO
+        if 'LOGLEVEL' in CONFIG.keys():
+                if CONFIG['LOGLEVEL']=='WARN':
+                        loglevel=logging.WARN
+                elif CONFIG['LOGLEVEL']=='DEBUG':
+                        loglevel=logging.DEBUG
+        
+        
+        # if we are debug mode, then we remove any log file and note we are in debugmode to the logfile
+        if CONFIG['DEBUGMODE']==1:
+                try:
+                        os.unlink(CONFIG['LOGFILE'])
+                except FileNotFoundError:
+                        pass            # if we can't delete the file, that's OK
+                
+        # configure logging object 
+        app.logger.setLevel(loglevel)          
+        root.setLevel(loglevel)
+        
+        # handles logging both with a stream to stderr and a rotating file
+        rfh_handler = logging.handlers.RotatingFileHandler(CONFIG['LOGFILE'], maxBytes=100000, backupCount=5)
+        stream_handler = logging.StreamHandler()
+
+        formatter = logging.Formatter( "%(asctime)s | %(pathname)s:%(lineno)d | %(funcName)s | %(levelname)s | %(message)s ")
+        rfh_handler.setFormatter(formatter)
+        stream_handler.setFormatter(formatter)
+        
+        # we add these log handler to the root logger.  That way, all module output (independent of flask) will go there too
+        root.addHandler(rfh_handler)
+        root.addHandler(stream_handler)
+        
+        ########################### prepare to launch server ###############################################################
+        # construct the required global variables
+        LISTEN_TO = '0.0.0.0'
+        RESTBASEURL = "http://{0}:{1}".format(CONFIG['IP'], CONFIG['REST_PORT'], CONFIG['PORT'])
+        XMLRPCBASEURL = "http://{0}:{2}".format(CONFIG['IP'], CONFIG['REST_PORT'], CONFIG['PORT'])
+        
+      
+        ########################  START THE SERVER ###################################
+        app.logger.info("REST Server operating on {0};\n expects communication with XMLRPC server on {1}".format(RESTBASEURL, XMLRPCBASEURL))
+        if CONFIG['DEBUGMODE']==1:
+                app.logger.info("No config file name supplied ; using a configuration ('default_test_config.json') suitable only for testing, not for production. ")
+                app.logger.info("This test configuration assumes the findNeighbour2 XMLRPC server is running at XMLRPCBASEURL (see config file above)")
+       
+        app.run(host=LISTEN_TO, debug=1) #CONFIG['DEBUGMODE'])
+
