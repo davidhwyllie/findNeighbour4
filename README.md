@@ -22,7 +22,7 @@ fast sequence comparisons, and disc-based persistence.
 
 # More information
 [How to test it](doc/HowToTest.md)  
-Endpoints [in detail](doc/endpoints.md) [in brief](src/rest-routes.md)
+Endpoints [in detail](doc/endpoints.md) [in brief](doc/rest-routes.md)
 
 # Publication
 A publication describing this work is under review. 
