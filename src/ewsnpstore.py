@@ -348,7 +348,8 @@ class ElephantWalkDataSNPaccessor(SnpAccessor):
                                ewEdge.N_just2,
                                ewEdge.N_either).\
                                join(ewEdge, ewEdge.ewGuidId1 == ewGuid1.ewGuidId).\
-                               join(ewGuid2, ewEdge.ewGuidId2 == ewGuid2.ewGuidId)
+                               join(ewGuid2, ewEdge.ewGuidId2 == ewGuid2.ewGuidId).\
+                               filter(ewEdge.dist<=cutoff)
         for result in res:
             retVal.append(list(result))
         return(retVal)
