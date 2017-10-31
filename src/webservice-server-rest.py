@@ -762,5 +762,5 @@ if __name__ == '__main__':
                 app.logger.info("No config file name supplied ; using a configuration ('default_test_config.json') suitable only for testing, not for production. ")
                 app.logger.info("This test configuration assumes the findNeighbour2 XMLRPC server is running at XMLRPCBASEURL (see config file above)")
        
-        app.run(host=LISTEN_TO, debug=1) #CONFIG['DEBUGMODE'])
+        app.run(host=LISTEN_TO, debug=CONFIG['DEBUGMODE'], port = CONFIG['REST_PORT'])
 
