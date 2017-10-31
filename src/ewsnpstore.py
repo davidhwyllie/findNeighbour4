@@ -679,7 +679,9 @@ class Test_EWSnpStore_neighbours(unittest.TestCase):
         self.assertEqual(len(res12['neighbours']),3)
         self.assertEqual(len(res0['neighbours']),0)
             
-                
+        #res_missing=ewc.neighboursOf('missing', cutoff=4)
+        #print(res_missing)
+                 
 class Test_EWSnpStore_neighbours_format2(unittest.TestCase):
     """ tests neighboursOf """
     def runTest(self):
