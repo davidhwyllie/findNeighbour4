@@ -628,7 +628,7 @@ class Test_EWSnpStore_neighbours(unittest.TestCase):
             with open(testFile,'rt') as f:
                 links=json.load(f)
                
-                # check that the guid recorded is correct
+                # check that the guid tested is present
                 self.assertEqual(links['guid'],'91273e18-da11-447d-8c54-6590faf6b754')
                
                 for (guid,snp,n1,n2,n3) in links['neighbours']:
@@ -676,7 +676,7 @@ class Test_EWSnpStore_neighbours(unittest.TestCase):
         res0=ewc.neighboursOf('91273e18-da11-447d-8c54-6590faf6b754', cutoff=0)
         res12=ewc.neighboursOf('91273e18-da11-447d-8c54-6590faf6b754', cutoff=4)
         self.assertEqual(len(res20['neighbours']),14)
-        self.assertEqual(len(res12['neighbours']),2)
+        self.assertEqual(len(res12['neighbours']),3)
         self.assertEqual(len(res0['neighbours']),0)
             
                 
@@ -760,7 +760,7 @@ class Test_EWSnpStore_neighbours_format2(unittest.TestCase):
         for res in res20['neighbours']:
             self.assertEqual(len(res),5)
         self.assertEqual(len(res20['neighbours']),14)
-        self.assertEqual(len(res12['neighbours']),2)
+        self.assertEqual(len(res12['neighbours']),3)
         self.assertEqual(len(res0['neighbours']),0)
             
  
