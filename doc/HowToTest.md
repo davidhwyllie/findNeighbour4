@@ -53,6 +53,7 @@ sudo pip3 install pandas --proxy http://[ip of proxy]
 sudo pip3 install banyan --proxy http://[ip of proxy] 
 sudo pip3 install psycopg2 --proxy http://[ip of proxy] 
 sudo pip3 install biopython --proxy http://[ip of proxy] 
+sudo pip3 install flask --proxy http://[ip of proxy]
 
 # optionally inform git of the proxy's location, depending whether there is one
 git config --global http.proxy http://[ip of proxy]
