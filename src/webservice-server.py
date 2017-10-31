@@ -187,7 +187,6 @@ class ElephantWalk():
         """
 
 		# check the query is of good quality
-
 		inScore = ElephantWalk.PERSIST.testIndividualGuidQuality(sname,float(cutoff))
 		if inScore == None:
 			return json.dumps(['Err','missing sample'])

@@ -82,7 +82,7 @@ def isjson(content):
 # --------------------------------------------------------------------------------------------------
 @app.errorhandler(404)
 def not_found(error):
-    json_err = jsonify({'error': 'Not found'})
+    json_err = jsonify({'error': 'Not found (custom error handler for mis-routing)'})
     return make_response(json_err, 404)
 # --------------------------------------------------------------------------------------------------
  
@@ -402,11 +402,12 @@ class test_exist_sample(unittest.TestCase):
 @app.route('/sample/findneighbour/snp/<string:guid>/<string:reference>/<int:threshold>/<string:method>/<float:cutoff>', methods = ['GET'])
 @app.route('/sample/findneighbour/snp/<string:guid>/<string:reference>/<int:threshold>/<string:method>/<int:cutoff>', methods = ['GET'])
 @app.route('/sample/neighbours/<string:guid>/<string:reference>/<int:threshold>/<string:method>', methods=['GET'])
-@app.route('/v2/<string:guid>/neighbours_within<int:threshold>', methods=['GET'])
-@app.route('/v2/<string:guid>/<int:threshold>/neighbours_within/<float:cutoff>', methods=['GET'])
-@app.route('/v2/<string:guid>/<int:threshold>/neighbours_within/<float:cutoff>/<int:returned_format>', methods=['GET'])
-@app.route('/v2/<string:guid>/<int:threshold>/neighbours_within/<int:cutoff>', methods=['GET'])
-@app.route('/v2/<string:guid>/<int:threshold>/neighbours_within/<int:cutoff>/<int:returned_format>', methods=['GET'])
+@app.route('/v2/<string:guid>/neighbours_within/<int:threshold>', methods=['GET'])
+@app.route('/v2/<string:guid>/neighbours_within/<int:threshold>/with_quality_cutoff/<float:cutoff>', methods=['GET'])
+@app.route('/v2/<string:guid>/neighbours_within/<int:threshold>/with_quality_cutoff/<int:cutoff>', methods=['GET'])
+@app.route('/v2/<string:guid>/neighbours_within/<int:threshold>/with_quality_cutoff/<float:cutoff>/in_format/<int:returned_format>', methods=['GET'])
+@app.route('/v2/<string:guid>/neighbours_within/<int:threshold>/with_quality_cutoff/<int:cutoff>/in_format/<int:returned_format>', methods=['GET'])
+@app.route('/v2/<string:guid>/neighbours_within/<int:threshold>/in_format/<int:returned_format>', methods=['GET'])
 def query_get_value_snp(guid, threshold, **kwargs):
 	""" get a guid's neighbours, within a threshold """
 	
@@ -414,7 +415,7 @@ def query_get_value_snp(guid, threshold, **kwargs):
 	# we also support 'method' and 'reference' parameters but these are ignored.
 	# the default for cutoff and format are 0.85 and 1, respectively.
 	if not 'cutoff' in kwargs.keys():
-		cutoff = 0.85
+		cutoff = CONFIG['DEFAULT_QUALITY_CUTOFF']
 	else:
 		cutoff = kwargs['cutoff']
 		
@@ -450,7 +451,6 @@ class test_query_get_value_snp_0a(unittest.TestCase):
        
         self.assertTrue(info[1] == "missing sample")
         self.assertTrue(info[0] == "Err")
-
 class test_query_get_value_snp_0b(unittest.TestCase):
     """ tests route '/sample/neighbours/<string:guid>/<string:reference>/<int:threshold>/<string:method>' """
     def runTest(self):
@@ -471,43 +471,127 @@ class test_query_get_value_snp_1(unittest.TestCase):
         res = do_GET(relpath)
         self.assertTrue(isjson(content = res.content))
         info = json.loads(res.content.decode('utf-8'))
-        self.assertEqual(type(info), dict)
-        self.assertTrue('error' in info.keys())
-        self.assertEqual(res.status_code, 404)
+        self.assertEqual(type(info), list)
+        self.assertTrue('Err' in info)
+        self.assertEqual(res.status_code, 200)
 
 class test_query_get_value_snp_2(unittest.TestCase):
     """ tests route /v2/guid/neighbours_within/ """
     def runTest(self):
-        relpath = "/v2/non_existent_guid/neighbours_within/12/0.5"
+        relpath = "/v2/non_existent_guid/neighbours_within/12/with_quality_cutoff/0.5"
         res = do_GET(relpath)
         self.assertTrue(isjson(content = res.content))
         info = json.loads(res.content.decode('utf-8'))
-        self.assertEqual(type(info), dict)
-        self.assertTrue('error' in info.keys())
-        self.assertEqual(res.status_code, 404)
+        self.assertEqual(type(info), list)
+        self.assertTrue('Err' in info)
+        self.assertEqual(res.status_code, 200)
 
 class test_query_get_value_snp_3(unittest.TestCase):
     """ tests route /v2/guid/neighbours_within/ """
     def runTest(self):
-        relpath = "/v2/non_existent_guid/neighbours_within/12/0.5/1"
+        relpath = "/v2/non_existent_guid/neighbours_within/12/with_quality_cutoff/0.5/in_format/1"
         res = do_GET(relpath)
+        print(res)
         self.assertTrue(isjson(content = res.content))
         info = json.loads(res.content.decode('utf-8'))
-        self.assertEqual(type(info), dict)
-        self.assertTrue('error' in info.keys())
-        self.assertEqual(res.status_code, 404)
+        self.assertEqual(type(info), list)
+        self.assertTrue('Err' in info)
+        self.assertEqual(res.status_code, 200)
 
 class test_query_get_value_snp_4(unittest.TestCase):
     """ tests route /v2/guid/neighbours_within/ """
     def runTest(self):
-        relpath = "/v2/query_get_value_snp/non_existent_guid/12/0.5/2"
+        relpath = "/v2/non_existent_guid/neighbours_within/12/with_quality_cutoff/0.5/in_format/2"
         res = do_GET(relpath)
+        print(res)
         self.assertTrue(isjson(content = res.content))
         info = json.loads(res.content.decode('utf-8'))
-        self.assertEqual(type(info), dict)
-        self.assertTrue('error' in info.keys())
-        self.assertEqual(res.status_code, 404)
+        self.assertEqual(type(info), list)
+        self.assertTrue('Err' in info)
+        self.assertEqual(res.status_code, 200)
 
+class test_query_get_value_snp_5(unittest.TestCase):
+    """ tests route /v2/guid/neighbours_within/ """
+    def runTest(self):
+        relpath = "/v2/non_existent_guid/neighbours_within/12/in_format/2"
+        res = do_GET(relpath)
+        print(res)
+        self.assertTrue(isjson(content = res.content))
+        info = json.loads(res.content.decode('utf-8'))
+        self.assertEqual(type(info), list)
+        self.assertTrue('Err' in info)
+        self.assertEqual(res.status_code, 200)
+        
+class test_query_get_value_snp_6(unittest.TestCase):
+   """ tests all the /v2/guid/neighbours_within methods using test data """
+   def runTest(self):
+        relpath = "/v2/guids"
+        res = do_GET(relpath)
+        n_pre = len(json.loads(str(res.text)))
+
+        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        with open(inputfile, 'rt') as f:
+            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+                    seq = str(record.seq)
+                    
+        # generate variants
+        variants = {}
+        for i in range(4):
+                 guid_to_insert = "guid_insert_{0}".format(n_pre+i+1)
+                 vseq=list(seq)
+                 vseq[100*i]='A'
+                 vseq=''.join(vseq)
+                 variants[guid_to_insert] = vseq
+
+        for guid_to_insert in variants.keys():
+
+                print("Adding mutated TB reference sequence called {0}".format(guid_to_insert))        
+                relpath = "/v2/insert"
+                
+                res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':variants[guid_to_insert]})
+                self.assertTrue(isjson(content = res.content))
+                info = json.loads(res.content.decode('utf-8'))
+                self.assertEqual(info, ['OK'])
+
+                # check if it exists
+                relpath = "/v2/{0}/exists".format(guid_to_insert)
+                res = do_GET(relpath)
+                self.assertTrue(isjson(content = res.content))
+                info = json.loads(res.content.decode('utf-8'))
+                self.assertEqual(type(info), bool)
+                self.assertEqual(res.status_code, 200)
+                self.assertEqual(info, True)
+        
+        relpath = "/v2/guids"
+        res = do_GET(relpath)
+        n_post = len(json.loads(res.content.decode('utf-8')))
+        self.assertEqual(n_pre+4, n_post)
+
+        test_guid = min(variants.keys())
+        print("Searching for ",test_guid)
+        
+        search_paths = ["/v2/{0}/neighbours_within/1",
+                        "/v2/{0}/neighbours_within/1/with_quality_cutoff/0.5",
+                        "/v2/{0}/neighbours_within/1/with_quality_cutoff/0.5/in_format/1"
+                        "/v2/{0}/neighbours_within/1/with_quality_cutoff/0.5/in_format/2"
+                        "/v2/{0}/neighbours_within/1/in_format/1"
+                        "/v2/{0}/neighbours_within/1/in_format/2"
+                        ]
+        
+        for search_path in search_paths:
+                url = search_path.format(test_guid)
+                res = do_GET(relpath)
+                self.assertTrue(isjson(content = res.content))
+                info = json.loads(res.content.decode('utf-8'))
+                self.assertEqual(type(info), list)
+                guids_found = set()
+                for item in info:
+                        guids_found.add(item['guid'])
+                recovered = guids_found.intersection(variants.keys())
+                self.assertEqual(len(recovered),4)
+                self.assertEqual(res.status_code, 200)
+
+                
 @app.route('/v2/<string:guid1>/<string:guid2>/detailed_comparison', methods=['GET'])
 def get_detail(guid1, guid2):
 	""" detailed comparison of two guids """
@@ -710,7 +794,7 @@ if __name__ == '__main__':
                 raise KeyError("CONFIG must be either a dictionary or a JSON string encoding a dictionary.  It is: {0}".format(CONFIG))
         
         # check that the keys of config are as expected.
-        required_keys=set(['IP','REST_PORT', 'PORT', 'DEBUGMODE', 'LOGFILE'])
+        required_keys=set(['IP', 'REST_PORT', 'PORT', 'DEBUGMODE', 'LOGFILE', 'DEFAULT_QUALITY_CUTOFF'])
         missing=required_keys-set(CONFIG.keys())
         if not missing == set([]):
                 raise KeyError("Required keys were not found in CONFIG. Missing are {0}".format(missing))
