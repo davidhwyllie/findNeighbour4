@@ -22,6 +22,7 @@ Dependencies
 * banyan
 * psycopg2 (if using postgres as database)
 * pymysql (if using mysql as database)
+* flask (if using restful endpoints)
 
 Database backend
 ----------------
@@ -33,7 +34,7 @@ please see the section on configuration files below.
 Protocol for configuring a clean Linux ubuntu 14.04 instance
 ============================================================
 Note that this protocol does not use a virtual environment.
-no
+
 ```
 sudo apt-get update  
 sudo apt-get upgrade  
@@ -160,7 +161,7 @@ All should pass.
 Now kill the webserver
 
 ```
-ps -x | greop webservice-server
+ps -x | grep webservice-server
 # kill both xmlrpc and restful servers:
 kill -9 <pid>
 ```
@@ -201,7 +202,7 @@ The json file should look something like this:
 "MAXN_PROP_DEFAULT":0.85,
 "LOGFILE":"/home/dwyllie/data/relatednesstest/TB_SERVER/log/logfile.log",
 "LOGLEVEL":"INFO",
-"SNPCEILING",20
+"SNPCEILING":20
 }
 ```
 
