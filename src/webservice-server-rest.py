@@ -174,7 +174,7 @@ class test_server_config(unittest.TestCase):
         self.assertTrue(isjson(content = res.content))
 
         config_dict = json.loads(res.content.decode('utf-8'))
-        self.assertTrue('MASKER' in config_dict.keys())
+        self.assertTrue('NCOMPRESSIONCUTOFF' in config_dict.keys())
         print(res)
         self.assertEqual(res.status_code, 200)
 
@@ -319,7 +319,7 @@ class test_get_all_guids_examination_time_1(unittest.TestCase):
         guidlist = json.loads(res.content.decode('utf-8'))
         print(guidlist)
         self.assertEqual(res.status_code, 200)
-		
+
 class test_get_all_guids_examination_time_2(unittest.TestCase):
     """ tests route /sample/guids_and_time/R00039"""
     def runTest(self):
@@ -415,7 +415,7 @@ def query_get_value_snp(guid, threshold, **kwargs):
 	# we also support 'method' and 'reference' parameters but these are ignored.
 	# the default for cutoff and format are 0.85 and 1, respectively.
 	if not 'cutoff' in kwargs.keys():
-		cutoff = CONFIG['DEFAULT_QUALITY_CUTOFF']
+		cutoff = CONFIG['MAXN_PROP_DEFAULT']
 	else:
 		cutoff = kwargs['cutoff']
 		
@@ -727,7 +727,7 @@ def get_all_values(threshold):
 		abort(500, e)
 		
 	return(str(result))
-class test_get_all_values(unittest.TestCase):
+class test_get_all_values_1(unittest.TestCase):
     """ tests route /v2/neighbours_within/threshold"""
     def runTest(self):
         relpath = "v2/neighbours_within/12"
@@ -736,6 +736,74 @@ class test_get_all_values(unittest.TestCase):
         self.assertTrue(isinstance(resList, list))
         self.assertEqual(res.status_code, 200)
 
+class test_get_all_values_2(unittest.TestCase):
+    """ tests route /v2/neighbours_within/threshold, checking that cutoff is enforced"""
+    def runTest(self):
+        relpath = "v2/neighbours_within/0"
+        
+        # setup
+        #add at least one identical and one non-identical sequence.
+        relpath = "/v2/guids"
+        res = do_GET(relpath)
+        n_pre = len(json.loads(str(res.text)))
+
+        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        with open(inputfile, 'rt') as f:
+            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+                    seq = str(record.seq)
+                    
+        # generate variants
+        variants = {}
+        guids_to_insert = [
+                "guid_gav_{0}".format(n_pre+1),
+                "guid_gav_{0}".format(n_pre+2),
+                "guid_gav_{0}".format(n_pre+3)
+                ]
+        
+        # make a single nucleotide change
+        vseq=list(seq)
+        vseq[100]='A'
+        vseq=''.join(vseq)
+        
+        variants = {
+                "guid_gav_{0}".format(n_pre+1):seq,
+                "guid_gav_{0}".format(n_pre+2):seq,
+                "guid_gav_{0}".format(n_pre+3):vseq                
+        }
+        
+        expected = [ "guid_gav_{0}".format(n_pre+1), "guid_gav_{0}".format(n_pre+2)]
+        unexpected = [ "guid_gav_{0}".format(n_pre+3)]
+        
+        for guid_to_insert in variants.keys():
+
+                print("Adding test TB reference sequence called {0}".format(guid_to_insert))        
+                relpath = "/v2/insert"
+                
+                res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':variants[guid_to_insert]})
+                self.assertTrue(isjson(content = res.content))
+                info = json.loads(res.content.decode('utf-8'))
+                self.assertEqual(info, ['OK'])
+
+
+        # now run test
+        relpath = "v2/neighbours_within/0"
+        res = do_GET(relpath)
+        resList = json.loads(res.text)
+        self.assertTrue(isinstance(resList, list))
+        self.assertEqual(res.status_code, 200)
+
+        guids_present = set()
+        did_recover_expected = False
+        for (guid1,guid2,snp,n1,n2,n3) in resList:
+                if snp>0:
+                        self.fail("cutoff not enforced. {0} {1} {2}".format(guid1, guid2, snp))
+                if guid1 in expected and guid2 in unexpected:
+                        self.fail("cutoff not enforced. {0} vs {1}".format(guid1, guid2))
+                if guid1 in expected and guid2 in expected:
+                        did_recover_expected = True
+                        
+        if not did_recover_expected:
+                self.fail("did not recover expected zero snp pair {0}".format(expected))
 @app.route('/v2/nucleotides_excluded', methods=['GET'])
 def get_nucleotides_excluded():
 	""" returns all nucleotides excluded by the server.
@@ -794,7 +862,7 @@ if __name__ == '__main__':
                 raise KeyError("CONFIG must be either a dictionary or a JSON string encoding a dictionary.  It is: {0}".format(CONFIG))
         
         # check that the keys of config are as expected.
-        required_keys=set(['IP', 'REST_PORT', 'PORT', 'DEBUGMODE', 'LOGFILE', 'DEFAULT_QUALITY_CUTOFF'])
+        required_keys=set(['IP', 'REST_PORT', 'PORT', 'DEBUGMODE', 'LOGFILE', 'MAXN_PROP_DEFAULT'])
         missing=required_keys-set(CONFIG.keys())
         if not missing == set([]):
                 raise KeyError("Required keys were not found in CONFIG. Missing are {0}".format(missing))
