@@ -15,7 +15,7 @@ import sys
 from Bio import SeqIO
 
 ### push fasta files to findNeighbour
-### python push_samples.py localhost R00000039
+### python push_samples.py configfile
 
 json_config_file=sys.argv[1]
 with open(json_config_file, 'rt') as f:
@@ -33,7 +33,7 @@ startParse=datetime.datetime.now()
 nTested=0
 keyList=[]
 # we are going to read the sequences from a test data set
-testpath="/home/dwyllie/data/relatednesstest/TB_FASTA_2/*_v3.fasta" 
+testpath="/home/dwyllie/data/relatednesstest/TB_FASTA_MASKTEST/*_v3.fasta" 
 nRead=0
 fastaFiles=glob.glob(testpath)
 for fastaFile in fastaFiles:
