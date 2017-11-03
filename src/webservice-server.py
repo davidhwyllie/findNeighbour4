@@ -79,7 +79,6 @@ class ElephantWalk():
 		"MAXN_STORAGE":100000,
 		"MAXN_PROP_DEFAULT":0.70,
 		"NCOMPRESSIONCUTOFF":100000,
-		"MASKER":["rrl","rrs"],
 		"LOGFILE":"../unittest_tmp/logfile.log",
 		"LOGLEVEL":"INFO",
 		"SNPCEILING": 20,
@@ -278,11 +277,11 @@ if __name__=='__main__':
 		# use default which may be inappropriate in production
 		warnings.warn("No config file name supplied as a single argument; using '../config/default_config.json' This configuration suitable only for testing, not for production.")
 		try:
-			with open(os.path.join('..','config','default_config.json'),'r') as f:
+			with open(os.path.join('..','config','default_test_config.json'),'r') as f:
 				CONFIG_STRING=f.read()
 				
-		except FileError:
-			raise FileError("No default_config.json file found.")
+		except FileNotFoundError:
+			raise FileNotFoundError("No default_config.json file found.")
 
 	CONFIG=json.loads(CONFIG_STRING)
 
