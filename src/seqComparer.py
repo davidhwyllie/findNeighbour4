@@ -241,8 +241,6 @@ class seqComparer():
             diffDict={'invalid':1}
         else:
             diffDict['invalid']=0
-            # for Ns, we code 'runs' of Ns as ranges;
-            nRuns=list(self._ranges(diffDict['N']))
             
             # If there are large number of Ns, we can optionally index this into
             # a Banyan sorted set (~ in-memory B-tree) for high-speed N exclusion during comparisons;
