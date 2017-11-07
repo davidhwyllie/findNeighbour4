@@ -74,7 +74,6 @@ The following commands are issued via the psql terminal.
 
 ```
 CREATE ROLE ew2_daemon;
-CREATE DATABASE "TB_ew2_edges" WITH OWNER = ew2_daemon ENCODING = 'UTF8' TABLESPACE = pg_default LC_COLLATE='en_GB.UTF-8' LC_CTYPE='en_GB.UTF-8' CONNECTION LIMIT = -1;
 
 CREATE DATABASE "TB_ew2_edges"
   WITH OWNER = ew2_daemon
