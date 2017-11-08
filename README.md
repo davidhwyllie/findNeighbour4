@@ -25,7 +25,9 @@ fast sequence comparisons, and disc-based persistence.
 Endpoints [in detail](doc/endpoints.md) [in brief](doc/rest-routes.md)
 
 # Publication
-A publication describing this work is under review. 
+A publication describing this work is in BMC Bioinformatics:
+BugMat and FindNeighbour: command line and server applications for investigating bacterial relatedness
+DOI : 10.1186/s12859-017-1907-2
 
 # Large test data sets
 Test data sets of *N. meningitidis*, *M. tuberculosis* and *S. enterica* data are available to download [here](https://ora.ox.ac.uk/objects/uuid:82ce6500-fa71-496a-8ba5-ba822b6cbb50).  These are .tar.gz files, to a total of 80GB.
