@@ -34,3 +34,4 @@ Test data sets of *N. meningitidis*, *M. tuberculosis* and *S. enterica* data ar
 
 # Note
 During development, findNeighbour2 was referred to as ElephantWalk2, and you may find references to ElephantWalk2 or EW2 in the code base.
+ 
