@@ -12,7 +12,13 @@ If you have two versions of python (e.g. python for 2.7, and python3 for python3
 Dependencies
 ------------
 
-* Python 3.4+. You may need to install pip3 with: sudo apt-get install python3-pip. Then install the following packages:
+* Python 3.4+.   
+You may need to install pip3 with: 
+```
+sudo apt-get install python3-pip
+```
+
+Then install the following packages:
 * BioPython  
 * sqlalchemy  
 * psutil  
@@ -103,9 +109,10 @@ ALTER DEFAULT PRIVILEGES
     GRANT INSERT, SELECT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLES
     TO ew2_daemon;
     
-ALTER USER "ew2_daemon" WITH PASSWORD "ew2"
-```
+ALTER USER "ew2_daemon" WITH PASSWORD "ew2";
 ALTER ROLE "ew2_daemon" WITH LOGIN;
+```
+
 
 After this, please follow the below steps.
 
@@ -121,7 +128,7 @@ python3 webservice-server.py
 ```
 Note: This application doesn't work with python2, so be sure to use python 3.
 
-This will try to start the webserver with a default configuration using SQLite.  If it fails to start, it's probably due to missing dependencies (which it will report).  Install them, then try again.  When it works, terminate the server, and kill the process.
+This will try to start the webserver with a default configuration using SQLite.  If it fails to start, it's probably due to missing dependencies (which it will report).  Install them, then try again.  When it works, terminate the server, and kill any remaining process.
 
 The more general form for starting the server is:
 ```
@@ -130,14 +137,14 @@ nohup python3 webservice-server.py {configfile.json} &
 
 * If {configfile.json} is not provided, then it will use a default config file, config/default_config.json  
 This is suitable for testing. It runs a test instance on localhost using an SQLite backend in ../unittest_Tmp/.
-** It is unsuitable for production.  A warning is emitted if the server is running with this default configuration.  **  
+**It is unsuitable for production.  A warning is emitted if the server is running with this default configuration.**  
 
 
 Unit tests
 ----------
 
 At the moment, some kinds of unit testing assume a server is running.  Unit tests don't start the server.
-After this, you can run unit tests:
+You will need to do.  After this, you can run unit tests:
 
 ```
 # start the xmlrpc server
