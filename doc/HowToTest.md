@@ -193,7 +193,7 @@ The json file should look something like this:
 {
 "DESCRIPTION":"The production server used for the PHE relatedness test",
 "PORT":8185,
-"RESTPORT":8186,
+"REST_PORT":8186,
 "IP":"IP of the machine that run this service",
 "INPUTREF":"../reference/reference.fasta",
 "PERSISTENCEDIR":"/home/dwyllie/data/relatednesstest/TB_SERVER/persist",
