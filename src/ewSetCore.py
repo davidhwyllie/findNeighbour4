@@ -148,7 +148,9 @@ class ewSetCore():
         logging.getLogger()
 		
         # validate input
-        required_keys=set(['INPUTREF','PERSISTENCEDIR','EXCLUDEFILE','SNPDIR','DEBUGMODE','SERVERNAME','EDGEDB_CONNSTRING','MAXN_STORAGE'])
+        required_keys=set(['INPUTREF','PERSISTENCEDIR','EXCLUDEFILE','SNPDIR',
+						   'SNPCOMPRESSIONCEILING','SNPCEILING',
+						   'DEBUGMODE','SERVERNAME','EDGEDB_CONNSTRING','MAXN_STORAGE'])
         missing=required_keys-set(CONFIG.keys())
         if not missing==set([]):
             raise KeyError("Required keys were not found in CONFIG. Missing are {0}".format(missing))
@@ -174,11 +176,12 @@ class ewSetCore():
                            persistenceDir=self.CONFIG['PERSISTENCEDIR'],
                            excludeFile=self.CONFIG['EXCLUDEFILE'],
                            startAfresh=False,
-						   NCompressionCutoff=self.CONFIG['NCOMPRESSIONCUTOFF'],
 						   snpCeiling=self.CONFIG['SNPCEILING'],
+						   snpCompressionCeiling=self.CONFIG['SNPCOMPRESSIONCEILING'],
 						   maxNs=self.CONFIG['MAXN_STORAGE'],
                            debugMode=self.CONFIG['DEBUGMODE'])
-        
+		
+                  
         # initiate elephantwalk storage system, for persisting SNPs; supply temporary directory and sqlite filename 
         self.ewdir=os.path.join(self.CONFIG['SNPDIR'])
         self.dbname=self.CONFIG['SERVERNAME']

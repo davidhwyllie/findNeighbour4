@@ -16,6 +16,8 @@ import psutil
 from gzip import GzipFile
 import random
 import itertools
+import datetime
+import pandas as pd
 
 from seqComparer import seqComparer
 
@@ -27,16 +29,21 @@ if __name__ == "__main__":
     with open(reffile) as f:
         for record in SeqIO.parse(f, format='fasta'):
             refSeq = record.seq
-            
+     
+    snpCompressionCeiling = 300     
     # create sc object
     sc=seqComparer( maxNs = 1e8,
                        reference=refSeq,
                        startAfresh=True,
                        snpCeiling =20,
-                       persistenceDir=os.path.join('..','unittest_tmp'))
+                       persistenceDir=os.path.join('..','unittest_tmp'),
+                       snpCompressionCeiling=snpCompressionCeiling)
     
     # the below data contains test data from https://ora.ox.ac.uk/objects/uuid:82ce6500-fa71-496a-8ba5-ba822b6cbb50
-    inputdir = os.path.join("E:/", "dwyllie", "TBTESTDATA")
+    outputdir = os.path.join("/mnt", "md0", "dwyllie", "data", "relatednesstest")
+    
+    inputdir = os.path.join("/mnt", "md0", "dwyllie", "data", "relatednesstest", "TB_FASTA")
+    print(inputdir)
     globpath = os.path.join(inputdir, '*.fasta')
     nRead = 0
     guids = []
@@ -53,12 +60,22 @@ if __name__ == "__main__":
                     c = sc.compress(this_seq)
                     sc.persist(c, guid=guid, method='localmemory')
             nRead+=1
-            if nRead == 500:
+            if nRead == 30000:
                 break
     # estimate memory used
     p1 = len(pickle.dumps(sc.seqProfile))
     p2 = len(pickle.dumps(sc.consensi))
-    print('Precompression','',p1, p2, p1+p2)
+    
+    results = []
+    results.append({
+        'Time':datetime.datetime.now(),
+        'snpCompressionCeiling':snpCompressionCeiling,
+        'Covered':0,
+        'Phase':'Precompression',
+        'guid':'-',
+        'SeqProfiles':p1,
+        'Consensi':p2,
+        'Both':p1+p2})
 
     covered = set()
     for guid in guids:
@@ -68,5 +85,16 @@ if __name__ == "__main__":
             if len(res)>1:      # we found matches
                 p1 = len(pickle.dumps(sc.seqProfile))
                 p2 = len(pickle.dumps(sc.consensi))
-                print('Compressing',guid, p1, p2, p1+p2)        
-    
+                results.append({
+                    'Time':datetime.datetime.now(),
+                    'snpCompressionCeiling':snpCompressionCeiling,
+                    'Covered':len(covered),
+                    'Phase':'Compressing',
+                    'guid':guid,
+                    'SeqProfiles':p1,
+                    'Consensi':p2,
+                    'Both':p1+p2})
+        
+    df = pd.DataFrame(results)
+    print(df)
+    df.to_excel(os.path.join(outputdir,'tb_fasta_compression_test.xlsx'))

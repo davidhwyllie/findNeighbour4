@@ -98,7 +98,9 @@ class ElephantWalk():
 		
 		# check that the keys of config are as expected.
 		required_keys=set(['IP','PORT','INPUTREF','PERSISTENCEDIR','EXCLUDEFILE','SNPDIR','DEBUGMODE','SERVERNAME',
-						   'EDGEDB_CONNSTRING','MAXN_STORAGE', 'MAXN_PROP_DEFAULT', 'SNPCEILING', 'MULTIPROCESSING'])
+						   'EDGEDB_CONNSTRING','FNPERSISTENCE_CONNSTRING', 'MAXN_STORAGE',
+						   'NCOMPRESSIONCUTOFF', 'SNPCOMPRESSIONCEILING', 'MAXN_PROP_DEFAULT', 'MULTIPROCESSING', 'REST_PORT',
+						   'LOGFILE','LOGLEVEL'])
 		missing=required_keys-set(CONFIG.keys())
 		if not missing == set([]):
 			raise KeyError("Required keys were not found in CONFIG. Missing are {0}".format(missing))
@@ -281,7 +283,7 @@ if __name__=='__main__':
 				CONFIG_STRING=f.read()
 				
 		except FileNotFoundError:
-			raise FileNotFoundError("No default_config.json file found.")
+			raise FileNotFoundError("No default_test_config.json file found.")
 
 	CONFIG=json.loads(CONFIG_STRING)
 
