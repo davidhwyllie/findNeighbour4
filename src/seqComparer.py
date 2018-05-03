@@ -66,6 +66,16 @@ class seqComparer():
         - to run unit tests, do
         python -m unittest seqComparer
         """
+        
+        # we support three kinds of sequences.
+        # sequence in strings;
+        # reference based compression relative to reference 'compressed_sequence';
+        # reference based compression relative to a consensus 'patch_and_consensus'.
+        # we detected the latter two by their keys.
+        self.compressed_sequence_keys = set(['invalid','A','C','G','T', 'N'])
+        self.patch_and_consensus_keys=set(['consensus_md5','patch'])
+        self.patch_keys = set(['add','subtract'])
+        self.consensus_keys = set(['A','C','G','T', 'N'])
         # store snpCeilings.
         self.snpCeiling = snpCeiling
         self.snpCompressionCeiling = snpCompressionCeiling
@@ -82,7 +92,7 @@ class seqComparer():
         # check composition of the reference.
         self.reference=str(reference)           # if passed a Bio.Seq object, coerce to string.
         letters=collections.Counter(self.reference)   
-        if not set(letters.keys())==set(['A','C','G','T']):
+        if len(set(letters.keys())-set(['A','C','G','T']) )>0:
             raise TypeError("Reference sequence supplied contains characters other than ACTG: {0}".format(letters))
         
         ## verify that the storage systems stated are ready for use.
@@ -146,8 +156,8 @@ class seqComparer():
         self.memtracker = psutil.Process(os.getpid())
 
     def _refresh(self):
-        self.seq1=None
-        self.seq2=None
+        self._seq1=None
+        self._seq2=None
         self.seq1md5=None
         self.seq2md5=None
     def emptyPersistenceDir(self):
@@ -204,6 +214,7 @@ class seqComparer():
     
     def uncompress(self, compressed_sequence):
         """ returns a sequence from a compressed_sequence """
+        compressed_sequence = self._computeComparator(compressed_sequence)    # decompress if it is a patch_consensus 
         if compressed_sequence['invalid']==1:
             raise ValueError("Cannot uncompress an invalid sequence, as it is not stored")
         
@@ -307,11 +318,36 @@ class seqComparer():
             return(self.load_fromfile(guid))
         elif method=='localmemory':
             return(self.seqProfile[guid])
-        
+    
+    def _computeComparator(self, sequence):
+        """ generates a reference compressed version of sequence.
+        Acceptable inputs are :
+        i) a string containing sequence
+        ii) a reference compressed version of the sequence
+        iii) a reference compressed version relative to a consensus
+        """
+        if isinstance(sequence, str):
+            return(self.compress(sequence))
+        elif isinstance(sequence, dict):
+            if set(sequence.keys())==self.compressed_sequence_keys:
+                return(sequence)
+            elif set(sequence.keys())==self.patch_and_consensus_keys:
+                return(
+                    self.apply_patch(sequence['patch'], self.consensi[sequence['consensus_md5']])
+                    ) #decompress relative to a patch
+            else:
+                raise KeyError("Was passed a dictionary with keys {0} but cannot handle this".format(sequence.keys()))
+        else:
+            raise TypeError("Cannot use object of class {0} as a sequence".format(type(sequence)))
     def setComparator1(self,sequence):
-        self.seq1=self.compress(sequence)
+        """ stores a reference compressed sequence (no patch) in self._seq1 """
+        self._seq1=self._computeComparator(sequence)
+           
     def setComparator2(self,sequence):
-        self.seq2=self.compress(sequence)
+        """ stores a reference compressed sequence (no patch) in self._seq2 """
+        self._seq2=self._computeComparator(sequence)
+        
+        
     def _setStats(self, sortedset1, sortedset2):
         """ compares sortedset1, which contains a series of ranges {(0,1) (10,11)}
         with         sortedset2, which also contains  ranges       {(1,2)}
@@ -347,11 +383,11 @@ class seqComparer():
 
         return(len(retVal1), len(retVal2), len(retVal), retVal1, retVal2, retVal)   
 
-    def countDifferences_byKey(self,keyPair, cutoff=None):
+    def countDifferences_byKey(self, keyPair, cutoff=None):
         """ compares the in memory refCompressed sequences at
         self.seqProfile[key1] and self.seqProfile[key2]
 
-        Returns the number of SNPs between self.seq1 and self.seq2, and, if it is less than cutoff,
+        Returns the number of SNPs between self._seq1 and self._seq2, and, if it is less than cutoff,
         the number of Ns in the two sequences and the union of their positions.
         Typical computational time is less than 0.5 msec."""
 
@@ -374,23 +410,23 @@ class seqComparer():
             
         ## do the computation  
         # if either sequence is considered invalid (e.g. high Ns) then we report no neighbours.
-        self.seq1=self.seqProfile[key1]
-        self.seq2=self.seqProfile[key2]
+        self.setComparator1(self.seqProfile[key1])
+        self.setComparator2(self.seqProfile[key2])
         nDiff=self.countDifferences(cutoff=cutoff)
         
         if nDiff is None:
             return((key1, key2, nDiff, None, None, None, None, None, None))
         elif nDiff<=cutoff:
-            (n1, n2, nboth, N1pos, N2pos, Nbothpos) = self._setStats(self.seq1['N'],self.seq2['N'])
+            (n1, n2, nboth, N1pos, N2pos, Nbothpos) = self._setStats(self._seq1['N'],self._seq2['N'])
             return((key1, key2, nDiff, n1,n2,nboth, N1pos, N2pos, Nbothpos))
         else:
             return((key1, key2, nDiff, None, None, None, None, None, None))
 
     
     def countDifferences(self,cutoff=None):
-        """ compares self.seq1 with self.seq2;
+        """ compares self._seq1 with self._seq2;
         these are set with self.setComparator1 and 2 respectively.
-        Returns the number of SNPs between self.seq1 and self.seq2.
+        Returns the number of SNPs between self._seq1 and self._seq2.
         
         Transparently decompresses any sequences stored as deltas relative to a consensus
         scan rate about 25000 per second."""
@@ -399,7 +435,7 @@ class seqComparer():
             cutoff = self.snpCeiling
      
         nDiff=0
-        if self.seq1['invalid']==1 or self.seq2['invalid']==1:
+        if self._seq1['invalid']==1 or self._seq2['invalid']==1:
             return(None)
          
         # compute positions which differ;
@@ -407,8 +443,8 @@ class seqComparer():
         for nucleotide in ['C','G','A','T']:
        
             # we do not consider differences relative to the reference if the other nucleotide is an N
-            nonN_seq1=self.seq1[nucleotide]-self.seq2['N']
-            nonN_seq2=self.seq2[nucleotide]-self.seq1['N']
+            nonN_seq1=self._seq1[nucleotide]-self._seq2['N']
+            nonN_seq2=self._seq2[nucleotide]-self._seq1['N']
             differing_positions = differing_positions | (nonN_seq1 ^ nonN_seq2)
         
         nDiff = len(differing_positions)
@@ -429,6 +465,7 @@ class seqComparer():
         # exclude invalid compressed sequences
         valid_compressed_sequences= []
         for compressed_sequence in compressed_sequences:
+            compressed_sequence = self._computeComparator(compressed_sequence)
             if compressed_sequence['invalid']==0:
                 valid_compressed_sequences.append(compressed_sequence)
                 
@@ -442,10 +479,11 @@ class seqComparer():
             if not item in counter.keys():
                 counter[item]=dict()
             for result in compressed_sequences:
-                for position in result[item]:
-                    if not position in counter[item].keys():
-                        counter[item][position]=0
-                    counter[item][position]+=1
+                if item in result.keys():
+                    for position in result[item]:
+                        if not position in counter[item].keys():
+                            counter[item][position]=0
+                        counter[item][position]+=1
         
         # next create a diff object reflecting any variants present in at least cutoff_proportion of the time
         cutoff_number = len(compressed_sequences)*cutoff_proportion
@@ -457,7 +495,8 @@ class seqComparer():
                     if counter[item][position] >= cutoff_number:
                         delta[item].add(position)
         return(delta)
-    def patch(self, compressed_sequence, consensus):
+    
+    def generate_patch(self, compressed_sequence, consensus):
         """ generates a 'patch' or difference between a compressed sequence and a consensus.
 
         anything which is in consensus and compressed_sequence does not need to be in patch;
@@ -471,16 +510,40 @@ class seqComparer():
         for item in ['A','C','T','G','N']:
             add_positions[item] = compressed_sequence[item]-consensus[item]
             subtract_positions[item]= consensus[item]-compressed_sequence[item]
+        for item in ['A','C','T','G','N']:
+            if len(add_positions[item])==0:
+                del add_positions[item]  # don't store empty sets; they cost ~ 120 bytes each
+            if len(subtract_positions[item])==0:
+                del subtract_positions[item]  # don't store empty sets; they cost ~ 120 bytes each
+                
+                    
+                
         retVal = {'add':add_positions, 'subtract':subtract_positions}
         return(retVal)
 
     def apply_patch(self, patch, consensus):
         """ generates a compressed_sequence from a patch and a consensus.
         """
+        # sanity check
+        if not patch.keys() == self.patch_keys:
+            raise TypeError("Patch passed has wrong keys {0}".format(patch.keys))
+        if not consensus.keys() == self.consensus_keys:
+            raise TypeError("Consensus passed has wrong keys {0}".format(consensus.keys))
         compressed_sequence = {'invalid':0, 'A':set(),'C':set(),'T':set(),'G':set(),'N':set()}
         for item in ['A','C','T','G','N']:
-            compressed_sequence[item]=  (consensus[item]|patch['add'][item])-patch['subtract'][item] 
-        return(compressed_sequence)    
+            # empty sets are not stored in a patch
+            if item in patch['add']:
+                add_these = patch['add'][item]
+            else:
+                add_these = set()
+            if item in patch['subtract']:
+                subtract_these = patch['subtract'][item]
+            else:
+                subtract_these = set()
+                
+            compressed_sequence[item]=  (consensus[item]|add_these)-subtract_these
+        return(compressed_sequence)
+    
     def compressed_sequence_hash(self, compressed_sequence):
         """ returns a string containing a hash of a compressed object.
         Used for identifying compressed objects, including consensus sequences.
@@ -497,16 +560,56 @@ class seqComparer():
         h.update(serialised_compressed_sequence.encode('utf-8'))
         md5 = h.hexdigest()
         return(md5)
-    def compress_relative_to_consensus(self, guid):
-        """ identifies sequences similar to the sequence identified by guid """
-        visited_sequences = set([guid])
+    def remove_unused_consensi(self):
+        """ identifies and removes any consensi which are not used """
+        
+        # determine all the consensi which are referred to
+        used_consensi_md5 = set()
+        for guid in self.seqProfile.keys():
+            if 'consensus_md5' in self.seqProfile[guid].keys(): 
+                used_consensi_md5.add(self.seqProfile[guid]['consensus_md5'])
+        initial_consensi = set(self.consensi.keys())
+        for consensus_md5 in initial_consensi:
+            if not consensus_md5 in used_consensi_md5:
+                del self.consensi[consensus_md5]
+                
+    def compress_relative_to_consensus(self, guid, cutoff_proportion=0.8):
+        """ identifies sequences similar to the sequence identified by guid.
+        Returns any guids which have been compressed as part of the operation"""
+        visited_guids = [guid]
+        visited_sequences = [self.seqProfile[guid]]
         for compare_with in self.seqProfile.keys():
             result = self.countDifferences_byKey((guid,compare_with),
                                                  self.snpCompressionCeiling)
+            # work outward, finding neighbours of seed_sequence up to self.snpCompressionCeiling
+            if result[1] is not guid and result[2] is not None:      # we have a close neighbour
+               if result[2]<self.snpCompressionCeiling:
+                    # we have found something similar, with which we should compress;
+                    visited_sequences.append(self.seqProfile[result[1]])
+                    visited_guids.append(result[1])
             
-        # work outward, finding neighbours of seed_sequence up to self.snpCompressionCeiling
-            print(result)
+        # compute the consensus for these  and store in consensi
+        if len(visited_sequences)>1:    # we can compute a consensus
+            consensus = self.consensus(visited_sequences, cutoff_proportion)
+            consensus_md5 = self.compressed_sequence_hash(consensus)
+            self.consensi[consensus_md5]= consensus
+            
+            # compress the in-memory instances of these samples
+            for guid in visited_guids:
+                # decompress the in-memory sequence if it is compressed, and re-compress
+                this_seqProfile = self.seqProfile[guid]
+                self.seqProfile[guid] = {
+                    'patch':self.generate_patch(
+                            self._computeComparator(this_seqProfile),
+                            consensus),
+                    'consensus_md5':consensus_md5
+                }
+            
+            # cleanup; remove any consensi which are not needed
+            self.remove_unused_consensi()
         
+        # return visited_guids
+        return(visited_guids)
         
 class test_seqComparer_init1(unittest.TestCase):
     def runTest(self):
@@ -647,8 +750,7 @@ class test_seqComparer_15(unittest.TestCase):
         
 class test_seqComparer_16(unittest.TestCase):
     """ tests the comparison of two sequences where both differ from the reference. """
-    def runTest(self):
-        
+    def runTest(self):   
         # generate compressed sequences
         refSeq='ACTG'
         sc=seqComparer( maxNs = 1e8,
@@ -656,11 +758,10 @@ class test_seqComparer_16(unittest.TestCase):
                        startAfresh=True,
                        snpCeiling =10)
         
-        sc.seq1 = sc.compress('AAAA')
-        sc.seq2 = sc.compress('CCCC')
+        sc._seq1 = sc.compress('AAAA')
+        sc._seq2 = sc.compress('CCCC')
         self.assertEqual(sc.countDifferences(),4)
 
-        
 class test_seqComparer_saveload3(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
@@ -861,7 +962,7 @@ class test_seqComparer_41(unittest.TestCase):
         for original in originals:
 
             compressed_sequence = sc.compress(sequence=original)
-            patch = sc.patch(compressed_sequence, consensus)
+            patch = sc.generate_patch(compressed_sequence, consensus)
             roundtrip_compressed_sequence = sc.apply_patch(patch, consensus)
             self.assertEqual(compressed_sequence, roundtrip_compressed_sequence)
             roundtrip = sc.uncompress(roundtrip_compressed_sequence)
@@ -879,9 +980,81 @@ class test_seqComparer_42(unittest.TestCase):
                        snpCeiling =10,
                        persistenceDir=os.path.join('..','unittest_tmp'))
         
-        originals = [ 'AAAA','CCCC','TTTT','GGGG','NNNN','ACTG','ACTC', 'TCTN' ]
+        originals = [ 'AAAC','CCCC','TTTC','GGGC','NNNC','ACTC','ACTC', 'TCTN' ]
         for original in originals:   
             c = sc.compress(original)
             sc.persist(c, guid=original, method='localmemory')
 
-        sc.compress_relative_to_consensus('AAAA')
+        sc.compress_relative_to_consensus(guid = 'AAAC', cutoff_proportion = 0.5)
+        print(sc.consensi)
+        print(sc.seqProfile)
+        
+        for original in originals:
+            self.assertEqual(original, sc.uncompress(sc.seqProfile[original]))
+
+class test_seqComparer_43(unittest.TestCase):
+    """ tests the compression relative to a consensus with a consensus present"""
+    def runTest(self):
+        
+        # generate compressed sequences
+        refSeq='GGGGGGGGGGGG'
+        sc=seqComparer( maxNs = 1e8,
+                       reference=refSeq,
+                       startAfresh=True,
+                       snpCeiling =10,
+                       persistenceDir=os.path.join('..','unittest_tmp'))
+        
+        originals = [ 'AAACACTGACTG','CCCCACTGACTG','TTTCACTGACTG','GGGCACTGACTG','NNNCACTGACTG','ACTCACTGACTG','ACTCACTGACTG', 'TCTNACTGACTG' ]
+        for original in originals:   
+            c = sc.compress(original)
+            sc.persist(c, guid=original, method='localmemory')
+
+        sc.compress_relative_to_consensus(guid = 'AAACACTGACTG', cutoff_proportion = 0.8)
+        print(sc.consensi)
+        print(sc.seqProfile)
+        
+        for original in originals:
+            self.assertEqual(original, sc.uncompress(sc.seqProfile[original]))
+
+
+class test_seqComparer_44(unittest.TestCase):
+    """ tests the compression relative to a consensus with a consensus present.
+    then adds more sequences, changing the consensus."""
+    def runTest(self):
+        
+        # generate compressed sequences
+        refSeq='GGGGGGGGGGGG'
+        sc=seqComparer( maxNs = 1e8,
+                       reference=refSeq,
+                       startAfresh=True,
+                       snpCeiling =10,
+                       persistenceDir=os.path.join('..','unittest_tmp'))
+        
+        originals = [ 'AAACACTGACTG','CCCCACTGACTG','TTTCACTGACTG','GGGCACTGACTG','NNNCACTGACTG','ACTCACTGACTG','ACTCACTGACTG', 'TCTNACTGACTG' ]
+        for original in originals:   
+            c = sc.compress(original)
+            sc.persist(c, guid=original, method='localmemory')
+
+        sc.compress_relative_to_consensus(guid = 'AAACACTGACTG', cutoff_proportion = 0.8)
+        initial_consensi_keys = set(sc.consensi.keys())
+        for original in originals:
+            self.assertEqual(original, sc.uncompress(sc.seqProfile[original]))
+
+        # add more changing the consensus by adding at T
+        more_seqs = [ 'TAACACTGACTG','TCCCACTGACTG','TTTCACTGACTG','TGGCACTGACTG','TNNCACTGACTG','TCTCACTGACTG','TCTCACTGACTG', 'TCTNACTGACTG' ]
+        for more_seq in more_seqs:   
+            c = sc.compress(more_seq)
+            sc.persist(c, guid=more_seq, method='localmemory')
+
+        sc.compress_relative_to_consensus(guid = 'AAACACTGACTG', cutoff_proportion = 0.8)
+  
+        for original in originals:
+            self.assertEqual(original, sc.uncompress(sc.seqProfile[original]))
+        for more_seq in more_seqs:
+            self.assertEqual(more_seq, sc.uncompress(sc.seqProfile[more_seq]))
+
+        # there should be one consensus
+        later_consensi_keys = set(sc.consensi.keys())
+        self.assertNotEqual(initial_consensi_keys, later_consensi_keys)
+        self.assertEqual(len(later_consensi_keys), 1)
+ 
