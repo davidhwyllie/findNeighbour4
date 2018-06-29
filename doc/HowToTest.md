@@ -293,12 +293,12 @@ Typical performance
 -------------------
 Benchmarking results are below.[#2]
 
-
-Server | Processes Used | Dataset | Masking | MaxNStorage | Min Prop N | SNPCeiling | Memory [#3] | Add 1 sample [#1] | Restart server [#2] | On disc storage [#3] | Find all guids [#4] | Detailed comparison (rpt all variant positions, incl. N) [#4] | Find pairwise edges [#5] | Download all edges < 12 snp [#4] | Check server time [#5] | Get all guids & examination time [#5] | Get all guids and annotations [#5]    
---- | --- | --- | --- | --- | --- | --- | --- | --- | ---  | --- | --- | --- | --- | --- | --- | --- | --- | ---   
-1 | 1 | TB, n= 15985 | Ambiguous + 329714 'always N' sites | 330k | 0.85 | 20 | 23.5G | 2.23s | 250 s | 2.4G | 0.19s | 0.09s /comparions | < 2msec | 60 s [198,584 edges found ] | 2 ms | 0.3s | 80s   
-2 | 1 | NGON, n= 2455 | Ambiguous. No 'always N' sites. | 1000k | 0.7 | 500 | 19.3G | 2.95s | 105s | 2.9G | 0.03s | 0.03s / comparison |  < 2msec | 63s [126048 edges found] | 2msec | 0.05s | 15s   
+Server | Cores | Dataset | Masking | MaxNStorage | Min Prop N | SNPCeiling | Memory [#3] | Add 1 sample [#1] | Restart server [#2] | On disc storage [#3] | Find all guids [#4] | Detailed comparison (rpt all variant positions, incl. N) [#4] | Find pairwise edges [#5] | Download all edges < 12 snp [#4] | Check server time [#5] | Get all guids & examination time [#5] | Get all guids and annotations [#5]    
+--- | --- | --- | --- | --- | --- | --- | --- | --- | ---  | --- | --- | --- | --- | --- | --- | --- | --- | ---
+1 | 1 | TB, n= 15985 | Ambiguous + 329714 'always N' sites | 330k | 0.85 | 20 | 23.5G | 2.23s | 250 s | 2.4G | 0.19s | 0.09s /comparions | < 2msec | 60 s [198,584 edges found ] | 2 ms | 0.3s | 80s
+2 | 1 | NGON, n= 2455 | Ambiguous. No 'always N' sites. | 1000k | 0.7 | 500 | 19.3G | 2.95s | 105s | 2.9G | 0.03s | 0.03s / comparison |  < 2msec | 63s [126048 edges found] | 2msec | 0.05s | 15s
 3 | 1 | SALM, n= 5380 | Ambiguous + 51897 'always N' sites. | 1000k | 0.66 | 20 | 7.4G | 1.77s | 30s  | 0.84s | 0.03s | 0.06s /comparison | < 2msec |  30s [264209 edges found] | 2msec |  0.08s | 22s   
+
 
 
 The machine used to do the benchmarking was as follows:

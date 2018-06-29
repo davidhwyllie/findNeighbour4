@@ -25,33 +25,25 @@ class seqComparer():
                     reference,
                     maxNs,
                     snpCeiling,
-                    persistenceDir=None,
-                    persistenceStore=['localmemory'],
-                    startAfresh=False,
                     debugMode=False,
-                    excludeFile=os.path.join("..","reference","TB-exclude.txt"),
+                    excludePositions=set(),
                     snpCompressionCeiling = 250
                 ):
 
-        """ instantiates the sequence comparer.
+        """ instantiates the sequence comparer, an object whcih manages in-memory reference compressed sequences.
+        
+        It does not manage persistence, nor does it automatically load sequences.
         
         reference is a string consisting of the reference sequence.
         This is required because, as a data compression technique,
         only differences from the reference are stored.
-        
-        persistenceStore is one or more of
-            'localmemory' (stores on disc as backup, and in local memory);
-            'tofile' - to the persistenceDir;
-           
-        persistenceDir is a directory into which the parsed sequences will be written; required if persistenceStore is either 'localmemory' or 'tofile'.         
-        startAfresh=True causes the persistence store to be emptied, which is useful for benchmarking.
-        
-        excludeFile contains a list of bases which should not be considered at all in the sequence comparisons.  Any bases which are always N should be added to this list.
+               
+        excludePositions contains a set of bases which should not be considered at all in the sequence comparisons.
+        Any bases which are always N should be added to this set.
         Not doing so will substantially degrade the algorithm's performance.
         
         If debugMode==True, the server will only load 500 samples.
         
-
         If the number of Ns are more than maxNs, no data from the sequence is stored.
         If the number of Ns exceeds nCompressionCutoff, Ns are stored not as single base positions but as ranges.  This markedly reduces memory
         usage if the Ns are in long blocks, but slows the comparison rate from about 5,000 per second to about 150/second.
@@ -61,7 +53,7 @@ class seqComparer():
         If snpCompressionCeiling is not None, then will consider samples up to snpCompressionCeiling
         when performing deltas compression relative to close neighbours.
         
-        David Wyllie, University of Oxford, Jan 2017
+        David Wyllie, University of Oxford, June 2018
         
         - to run unit tests, do
         python -m unittest seqComparer
@@ -72,20 +64,16 @@ class seqComparer():
         # reference based compression relative to reference 'compressed_sequence';
         # reference based compression relative to a consensus 'patch_and_consensus'.
         # we detected the latter two by their keys.
+        
         self.compressed_sequence_keys = set(['invalid','A','C','G','T', 'N'])
         self.patch_and_consensus_keys=set(['consensus_md5','patch'])
         self.patch_keys = set(['add','subtract'])
         self.consensus_keys = set(['A','C','G','T', 'N'])
+        
         # store snpCeilings.
         self.snpCeiling = snpCeiling
         self.snpCompressionCeiling = snpCompressionCeiling
-        
-       
-        # check the nature of persistence store; if it is a single item, store that as a list. 
-        if type(persistenceStore) is str:
-            persistenceStore=[persistenceStore]     # make it a list
-        self.persistenceStore=persistenceStore      # what is used to store sequences
-        
+              
         # sequences with more than maxNs Ns will be considered invalid and their details (apart from their invalidity) will not be stored.
         self.maxNs=maxNs
 
@@ -94,24 +82,9 @@ class seqComparer():
         letters=collections.Counter(self.reference)   
         if len(set(letters.keys())-set(['A','C','G','T']) )>0:
             raise TypeError("Reference sequence supplied contains characters other than ACTG: {0}".format(letters))
-        
-        ## verify that the storage systems stated are ready for use.
-        # check the existence of the persistenceDir and make it if it does not exist.
-        self.persistenceDir=persistenceDir
-        if 'localmemory' in self.persistenceStore or 'tofile' in self.persistenceStore:     
-            if persistenceDir is not None:        
-                self.persistenceDir=os.path.join(persistenceDir)
-                if not os.path.exists(self.persistenceDir):
-                        os.makedirs(self.persistenceDir)
-                
+                       
         # load the excluded bases
-        self.excluded=set()
-        if excludeFile is not None:
-            with open(excludeFile,'rt') as f:
-                rows=f.readlines()
-            for row in rows:
-                self.excluded.add(int(row))
-            print("Excluded {0} positions.".format(len(self.excluded)))
+        self.excluded=excludePositions
         
         # define what is included
         self.included=set(range(len(self.reference)))-self.excluded
@@ -119,54 +92,31 @@ class seqComparer():
         # initialise pairwise sequences for comparison.
         self._refresh()
 
-        # empty out stores if appropriate (e.g. for benchmarking)
-        for this_persistenceStore in self.persistenceStore:
-            if startAfresh==True:
-                if this_persistenceStore=='localmemory':
-                        self.seqProfile={}
-                        self.emptyPersistenceDir()
-                elif this_persistenceStore=='tofile':
-                        self.emptyPersistenceDir()
-                else:
-                        raise TypeError("Do not know how to use {0} as a persistence mechanism.".format(this_persistenceStore))
-                  
-        # load the signatures into memory if directed to do so.
+        # prepare to load signatures into memory if directed to do so.
         self.seqProfile={}
         self.consensi = {}      # where consensus sequences are stored in ram
- 
-        # note: the sequences are stored on disc relative to the reference.
-        # compression relative to each other is carried out post-hoc in ram
-        if 'localmemory' in self.persistenceStore:
-            if self.persistenceDir is not None:
-                print("Loading profiles of existing samples")
-                for (i,filepath) in enumerate(glob.glob(os.path.join(self.persistenceDir,'*.pickle'))):       # DirProfile if just profiles
-                    guid=os.path.basename(filepath)
-
-                    if (i % 500 ==0):
-                        print("Starting up; Loaded {0}; please wait".format(i))
-
-                    if debugMode==True and i>500:
-                        break
-                    with open(filepath,'rb') as f:
-                        # remove the .pickle suffix
-                        guid=os.path.basename(filepath).replace('.pickle','')
-                        self.seqProfile[guid]=pickle.load(f)
-        
+      
         # initiate object used to track memory
         self.memtracker = psutil.Process(os.getpid())
 
+    def persist(self, object, guid):
+        """ keeps a reference compressed object into RAM.
+            Note: the sequences are stored on disc/db relative to the reference.
+            Compression relative to each other is carried out post-hoc in ram
+            """
+        self.seqProfile[guid]=object
+    def load(self, guid):
+        """ recovers (loads) a variable containing a reference compressed object into RAM.
+            Note: the sequences are stored on disc/db relative to the reference.
+            Compression relative to each other is carried out post-hoc in ram
+            """
+        return self.seqProfile[guid]
+      
     def _refresh(self):
         self._seq1=None
         self._seq2=None
         self.seq1md5=None
         self.seq2md5=None
-    def emptyPersistenceDir(self):
-        """ deletes all *.pickle files in the persistence directory """
-        if not self.persistenceDir is None:
-            i=0
-            for (i,pickleFile) in enumerate(glob.glob(os.path.join(self.persistenceDir,'*.pickle'))):
-                os.unlink(pickleFile)
-            print("Emptied persistence directory, removing {0} files.".format(i))
     def iscachedinram(self,guid):
         """ returns true or false depending whether we have a local copy of the refCompressed representation of a sequence (name=guid) in this machine """
         if guid in self.seqProfile.keys():
@@ -179,22 +129,8 @@ class seqComparer():
         for item in self.seqProfile.keys():
             retVal.add(item)
         return(retVal)
-    def iscachedtofile(self,guid):
-        """ returns true or false depending whether we have a compressed copy on disc (name=guid) in this machine """
-        expectedFilename=os.path.join(self.persistenceDir, "{0}.pickle".format(guid))
-        return(os.path.exists(expectedFilename))
-    def guidscachedtofile(self):
-        """ returns all guids with sequence profiles currently in this machine """
-        guids=set()
-        cachedfiles=glob.glob(os.path.join(self.persistenceDir,'*.pickle'))
-        for cachedfile in cachedfiles:
-            guid=os.path.basename(cachedfile).replace('.pickle','')
-            guids.add(guid)
-
-        return(guids)          
-
     def _guid(self):
-        """ returns a guid """
+        """ returns a new guid, generated de novo """
         return(str(uuid.uuid1()))
     def memoryInfo(self):
         """ returns information about memory usage by the machine """ 
@@ -204,7 +140,7 @@ class seqComparer():
         return(x[1]-x[0])
     def excluded_hash(self):
         """ returns a string containing the number of nt excluded, and a hash of their positions.
-        This is useful for version tracking """
+        This is useful for version tracking & storing patterns of masking. """
         l = sorted(list(self.excluded))
         len_l = len(l)
         h = hashlib.md5()
@@ -256,69 +192,7 @@ class seqComparer():
             diffDict['invalid']=0
             
         return(diffDict)
-        
-    def persist_tofile(self, refCompressedSequence, guid):
-        """ writes the reference encoded complete difference object refCompressedSequence to file in self.persistenceDir
-
-        """
-        if self.persistenceDir is None:
-            raise NotImplementedError("Cannot persist picked object if persistenceDir is not set.")
-        
-        outputFile=os.path.join(self.persistenceDir, "{0}.pickle".format(guid))       
-        if not os.path.exists(outputFile):
-            with open(outputFile,'wb') as f:
-                pickle.dump(refCompressedSequence, file=f, protocol=2)
-
-        return(guid)
-    def persist(self, refCompressedSequence, method, guid=None, **kwargs):
-        """ persists the refCompressedSequence to the location chosen, as stated in 'method'.
-        Options are: 'tofile','localmemory'
-        multiple options are possible"""
-        ## check that sequence is indeed a dictionary 
-
-        if refCompressedSequence is None:
-            raise Typeerror("refCompressed sequence cannot be None")
-        if not type(refCompressedSequence)==dict:
-            raise TypeError(".persist method needs to be passed a dictionary as generated by .compress() method.")
-
-
-        if type(method)==str:
-            # then we convert to a list;
-            method=[method]
             
-        if guid is None:
-            # assign
-            guid=self._guid()
-
-        for this_method in method:
-            if this_method=='tofile':
-                self.persist_tofile(refCompressedSequence=refCompressedSequence, guid=guid)
-            
-            elif this_method=='localmemory':
-                # store it on disc and in memory
-                self.seqProfile[guid]=refCompressedSequence
-                self.persist_tofile(refCompressedSequence=refCompressedSequence, guid=guid)
-            
-            else:
-                raise TypeError("Do not know how to persist to '{0}'".format(this_method))       
-        return(guid)
-    
-    def load_fromfile(self, guid):
-        """ loads a picked object from file """
-        if self.persistenceDir is not None:
-                    filepath=os.path.join(self.persistenceDir,"{0}.pickle".format(guid))
-                    with open(filepath,'rb') as f:
-                        return(pickle.load(f))      # will raise an error if it does not exist; could trap, but what would we raise?
-        else:
-            raise TypeError("Cannot recovery from file when presistenceDir is not set")
-        
-    def load(self,guid, method='localmemory'):
-        """ recovers the full reference- compressed object denoted by the guid on the sequence"""
-        if method=='tofile':
-            return(self.load_fromfile(guid))
-        elif method=='localmemory':
-            return(self.seqProfile[guid])
-    
     def _computeComparator(self, sequence):
         """ generates a reference compressed version of sequence.
         Acceptable inputs are :
@@ -389,7 +263,7 @@ class seqComparer():
 
         Returns the number of SNPs between self._seq1 and self._seq2, and, if it is less than cutoff,
         the number of Ns in the two sequences and the union of their positions.
-        Typical computational time is less than 0.5 msec."""
+        """
 
 
         if not type(keyPair) is tuple:
@@ -451,7 +325,8 @@ class seqComparer():
         
         if nDiff>cutoff:
             return(None)
-        return(nDiff)
+        else:
+            return(nDiff)
     
     def consensus(self, compressed_sequences, cutoff_proportion):
         """ from a list of compressed sequences (as generated by compress())
@@ -515,9 +390,7 @@ class seqComparer():
                 del add_positions[item]  # don't store empty sets; they cost ~ 120 bytes each
             if len(subtract_positions[item])==0:
                 del subtract_positions[item]  # don't store empty sets; they cost ~ 120 bytes each
-                
-                    
-                
+          
         retVal = {'add':add_positions, 'subtract':subtract_positions}
         return(retVal)
 
@@ -611,60 +484,42 @@ class seqComparer():
         # return visited_guids
         return(visited_guids)
         
-class test_seqComparer_init1(unittest.TestCase):
-    def runTest(self):
-        refSeq='ACTG'
-        sc=seqComparer(maxNs = 1e8, snpCeiling = 20,reference=refSeq, persistenceStore='localmemory', startAfresh=False)
-class test_seqComparer_init2(unittest.TestCase):
-    def runTest(self):
-        refSeq='ACTG'
-        sc=seqComparer(maxNs = 1e8, snpCeiling = 20,reference=refSeq, persistenceStore='localmemory', startAfresh=True)
-class test_seqComparer_init5(unittest.TestCase):
-    def runTest(self):
-        refSeq='ACTG'
-        sc=seqComparer(maxNs = 1e8, snpCeiling = 20,reference=refSeq, persistenceStore='tofile', startAfresh=False)      
-class test_seqComparer_init6(unittest.TestCase):
-    def runTest(self):
-        refSeq='ACTG'
-        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq, persistenceStore='tofile', startAfresh=True)              
 class test_seqComparer_1(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
-        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq, startAfresh=True)
+        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq)
         self.assertEqual(sc.reference,refSeq)     
 class test_seqComparer_2(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
-
-        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq, startAfresh=True)
-
+        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq)
         with self.assertRaises(TypeError):
             retVal=sc.compress(sequence='AC')
 class test_seqComparer_3(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
-        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq, startAfresh=True, )
+        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq )
         retVal=sc.compress(sequence='ACTG')
         self.assertEqual(retVal,{'G': set([]), 'A': set([]), 'C': set([]), 'T': set([]), 'N': set([]), 'invalid':0})
 class test_seqComparer_4(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
 
-        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq, startAfresh=True)
+        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq)
 
         retVal=sc.compress(sequence='ACTN')
         self.assertEqual(retVal,{'G': set([]), 'A': set([]), 'C': set([]), 'T': set([]), 'N': set([3]), 'invalid':0})
 class test_seqComparer_5(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
-        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq, startAfresh=True)
+        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq)
         retVal=sc.compress(sequence='ACT-')
         self.assertEqual(retVal,{'G': set([]), 'A': set([]), 'C': set([]), 'T': set([]), 'N': set([3]), 'invalid':0})         
 class test_seqComparer_6(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
 
-        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq, startAfresh=True)
+        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq)
 
         retVal=sc.compress(sequence='TCT-')
         self.assertEqual(retVal,{'G': set([]), 'A': set([]), 'C': set([]), 'T': set([0]), 'N': set([3]), 'invalid':0})
@@ -672,7 +527,7 @@ class test_seqComparer_7(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
 
-        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq, startAfresh=True)
+        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq)
         retVal=sc.compress(sequence='ATT-')
         self.assertEqual(retVal,{ 'G': set([]), 'A': set([]), 'C': set([]), 'T': set([1]), 'N': set([3]), 'invalid':0})
 
@@ -680,7 +535,7 @@ class test_seqComparer_6b(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
 
-        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq, startAfresh=True)
+        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq)
         originals = [ 'AAAA','CCCC','TTTT','GGGG','NNNN','ACTG','ACTC', 'TCTN']
         for original in originals:
 
@@ -692,7 +547,7 @@ class test_seqComparer_6b(unittest.TestCase):
 class test_seqComparer_8(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
-        sc=seqComparer(maxNs = 1e8, snpCeiling = 20,reference=refSeq, startAfresh=True)
+        sc=seqComparer(maxNs = 1e8, snpCeiling = 20,reference=refSeq)
 
         sc.setComparator1(sequence='ACTG')
         sc.setComparator2(sequence='ACTG')
@@ -700,28 +555,28 @@ class test_seqComparer_8(unittest.TestCase):
 class test_seqComparer_9(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
-        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq, startAfresh=True)
+        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq)
         sc.setComparator1(sequence='ACTG')
         sc.setComparator2(sequence='ACTG')
         self.assertEqual(sc.countDifferences(),0)
 class test_seqComparer_10(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
-        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq, startAfresh=True)
+        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq)
         sc.setComparator1(sequence='TTTG')
         sc.setComparator2(sequence='ACTG')
         self.assertEqual(sc.countDifferences(),2)
 class test_seqComparer_11(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
-        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq, startAfresh=True)
+        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq)
         sc.setComparator1(sequence='TTTG')
         sc.setComparator2(sequence='NNTG')
         self.assertEqual(sc.countDifferences(),0)
 class test_seqComparer_12(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
-        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq, startAfresh=True)
+        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq)
 
         sc.setComparator2(sequence='TTTG')
         sc.setComparator1(sequence='NNTG')
@@ -729,21 +584,21 @@ class test_seqComparer_12(unittest.TestCase):
 class test_seqComparer_13(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
-        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq, startAfresh=True)
+        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq)
         sc.setComparator2(sequence='TTTG')
         sc.setComparator1(sequence='--TG')
         self.assertEqual(sc.countDifferences(),0)
 class test_seqComparer_14(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
-        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq, startAfresh=True)
+        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq)
         sc.setComparator2(sequence='TTAA')
         sc.setComparator1(sequence='--AG')
         self.assertEqual(sc.countDifferences(),1)
 class test_seqComparer_15(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
-        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq, startAfresh=True)
+        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq)
         sc.setComparator1(sequence='TTAA')
         sc.setComparator2(sequence='--AG')
         self.assertEqual(sc.countDifferences(),1)
@@ -755,7 +610,6 @@ class test_seqComparer_16(unittest.TestCase):
         refSeq='ACTG'
         sc=seqComparer( maxNs = 1e8,
                        reference=refSeq,
-                       startAfresh=True,
                        snpCeiling =10)
         
         sc._seq1 = sc.compress('AAAA')
@@ -765,25 +619,18 @@ class test_seqComparer_16(unittest.TestCase):
 class test_seqComparer_saveload3(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
-        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq, startAfresh=True, persistenceStore='localmemory', persistenceDir=os.path.join('..','unittest_tmp'))
+        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq)
         compressedObj =sc.compress(sequence='ACTT')
-        sc.persist(compressedObj, guid='one', method='localmemory')     # no guid supplied
-        retVal=sc.load(guid='one', method='localmemory')
+        sc.persist(compressedObj, 'one' )     
+        retVal=sc.load(guid='one' )
         self.assertEqual(compressedObj,retVal)        
-class test_seqComparer_saveload4(unittest.TestCase):
-    def runTest(self):
-        refSeq='ACTG'
-        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq, startAfresh=True, persistenceStore='tofile', persistenceDir=os.path.join('..','unittest_tmp'))
-        compressedObj =sc.compress(sequence='ACTT')
-        sc.persist(compressedObj, guid='one', method='tofile')     # no guid supplied
-        retVal=sc.load(guid='one', method='tofile')
-        self.assertEqual(compressedObj,retVal)
+
 class test_seqComparer_24(unittest.TestCase):
     """ tests N compression """
     def runTest(self):
         
         refSeq=                     'ACTGTTAATTTTTTTTTGGGGGGGGGGGGAA'
-        sc=seqComparer(maxNs = 1e8, snpCeiling = 20,reference=refSeq, startAfresh=True)
+        sc=seqComparer(maxNs = 1e8, snpCeiling = 20,reference=refSeq)
 
         retVal=sc.compress(sequence='ACTGTTAANNNNNNNNTGGGGGGGGGGGGAA')
         self.assertEqual(retVal,{ 'G': set([]), 'A': set([]), 'C': set([]), 'T': set([]), 'N': set([8,9,10,11,12,13,14,15]), 'invalid':0})
@@ -821,55 +668,55 @@ class test_seqComparer_29(unittest.TestCase):
 class test_seqComparer_30(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
-        sc=seqComparer( maxNs = 1e8, reference=refSeq, startAfresh=True, snpCeiling= 1)
+        sc=seqComparer( maxNs = 1e8, reference=refSeq, snpCeiling= 1)
         sc.setComparator1(sequence='ACTG')
         sc.setComparator2(sequence='ACTG')
 class test_seqComparer_31(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
-        sc=seqComparer( maxNs = 1e8, reference=refSeq, startAfresh=True, snpCeiling =1 )
+        sc=seqComparer( maxNs = 1e8, reference=refSeq, snpCeiling =1 )
         sc.setComparator1(sequence='ACTG')
         sc.setComparator2(sequence='ACTG')
         self.assertEqual(sc.countDifferences(),0)
 class test_seqComparer_32(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
-        sc=seqComparer( maxNs = 1e8, reference=refSeq, startAfresh=True, snpCeiling =1)
+        sc=seqComparer( maxNs = 1e8, reference=refSeq, snpCeiling =1)
         sc.setComparator1(sequence='TTTG')
         sc.setComparator2(sequence='ACTG')
         self.assertEqual(sc.countDifferences(),None)
 class test_seqComparer_33(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
-        sc=seqComparer( maxNs = 1e8, reference=refSeq, startAfresh=True, snpCeiling =1)
+        sc=seqComparer( maxNs = 1e8, reference=refSeq, snpCeiling =1)
         sc.setComparator1(sequence='TTTG')
         sc.setComparator2(sequence='NNTG')
         self.assertEqual(sc.countDifferences(),0)
 class test_seqComparer_34(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
-        sc=seqComparer( maxNs = 1e8, reference=refSeq, startAfresh=True, snpCeiling =1)
+        sc=seqComparer( maxNs = 1e8, reference=refSeq, snpCeiling =1)
         sc.setComparator2(sequence='TTTG')
         sc.setComparator1(sequence='NNTG')
         self.assertEqual(sc.countDifferences(),0)
 class test_seqComparer_13(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
-        sc=seqComparer( maxNs = 1e8, reference=refSeq, startAfresh=True, snpCeiling =1)
+        sc=seqComparer( maxNs = 1e8, reference=refSeq, snpCeiling =1)
         sc.setComparator2(sequence='TTTG')
         sc.setComparator1(sequence='--TG')
         self.assertEqual(sc.countDifferences(),0)
 class test_seqComparer_35(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
-        sc=seqComparer( maxNs = 1e8, reference=refSeq, startAfresh=True, snpCeiling =1)
+        sc=seqComparer( maxNs = 1e8, reference=refSeq, snpCeiling =1)
         sc.setComparator2(sequence='TTAA')
         sc.setComparator1(sequence='--AG')
         self.assertEqual(sc.countDifferences(),1)
 class test_seqComparer_36(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
-        sc=seqComparer( maxNs = 1e8, reference=refSeq, startAfresh=True, snpCeiling =1)
+        sc=seqComparer( maxNs = 1e8, reference=refSeq, snpCeiling =1)
         sc.setComparator1(sequence='TTAA')
         sc.setComparator2(sequence='--AG')
         self.assertEqual(sc.countDifferences(),1)
@@ -879,8 +726,8 @@ class test_seqComparer_37(unittest.TestCase):
         
         # default exclusion file
         refSeq='ACTG'
-        sc=seqComparer( maxNs = 1e8, reference=refSeq, startAfresh=True, snpCeiling =1)
-        self.assertEqual( sc.excluded_hash(), 'Excl 288069 nt [8f54bda50f4762505df84c5a02e7d6a5]')
+        sc=seqComparer( maxNs = 1e8, reference=refSeq, snpCeiling =1)
+        self.assertEqual( sc.excluded_hash(), 'Excl 0 nt [d751713988987e9331980363e24189ce]')
 
 class test_seqComparer_38(unittest.TestCase):
     """ tests the loading of an exclusion file """
@@ -888,7 +735,7 @@ class test_seqComparer_38(unittest.TestCase):
         
         # no exclusion file
         refSeq='ACTG'
-        sc=seqComparer( maxNs = 1e8, excludeFile=None, reference=refSeq, startAfresh=True, snpCeiling =1)
+        sc=seqComparer( maxNs = 1e8, reference=refSeq, snpCeiling =1)
         self.assertEqual( sc.excluded_hash(), 'Excl 0 nt [d751713988987e9331980363e24189ce]')
 
 
@@ -898,7 +745,7 @@ class test_seqComparer_39a(unittest.TestCase):
         
         # generate compressed sequences
         refSeq='ACTG'
-        sc=seqComparer( maxNs = 1e8, reference=refSeq, startAfresh=True, snpCeiling =10)
+        sc=seqComparer( maxNs = 1e8, reference=refSeq, snpCeiling =10)
         compressed_sequences = []
         compressed_sequences.append(sc.compress(sequence='TTAA'))
         compressed_sequences.append(sc.compress(sequence='TTTA'))
@@ -918,7 +765,7 @@ class test_seqComparer_39b(unittest.TestCase):
         
         # generate compressed sequences
         refSeq='ACTG'
-        sc=seqComparer( maxNs = 1e8, reference=refSeq, startAfresh=True, snpCeiling =10)
+        sc=seqComparer( maxNs = 1e8, reference=refSeq, snpCeiling =10)
         compressed_sequences = []
         
         cutoff_proportion = 0.5
@@ -935,7 +782,7 @@ class test_seqComparer_40(unittest.TestCase):
 
         # generate compressed sequences
         refSeq='ACTG'
-        sc=seqComparer( maxNs = 1e8, reference=refSeq, startAfresh=True, snpCeiling =10)
+        sc=seqComparer( maxNs = 1e8, reference=refSeq, snpCeiling =10)
         compressed_sequence = sc.compress(sequence='TTAA')
 
         res = sc.compressed_sequence_hash(compressed_sequence)
@@ -948,7 +795,7 @@ class test_seqComparer_41(unittest.TestCase):
         
         # generate compressed sequences
         refSeq='ACTG'
-        sc=seqComparer( maxNs = 1e8, reference=refSeq, startAfresh=True, snpCeiling =10)
+        sc=seqComparer( maxNs = 1e8, reference=refSeq, snpCeiling =10)
         compressed_sequences = []
         compressed_sequences.append(sc.compress(sequence='TTAA'))
         compressed_sequences.append(sc.compress(sequence='TTTA'))
@@ -976,18 +823,14 @@ class test_seqComparer_42(unittest.TestCase):
         refSeq='ACTG'
         sc=seqComparer( maxNs = 1e8,
                        reference=refSeq,
-                       startAfresh=True,
-                       snpCeiling =10,
-                       persistenceDir=os.path.join('..','unittest_tmp'))
+                       snpCeiling =10)
         
         originals = [ 'AAAC','CCCC','TTTC','GGGC','NNNC','ACTC','ACTC', 'TCTN' ]
         for original in originals:   
             c = sc.compress(original)
-            sc.persist(c, guid=original, method='localmemory')
+            sc.persist(c, guid=original )
 
         sc.compress_relative_to_consensus(guid = 'AAAC', cutoff_proportion = 0.5)
-        print(sc.consensi)
-        print(sc.seqProfile)
         
         for original in originals:
             self.assertEqual(original, sc.uncompress(sc.seqProfile[original]))
@@ -1000,18 +843,14 @@ class test_seqComparer_43(unittest.TestCase):
         refSeq='GGGGGGGGGGGG'
         sc=seqComparer( maxNs = 1e8,
                        reference=refSeq,
-                       startAfresh=True,
-                       snpCeiling =10,
-                       persistenceDir=os.path.join('..','unittest_tmp'))
+                       snpCeiling =10)
         
         originals = [ 'AAACACTGACTG','CCCCACTGACTG','TTTCACTGACTG','GGGCACTGACTG','NNNCACTGACTG','ACTCACTGACTG','ACTCACTGACTG', 'TCTNACTGACTG' ]
         for original in originals:   
             c = sc.compress(original)
-            sc.persist(c, guid=original, method='localmemory')
+            sc.persist(c, guid=original )
 
         sc.compress_relative_to_consensus(guid = 'AAACACTGACTG', cutoff_proportion = 0.8)
-        print(sc.consensi)
-        print(sc.seqProfile)
         
         for original in originals:
             self.assertEqual(original, sc.uncompress(sc.seqProfile[original]))
@@ -1026,14 +865,12 @@ class test_seqComparer_44(unittest.TestCase):
         refSeq='GGGGGGGGGGGG'
         sc=seqComparer( maxNs = 1e8,
                        reference=refSeq,
-                       startAfresh=True,
-                       snpCeiling =10,
-                       persistenceDir=os.path.join('..','unittest_tmp'))
+                       snpCeiling =10)
         
         originals = [ 'AAACACTGACTG','CCCCACTGACTG','TTTCACTGACTG','GGGCACTGACTG','NNNCACTGACTG','ACTCACTGACTG','ACTCACTGACTG', 'TCTNACTGACTG' ]
         for original in originals:   
             c = sc.compress(original)
-            sc.persist(c, guid=original, method='localmemory')
+            sc.persist(c, guid=original )
 
         sc.compress_relative_to_consensus(guid = 'AAACACTGACTG', cutoff_proportion = 0.8)
         initial_consensi_keys = set(sc.consensi.keys())
@@ -1044,7 +881,7 @@ class test_seqComparer_44(unittest.TestCase):
         more_seqs = [ 'TAACACTGACTG','TCCCACTGACTG','TTTCACTGACTG','TGGCACTGACTG','TNNCACTGACTG','TCTCACTGACTG','TCTCACTGACTG', 'TCTNACTGACTG' ]
         for more_seq in more_seqs:   
             c = sc.compress(more_seq)
-            sc.persist(c, guid=more_seq, method='localmemory')
+            sc.persist(c, guid=more_seq )
 
         sc.compress_relative_to_consensus(guid = 'AAACACTGACTG', cutoff_proportion = 0.8)
   

@@ -29,12 +29,9 @@ from ewsnpstore import db_ewss, ElephantWalkDataSNPaccessor
 class ewSetCore():
     """ implements reference compressed, set based in-memory comparisons of reference mapped sequences
     
-    The implementation is in python; tested with v. 3.5 and 2.7.
+    The implementation is in python; tested with v. 3.5 and 3.7.
     persistence is to disc as pickled files.
-    
-    The names of the methods are the same ones used by the class findneighbour in module webservice-server at 
-    https://github.com/davidhwyllie/findNeighbour/blob/master/webservice-server.py.
-    
+  
     """
     def __init__(self, CONFIG):
         """ instantises the ewSet_core class, which loads sequences from disc into memory,
@@ -143,14 +140,11 @@ class ewSetCore():
             print('Finished')
         
         """
-        
-		# logging
-        logging.getLogger()
-		
+                        
         # validate input
         required_keys=set(['INPUTREF','PERSISTENCEDIR','EXCLUDEFILE','SNPDIR',
-						   'SNPCOMPRESSIONCEILING','SNPCEILING',
-						   'DEBUGMODE','SERVERNAME','EDGEDB_CONNSTRING','MAXN_STORAGE'])
+                           'SNPCOMPRESSIONCEILING','SNPCEILING',
+                           'DEBUGMODE','SERVERNAME','EDGEDB_CONNSTRING','MAXN_STORAGE'])
         missing=required_keys-set(CONFIG.keys())
         if not missing==set([]):
             raise KeyError("Required keys were not found in CONFIG. Missing are {0}".format(missing))
@@ -163,6 +157,8 @@ class ewSetCore():
         self.CONFIG=CONFIG
         self.connString=self.CONFIG['EDGEDB_CONNSTRING'].format(self.CONFIG['SERVERNAME'])
         
+        logging.getLogger()
+
         # read reference
         with open(self.CONFIG['INPUTREF'],'rt') as f:
             for r in SeqIO.parse(f,'fasta'):
@@ -180,19 +176,11 @@ class ewSetCore():
 						   snpCompressionCeiling=self.CONFIG['SNPCOMPRESSIONCEILING'],
 						   maxNs=self.CONFIG['MAXN_STORAGE'],
                            debugMode=self.CONFIG['DEBUGMODE'])
-		
-                  
+
         # initiate elephantwalk storage system, for persisting SNPs; supply temporary directory and sqlite filename 
         self.ewdir=os.path.join(self.CONFIG['SNPDIR'])
         self.dbname=self.CONFIG['SERVERNAME']
-        
-        # delete any existing sqlite db if present and we are in DEBUGMODE
-        if self.CONFIG['DEBUGMODE']==True:
-                logging.warning("Deleting existing database as debugMode=True;")  
-                dbfilename=os.path.join(self.CONFIG['SNPDIR'],"{0}.db".format(self.dbname))
-                if os.path.exists(dbfilename):
-                    os.unlink(dbfilename)
-       
+              
         # create EW edge storage object
         self.ewc=ElephantWalkDataSNPaccessor(db=db_ewss,
 											 engineName=self.connString,

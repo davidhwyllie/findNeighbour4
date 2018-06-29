@@ -21,7 +21,8 @@ import queue
 import warnings
 import logging
 import psutil
-import resource
+
+# import resource
 
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Table, Column, Integer, String, Float, DateTime, MetaData, select, func, or_
@@ -164,7 +165,6 @@ class ElephantWalk():
 		l = sorted(list(self.ewsc.sc.excluded))
 		return json.dumps({"exclusion_id":self.ewsc.sc.excluded_hash(), "excluded_nt":l})
 	
-
 	def server_memory_usage(self):
 		""" returns memory usage by current python process
 		
