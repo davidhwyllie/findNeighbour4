@@ -90,9 +90,23 @@ class ElephantWalk():
 		CONFIG contains Configuration parameters relevant to the reference based compression system which lies
 		at the core of the server.
 		
-		for7 explanations as to the meanings of these values, please see the documentation in  ewSetCore, to
-		which the CONFIG dictionary gets passed.
-		
+		    INPUTREF:       the path to fasta format reference file.
+		    EXCLUDEFILE:    a file containing the zero-indexed positions in the supplied sequences which should be ignored in all cases.
+                            Typically, this is because the software generating the mapped fasta file has elected not to call these regions,
+                            in any samples, e.g. because of difficulty mapping to these regions.
+                            Such regions can occupy up 5- 20% of the genome and it is important for efficient working of this software
+                            that these regions are supplied for exclusion on sequence loading.  Not doing so will slow loading, and markedly increase
+                            memory requirements, but will not alter the results produced.
+            DEBUGMODE:      False by default.  If true, will delete any samples in the backend data store on each run.
+            SERVERNAME:     the name of the server (used for display purposes only)
+			FNPERSISTENCE_CONNSTRING: a valid mongodb connection string. if shard keys are set, the 'guid' field is suitable key.
+            MAXN_STORAGE:           The maximum number of Ns in the sequence <excluding those defined in > EXCLUDEFILE which should be indexed.
+                            Other files, e.g. those with all Ns, will be tagged as 'invalid'.  Although a record of their presence in the database
+                            is kept, they are not compared with other sequences.
+			MAXN_PROP_DEFAULT: if the proportion not N in the sequence exceeds this, the sample is analysed, otherwise considered invalid.
+			LOGFILE:        the log file used
+			LOGLEVEL:		default logging level used by the server
+			SNPCEILING: 	links between guids > this are not stored.
 		An example CONFIG is below:
 		
 		{			
@@ -105,11 +119,9 @@ class ElephantWalk():
 		"FNPERSISTENCE_CONNSTRING":"mongodb://127.0.0.1",
 		"MAXN_STORAGE":100000,
 		"MAXN_PROP_DEFAULT":0.70,
-		"NCOMPRESSIONCUTOFF":100000,
 		"LOGFILE":"../unittest_tmp/logfile.log",
 		"LOGLEVEL":"INFO",
-		"SNPCEILING": 20,
-		"MULTIPROCESSING":0
+		"SNPCEILING": 20
 		}
 
 		PERSIST is a storage object needs to be supplied.  The fn3Persistence class in mongoStore is one suitable object.
@@ -135,7 +147,7 @@ class ElephantWalk():
 		# check that the keys of config are as expected.
 		required_keys=set(['IP','INPUTREF','EXCLUDEFILE','DEBUGMODE','SERVERNAME',
 						   'FNPERSISTENCE_CONNSTRING', 'MAXN_STORAGE',
-						   'NCOMPRESSIONCUTOFF', 'SNPCOMPRESSIONCEILING', "SNPCEILING", 'MAXN_PROP_DEFAULT', 'MULTIPROCESSING', 'REST_PORT',
+						   'SNPCOMPRESSIONCEILING', "SNPCEILING", 'MAXN_PROP_DEFAULT', 'REST_PORT',
 						   'LOGFILE','LOGLEVEL'])
 		missing=required_keys-set(self.CONFIG.keys())
 		if not missing == set([]):
@@ -156,7 +168,6 @@ class ElephantWalk():
 		self.debugMode = cfg['DEBUGMODE']
 		self.maxNs = cfg['MAXN_STORAGE']
 		self.snpceiling = cfg['SNPCEILING']
-		self.ncompressioncutoff = cfg['NCOMPRESSIONCUTOFF']
 		self.snpcompressionCeiling = cfg['SNPCOMPRESSIONCEILING']
 		self.maxn_prop_default = cfg['MAXN_PROP_DEFAULT']
 		
@@ -188,7 +199,7 @@ class ElephantWalk():
 		""" actions taken on first-run only.
 		Include caching results from CONFIGFILE to database, unless they are in do_not_persist_keys"""
 		
-		logging.info("First run situation: parsing inputs, storing to database. ")
+		app.logger.info("First run situation: parsing inputs, storing to database. ")
 
 		# create a config dictionary
 		config_settings= {}
@@ -207,7 +218,7 @@ class ElephantWalk():
 			for row in rows:
 				excluded.add(int(row))
 
-		logging.info("Noted {0} positions to exclude.".format(len(excluded)))
+		app.logger.info("Noted {0} positions to exclude.".format(len(excluded)))
 		config_settings['excludePositions'] = list(sorted(excluded))
 		
 		# load reference
@@ -228,7 +239,7 @@ class ElephantWalk():
 		if guids is None:
 			guids = self.PERSIST.guids()  # all the guids
 		for this_guid in guids:
-			logging.info("Repacking {0}".format(this_guid))
+			app.logger.info("Repacking {0}".format(this_guid))
 			self.PERSIST.guid2neighbour_repack(this_guid)
 			
 	def insert(self,guid,dna):
@@ -246,7 +257,7 @@ class ElephantWalk():
 		"""
 		
 		# clean, and provide summary statistics for the sequence
-		logging.info("Inserting: {0}".format(guid))
+		app.logger.info("Inserting: {0}".format(guid))
 		if not self.sc.iscachedinram(guid):                   # if the guid is not already there
 			
 			# prepare to insert
@@ -328,7 +339,7 @@ class ElephantWalk():
 			  'memory_units':'bytes'}
 		return mem
 	
-	def query_get_value_snp_filter(self, guid, snpDistance, cutoff=0.85, returned_format=1):
+	def neighbours_within_filter(self, guid, snpDistance, cutoff=0.85, returned_format=1):
 		""" returns a list of guids, and their distances, by a sample quality cutoff
 		
 		    returns links either as
@@ -383,11 +394,10 @@ class ElephantWalk():
 				
 		return finalOutput
 	
-
 	def get_all_guids(self):
 		return self.PERSIST.guids()
 	
-	def get_all_filtered_guids(self,cutoff=0.66):
+	def guids_with_quality_over(self,cutoff=0.66):
 		rs=self.PERSIST.guid2propACTG_filtered(float(cutoff))
 		if rs==None:
 			return []
@@ -409,7 +419,12 @@ class ElephantWalk():
 		ret = self.sc.query_get_detail(sname1,sname2)
 		return(ret)
 
-
+	def sequence(self, guid):
+		""" gets masked sequence for the guid, in format sequence|fasta """
+		if not self.sc.iscachedinram(guid):
+			return None
+		else:
+			return self.sc.uncompress(self.sc.seqProfile[guid])
 # default parameters for unit testing only.
 RESTBASEURL   = "http://127.0.0.1:5000"
 ISDEBUG = True
@@ -605,16 +620,16 @@ class test_get_all_guids_1(unittest.TestCase):
 
 @app.route('/api/v2/guids_with_quality_over/<float:cutoff>', methods=['GET'])
 @app.route('/api/v2/guids_with_quality_over/<int:cutoff>', methods=['GET'])
-def get_all_filtered_guids(cutoff, **kwargs):
+def guids_with_quality_over(cutoff, **kwargs):
 	""" returns all guids with quality score >= cutoff."""
 	try:
-		result = ew.get_all_filtered_guids(cutoff)	
+		result = ew.guids_with_quality_over(cutoff)	
 	except Exception as e:
 		print("Exception raised", e)
 		abort(500, e)
 	return make_response(tojson(result))
 
-class test_get_all_filtered_guids_1(unittest.TestCase):
+class test_guids_with_quality_over_1(unittest.TestCase):
     """ tests route /api/v2/guids_with_quality_over"""
     def runTest(self):
         relpath = "/api/v2/guids_with_quality_over/0.7"
@@ -626,7 +641,7 @@ class test_get_all_filtered_guids_1(unittest.TestCase):
         # TODO: insert guids, check it doesn't fail.
 
 @app.route('/api/v2/guids_and_examination_times', methods=['GET'])
-def get_guids_examtime(**kwargs):
+def guids_and_examination_times(**kwargs):
 	""" returns all guids and their examination (addition) time.
 	reference, if passed, is ignored."""
 	try:	
@@ -652,10 +667,10 @@ class test_get_all_guids_examination_time_1(unittest.TestCase):
 
 
 @app.route('/api/v2/annotations', methods=['GET'])
-def get_guids_annotations(**kwargs):
+def annotations(**kwargs):
 	""" returns all guids and associated meta data.
 	This query can be slow for very large data sets.
-	The reference is ignored."""
+	"""
 	try:
 		result = ew.get_all_annotations()
 		
@@ -664,7 +679,7 @@ def get_guids_annotations(**kwargs):
 		
 	return(tojson(result))
 
-class test_get_guids_annotations_1(unittest.TestCase):
+class test_annotations_1(unittest.TestCase):
     """ tests route /api/v2/annotations """
     def runTest(self):
         relpath = "/api/v2/annotations"
@@ -852,7 +867,7 @@ class test_mirror(unittest.TestCase):
 @app.route('/api/v2/<string:guid>/neighbours_within/<int:threshold>/with_quality_cutoff/<float:cutoff>/in_format/<int:returned_format>', methods=['GET'])
 @app.route('/api/v2/<string:guid>/neighbours_within/<int:threshold>/with_quality_cutoff/<int:cutoff>/in_format/<int:returned_format>', methods=['GET'])
 @app.route('/api/v2/<string:guid>/neighbours_within/<int:threshold>/in_format/<int:returned_format>', methods=['GET'])
-def query_get_value_snp(guid, threshold, **kwargs):
+def neighbours_within(guid, threshold, **kwargs):
 	""" get a guid's neighbours, within a threshold """
 	# we support optional cutoff and threshold parameters.
 	# we also support 'method' and 'reference' parameters but these are ignored.
@@ -874,7 +889,7 @@ def query_get_value_snp(guid, threshold, **kwargs):
 		abort(500, "Invalid cutoff requested, must be between 0 and 1")
 		
 	try:
-		result = ew.query_get_value_snp_filter(guid, threshold, cutoff, returned_format)
+		result = ew.neighbours_within_filter(guid, threshold, cutoff, returned_format)
 	except KeyError as e:
 		# guid doesn't exist
 		abort(404, e)
@@ -883,7 +898,7 @@ def query_get_value_snp(guid, threshold, **kwargs):
 	
 	return make_response(tojson(result))
 	
-class test_query_get_value_snp_1(unittest.TestCase):
+class test_neighbours_within_1(unittest.TestCase):
     """ tests route /api/v2/guid/neighbours_within/ """
     def runTest(self):
         relpath = "/api/v2/non_existent_guid/neighbours_within/12"
@@ -893,7 +908,7 @@ class test_query_get_value_snp_1(unittest.TestCase):
         self.assertEqual(type(info), dict)
         self.assertEqual(res.status_code, 404)
 
-class test_query_get_value_snp_2(unittest.TestCase):
+class test_neighbours_within_2(unittest.TestCase):
     """ tests route /api/v2/guid/neighbours_within/ """
     def runTest(self):
         relpath = "/api/v2/non_existent_guid/neighbours_within/12/with_quality_cutoff/0.5"
@@ -903,7 +918,7 @@ class test_query_get_value_snp_2(unittest.TestCase):
         self.assertEqual(type(info), dict)
         self.assertEqual(res.status_code, 404)
 
-class test_query_get_value_snp_3(unittest.TestCase):
+class test_neighbours_within_3(unittest.TestCase):
     """ tests route /api/v2/guid/neighbours_within/ """
     def runTest(self):
         relpath = "/api/v2/non_existent_guid/neighbours_within/12/with_quality_cutoff/0.5/in_format/1"
@@ -914,7 +929,7 @@ class test_query_get_value_snp_3(unittest.TestCase):
         self.assertEqual(type(info), dict)
         self.assertEqual(res.status_code, 404)
 
-class test_query_get_value_snp_4(unittest.TestCase):
+class test_neighbours_within_4(unittest.TestCase):
     """ tests route /api/v2/guid/neighbours_within/ """
     def runTest(self):
         relpath = "/api/v2/non_existent_guid/neighbours_within/12/with_quality_cutoff/0.5/in_format/2"
@@ -925,7 +940,7 @@ class test_query_get_value_snp_4(unittest.TestCase):
         self.assertEqual(type(info), dict)
         self.assertEqual(res.status_code, 404)
 
-class test_query_get_value_snp_5(unittest.TestCase):
+class test_neighbours_within_5(unittest.TestCase):
     """ tests route /api/v2/guid/neighbours_within/ """
     def runTest(self):
         relpath = "/api/v2/non_existent_guid/neighbours_within/12/in_format/2"
@@ -936,7 +951,7 @@ class test_query_get_value_snp_5(unittest.TestCase):
         self.assertEqual(type(info), dict)
         self.assertEqual(res.status_code, 404)
  
-class test_query_get_value_snp_6(unittest.TestCase):
+class test_neighbours_within_6(unittest.TestCase):
    """ tests all the /api/v2/guid/neighbours_within methods using test data """
    def runTest(self):
         relpath = "/api/v2/guids"
@@ -1005,7 +1020,91 @@ class test_query_get_value_snp_6(unittest.TestCase):
                 self.assertEqual(len(recovered),4)
                 self.assertEqual(res.status_code, 200)
 
-                
+@app.route('/api/v2/<string:guid>/sequence', methods=['GET'])
+def sequence(guid):
+	""" returns the masked sequence as a string """	
+	try:
+		result = ew.sequence(guid)
+		retVal = {'guid':guid, 'invalid':0,'comment':'Masked sequence, as stored','masked_dna':result}
+	except ValueError as e:
+		# the sequence is invalid
+		retVal = {'guid':guid, 'invalid':1,'comment':'No sequence is available, as invalid sequences are not stored'}
+		return make_response(tojson(retVal))
+
+	except Exception as e:
+		print("Exception raised", e)
+		abort(500, e)
+	if result is None:  # no guid exists
+		abort(404,'{0} does not exist'.format(guid))
+
+	return make_response(tojson(retVal))
+
+class test_sequence_1(unittest.TestCase):
+    """ tests route /api/v2/*guid*/sequence"""
+    def runTest(self):
+        relpath = "/api/v2/guids"
+        res = do_GET(relpath)
+        n_pre = len(json.loads(str(res.text)))		# get all the guids
+
+        guid_to_insert = "guid_{0}".format(n_pre+1)
+
+        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        with open(inputfile, 'rt') as f:
+            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+                    seq = str(record.seq)
+
+        print("Adding TB reference sequence of {0} bytes".format(len(seq)))
+        self.assertEqual(len(seq), 4411532)		# check it's the right sequence
+
+        relpath = "/api/v2/insert"
+        res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
+    
+        relpath = "/api/v2/{0}/sequence".format(guid_to_insert)
+        res = do_GET(relpath)
+        self.assertEqual(res.status_code, 200)
+
+        info = json.loads(res.content.decode('utf-8'))
+        self.assertEqual(info['guid'], guid_to_insert)
+        self.assertEqual(info['invalid'], 0)
+        self.assertEqual(info['masked_dna'].count('N'), 557291)
+
+class test_sequence_2(unittest.TestCase):
+    """ tests route /api/v2/*guid*/sequence"""
+    def runTest(self):
+ 
+        relpath = "/api/v2/{0}/sequence".format('no_guid_exists')
+        res = do_GET(relpath)
+        self.assertEqual(res.status_code, 404)
+
+class test_sequence_3(unittest.TestCase):
+    """ tests route /api/v2/*guid*/sequence"""
+    def runTest(self):
+        relpath = "/api/v2/guids"
+        res = do_GET(relpath)
+        n_pre = len(json.loads(str(res.text)))		# get all the guids
+
+        guid_to_insert = "guid_{0}".format(n_pre+1)
+
+        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        with open(inputfile, 'rt') as f:
+            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+                    seq = str(record.seq)
+        seq = 'N'*4411532
+        print("Adding TB reference sequence of {0} bytes".format(len(seq)))
+        self.assertEqual(len(seq), 4411532)		# check it's the right sequence
+
+        relpath = "/api/v2/insert"
+        res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
+    
+        relpath = "/api/v2/{0}/sequence".format(guid_to_insert)
+        res = do_GET(relpath)
+        self.assertEqual(res.status_code, 200)
+
+        info = json.loads(res.content.decode('utf-8'))
+        print(info)
+        self.assertEqual(info['guid'], guid_to_insert)
+        self.assertEqual(info['invalid'], 1)
+        print(info)
 # @app.route('/api/v2/<string:guid1>/<string:guid2>/detailed_comparison', methods=['GET'])
 # def get_detail(guid1, guid2):
 # 	""" detailed comparison of two guids """
@@ -1032,7 +1131,7 @@ class test_query_get_value_snp_6(unittest.TestCase):
 #         self.assertEqual(res.status_code, 200)
 
 @app.route('/api/v2/nucleotides_excluded', methods=['GET'])
-def get_nucleotides_excluded():
+def nucleotides_excluded():
 	""" returns all nucleotides excluded by the server.
 	Useful for clients which need to to ensure that server
 	and client masking are identical. """
@@ -1046,7 +1145,7 @@ def get_nucleotides_excluded():
 
 	return make_response(tojson(result))
 
-class test_get_nucleotides_excluded(unittest.TestCase):
+class test_nucleotides_excluded(unittest.TestCase):
     """ tests route /api/v2/nucleotides_excluded"""
     def runTest(self):
         relpath = "api/v2/nucleotides_excluded"
@@ -1119,10 +1218,11 @@ if __name__ == '__main__':
         RESTBASEURL = "http://{0}:{1}".format(CONFIG['IP'], CONFIG['REST_PORT'])
 
         #########################  CONFIGURE HELPER APPLICATIONS ######################
-		## configure mongodb persistence store
+        ## configure mongodb persistence store
         PERSIST=fn3persistence(connString=CONFIG['FNPERSISTENCE_CONNSTRING'], debug=CONFIG['DEBUGMODE'])
         ew = ElephantWalk(CONFIG, PERSIST)
         
+
         ########################  START THE SERVER ###################################
         if CONFIG['DEBUGMODE']==1:
                 app.logger.info("No config file name supplied ; using a configuration ('default_test_config.json') suitable only for testing, not for production. ")

@@ -18,7 +18,11 @@ import psutil
 from gzip import GzipFile
 import random
 import itertools
+import numpy as np
+from scipy.stats import binom_test
 
+# unittesting
+import pandas as pd
 
 class seqComparer():
     def __init__(self,
@@ -38,7 +42,7 @@ class seqComparer():
         This is required because, as a data compression technique,
         only differences from the reference are stored.
                
-        excludePositions contains a set of bases which should not be considered at all in the sequence comparisons.
+        excludePositions contains a zero indexed set of bases which should not be considered at all in the sequence comparisons.
         Any bases which are always N should be added to this set.
         Not doing so will substantially degrade the algorithm's performance.
         
@@ -150,11 +154,16 @@ class seqComparer():
     
     def uncompress(self, compressed_sequence):
         """ returns a sequence from a compressed_sequence """
+        if 'invalid' in compressed_sequence.keys():
+            if compressed_sequence['invalid']==1:
+                raise ValueError("Cannot uncompress an invalid sequence, as it is not stored")
+                    
         compressed_sequence = self._computeComparator(compressed_sequence)    # decompress if it is a patch_consensus 
-        if compressed_sequence['invalid']==1:
-            raise ValueError("Cannot uncompress an invalid sequence, as it is not stored")
-        
         seq = list(self.reference)
+        
+        # mark all positions excluded as N
+        for x in self.excluded:
+            seq[x]='N'
         for item in ['A','C','T','G','N']:
             for x in compressed_sequence[item]:
                 seq[x]=item
@@ -393,7 +402,6 @@ class seqComparer():
           
         retVal = {'add':add_positions, 'subtract':subtract_positions}
         return(retVal)
-
     def apply_patch(self, patch, consensus):
         """ generates a compressed_sequence from a patch and a consensus.
         """
@@ -415,8 +423,7 @@ class seqComparer():
                 subtract_these = set()
                 
             compressed_sequence[item]=  (consensus[item]|add_these)-subtract_these
-        return(compressed_sequence)
-    
+        return(compressed_sequence)   
     def compressed_sequence_hash(self, compressed_sequence):
         """ returns a string containing a hash of a compressed object.
         Used for identifying compressed objects, including consensus sequences.
@@ -444,8 +451,7 @@ class seqComparer():
         initial_consensi = set(self.consensi.keys())
         for consensus_md5 in initial_consensi:
             if not consensus_md5 in used_consensi_md5:
-                del self.consensi[consensus_md5]
-                
+                del self.consensi[consensus_md5]               
     def compress_relative_to_consensus(self, guid, cutoff_proportion=0.8):
         """ identifies sequences similar to the sequence identified by guid.
         Returns any guids which have been compressed as part of the operation"""
@@ -483,7 +489,189 @@ class seqComparer():
         
         # return visited_guids
         return(visited_guids)
+    def estimate_expected_N(self, sample_size=30, exclude_guids=set()):
+        """ computes the median allN for sample_size guids, randomly selected from all guids except for exclude_guids.
+        Used to estimate the expected number of Ns in an alignment """
         
+        guids = set(self.seqProfile.keys())-set(exclude_guids)
+        if len(guids)<sample_size:
+            return None     # cannot compute
+        else:
+            Ns = []
+            sampled_guids = np.random.choice(list(guids), sample_size, replace=False)
+            for guid in sampled_guids:
+                seq = self._computeComparator(self.seqProfile[guid])
+                Ns.append(len(seq['N']))
+            return np.median(Ns)
+        
+    def multi_sequence_alignment(self, guids):
+        """ computes a multiple sequence alignment containing only sites which vary between guids """
+        
+        # step 0: find all valid guids
+        nrps = {}
+        valid_guids = []
+        invalid_guids = []
+        guid2allNs = {}
+        comparatorSeq = {}
+        for guid in guids:
+            comparatorSeq[guid] = self._computeComparator(self.seqProfile[guid])
+            if comparatorSeq[guid]['invalid']==0:
+                valid_guids.append(guid)
+                guid2allNs[guid] = len(comparatorSeq[guid]['N'])
+            else:
+                invalid_guids.append(guid)
+                
+        # step 1: find non-reference positions
+        for guid in valid_guids:
+            seq = comparatorSeq[guid]
+            for base in ['A','C','T','G']:
+                for position in seq[base]:
+                  if not position in nrps.keys():     # if it's non-reference, and we've got no record of this position
+                     nrps[position]=set()                    
+                  nrps[position].add(base)
+                  
+        # step 2: for the non-reference positions, check if there's a reference base there.
+        for guid in valid_guids:
+            seq = comparatorSeq[guid]
+            for position in nrps.keys():
+                psn_accounted_for = 0
+                for base in ['A','C','T','G','N']:
+                    if position in seq[base]:
+                        psn_accounted_for = 1
+                if psn_accounted_for ==0 :
+                    # it is reference
+                    nrps[position].add(self.reference[position])
+                 
+        # step 3: find those which have multiple bases at a position
+        variant_positions = set()
+        for position in nrps.keys():
+            if len(nrps[position])>1:
+                variant_positions.add(position)
+
+        # step 4: determine the sequences of all bases.
+        ordered_variant_positions = sorted(list(variant_positions))
+        guid2seq = {}
+        guid2wholeseq={}
+        for guid in valid_guids:
+            guid2seq[guid]=[]
+            seq = comparatorSeq[guid]
+            for position in ordered_variant_positions:
+                this_base = self.reference[position]
+                for base in ['A','C','T','G','N']:
+                    if position in seq[base]:
+                        this_base = base
+                guid2seq[guid].append(this_base)
+            guid2wholeseq[guid] = ''.join(guid2seq[guid])
+        # compute expected N for each.  Estimate expected N as median(observed Ns), which is a valid thing to do if the proportion of mixed samples is low.
+        expected_N = self.estimate_expected_N(sample_size=3, exclude_guids= valid_guids)
+        
+        guid2pvalue = {}
+        guid2alignN = {}
+        for guid in valid_guids:
+            guid2alignN[guid]= guid2wholeseq[guid].count('N')
+            if expected_N is None:
+                p_value = None
+            else:
+                seq = comparatorSeq[guid]
+                expected_p = expected_N/len(guid2wholeseq[guid])
+                p_value = binom_test(len(seq['N']),guid2allNs[guid], expected_p)
+            guid2pvalue[guid]=p_value
+            
+        return({'variant_positions':ordered_variant_positions,
+                'invalid_guids': invalid_guids,
+                'guid2sequence':guid2seq,
+                'guid2allN':guid2allNs,
+                'guid2wholeseq':guid2wholeseq,
+                'guid2pvalue':guid2pvalue,
+                'guid2alignN':guid2alignN})
+                        
+ 
+            
+class test_seqComparer_47(unittest.TestCase):
+    """ tests computations of p values from exact bionomial test """
+    def runTest(self):
+        # generate compressed sequences
+        refSeq='GGGGGG'
+        sc=seqComparer( maxNs = 1e8,
+                       reference=refSeq,
+                       snpCeiling =10)
+        # need > 30 sequences
+        originals = ['AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
+                     'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
+                     'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN']
+        guid_names = []
+        n=0
+        for original in originals:
+            n+=1
+            c = sc.compress(original)
+            this_guid = "{0}-{1}".format(original,n )
+            sc.persist(c, guid=this_guid)
+            guid_names.append(this_guid)
+
+        res= sc.multi_sequence_alignment(guid_names[0:8])
+        # there's variation at positions 0,1,2,3
+        print(res)
+        df1 = pd.DataFrame.from_dict(res['guid2wholeseq'], orient='index')
+        df1.columns=['aligned_seq']
+        df2 = pd.DataFrame.from_dict(res['guid2allN'], orient='index')
+        df2.columns=['allN']
+        df3 = pd.DataFrame.from_dict(res['guid2alignN'], orient='index')
+        df3.columns=['alignN']
+        df4 = pd.DataFrame.from_dict(res['guid2pvalue'], orient='index')
+        df4.columns=['p_value']
+        df = df1.merge(df2, left_index=True, right_index=True)
+        df = df.merge(df3, left_index=True, right_index=True)
+        df = df.merge(df4, left_index=True, right_index=True)
+        print(df)
+class test_seqComparer_46(unittest.TestCase):
+    """ tests estimate_expected_N, a function estimating the number of Ns in sequences
+        by sampling """
+    def runTest(self):
+        # generate compressed sequences
+        refSeq='GGGGGG'
+        sc=seqComparer( maxNs = 1e8,
+                       reference=refSeq,
+                       snpCeiling =10)
+        n=0
+        originals = [ 'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN' ]
+        for original in originals:
+            n+=1
+            c = sc.compress(original)
+            sc.persist(c, guid="{0}-{1}".format(original,n ))
+           
+        res = sc.estimate_expected_N()      # defaults to sample size 30
+        self.assertEqual(res, None)
+        res = sc.estimate_expected_N(sample_size=3, exclude_guids = ['GGGGGN-1','NNNCGN-2','ACTCGN-3', 'TCTNGN-4'])      # defaults to sample size 30
+        self.assertEqual(res, 1)
+
+class test_seqComparer_45(unittest.TestCase):
+    """ tests the generation of multiple alignments of variant sites."""
+    def runTest(self):
+        
+        # generate compressed sequences
+        refSeq='GGGGGG'
+        sc=seqComparer( maxNs = 1e8,
+                       reference=refSeq,
+                       snpCeiling =10)
+        
+        originals = [ 'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN' ]
+        guid_names = []
+        n=0
+        for original in originals:
+            n+=1
+            c = sc.compress(original)
+            this_guid = "{0}-{1}".format(original,n )
+            sc.persist(c, guid=this_guid)
+            guid_names.append(this_guid)
+            print(original, this_guid)
+            
+        res= sc.multi_sequence_alignment(guid_names)
+        # there's variation at positions 0,1,2,3
+        df = pd.DataFrame.from_dict(res['guid2sequence'], orient='index')
+        df.columns=res['variant_positions']
+        self.assertEqual(len(df.index), 7)
+        self.assertEqual(res['variant_positions'],[0,1,2,3])
+                
 class test_seqComparer_1(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
