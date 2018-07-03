@@ -304,14 +304,7 @@ class ElephantWalk():
 		
 	def insert(self,guid,dna):
 		""" insert DNA called guid into the server
-		
-		TODO:
-		At present, inadequate consideration has been given to what happens if
-		(as happens, but very rarely) the database layer fails.
-		
-		Therefore, calls to the data base layer should be wrapped in try/catch and
-		suitable rollback / error raising arranged.
-		
+				
 		# reconsider this now Mongo is used.
 		
 		"""
@@ -329,36 +322,42 @@ class ElephantWalk():
 			self.server_monitoring_store(message='Guid {0} stored in ram'.format(guid))
 						
 			# construct links with everything existing existing at the time the semaphore was acquired.
-	#		self.write_semaphore.acquire()				    # addition should be an atomic operation
+			self.write_semaphore.acquire()				    # addition should be an atomic operation
+
+			links={}			
+			try:
+				# this process reports links less than self.sc.snpCeiling
+
+				to_compress = 0
+				for key2 in self.sc.guidscachedinram():
+					if not guid==key2:
+						(guid1,guid2,dist,n1,n2,nboth, N1pos, N2pos, Nbothpos)=self.sc.countDifferences_byKey(keyPair=(guid,key2),
+																											  cutoff = self.snpCompressionCeiling)
+						link = {'dist':dist,'n1':n1,'n2':n2,'nboth':nboth}
+						to_compress +=1
+						if dist is not None:
+							if link['dist'] <= self.snpCeiling:
+								links[guid2]=link
+				if to_compress>= self.recompress_frequency and to_compress % self.recompress_frequency == 0:		# recompress if there are lots of neighbours, every fifth isolate
+					self.server_monitoring_store(message='Guid {0} being recompressed relative to neighbours'.format(guid))
+	
+					self.sc.compress_relative_to_consensus(guid)
+					if self.gc_on_recompress==1:
+						gc.collect()
+					self.server_monitoring_store(message='Guid {0} recompressed relative to neighbours'.format(guid))
 			
-			# this process reports links less than self.sc.snpCeiling
-			links={}
-			to_compress = 0
-			for key2 in self.sc.guidscachedinram():
-				if not guid==key2:
-					(guid1,guid2,dist,n1,n2,nboth, N1pos, N2pos, Nbothpos)=self.sc.countDifferences_byKey(keyPair=(guid,key2),
-																										  cutoff = self.snpCompressionCeiling)
-					link = {'dist':dist,'n1':n1,'n2':n2,'nboth':nboth}
-					to_compress +=1
-					if dist is not None:
-						if link['dist'] <= self.snpCeiling:
-							links[guid2]=link
-			if to_compress>= self.recompress_frequency and to_compress % self.recompress_frequency == 0:		# recompress if there are lots of neighbours, every fifth isolate
-				self.server_monitoring_store(message='Guid {0} being recompressed relative to neighbours'.format(guid))
+				# write
+				## should trap here to return sensible error message if database connectivity is lost.
+				self.PERSIST.refcompressedseq_store(guid, refcompressedsequence)     # store the parsed object on disc
+				self.PERSIST.guid_annotate(guid=guid, nameSpace='DNAQuality',annotDict=self.objExaminer.composition)						
+				self.PERSIST.guid2neighbour_add_links(guid=guid, targetguids=links)
 
-				self.sc.compress_relative_to_consensus(guid)
-				if self.gc_on_recompress==1:
-					gc.collect()
-				self.server_monitoring_store(message='Guid {0} recompressed relative to neighbours'.format(guid))
-		
-			# write
-			## should trap here to return sensible error message if database connectivity is lost.
-			self.PERSIST.refcompressedseq_store(guid, refcompressedsequence)     # store the parsed object on disc
-			self.PERSIST.guid_annotate(guid=guid, nameSpace='DNAQuality',annotDict=self.objExaminer.composition)						
-			self.PERSIST.guid2neighbour_add_links(guid=guid, targetguids=links)
-
+			except Exception as e:
+				self.write_semaphore.release() 	# ensure release of the semaphore if an error is trapped
+				abort(500, e)
+				
 			# release semaphore
-	#		self.write_semaphore.release()                  # release the write semaphore
+			self.write_semaphore.release()                  # release the write semaphore
 		
 			# clean up guid2neighbour; this can readily be done post-hoc, if the process is slow.  it doesn't affect results.
 			guids = list(links.keys())
@@ -585,6 +584,117 @@ def server_info():
 		res = res+"{0}<p>".format(route)
 	return make_response(res)
 
+@app.route('/api/v2/multiple_alignment/guids', methods=['POST'])
+def msa_guids():
+	""" performs a multiple sequence alignment on a series of POSTed guids,
+	delivered in a dictionary, e.g.
+	{'guids':'guid1;guid2;guid3',
+	'output_format':'json'}
+	
+	Valid values for format are:
+	json
+	html
+	"""
+
+	# validate input
+	request_payload = request.form.to_dict()
+	if 'output_format' in request_payload.keys() and 'guids' in request_payload.keys():
+		guids = request_payload['guids'].split(';')		# coerce both guid and seq to strings
+		output_format= request_payload['output_format']
+		if not output_format in ['html','json','fasta']:
+			abort(501, 'output_format must be one of html, json, or fasta not {0}'.format(format))
+	else:
+		abort(501, 'output_format and guids are not present in the POSTed data {0}'.format(data_keys))
+	
+	# check guids
+	missing_guids = []
+	for guid in guids:
+		try:
+			result = ew.exist_sample(guid)
+		except Exception as e:
+			abort(500, e)
+		if not result is True:
+			missing_guids.append(guid)
+	
+	if len(missing_guids)>0:
+		abort(501, "asked to perform multiple sequence alignment with the following missing guids: {0}".format(missing_guids))
+
+		
+	# data validation complete.  construct outputs
+	res = ew.sc.multi_sequence_alignment(guids, output='df_dict')
+	df = pd.DataFrame.from_dict(res,orient='index')
+	html = df.to_html()
+	fasta= ""
+	for guid in df.index:
+		fasta=fasta + ">{0}\n{1}\n".format(guid, df.loc[guid,'aligned_seq'])
+		
+	if output_format == 'fasta':
+		return make_response(fasta)
+	elif output_format == 'html':
+		return make_response(html)
+	elif output_format == 'json':
+		return make_response(json.dumps(res))
+
+
+class test_msa_1(unittest.TestCase):
+	""" tests route /api/v2/multiple_alignment/guids, with additional samples.
+	"""
+	def runTest(self):
+		relpath = "/api/v2/guids"
+		res = do_GET(relpath)
+		n_pre = len(json.loads(str(res.text)))		# get all the guids
+
+		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+		with open(inputfile, 'rt') as f:
+			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+					originalseq = list(str(record.seq))
+		inserted_guids = []			
+		for i in range(0,3):
+			guid_to_insert = "guid_{0}".format(n_pre+i)
+			inserted_guids.append(guid_to_insert)
+			
+			seq = originalseq			
+			# make i mutations at position 500,000
+			offset = 500000
+			for j in range(i):
+				mutbase = offset+j
+				ref = seq[mutbase]
+				if not ref == 'T':
+					seq[mutbase] = 'T'
+				if not ref == 'A':
+					seq[mutbase] = 'A'
+			seq = ''.join(seq)
+						
+			print("Adding TB sequence {2} of {0} bytes with {1} mutations relative to ref.".format(len(seq), i, guid_to_insert))
+			self.assertEqual(len(seq), 4411532)		# check it's the right sequence
+	
+			relpath = "/api/v2/insert"
+			res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
+			self.assertTrue(isjson(content = res.content))
+			info = json.loads(res.content.decode('utf-8'))
+			self.assertEqual(info, 'Guid {0} inserted.'.format(guid_to_insert))
+	
+		relpath = "/api/v2/multiple_alignment/guids"
+		payload = {'guids':';'.join(inserted_guids),'output_format':'html'}
+		res = do_POST(relpath, payload=payload)
+		self.assertFalse(isjson(res.content))
+		self.assertEqual(res.status_code, 200)
+		self.assertTrue(b"</table>" in res.content)
+		
+		
+		payload = {'guids':';'.join(inserted_guids),'output_format':'json'}
+		res = do_POST(relpath, payload=payload)
+		self.assertTrue(isjson(res.content))
+		self.assertEqual(res.status_code, 200)
+		self.assertFalse(b"</table>" in res.content)
+		d = json.loads(res.content, encoding='utf-8')
+		self.assertEqual(set(d.keys()), set(inserted_guids))
+
+		payload = {'guids':';'.join(inserted_guids),'output_format':'fasta'}
+		res = do_POST(relpath, payload=payload)
+		self.assertFalse(isjson(res.content))
+		self.assertEqual(res.status_code, 200)
+	
 @app.route('/api/v2/server_config', methods=['GET'])
 def server_config():
     """ returns server configuration.
@@ -616,13 +726,16 @@ class test_server_config(unittest.TestCase):
 @app.route('/api/v2/server_memory_usage', defaults={'nrows':100}, methods=['GET'])
 @app.route('/api/v2/server_memory_usage/<int:nrows>', methods=['GET'])
 def server_memory_usage(nrows):
-	""" returns server memory usage """
+	""" returns server memory usage information, as list.
+	The server notes memory usage at various key points (pre/post insert; pre/post recompression)
+	and these are stored. """
 	try:
 		result = ew.server_memory_usage(max_reported = nrows)
 
 	except Exception as e:
 		print("Exception raised", e)
 		abort(500, e)
+		
 	return make_response(tojson(result))
 
 class test_server_memory_usage(unittest.TestCase):
@@ -748,7 +861,7 @@ class test_get_all_guids_examination_time_1(unittest.TestCase):
         relpath = "/api/v2/guids_and_examination_times"
         res = do_GET(relpath)
         et= len(json.loads(res.content.decode('utf-8')))
-        print(et)
+
 
 @app.route('/api/v2/annotations', methods=['GET'])
 def annotations(**kwargs):
@@ -784,7 +897,6 @@ def exist_sample(guid, **kwargs):
 		result = ew.exist_sample(guid)
 		
 	except Exception as e:
-		print(e)
 		abort(500, e)
 		
 	return make_response(tojson(result))
@@ -931,6 +1043,8 @@ class test_insert_10(unittest.TestCase):
 			self.assertEqual(type(info), bool)
 			self.assertEqual(res.status_code, 200)
 			self.assertEqual(info, True)	
+
+
 
 class test_mirror(unittest.TestCase):
     """ tests route /api/v2/mirror """

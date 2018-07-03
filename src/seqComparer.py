@@ -520,9 +520,26 @@ class seqComparer():
     def multi_sequence_alignment(self, guids, output='dict'):
         """ computes a multiple sequence alignment containing only sites which vary between guids.
         
-        output can be either 'dict', in which case the output is presented as guid2result dictionaries, or
-        'df' in which case the results is a pandas data frame like this, where the index consists of the
-        guids identifying the sequences
+        output can be either
+        'dict', in which case the output is presented as dictionaries mapping guid to results; or
+        'df' in which case the results is a pandas data frame like the below, where the index consists of the
+        guids identifying the sequences, or
+
+            (index)      aligned_seq  allN  alignN   p_value
+            AAACGN-1        AAAC     1       0  0.250000
+            CCCCGN-2        CCCC     1       0  0.250000
+            TTTCGN-3        TTTC     1       0  0.250000
+            GGGGGN-4        GGGG     1       0  0.250000
+            NNNCGN-5        NNNC     4       3  0.003906
+            ACTCGN-6        ACTC     1       0  0.250000
+            TCTNGN-7        TCTN     2       1  0.062500
+            AAACGN-8        AAAC     1       0  0.250000
+            
+        'df_dict'.  This is a serialisation of the above, which correctly json serialised.  It can be turned back into a
+        pandas DataFrame as follows:
+        
+        res= sc.multi_sequence_alignment(guid_names[0:8], output='df_dict')     # make the dictionary, see unit test _47
+        df = pd.DataFrame.from_dict(res,orient='index')                         # turn it back.
         
         The p value is derived from a binomial test, comparing an expected proportion of Ns with the
         observed number of Ns in the alignment (alignN), given the alignment length (4 in this case)
@@ -537,15 +554,7 @@ class seqComparer():
         If the number of samples in the server is too low to obtain
         (the items in the index below are from a unittest; they are unique, but are not guids)
         
-            (index)      aligned_seq  allN  alignN   p_value
-            AAACGN-1        AAAC     1       0  0.250000
-            CCCCGN-2        CCCC     1       0  0.250000
-            TTTCGN-3        TTTC     1       0  0.250000
-            GGGGGN-4        GGGG     1       0  0.250000
-            NNNCGN-5        NNNC     4       3  0.003906
-            ACTCGN-6        ACTC     1       0  0.250000
-            TCTNGN-7        TCTN     2       1  0.062500
-            AAACGN-8        AAAC     1       0  0.250000
+
 
         """
         
@@ -618,7 +627,19 @@ class seqComparer():
                 expected_p = expected_N/len(guid2wholeseq[guid])
                 p_value = binom_test(len(seq['N']),guid2allNs[guid], expected_p)
             guid2pvalue[guid]=p_value
-        
+
+        # assemble dataframe
+        df1 = pd.DataFrame.from_dict(guid2wholeseq, orient='index')
+        df1.columns=['aligned_seq']
+        df2 = pd.DataFrame.from_dict(guid2allNs, orient='index')
+        df2.columns=['allN']
+        df3 = pd.DataFrame.from_dict(guid2alignN, orient='index')
+        df3.columns=['alignN']
+        df4 = pd.DataFrame.from_dict(guid2pvalue, orient='index')
+        df4.columns=['p_value']
+        df = df1.merge(df2, left_index=True, right_index=True)
+        df = df.merge(df3, left_index=True, right_index=True)
+        df = df.merge(df4, left_index=True, right_index=True)
         if output=='dict':    
             return({'variant_positions':ordered_variant_positions,
                     'invalid_guids': invalid_guids,
@@ -628,18 +649,9 @@ class seqComparer():
                     'guid2pvalue':guid2pvalue,
                     'guid2alignN':guid2alignN})
         elif output=='df':
-            df1 = pd.DataFrame.from_dict(guid2wholeseq, orient='index')
-            df1.columns=['aligned_seq']
-            df2 = pd.DataFrame.from_dict(guid2allNs, orient='index')
-            df2.columns=['allN']
-            df3 = pd.DataFrame.from_dict(guid2alignN, orient='index')
-            df3.columns=['alignN']
-            df4 = pd.DataFrame.from_dict(guid2pvalue, orient='index')
-            df4.columns=['p_value']
-            df = df1.merge(df2, left_index=True, right_index=True)
-            df = df.merge(df3, left_index=True, right_index=True)
-            df = df.merge(df4, left_index=True, right_index=True)
             return(df)
+        elif output=='df_dict':
+            return(df.to_dict(orient='index'))
         else:
             raise ValueError("Don't know how to format {0}.  Valid options are {'df','dict'}".format(output))
                         
@@ -688,13 +700,11 @@ class test_seqComparer_48(unittest.TestCase):
             sc.persist(c, guid=this_guid)
             guid_names.append(this_guid)
 
-        df= sc.multi_sequence_alignment(guid_names[0:8], output='df')
-        # there's variation at positions 0,1,2,3
-        self.assertTrue(isinstance(df, pd.DataFrame))
-        self.assertEqual(set(df.columns.values),set(['aligned_seq','allN','alignN','p_value']))
-        self.assertEqual(len(df.index),8)
+
 class test_seqComparer_47(unittest.TestCase):
-    """ tests computations of p values from exact bionomial test """
+    """ tests generation of a multisequence alignment with
+        testing for the proportion of Ns.
+        Tests all three outputs."""
     def runTest(self):
         # generate compressed sequences
         refSeq='GGGGGG'
@@ -714,10 +724,20 @@ class test_seqComparer_47(unittest.TestCase):
             sc.persist(c, guid=this_guid)
             guid_names.append(this_guid)
 
-        res= sc.multi_sequence_alignment(guid_names[0:8])
+        res= sc.multi_sequence_alignment(guid_names[0:8], output='dict')
         # there's variation at positions 0,1,2,3
         self.assertEqual(res['variant_positions'],[0,1,2,3])
-       
+
+        df= sc.multi_sequence_alignment(guid_names[0:8], output='df')
+        # there's variation at positions 0,1,2,3
+        self.assertTrue(isinstance(df, pd.DataFrame))
+        self.assertEqual(set(df.columns.values),set(['aligned_seq','allN','alignN','p_value']))
+        self.assertEqual(len(df.index),8)
+        res= sc.multi_sequence_alignment(guid_names[0:8], output='df_dict')
+        df = pd.DataFrame.from_dict(res,orient='index')
+    
+        self.assertEqual(set(df.index.tolist()), set(guid_names[0:8]))
+        print(df)
 class test_seqComparer_46(unittest.TestCase):
     """ tests estimate_expected_N, a function estimating the number of Ns in sequences
         by sampling """
