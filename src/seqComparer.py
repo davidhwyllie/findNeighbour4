@@ -100,9 +100,6 @@ class seqComparer():
         self.seqProfile={}
         self.consensi = {}      # where consensus sequences are stored in ram
       
-        # initiate object used to track memory
-        self.memtracker = psutil.Process(os.getpid())
-
     def persist(self, object, guid):
         """ keeps a reference compressed object into RAM.
             Note: the sequences are stored on disc/db relative to the reference.
@@ -121,6 +118,25 @@ class seqComparer():
         self._seq2=None
         self.seq1md5=None
         self.seq2md5=None
+        
+    def summarise_stored_items(self):
+        """ counts how many sequences exist of various types """
+        retVal = {}
+        retVal['nSeqs'] = len(self.seqProfile.keys())
+        retVal['nConsensi'] = len(self.consensi.keys())
+        retVal['nInvalid'] = 0
+        retVal['nCompressed'] =0
+        retVal['nRecompressed'] =0
+        
+        for guid in self.seqProfile.keys():
+            if 'invalid' in self.seqProfile[guid]:
+                if self.seqProfile[guid]['invalid'] == 1:
+                    retVal['nInvalid'] +=1
+            if set(self.seqProfile[guid].keys())==self.patch_and_consensus_keys:
+                retVal['nRecompressed'] +=1
+            else:
+                retVal['nCompressed'] +=1
+        return(retVal)    
     def iscachedinram(self,guid):
         """ returns true or false depending whether we have a local copy of the refCompressed representation of a sequence (name=guid) in this machine """
         if guid in self.seqProfile.keys():
@@ -136,9 +152,7 @@ class seqComparer():
     def _guid(self):
         """ returns a new guid, generated de novo """
         return(str(uuid.uuid1()))
-    def memoryInfo(self):
-        """ returns information about memory usage by the machine """ 
-        return(self.memtracker.memory_info())
+
     def _delta(self,x):
         """ returns the difference between two numbers in a tuple x """
         return(x[1]-x[0])
@@ -273,7 +287,6 @@ class seqComparer():
         Returns the number of SNPs between self._seq1 and self._seq2, and, if it is less than cutoff,
         the number of Ns in the two sequences and the union of their positions.
         """
-
 
         if not type(keyPair) is tuple:
             raise TypeError("Wanted tuple keyPair, but got keyPair={0} with type {1}".format(keyPair, type(keyPair)))
@@ -504,8 +517,37 @@ class seqComparer():
                 Ns.append(len(seq['N']))
             return np.median(Ns)
         
-    def multi_sequence_alignment(self, guids):
-        """ computes a multiple sequence alignment containing only sites which vary between guids """
+    def multi_sequence_alignment(self, guids, output='dict'):
+        """ computes a multiple sequence alignment containing only sites which vary between guids.
+        
+        output can be either 'dict', in which case the output is presented as guid2result dictionaries, or
+        'df' in which case the results is a pandas data frame like this, where the index consists of the
+        guids identifying the sequences
+        
+        The p value is derived from a binomial test, comparing an expected proportion of Ns with the
+        observed number of Ns in the alignment (alignN), given the alignment length (4 in this case)
+        and an expected number of Ns per based, obtained by randomly sampling 30 guids from those in the
+        server and observing the number of Ns per base, using the estimate_expected_N() function.  This
+        determines the median number of Ns in valid sequences, which (if bad samples with large Ns are rare)
+        is a relatively unbiased estimate of the median number of Ns in the good quality samples.
+        
+        If there  are not enough samples in the server to obtain an estimate, p_value is not computed, being
+        reported as None.
+        
+        If the number of samples in the server is too low to obtain
+        (the items in the index below are from a unittest; they are unique, but are not guids)
+        
+            (index)      aligned_seq  allN  alignN   p_value
+            AAACGN-1        AAAC     1       0  0.250000
+            CCCCGN-2        CCCC     1       0  0.250000
+            TTTCGN-3        TTTC     1       0  0.250000
+            GGGGGN-4        GGGG     1       0  0.250000
+            NNNCGN-5        NNNC     4       3  0.003906
+            ACTCGN-6        ACTC     1       0  0.250000
+            TCTNGN-7        TCTN     2       1  0.062500
+            AAACGN-8        AAAC     1       0  0.250000
+
+        """
         
         # step 0: find all valid guids
         nrps = {}
@@ -576,17 +618,81 @@ class seqComparer():
                 expected_p = expected_N/len(guid2wholeseq[guid])
                 p_value = binom_test(len(seq['N']),guid2allNs[guid], expected_p)
             guid2pvalue[guid]=p_value
-            
-        return({'variant_positions':ordered_variant_positions,
-                'invalid_guids': invalid_guids,
-                'guid2sequence':guid2seq,
-                'guid2allN':guid2allNs,
-                'guid2wholeseq':guid2wholeseq,
-                'guid2pvalue':guid2pvalue,
-                'guid2alignN':guid2alignN})
+        
+        if output=='dict':    
+            return({'variant_positions':ordered_variant_positions,
+                    'invalid_guids': invalid_guids,
+                    'guid2sequence':guid2seq,
+                    'guid2allN':guid2allNs,
+                    'guid2wholeseq':guid2wholeseq,
+                    'guid2pvalue':guid2pvalue,
+                    'guid2alignN':guid2alignN})
+        elif output=='df':
+            df1 = pd.DataFrame.from_dict(guid2wholeseq, orient='index')
+            df1.columns=['aligned_seq']
+            df2 = pd.DataFrame.from_dict(guid2allNs, orient='index')
+            df2.columns=['allN']
+            df3 = pd.DataFrame.from_dict(guid2alignN, orient='index')
+            df3.columns=['alignN']
+            df4 = pd.DataFrame.from_dict(guid2pvalue, orient='index')
+            df4.columns=['p_value']
+            df = df1.merge(df2, left_index=True, right_index=True)
+            df = df.merge(df3, left_index=True, right_index=True)
+            df = df.merge(df4, left_index=True, right_index=True)
+            return(df)
+        else:
+            raise ValueError("Don't know how to format {0}.  Valid options are {'df','dict'}".format(output))
                         
- 
-            
+class test_seqComparer_49(unittest.TestCase):
+    """ tests reporting on stored contents """
+    def runTest(self):
+        # generate compressed sequences
+        refSeq='GGGGGG'
+        sc=seqComparer( maxNs = 1e8,
+                       reference=refSeq,
+                       snpCeiling =10)
+        # need > 30 sequences
+        originals = ['AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
+                     'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
+                     'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN']
+        guid_names = []
+        n=0
+        for original in originals:
+            n+=1
+            c = sc.compress(original)
+            this_guid = "{0}-{1}".format(original,n )
+            sc.persist(c, guid=this_guid)
+            guid_names.append(this_guid)
+
+        res = sc.summarise_stored_items()
+        self.assertTrue(isinstance(res, dict))
+        self.assertEqual(set(res.keys()), set(['nSeqs', 'nConsensi', 'nInvalid', 'nCompressed', 'nRecompressed']))
+class test_seqComparer_48(unittest.TestCase):
+    """ tests computations of p values from exact bionomial test """
+    def runTest(self):
+        # generate compressed sequences
+        refSeq='GGGGGG'
+        sc=seqComparer( maxNs = 1e8,
+                       reference=refSeq,
+                       snpCeiling =10)
+        # need > 30 sequences
+        originals = ['AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
+                     'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
+                     'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN']
+        guid_names = []
+        n=0
+        for original in originals:
+            n+=1
+            c = sc.compress(original)
+            this_guid = "{0}-{1}".format(original,n )
+            sc.persist(c, guid=this_guid)
+            guid_names.append(this_guid)
+
+        df= sc.multi_sequence_alignment(guid_names[0:8], output='df')
+        # there's variation at positions 0,1,2,3
+        self.assertTrue(isinstance(df, pd.DataFrame))
+        self.assertEqual(set(df.columns.values),set(['aligned_seq','allN','alignN','p_value']))
+        self.assertEqual(len(df.index),8)
 class test_seqComparer_47(unittest.TestCase):
     """ tests computations of p values from exact bionomial test """
     def runTest(self):
@@ -610,19 +716,8 @@ class test_seqComparer_47(unittest.TestCase):
 
         res= sc.multi_sequence_alignment(guid_names[0:8])
         # there's variation at positions 0,1,2,3
-        print(res)
-        df1 = pd.DataFrame.from_dict(res['guid2wholeseq'], orient='index')
-        df1.columns=['aligned_seq']
-        df2 = pd.DataFrame.from_dict(res['guid2allN'], orient='index')
-        df2.columns=['allN']
-        df3 = pd.DataFrame.from_dict(res['guid2alignN'], orient='index')
-        df3.columns=['alignN']
-        df4 = pd.DataFrame.from_dict(res['guid2pvalue'], orient='index')
-        df4.columns=['p_value']
-        df = df1.merge(df2, left_index=True, right_index=True)
-        df = df.merge(df3, left_index=True, right_index=True)
-        df = df.merge(df4, left_index=True, right_index=True)
-        print(df)
+        self.assertEqual(res['variant_positions'],[0,1,2,3])
+       
 class test_seqComparer_46(unittest.TestCase):
     """ tests estimate_expected_N, a function estimating the number of Ns in sequences
         by sampling """
@@ -634,16 +729,24 @@ class test_seqComparer_46(unittest.TestCase):
                        snpCeiling =10)
         n=0
         originals = [ 'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN' ]
+        guids = []
         for original in originals:
             n+=1
             c = sc.compress(original)
-            sc.persist(c, guid="{0}-{1}".format(original,n ))
-           
+            guid = "{0}-{1}".format(original,n )
+            guids.append(guid)
+            sc.persist(c, guid=guid)
+          
         res = sc.estimate_expected_N()      # defaults to sample size 30
         self.assertEqual(res, None)
-        res = sc.estimate_expected_N(sample_size=3, exclude_guids = ['GGGGGN-1','NNNCGN-2','ACTCGN-3', 'TCTNGN-4'])      # defaults to sample size 30
-        self.assertEqual(res, 1)
+        
+        # analyse the last two
+        res = sc.estimate_expected_N(sample_size=2, exclude_guids = guids[0:5])      
+        self.assertEqual(res, 1.5)
 
+        # analyse the first two
+        res = sc.estimate_expected_N(sample_size=2, exclude_guids = guids[2:7])      
+        self.assertEqual(res, 1)
 class test_seqComparer_45(unittest.TestCase):
     """ tests the generation of multiple alignments of variant sites."""
     def runTest(self):
@@ -663,8 +766,7 @@ class test_seqComparer_45(unittest.TestCase):
             this_guid = "{0}-{1}".format(original,n )
             sc.persist(c, guid=this_guid)
             guid_names.append(this_guid)
-            print(original, this_guid)
-            
+
         res= sc.multi_sequence_alignment(guid_names)
         # there's variation at positions 0,1,2,3
         df = pd.DataFrame.from_dict(res['guid2sequence'], orient='index')

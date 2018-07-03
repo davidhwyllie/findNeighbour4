@@ -38,6 +38,8 @@ import sys
 import hashlib
 import queue
 import threading
+import gc
+import pymongo
 
 # flask
 from flask import Flask, make_response, jsonify, Markup
@@ -92,7 +94,7 @@ class ElephantWalk():
 		
 		    INPUTREF:       the path to fasta format reference file.
 		    EXCLUDEFILE:    a file containing the zero-indexed positions in the supplied sequences which should be ignored in all cases.
-                            Typically, this is because the software generating the mapped fasta file has elected not to call these regions,
+							Typically, this is because the software generating the mapped fasta file has elected not to call these regions,
                             in any samples, e.g. because of difficulty mapping to these regions.
                             Such regions can occupy up 5- 20% of the genome and it is important for efficient working of this software
                             that these regions are supplied for exclusion on sequence loading.  Not doing so will slow loading, and markedly increase
@@ -106,7 +108,11 @@ class ElephantWalk():
 			MAXN_PROP_DEFAULT: if the proportion not N in the sequence exceeds this, the sample is analysed, otherwise considered invalid.
 			LOGFILE:        the log file used
 			LOGLEVEL:		default logging level used by the server
-			SNPCEILING: 	links between guids > this are not stored.
+			SNPCEILING: 	links between guids > this are not stored in the database
+			GC_ON_RECOMPRESS: if 'recompressing' sequences to a local reference, something the server does automatically, enforce
+			                  a full mark-and-sweep gc at this point.
+			RECOMPRESS_FREQ: if recompressable records are detected, recompress every RECOMPRESS_FREQ detection (e.g. 5).
+							 Trades off compute time with mem usage.
 		An example CONFIG is below:
 		
 		{			
@@ -118,12 +124,42 @@ class ElephantWalk():
 		"SERVERNAME":"TBSNP",
 		"FNPERSISTENCE_CONNSTRING":"mongodb://127.0.0.1",
 		"MAXN_STORAGE":100000,
+		"SNPCOMPRESSIONCEILING":250,
 		"MAXN_PROP_DEFAULT":0.70,
 		"LOGFILE":"../unittest_tmp/logfile.log",
 		"LOGLEVEL":"INFO",
-		"SNPCEILING": 20
+		"SNPCEILING": 20,
+		"GC_ON_RECOMPRESS":1,
+		"RECOMPRESS_FREQUENCY":5
 		}
 
+		Some of these settings are read when the server is first-run, stored in a database, and the server will not
+		change the settings on re-start even if the config file is changed.  Examples are:
+		SNPCEILING
+		MAXN_PROP_DEFAULT
+		EXCLUDEFILE
+		INPUTREF
+		These settings cannot be changed because they alter the way that the data is stored; if you want to change
+		the settings, the data will have to be re-loaded.
+		
+		However, most other settings can be changed and will take effect on server restart.  These include:
+		server location
+		IP
+		SERVERNAME
+		REST_PORT
+		
+		internal logging	
+		LOGFILE
+		LOGLEVEL
+		
+		where the database connection binds to
+		FNPERSISTENCE_CONNSTRING
+		
+		related to internal server memory management:
+		GC_ON_RECOMPRESS
+		RECOMPRESS_FREQ
+		SNPCOMPRESSIONCEILING
+		
 		PERSIST is a storage object needs to be supplied.  The fn3Persistence class in mongoStore is one suitable object.
 		PERSIST=fn3persistence(connString=CONFIG['FNPERSISTENCE_CONNSTRING'])
 
@@ -148,14 +184,17 @@ class ElephantWalk():
 		required_keys=set(['IP','INPUTREF','EXCLUDEFILE','DEBUGMODE','SERVERNAME',
 						   'FNPERSISTENCE_CONNSTRING', 'MAXN_STORAGE',
 						   'SNPCOMPRESSIONCEILING', "SNPCEILING", 'MAXN_PROP_DEFAULT', 'REST_PORT',
-						   'LOGFILE','LOGLEVEL'])
+						   'LOGFILE','LOGLEVEL','GC_ON_RECOMPRESS','RECOMPRESS_FREQUENCY'])
 		missing=required_keys-set(self.CONFIG.keys())
 		if not missing == set([]):
 			raise KeyError("Required keys were not found in CONFIG. Missing are {0}".format(missing))
 
 		# the following keys are not stored in any database backend, as a server could be moved, i.e.
 		# running on the same data but with different IP etc
-		do_not_persist_keys=set(['IP','SERVERNAME','FNPERSISTENCE_CONNSTRING','LOGFILE','LOGLEVEL','REST_PORT'])
+		
+		do_not_persist_keys=set(['IP','SERVERNAME','FNPERSISTENCE_CONNSTRING',
+								 'LOGFILE','LOGLEVEL','REST_PORT',
+								 'GC_ON_RECOMPRESS','RECOMPRESS_FREQ'])
 				
 		# determine whether this is a first-run situation.
 		if self.PERSIST.first_run:
@@ -163,27 +202,35 @@ class ElephantWalk():
 
 		# load global settings from those stored at the first run.  
 		cfg = self.PERSIST.config_read('config')
+		
+		# set easy to read properties from the config
 		self.reference = cfg['reference']
 		self.excludePositions = set(cfg['excludePositions'])
 		self.debugMode = cfg['DEBUGMODE']
 		self.maxNs = cfg['MAXN_STORAGE']
-		self.snpceiling = cfg['SNPCEILING']
-		self.snpcompressionCeiling = cfg['SNPCOMPRESSIONCEILING']
+		self.snpCeiling = cfg['SNPCEILING']
+		self.snpCompressionCeiling = cfg['SNPCOMPRESSIONCEILING']
 		self.maxn_prop_default = cfg['MAXN_PROP_DEFAULT']
+		
+		# relevant to memory management
+		self.recompress_frequency = self.CONFIG['RECOMPRESS_FREQUENCY']
+		self.gc_on_recompress = self.CONFIG['GC_ON_RECOMPRESS']
 		
 		# start process
 		self.write_semaphore = threading.BoundedSemaphore(1)        # used to permit only one process to INSERT at a time.
 		self.objExaminer=NucleicAcid()
 		self.sc=seqComparer(reference=self.reference,
 							maxNs=self.maxNs,
-							snpCeiling= self.snpceiling,
+							snpCeiling= self.snpCeiling,
 							debugMode=self.debugMode,
 							excludePositions=self.excludePositions,
-							snpCompressionCeiling = self.snpcompressionCeiling)
+							snpCompressionCeiling = self.snpCompressionCeiling)
 		
 		# now load compressed sequences into ram.
 		# note this does not apply 'double delta' recompression
 		# a more sophisticated algorithm will be needed to do that
+		self.server_monitoring_store(message='Starting load of sequences into memory from database')
+
 		guids = self.PERSIST.refcompressedsequence_guids()
 		print("EW3 core is loading {1} sequences from database .. excluding ({0})".format(self.sc.excluded_hash(),len(guids)))
 		nLoaded = 0
@@ -193,8 +240,16 @@ class ElephantWalk():
 			self.sc.persist(obj)
 			if nLoaded % 500 ==0:
 				print(nLoaded)
+				self.server_monitoring_store(message='Loaded {0} from database'.format(nLoaded))
+
 		print("EW3 core is ready; loaded {0} sequences from database".format(len(guids)))
-	
+		self.server_monitoring_store(message='Loaded {0} from database; load complete.'.format(nLoaded))
+
+	def server_monitoring_store(self, message="No message supplied"):
+		""" reports server memory information to store """
+		self.PERSIST.server_monitoring_store(message=message, content=self.sc.summarise_stored_items())
+
+
 	def first_run(self, do_not_persist_keys):
 		""" actions taken on first-run only.
 		Include caching results from CONFIGFILE to database, unless they are in do_not_persist_keys"""
@@ -241,7 +296,12 @@ class ElephantWalk():
 		for this_guid in guids:
 			app.logger.info("Repacking {0}".format(this_guid))
 			self.PERSIST.guid2neighbour_repack(this_guid)
-			
+	
+	def record_server_status(self, message='No message supplied'):
+		""" stores server status to database.
+		Useful for process monitoring """
+		self.server_monitoring_store(message = message)
+		
 	def insert(self,guid,dna):
 		""" insert DNA called guid into the server
 		
@@ -264,19 +324,33 @@ class ElephantWalk():
 			self.objExaminer.examine(dna)  					  # examine the sequence
 			cleaned_dna=self.objExaminer.nucleicAcidString.decode()
 			refcompressedsequence =self.sc.compress(cleaned_dna)          # compress it and store it in RAM
+			self.server_monitoring_store(message='Guid {0} is about to be stored in ram'.format(guid))
 			self.sc.persist(refcompressedsequence, guid)			    # insert the DNA sequence into ram.
-					
+			self.server_monitoring_store(message='Guid {0} stored in ram'.format(guid))
+						
 			# construct links with everything existing existing at the time the semaphore was acquired.
-			self.write_semaphore.acquire()				    # addition should be an atomic operation
+	#		self.write_semaphore.acquire()				    # addition should be an atomic operation
 			
+			# this process reports links less than self.sc.snpCeiling
 			links={}
+			to_compress = 0
 			for key2 in self.sc.guidscachedinram():
 				if not guid==key2:
-					(guid1,guid2,dist,n1,n2,nboth, N1pos, N2pos, Nbothpos)=self.sc.countDifferences_byKey(keyPair=(guid,key2))
+					(guid1,guid2,dist,n1,n2,nboth, N1pos, N2pos, Nbothpos)=self.sc.countDifferences_byKey(keyPair=(guid,key2),
+																										  cutoff = self.snpCompressionCeiling)
 					link = {'dist':dist,'n1':n1,'n2':n2,'nboth':nboth}
+					to_compress +=1
 					if dist is not None:
-						links[guid2]=link
+						if link['dist'] <= self.snpCeiling:
+							links[guid2]=link
+			if to_compress>= self.recompress_frequency and to_compress % self.recompress_frequency == 0:		# recompress if there are lots of neighbours, every fifth isolate
+				self.server_monitoring_store(message='Guid {0} being recompressed relative to neighbours'.format(guid))
 
+				self.sc.compress_relative_to_consensus(guid)
+				if self.gc_on_recompress==1:
+					gc.collect()
+				self.server_monitoring_store(message='Guid {0} recompressed relative to neighbours'.format(guid))
+		
 			# write
 			## should trap here to return sensible error message if database connectivity is lost.
 			self.PERSIST.refcompressedseq_store(guid, refcompressedsequence)     # store the parsed object on disc
@@ -284,8 +358,8 @@ class ElephantWalk():
 			self.PERSIST.guid2neighbour_add_links(guid=guid, targetguids=links)
 
 			# release semaphore
-			self.write_semaphore.release()                  # release the write semaphore
-			
+	#		self.write_semaphore.release()                  # release the write semaphore
+		
 			# clean up guid2neighbour; this can readily be done post-hoc, if the process is slow.  it doesn't affect results.
 			guids = list(links.keys())
 			guids.append(guid)
@@ -320,33 +394,19 @@ class ElephantWalk():
 		""" returns the nucleotides excluded by the server """
 		return {"exclusion_id":self.sc.excluded_hash(), "excluded_nt":list(self.sc.excluded)}
 	
-	def server_memory_usage(self):
-		""" returns memory usage by current python process
-		
-		Uses the resource module.
-		Please see:
-		https://docs.python.org/3/library/resource.html
-		for more information.
-		
-		These calls are linux specific"""
-		if os.name == 'nt':
-			mem= {'maximum_resident_set_size':-1,
-			  'note':'Server is running windows; memory assessment is not available.',
-			  'memory_units':'bytes'}			
-		else:
-			mem= {'maximum_resident_set_size':resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
-			  'note':'Values are as returned by the python3 resource module for the server process only.  Please see https://docs.python.org/3/library/resource.html for more information',
-			  'memory_units':'bytes'}
-		return mem
+	def server_memory_usage(self, max_reported=None):
+		""" reports recent server memory activity """
+		if max_reported is None:
+			max_reported =100		# a default
+		return self.PERSIST.recent_server_monitoring(max_reported= max_reported)
 	
 	def neighbours_within_filter(self, guid, snpDistance, cutoff=0.85, returned_format=1):
-		""" returns a list of guids, and their distances, by a sample quality cutoff
-		
-		    returns links either as
+		""" returns a list of guids, and their distances, by a sample quality cutoff	
+			returns links either as
 			format 1 [otherGuid, distance]
-            or as
+			or as
 			format 2 [otherGuid, distance, N_just1, N_just2, N_either]
-        """
+		"""
 
 		# check the query is of good quality
 		inScore = self.PERSIST.guid_quality_check(guid,float(cutoff))
@@ -549,15 +609,16 @@ class test_server_config(unittest.TestCase):
         self.assertTrue(isjson(content = res.content))
 
         config_dict = json.loads(res.content.decode('utf-8'))
-        self.assertTrue('NCOMPRESSIONCUTOFF' in config_dict.keys())
+        self.assertTrue('GC_ON_RECOMPRESS' in config_dict.keys())
         self.assertEqual(res.status_code, 200)
 
 
-@app.route('/api/v2/server_memory_usage', methods=['GET'])
-def server_memory_usage():
+@app.route('/api/v2/server_memory_usage', defaults={'nrows':100}, methods=['GET'])
+@app.route('/api/v2/server_memory_usage/<int:nrows>', methods=['GET'])
+def server_memory_usage(nrows):
 	""" returns server memory usage """
 	try:
-		result = ew.server_memory_usage()
+		result = ew.server_memory_usage(max_reported = nrows)
 
 	except Exception as e:
 		print("Exception raised", e)
@@ -571,8 +632,8 @@ class test_server_memory_usage(unittest.TestCase):
         res = do_GET(relpath)
         self.assertTrue(isjson(content = res.content))
 
-        config_dict = json.loads(res.content.decode('utf-8'))
-        self.assertTrue('note' in config_dict.keys())
+        res = json.loads(res.content.decode('utf-8'))
+        self.assertTrue(isinstance(res,list))
         self.assertEqual(res.status_code, 200)
 
 
@@ -638,7 +699,7 @@ class test_guids_with_quality_over_1(unittest.TestCase):
         guidlist = json.loads(res.content.decode('utf-8'))
         self.assertTrue(isinstance(guidlist, list))
         self.assertEqual(res.status_code, 200)
-        # TODO: insert guids, check it doesn't fail.
+        
 
 @app.route('/api/v2/guids_and_examination_times', methods=['GET'])
 def guids_and_examination_times(**kwargs):
@@ -663,8 +724,31 @@ class test_get_all_guids_examination_time_1(unittest.TestCase):
         self.assertTrue(isinstance(guidlist, dict))
         self.assertEqual(res.status_code, 200)
 
-        # TODO: test that it actually works
+        #  test that it actually works
+        relpath = "/api/v2/guids"
+        res = do_GET(relpath)
+        n_pre = len(json.loads(str(res.text)))		# get all the guids
 
+        guid_to_insert = "guid_{0}".format(n_pre+1)
+
+        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        with open(inputfile, 'rt') as f:
+            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+                    seq = str(record.seq)
+
+        print("Adding TB reference sequence of {0} bytes".format(len(seq)))
+        self.assertEqual(len(seq), 4411532)		# check it's the right sequence
+
+        relpath = "/api/v2/insert"
+        res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
+        self.assertTrue(isjson(content = res.content))
+        info = json.loads(res.content.decode('utf-8'))
+        self.assertEqual(info, 'Guid {0} inserted.'.format(guid_to_insert))
+
+        relpath = "/api/v2/guids_and_examination_times"
+        res = do_GET(relpath)
+        et= len(json.loads(res.content.decode('utf-8')))
+        print(et)
 
 @app.route('/api/v2/annotations', methods=['GET'])
 def annotations(**kwargs):
@@ -716,8 +800,6 @@ class test_exist_sample(unittest.TestCase):
         info = json.loads(res.content.decode('utf-8'))
         self.assertEqual(type(info), bool)
         self.assertEqual(info, False)
-		
-		# note: additional testing is performed in test_insert_*
 
 
 @app.route('/api/v2/insert', methods=['POST'])
@@ -799,31 +881,33 @@ class test_insert_1(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(info, True)
 
-class test_insert_plus(unittest.TestCase):
-	""" tests route /api/v2/insert """
+class test_insert_10(unittest.TestCase):
+	""" tests route /api/v2/insert, with additional samples.
+		Also provides a set of very similar samples, testing recompression code."""
 	def runTest(self):
 		relpath = "/api/v2/guids"
 		res = do_GET(relpath)
 		n_pre = len(json.loads(str(res.text)))		# get all the guids
 
+		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+		with open(inputfile, 'rt') as f:
+			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+					originalseq = list(str(record.seq))
+					
 		for i in range(1,10):
 			guid_to_insert = "guid_{0}".format(n_pre+i)
 
-			inputfile = "../COMPASS_reference/R39/R00000039.fasta"
-			with open(inputfile, 'rt') as f:
-				for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
-						seq = list(str(record.seq))
-						
-						# make i mutations at position 500,000
-						offset = 500000
-						for j in range(i):
-							mutbase = offset+j
-							ref = seq[mutbase]
-							if not ref == 'T':
-								seq[mutbase] = 'T'
-							if not ref == 'A':
-								seq[mutbase] = 'A'
-						seq = ''.join(seq)
+			seq = originalseq			
+			# make i mutations at position 500,000
+			offset = 500000
+			for j in range(i):
+				mutbase = offset+j
+				ref = seq[mutbase]
+				if not ref == 'T':
+					seq[mutbase] = 'T'
+				if not ref == 'A':
+					seq[mutbase] = 'A'
+			seq = ''.join(seq)
 						
 			print("Adding TB sequence {2} of {0} bytes with {1} mutations relative to ref.".format(len(seq), i, guid_to_insert))
 			self.assertEqual(len(seq), 4411532)		# check it's the right sequence
@@ -839,7 +923,6 @@ class test_insert_plus(unittest.TestCase):
 			n_post = len(json.loads(res.content.decode('utf-8')))
 			self.assertEqual(n_pre+i, n_post)
 					
-	
 			# check if it exists
 			relpath = "/api/v2/{0}/exists".format(guid_to_insert)
 			res = do_GET(relpath)
@@ -1104,31 +1187,6 @@ class test_sequence_3(unittest.TestCase):
         print(info)
         self.assertEqual(info['guid'], guid_to_insert)
         self.assertEqual(info['invalid'], 1)
-        print(info)
-# @app.route('/api/v2/<string:guid1>/<string:guid2>/detailed_comparison', methods=['GET'])
-# def get_detail(guid1, guid2):
-# 	""" detailed comparison of two guids """
-# 	try:
-# 		result = ew.query_get_detail(guid1, guid2)
-# 		
-# 	except Exception as e:
-# 		print("Exception raised", e)
-# 		abort(500, e)
-# 		
-# 	return(result)
-# 
-# class test_get_detail(unittest.TestCase):
-#     """ tests route /detailed_comparison """
-#     def runTest(self):
-#         relpath = "/api/v2/guid1/guid2/detailed_comparison"
-#         res = do_GET(relpath)
-# 
-#         self.assertTrue(isjson(content = res.content))
-#         info = json.loads(res.content.decode('utf-8'))
-#         self.assertEqual(type(info), dict)
-# 
-#         self.assertEqual(info, {"guid1_exists": False, "success": 0, "guid2_exists": False})
-#         self.assertEqual(res.status_code, 200)
 
 @app.route('/api/v2/nucleotides_excluded', methods=['GET'])
 def nucleotides_excluded():

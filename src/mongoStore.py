@@ -14,6 +14,9 @@ import pymongo
 from bson.objectid import ObjectId
 import gridfs
 import pickle
+import psutil
+import copy
+
 # used for unit testing only
 import unittest
 from NucleicAcid import NucleicAcid 
@@ -74,9 +77,9 @@ class fn3persistence():
             self.dbname = dbname
             self.db = self.client[dbname]
             
-            self.expected_collections = ['guid2meta','guid2neighbour','config','refcompressedseq.chunks','refcompressedseq.files']
+            self.expected_collections = ['server_monitoring','guid2meta','guid2neighbour','config','refcompressedseq.chunks','refcompressedseq.files']
             self.max_neighbours_per_document = max_neighbours_per_document
-            
+
             # delete any pre-existing data if we are in debug mode.
             if debug == 1:
                 self.logger.warning("Debug mode operational; deleting all data from collections.")
@@ -84,7 +87,7 @@ class fn3persistence():
                     self.db[collection].delete_many({})
 
                 self.max_neighbours_per_document =2
-
+     
             # create indices on guid2neighbours
             ix1 = pymongo.IndexModel([("guid",pymongo.ASCENDING)], name='by_guid')
             ix2 = pymongo.IndexModel([("guid",pymongo.ASCENDING),("rstat", pymongo.ASCENDING)], name='by_guid_full')
@@ -120,9 +123,11 @@ class fn3persistence():
             if not res.acknowledged is True:
                 raise IOError("Mongo {0} did not acknowledge write of data: {1}".format(self.db, object))        
             return res
+        
         def _load(self,collection, key):
             """ loads object from collection[key] """
             return self.db[collection].find_one({'_id':key})
+        
         def _load_ids(self,collection):
             """ loads guids from collection """
             retVal = set()
@@ -130,15 +135,70 @@ class fn3persistence():
                 retVal.add(item['_id'])
             return(retVal)
         
+        def memory_usage(self):
+                """ returns memory usage by current python process  
+                Uses the psutil module, as the resource module is not available in windows.
+                """       
+                sm = psutil.virtual_memory()._asdict()
+                
+                sm['time_now']=datetime.datetime.now().isoformat()
+                sm['time_boot']=datetime.datetime.fromtimestamp(psutil.boot_time()).strftime("%Y-%m-%d %H:%M:%S")
+                return(sm)
+
         # methods for the config collection
         def config_store(self, key, object):
             """ stores object into config collection
             It is assumed object is a dictionary"""
             return self._store('config',key, object)
+        
         def config_read(self, key):
             """ loads object from refcompressedseq.
                 It is assumed object is a dictionary"""
             return self._load('config',key)
+        
+        # methods for the server_monitoring
+        def recent_server_monitoring(self, max_reported = 100):
+            """ returns a list containing recent server monitoring, in reverse order (i.e. tail first).
+                The _id field is an integer reflecting the order added.  Lowest numbers are most recent.
+            """
+            if not isinstance(max_reported, int):
+                raise TypeError("limit must be an integer, but it is a {0}".format(type(max_reported)))
+            if not max_reported>=0:
+                raise ValueError("limit must be more than or equal to zero")
+
+            if max_reported == 0:
+                return []
+        
+            n= 0
+            retVal = []
+            formerly_cursor = self.db['server_monitoring'].find({}).sort('_id', pymongo.DESCENDING)
+            for formerly in formerly_cursor:
+                n+=1
+                formerly['_id']=n
+                retVal.append(formerly)
+                if n>=max_reported:
+                        break
+            return(retVal)
+        
+        def server_monitoring_store(self, message = 'No message provided', content={}):
+            """ stores object into config collection
+            It is assumed object is a dictionary"""
+            now = dict(**content, **self.memory_usage())
+            now['message'] = message
+            
+            # compute deltas
+            formerly_cursor = self.db['server_monitoring'].find({}).sort('_id', pymongo.DESCENDING).limit(1)
+            for formerly in formerly_cursor:
+                now_keys = list(now.keys())
+                formerly_keys = list(formerly.keys())
+                
+                for item in now_keys:
+                    if item in formerly_keys:
+                            if not '_delta' in item:
+                                    if isinstance(now[item],int) and isinstance(formerly[item], int):
+                                            now["{0}_delta".format(item)] = now[item]-formerly[item]  # compute delta
+                                    
+            return self.db['server_monitoring'].insert_one(now)
 
         # methods for refcompressedseq, which holds the reference compressed details of the sequences
         # in a gridFS store.
@@ -159,12 +219,12 @@ class fn3persistence():
                 res = self.fs.find_one({'_id':guid})
                 if res is None:
                     return None
-                return pickle.loads(res.read())    
+                return pickle.loads(res.read())
+        
         def refcompressedsequence_guids(self):
             """ loads guids from refcompressedseq collection.
             """
             return(set(self.fs.list()))
-
 
         # methods for guid2meta        
         def guid_annotate(self, guid, nameSpace, annotDict):
@@ -186,11 +246,13 @@ class fn3persistence():
                 
             res = self.db.guid2meta.replace_one({'_id':guid}, metadataObj, upsert=True)
             if not res.acknowledged is True:
-                raise IOError("Mongo {0} did not acknowledge write of data: {1}".format(self.db, self.metadataObj))        
+                raise IOError("Mongo {0} did not acknowledge write of data: {1}".format(self.db, self.metadataObj))
+        
         def guids(self):
             """ returns all registered guids """
             retVal = [x['_id'] for x in self.db.guid2meta.find({}, {'_id':1})]
             return(set(retVal))
+        
         def guid_exists(self, guid):
             """ checks the presence of a single guid """
             res = self.db.guid2meta.find_one({'_id':guid},{'sequence_meta':1})
@@ -198,6 +260,7 @@ class fn3persistence():
                 return False
             else:
                 return True
+        
         def guid_quality_check(self,guid,cutoff):
          """ Checks whether the quality of one guid exceeds the cutoff.
          
@@ -228,6 +291,7 @@ class fn3persistence():
             
             # report whether it is larger or smaller than cutoff
             return dnaq['propACTG']>=cutoff
+        
         def guid2item(self, guidList, namespace, tag):
             """ returns the item in namespace:tag for all guids in guidlist.
             To do this, a table scan is performed - indices are not used.
@@ -257,12 +321,15 @@ class fn3persistence():
                # return property
                retDict[res['_id']] = namespace_content[tag]
             return(retDict)
+        
         def guid2ExaminationDateTime(self, guidList=None):
             """ returns quality scores for all guids in guidlist.  If guidList is None, all results are returned. """
             return self.guid2item(guidList,'DNAQuality','examinationDate')
+        
         def guid2quality(self, guidList=None):
             """ returns quality scores for all guids in guidlist (if guidList is None)"""
-            return self.guid2item(guidList,'DNAQuality','propACTG') 
+            return self.guid2item(guidList,'DNAQuality','propACTG')
+        
         def guid2propACTG_filtered(self, cutoff=0.85):
             """ recover guids which have good quality, > cutoff.
             These are in the majority, so we run a table scan to find these.
@@ -273,6 +340,7 @@ class fn3persistence():
                 if allresults[guid]>=cutoff:
                     retDict[guid]=cutoff
             return retDict      # note: slightly different from previous api
+        
         def guid2items(self, guidList, namespaces):
             """ returns all items in namespaces, which is a list, as a pandas dataframe.
             If namespaces is None, all namespaces are returned.
@@ -301,7 +369,8 @@ class fn3persistence():
                         row[col_name] = res['sequence_meta'][sought_namespace][tag]
                retDict[res['_id']]=row
                        
-            return(retDict)       
+            return(retDict)
+        
         def guid_annotations(self):
             """ return all annotations of all guids """
             return self.guid2items(None,None)           # no restriction by namespace or by guid.
@@ -340,7 +409,8 @@ class fn3persistence():
                 if len(to_insert)>0:
                         res = self.db.guid2neighbour.insert_many(to_insert, ordered=False)
                         if not res.acknowledged is True:
-                                raise IOError("Mongo {0} did not acknowledge write of data: {1}".format(self.db, to_insert)) 
+                                raise IOError("Mongo {0} did not acknowledge write of data: {1}".format(self.db, to_insert))
+                        
         def guid2neighbour_repack(self,guid):
                 """ alters the mongodb representation of the links of guid.
 
@@ -418,6 +488,7 @@ class fn3persistence():
                                 current_m_id=None
                 # delete those processed single records
                 self.db.guid2neighbour.delete_many({'_id':{'$in':processed_s_ids}})
+                
         def guid2neighbours(self, guid, cutoff =20, returned_format=2):
                 """ returns neighbours of guid with cutoff <=cutoff.
                     Returns links either as format 1 [otherGuid, distance]
@@ -470,6 +541,48 @@ class fn3persistence():
                 
 ## persistence unit tests
 UNITTEST_MONGOCONN = "mongodb://localhost"
+class Test_Server_Monitoring_1(unittest.TestCase):
+        """ adds server monitoring info"""
+        def runTest(self):
+                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 1)
+                p.server_monitoring_store(message='one')
+                
+                res = p.recent_server_monitoring(100)
+
+                self.assertEqual(len(res),1)
+                self.assertTrue(isinstance(res,list))
+
+class Test_Server_Monitoring_2(unittest.TestCase):
+        """ adds server monitoring info"""
+        def runTest(self):
+                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 1)
+                p.server_monitoring_store(message='one')
+                p.server_monitoring_store(message='two')
+                p.server_monitoring_store(message='three')
+                
+                   
+                res = p.recent_server_monitoring(0)
+                self.assertEqual(len(res),0)
+                self.assertTrue(isinstance(res,list))
+
+                res = p.recent_server_monitoring(1)
+                self.assertEqual(len(res),1)
+                self.assertTrue(isinstance(res,list))
+
+                res = p.recent_server_monitoring(3)
+                self.assertEqual(len(res),3)
+                self.assertTrue(isinstance(res,list))
+
+                res = p.recent_server_monitoring(5)
+                self.assertEqual(len(res),3)
+                self.assertTrue(isinstance(res,list))
+                
+                with self.assertRaises(ValueError):
+                        res = p.recent_server_monitoring(-1)                        
+
+                with self.assertRaises(TypeError):
+                        res = p.recent_server_monitoring("thing")
+                        
 class Test_SeqMeta_guid2neighbour_7(unittest.TestCase):
         """ tests guid2neighboursOf"""
         def runTest(self):
