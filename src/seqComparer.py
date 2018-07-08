@@ -585,7 +585,7 @@ class seqComparer():
         for guid in valid_guids:
             seq = comparatorSeq[guid]
             for position in nrps.keys():
-                psn_accounted_for = 0
+                psn_accounted_for  = 0
                 for base in ['A','C','T','G','N']:
                     if position in seq[base]:
                         psn_accounted_for = 1
@@ -614,7 +614,7 @@ class seqComparer():
                 guid2seq[guid].append(this_base)
             guid2wholeseq[guid] = ''.join(guid2seq[guid])
         # compute expected N for each.  Estimate expected N as median(observed Ns), which is a valid thing to do if the proportion of mixed samples is low.
-        expected_N = self.estimate_expected_N(sample_size=3, exclude_guids= valid_guids)
+        expected_N = self.estimate_expected_N(sample_size=30, exclude_guids= invalid_guids)
         
         guid2pvalue = {}
         guid2alignN = {}

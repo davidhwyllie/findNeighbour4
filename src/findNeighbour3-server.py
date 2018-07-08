@@ -1,20 +1,16 @@
  #!/usr/bin/env python
 """ 
-provides restful interface to ElephantWalk2 functions
- 
-The endpoint provided is designed as an internal API.
-As implemented, it is not protected by authentication.
+A server providing relatedness information for bacterial genomes via a Restful API.
 
-requires python3.
+Implemented in pure Python 3, it uses in-memory data storage backed by MongoDb.
+It loads configuration from a config file, which must be set in production.
 
-loads configuration from a config file.
-If no config file is provided, it will run in 'testing' mode with the
-parameters in default_test_config.json.
+If no config file is provided, it will run in  'testing' mode with the  parameters
+in default_test_config.json.  This expects a mongodb database to be running on
+the default port on local host.
 
-The config file must include three parameters:
-REST_PORT - the port on which this server should run.
-
-Unit testing can be achieved by
+All internal modules, and the restful API, are covered by unit testing.
+Unit testing can be achieved by:
 
 # starting a test RESTFUL server
 python3 findNeighbour3-server-rest.py
@@ -22,7 +18,6 @@ python3 findNeighbour3-server-rest.py
 # And then (e.g. in a different terminal) launching unit tests with
 python3 -m unittest findNeighbour3-server
 
-# all should pass
 """
  
 # import libraries
@@ -40,6 +35,8 @@ import queue
 import threading
 import gc
 import pymongo
+import pandas as pd
+import numpy as np
 
 # flask
 from flask import Flask, make_response, jsonify, Markup
@@ -47,22 +44,16 @@ from flask import request, abort
 
 # logging
 from logging.config import dictConfig
+from log4mongo.handlers import MongoHandler
 
 # utilities for file handling and measuring file size
 import psutil
 
-# measure server memory usage; linux specifc
-if not os.name == 'nt':
-	import resource
-
-# reference based compression modules
+# reference based compression, storage and clustering modules
 from NucleicAcid import NucleicAcid
 from mongoStore import fn3persistence
 from seqComparer import seqComparer
-
-# pandas/numpy
-import pandas as pd
-import numpy as np
+from clustering import snv_clustering
 
 # only used for unit testing
 from Bio import SeqIO
@@ -74,13 +65,13 @@ from urllib.parse import urlparse as urlparser
 from urllib.parse import urljoin as urljoiner
 
 
-class ElephantWalk():
+class findNeighbour3():
 	""" a server based application for maintaining a record of bacterial relatedness using SNP distances.
 	
 	    The high level arrangement is that
 		- This class interacts with in-memory sequences
 		  [handled by the seqComparer class] and backends [fn3Persistance class] used by the server
-		- methods in ElephantWalk() return native python objects.
+		- methods in findNeighbour3() return native python objects.
 		
 		- a web server, currently flask, handles the inputs and outputs of this class
 		- in particular, native python objects returned by this class are serialised by the Flask web server code.
@@ -102,17 +93,32 @@ class ElephantWalk():
             DEBUGMODE:      False by default.  If true, will delete any samples in the backend data store on each run.
             SERVERNAME:     the name of the server (used for display purposes only)
 			FNPERSISTENCE_CONNSTRING: a valid mongodb connection string. if shard keys are set, the 'guid' field is suitable key.
-            MAXN_STORAGE:           The maximum number of Ns in the sequence <excluding those defined in > EXCLUDEFILE which should be indexed.
+            MAXN_STORAGE:   The maximum number of Ns in the sequence <excluding those defined in > EXCLUDEFILE which should be indexed.
                             Other files, e.g. those with all Ns, will be tagged as 'invalid'.  Although a record of their presence in the database
                             is kept, they are not compared with other sequences.
 			MAXN_PROP_DEFAULT: if the proportion not N in the sequence exceeds this, the sample is analysed, otherwise considered invalid.
 			LOGFILE:        the log file used
-			LOGLEVEL:		default logging level used by the server
+			LOGLEVEL:		default logging level used by the server.  Valid values are DEBUG INFO WARNING ERROR CRITICAL
 			SNPCEILING: 	links between guids > this are not stored in the database
-			GC_ON_RECOMPRESS: if 'recompressing' sequences to a local reference, something the server does automatically, enforce
-			                  a full mark-and-sweep gc at this point.
-			RECOMPRESS_FREQ: if recompressable records are detected, recompress every RECOMPRESS_FREQ detection (e.g. 5).
-							 Trades off compute time with mem usage.
+			GC_ON_RECOMPRESS: if 'recompressing' sequences to a local reference, something the server does automatically, perform
+			                a full mark-and-sweep gc at this point.  This setting alters memory use and compute time, but not the results obtained.
+			RECOMPRESS_FREQ: if recompressable records are detected, recompress every RECOMPRESS_FREQ th detection (e.g. 5).
+							Trades off compute time with mem usage.  This setting alters memory use and compute time, but not the results obtained.
+			CLUSTERING:		a dictionary of parameters used for clustering.  In the below example, there are two different
+							clustering settings defined, one named 'SNV12_ignore' and the other 'SNV12_include.
+							{'SNV12_ignore' :{'snv_threshold':12, 'mixed_sample_management':'ignore'},
+							'SNV12_include':{'snv_threshold':12, 'mixed_sample_management':'include'}
+							}
+							Each setting is defined by two parameters:
+							snv_threshold: clusters are formed if samples are <= snv_threshold from each other
+							mixed_sample_management: this defines what happens if mixed samples are detected.
+								Suppose there are three samples, A,B and M.  M is a mixture of A and B.
+								A and B are > snv_threshold apart, but their distance to M is zero.
+								If mixed_sample_management is
+								'ignore', one cluster {A,B,M} is returned
+								'include', two clusters {A,M} and {B,M}
+								'exclude', three clusters are returns {A},{B},{C}
+											
 		An example CONFIG is below:
 		
 		{			
@@ -130,7 +136,10 @@ class ElephantWalk():
 		"LOGLEVEL":"INFO",
 		"SNPCEILING": 20,
 		"GC_ON_RECOMPRESS":1,
-		"RECOMPRESS_FREQUENCY":5
+		"RECOMPRESS_FREQUENCY":5,
+		"CLUSTERING":{'SNV12_ignore' :{'snv_threshold':12, 'mixed_sample_management':'ignore'},
+		              'SNV12_include':{'snv_threshold':12, 'mixed_sample_management':'include'}
+					  }
 		}
 
 		Some of these settings are read when the server is first-run, stored in a database, and the server will not
@@ -139,8 +148,9 @@ class ElephantWalk():
 		MAXN_PROP_DEFAULT
 		EXCLUDEFILE
 		INPUTREF
+		CLUSTERING
 		These settings cannot be changed because they alter the way that the data is stored; if you want to change
-		the settings, the data will have to be re-loaded.
+		the settings, the data will have to be re-loaded. 
 		
 		However, most other settings can be changed and will take effect on server restart.  These include:
 		server location
@@ -157,7 +167,7 @@ class ElephantWalk():
 		
 		related to internal server memory management:
 		GC_ON_RECOMPRESS
-		RECOMPRESS_FREQ
+		RECOMPRESS_FREQUENCY
 		SNPCOMPRESSIONCEILING
 		
 		PERSIST is a storage object needs to be supplied.  The fn3Persistence class in mongoStore is one suitable object.
@@ -184,7 +194,7 @@ class ElephantWalk():
 		required_keys=set(['IP','INPUTREF','EXCLUDEFILE','DEBUGMODE','SERVERNAME',
 						   'FNPERSISTENCE_CONNSTRING', 'MAXN_STORAGE',
 						   'SNPCOMPRESSIONCEILING', "SNPCEILING", 'MAXN_PROP_DEFAULT', 'REST_PORT',
-						   'LOGFILE','LOGLEVEL','GC_ON_RECOMPRESS','RECOMPRESS_FREQUENCY'])
+						   'LOGFILE','LOGLEVEL','GC_ON_RECOMPRESS','RECOMPRESS_FREQUENCY', 'CLUSTERING'])
 		missing=required_keys-set(self.CONFIG.keys())
 		if not missing == set([]):
 			raise KeyError("Required keys were not found in CONFIG. Missing are {0}".format(missing))
@@ -211,14 +221,17 @@ class ElephantWalk():
 		self.snpCeiling = cfg['SNPCEILING']
 		self.snpCompressionCeiling = cfg['SNPCOMPRESSIONCEILING']
 		self.maxn_prop_default = cfg['MAXN_PROP_DEFAULT']
-		
-		# relevant to memory management
+		self.clustering_settings = cfg['CLUSTERING']
 		self.recompress_frequency = self.CONFIG['RECOMPRESS_FREQUENCY']
 		self.gc_on_recompress = self.CONFIG['GC_ON_RECOMPRESS']
 		
-		# start process
+		## start setup
 		self.write_semaphore = threading.BoundedSemaphore(1)        # used to permit only one process to INSERT at a time.
+		
+		# initialise nucleic acid analysis object
 		self.objExaminer=NucleicAcid()
+		
+		# initialise seqComparer, which manages in-memory reference compressed data
 		self.sc=seqComparer(reference=self.reference,
 							maxNs=self.maxNs,
 							snpCeiling= self.snpCeiling,
@@ -226,25 +239,39 @@ class ElephantWalk():
 							excludePositions=self.excludePositions,
 							snpCompressionCeiling = self.snpCompressionCeiling)
 		
-		# now load compressed sequences into ram.
-		# note this does not apply 'double delta' recompression
-		# a more sophisticated algorithm will be needed to do that
+		# determine how many guids there in the database
+		guids = self.PERSIST.refcompressedsequence_guids()
+	
 		self.server_monitoring_store(message='Starting load of sequences into memory from database')
 
-		guids = self.PERSIST.refcompressedsequence_guids()
-		print("EW3 core is loading {1} sequences from database .. excluding ({0})".format(self.sc.excluded_hash(),len(guids)))
+		print("Loading {1} sequences from database .. excluding ({0})".format(self.sc.excluded_hash(),len(guids)))
 		nLoaded = 0
 		for guid in guids:
 			nLoaded+=1
-			obj = self.PERSIST.refcompressedsequence_load(guid)
+			obj = self.PERSIST.refcompressedsequence_read(guid)
 			self.sc.persist(obj)
 			if nLoaded % 500 ==0:
 				print(nLoaded)
 				self.server_monitoring_store(message='Loaded {0} from database'.format(nLoaded))
 
-		print("EW3 core is ready; loaded {0} sequences from database".format(len(guids)))
+		print("findNeighbour3 has loaded {0} sequences from database.".format(len(guids)))
 		self.server_monitoring_store(message='Loaded {0} from database; load complete.'.format(nLoaded))
 
+		# set up clustering
+		print("findNeighbour3 is updating clustering.")
+
+		self.clustering={}		# a dictionary of clustering objects, one per SNV cutoff/mixture management setting
+		for clustering_name in self.clustering_settings.keys():
+			self.server_monitoring_store(message='Loading clustering data into memory for {0}'.format(clustering_name))
+			self.clustering[clustering_name] = snv_clustering(saved_result = self.PERSIST.clusters_read(clustering_name))
+		
+		# ensure that clustering object is up to date.  clustering is an in-memory graph, which is periodically
+		# persisted to disc.  It is possible that, if the server crashes/does a disorderly shutdown,
+		# the clustering object which is persisted might not include all the guids in the reference compressed
+		# database.  This situation is OK, because the clustering object will bring itself up to date when
+		# the new guids and their links are loaded into it.
+		self.update_clustering()
+	
 	def server_monitoring_store(self, message="No message supplied"):
 		""" reports server memory information to store """
 		self.PERSIST.server_monitoring_store(message=message, content=self.sc.summarise_stored_items())
@@ -264,7 +291,11 @@ class ElephantWalk():
 		
 		# store description
 		config_settings['description']=self.CONFIG['DESCRIPTION']
-				
+
+		# store clustering settings
+		self.clustering_settings=self.CONFIG['CLUSTERING']
+		config_settings['clustering_settings']= self.clustering_settings
+		
 		# load the excluded bases
 		excluded=set()
 		if self.CONFIG['EXCLUDEFILE'] is not None:
@@ -281,6 +312,16 @@ class ElephantWalk():
 			for r in SeqIO.parse(f,'fasta'):
 				config_settings['reference']=str(r.seq)
 
+		# create clusters objects
+		self.clustering = {}
+		expected_clustering_config_keys = set(['snv_threshold',  'mixed_sample_management'])
+		for clustering_name in self.clustering_settings.keys():
+			observed = self.clustering_settings[clustering_name] 
+			if not observed.keys() == expected_clustering_config_keys:
+				raise KeyError("Got unexpected keys for clustering setting {0}: got {1}, expected {2}".format(clustering_name, observed, expected_clustering_config_keys))
+			self.clustering[clustering_name] = snv_clustering(snv_threshold=observed['snv_threshold'] , mixed_sample_management=observed['mixed_sample_management'])
+			self.PERSIST.clusters_store(clustering_name, self.clustering[clustering_name].to_dict())
+			
 		# persist other config settings.
 		for item in self.CONFIG.keys():
 			if not item in do_not_persist_keys:
@@ -303,10 +344,8 @@ class ElephantWalk():
 		self.server_monitoring_store(message = message)
 		
 	def insert(self,guid,dna):
-		""" insert DNA called guid into the server
-				
-		# reconsider this now Mongo is used.
-		
+		""" insert DNA called guid into the server,
+		persisting it in both RAM and on disc, and updating any clustering.
 		"""
 		
 		# clean, and provide summary statistics for the sequence
@@ -338,14 +377,14 @@ class ElephantWalk():
 						if dist is not None:
 							if link['dist'] <= self.snpCeiling:
 								links[guid2]=link
+								
 				if to_compress>= self.recompress_frequency and to_compress % self.recompress_frequency == 0:		# recompress if there are lots of neighbours, every fifth isolate
 					self.server_monitoring_store(message='Guid {0} being recompressed relative to neighbours'.format(guid))
 	
 					self.sc.compress_relative_to_consensus(guid)
 					if self.gc_on_recompress==1:
 						gc.collect()
-					self.server_monitoring_store(message='Guid {0} recompressed relative to neighbours'.format(guid))
-			
+
 				# write
 				## should trap here to return sensible error message if database connectivity is lost.
 				self.PERSIST.refcompressedseq_store(guid, refcompressedsequence)     # store the parsed object on disc
@@ -358,15 +397,60 @@ class ElephantWalk():
 				
 			# release semaphore
 			self.write_semaphore.release()                  # release the write semaphore
-		
-			# clean up guid2neighbour; this can readily be done post-hoc, if the process is slow.  it doesn't affect results.
+
+			# clean up guid2neighbour; this can readily be done post-hoc, if the process proves to be slow.  it doesn't affect results.
 			guids = list(links.keys())
 			guids.append(guid)
 			self.repack(guids)
+			
+			# cluster
+			self.update_clustering()
+			
 			return "Guid {0} inserted.".format(guid)		# a 200 will be added by flask
 		else:
 			return "Guid {0} is already present".format(guid)
 	
+	def update_clustering(self):
+		""" performs clustering on any samples within the persistence store which are not already clustered """
+		# update clustering and re-cluster
+		for clustering_name in self.clustering_settings.keys():
+			# ensure that clustering object is up to date.  clustering is an in-memory graph, which is periodically
+			# persisted to disc.  It is possible that, if the server crashes/does a disorderly shutdown,
+			# the clustering object which is persisted might not include all the guids in the reference compressed
+			# database.  This situation is OK, because the clustering object will bring itself up to date when
+			# the new guids and their links are loaded into it.
+			guids = self.PERSIST.refcompressedsequence_guids()
+			in_clustering_guids = self.clustering[clustering_name].guids()
+			to_add_guids = guids - in_clustering_guids
+			remaining_to_add_guids = to_add_guids
+			print("Clustering graph {0} contains {1} guids out of {2}; updating.".format(clustering_name, len(guids), len(in_clustering_guids)))
+			while len(remaining_to_add_guids)>0:
+				to_add_guid = remaining_to_add_guids.pop()
+				links = self.PERSIST.guid2neighbours(to_add_guid, returned_format=3)['neighbours']
+				self.clustering[clustering_name].add_sample(to_add_guid, links)
+	
+			# check if mixed; make a list of non-mixed guids, and their clusters, to analyse.
+			nMixed = 0
+			guids_to_check = set()
+			clusters_to_check = set()
+			for guid in guids:
+				if not self.clustering[clustering_name].is_mixed(guid):
+					guids_to_check.add(guid)
+					for cluster in self.clustering[clustering_name].guid2clusters(guid):
+						clusters_to_check.add(cluster)
+			
+			cl2guids = 	self.clustering[clustering_name].clusters2guid()
+			for cluster in clusters_to_check:
+				guids_for_msa = cl2guids[cluster]
+				msa = self.sc.multi_sequence_alignment(guids, output='df')		#  a pandas dataframe; p_value tests mixed
+				msa_mixed = msa.query("p_value < 1e-3")
+				#print(msa)
+				#print(msa_mixed)
+				for mixed_guid in msa_mixed.index:
+					print("Mixed guid detected", mixed_guid)
+					links = self.PERSIST.guid2neighbours(mixed_guid, returned_format=3)['neighbours']
+					self.clustering[clustering_name].set_mixed(mixed_guid, neighbours = links)
+					
 	def exist_sample(self,guid):
 		""" determine whether the sample exists in RAM"""
 		
@@ -526,7 +610,7 @@ def not_found(error):
  
 @app.teardown_appcontext
 def shutdown_session(exception=None):
-    ew.PERSIST.closedown()		# close database connection
+    fn3.PERSIST.closedown()		# close database connection
 	
 def do_GET(relpath):
 	""" makes a GET request  to relpath.
@@ -610,7 +694,7 @@ def msa_guids():
 	missing_guids = []
 	for guid in guids:
 		try:
-			result = ew.exist_sample(guid)
+			result = fn3.exist_sample(guid)
 		except Exception as e:
 			abort(500, e)
 		if not result is True:
@@ -621,7 +705,7 @@ def msa_guids():
 
 		
 	# data validation complete.  construct outputs
-	res = ew.sc.multi_sequence_alignment(guids, output='df_dict')
+	res = fn3.sc.multi_sequence_alignment(guids, output='df_dict')
 	df = pd.DataFrame.from_dict(res,orient='index')
 	html = df.to_html()
 	fasta= ""
@@ -705,7 +789,7 @@ def server_config():
         backend databases and perhaps connection strings with passwords.
 
     """
-    res = ew.server_config()
+    res = fn3.server_config()
     if res is None:		# not allowed to see it
         abort(404, "Endpoint only available in debug mode")
     else:
@@ -730,7 +814,7 @@ def server_memory_usage(nrows):
 	The server notes memory usage at various key points (pre/post insert; pre/post recompression)
 	and these are stored. """
 	try:
-		result = ew.server_memory_usage(max_reported = nrows)
+		result = fn3.server_memory_usage(max_reported = nrows)
 
 	except Exception as e:
 		print("Exception raised", e)
@@ -754,7 +838,7 @@ class test_server_memory_usage(unittest.TestCase):
 def server_time():
 	""" returns server time """
 	try:
-		result = ew.server_time()
+		result = fn3.server_time()
 		
 	except Exception as e:
 		abort(500, e)
@@ -775,7 +859,7 @@ class test_server_time(unittest.TestCase):
 def get_all_guids(**kwargs):
 	""" returns all guids.  reference, if included, is ignored."""
 	try:
-		result = list(ew.get_all_guids())
+		result = list(fn3.get_all_guids())
 	except Exception as e:
 		print("Exception raised", e)
 		abort(500, e)
@@ -797,7 +881,7 @@ class test_get_all_guids_1(unittest.TestCase):
 def guids_with_quality_over(cutoff, **kwargs):
 	""" returns all guids with quality score >= cutoff."""
 	try:
-		result = ew.guids_with_quality_over(cutoff)	
+		result = fn3.guids_with_quality_over(cutoff)	
 	except Exception as e:
 		print("Exception raised", e)
 		abort(500, e)
@@ -819,7 +903,7 @@ def guids_and_examination_times(**kwargs):
 	""" returns all guids and their examination (addition) time.
 	reference, if passed, is ignored."""
 	try:	
-		result =ew.get_all_guids_examination_time()	
+		result =fn3.get_all_guids_examination_time()	
 	except Exception as e:
 		print("Exception raised", e)
 		abort(500, e)
@@ -869,7 +953,7 @@ def annotations(**kwargs):
 	This query can be slow for very large data sets.
 	"""
 	try:
-		result = ew.get_all_annotations()
+		result = fn3.get_all_annotations()
 		
 	except Exception as e:
 		abort(500, e)
@@ -894,7 +978,7 @@ def exist_sample(guid, **kwargs):
 	reference and method are ignored."""
 	
 	try:
-		result = ew.exist_sample(guid)
+		result = fn3.exist_sample(guid)
 		
 	except Exception as e:
 		abort(500, e)
@@ -928,7 +1012,7 @@ def insert():
 		if 'seq' in data_keys and 'guid' in data_keys:
 			guid = str(payload['guid'])
 			seq  = str(payload['seq'])
-			result = ew.insert(guid, seq)
+			result = fn3.insert(guid, seq)
 		else:
 			abort(501, 'seq and guid are not present in the POSTed data {0}'.format(data_keys))
 		
@@ -1044,7 +1128,70 @@ class test_insert_10(unittest.TestCase):
 			self.assertEqual(res.status_code, 200)
 			self.assertEqual(info, True)	
 
+class test_insert_50(unittest.TestCase):
+	""" tests route /api/v2/insert, with additional samples.
+		Also provides a set of very similar samples, testing recompression code."""
+	def runTest(self):
+		relpath = "/api/v2/guids"
+		res = do_GET(relpath)
+		n_pre = len(json.loads(str(res.text)))		# get all the guids
 
+		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+		with open(inputfile, 'rt') as f:
+			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+					originalseq = list(str(record.seq))
+		guids_inserted = list()			
+		for i in range(1,60):
+			
+
+			seq = originalseq
+			if i % 5 ==0:
+				is_mixed = True
+				guid_to_insert = "mixed_{0}".format(n_pre+i)
+			else:
+				is_mixed = False
+				guid_to_insert = "nomix_{0}".format(n_pre+i)	
+			# make i mutations at position 500,000
+			offset = 500000
+			for j in range(i):
+				mutbase = offset+j
+				ref = seq[mutbase]
+				if is_mixed == False:
+					if not ref == 'T':
+						seq[mutbase] = 'T'
+					if not ref == 'A':
+						seq[mutbase] = 'A'
+				if is_mixed == True:
+						seq[mutbase] = 'N'					
+			seq = ''.join(seq)
+			guids_inserted.append(guid_to_insert)			
+			if is_mixed:
+					print("Adding TB sequence {2} of {0} bytes with {1} mutations relative to ref.".format(len(seq), i, guid_to_insert))
+			else:
+					print("Adding mixed TB sequence {2} of {0} bytes with {1} Ns relative to ref.".format(len(seq), i, guid_to_insert))
+				
+				
+			self.assertEqual(len(seq), 4411532)		# check it's the right sequence
+	
+			relpath = "/api/v2/insert"
+			res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
+			self.assertTrue(isjson(content = res.content))
+			info = json.loads(res.content.decode('utf-8'))
+			self.assertEqual(info, 'Guid {0} inserted.'.format(guid_to_insert))
+	
+			relpath = "/api/v2/guids"
+			res = do_GET(relpath)
+			n_post = len(json.loads(res.content.decode('utf-8')))
+			self.assertEqual(n_pre+i, n_post)
+					
+			# check if it exists
+			relpath = "/api/v2/{0}/exists".format(guid_to_insert)
+			res = do_GET(relpath)
+			self.assertTrue(isjson(content = res.content))
+			info = json.loads(res.content.decode('utf-8'))
+			self.assertEqual(type(info), bool)
+			self.assertEqual(res.status_code, 200)
+			self.assertEqual(info, True)	
 
 class test_mirror(unittest.TestCase):
     """ tests route /api/v2/mirror """
@@ -1086,7 +1233,7 @@ def neighbours_within(guid, threshold, **kwargs):
 		abort(500, "Invalid cutoff requested, must be between 0 and 1")
 		
 	try:
-		result = ew.neighbours_within_filter(guid, threshold, cutoff, returned_format)
+		result = fn3.neighbours_within_filter(guid, threshold, cutoff, returned_format)
 	except KeyError as e:
 		# guid doesn't exist
 		abort(404, e)
@@ -1221,7 +1368,7 @@ class test_neighbours_within_6(unittest.TestCase):
 def sequence(guid):
 	""" returns the masked sequence as a string """	
 	try:
-		result = ew.sequence(guid)
+		result = fn3.sequence(guid)
 		retVal = {'guid':guid, 'invalid':0,'comment':'Masked sequence, as stored','masked_dna':result}
 	except ValueError as e:
 		# the sequence is invalid
@@ -1309,7 +1456,7 @@ def nucleotides_excluded():
 	and client masking are identical. """
 	
 	try:
-		result = ew.server_nucleotides_excluded()
+		result = fn3.server_nucleotides_excluded()
 		
 	except Exception as e:
 		print("Exception raised", e)
@@ -1373,17 +1520,14 @@ if __name__ == '__main__':
         
         # configure logging object 
         app.logger.setLevel(loglevel)          
-        
-        # handles logging both with a stream to stderr and a rotating file
-        rfh_handler = logging.handlers.RotatingFileHandler(CONFIG['LOGFILE'], maxBytes=100000, backupCount=5)
         stream_handler = logging.StreamHandler()
+        mongo_handler = MongoHandler(host='localhost')
 
         formatter = logging.Formatter( "%(asctime)s | %(pathname)s:%(lineno)d | %(funcName)s | %(levelname)s | %(message)s ")
-        rfh_handler.setFormatter(formatter)
         stream_handler.setFormatter(formatter)
-        app.logger.addHandler(rfh_handler)
+        mongo_handler.setFormatter(formatter)
         app.logger.addHandler(stream_handler)
-        
+        #app.logger.addHandler(mongo_handler)
         ########################### prepare to launch server ###############################################################
         # construct the required global variables
         LISTEN_TO = '127.0.0.1'
@@ -1392,7 +1536,7 @@ if __name__ == '__main__':
         #########################  CONFIGURE HELPER APPLICATIONS ######################
         ## configure mongodb persistence store
         PERSIST=fn3persistence(connString=CONFIG['FNPERSISTENCE_CONNSTRING'], debug=CONFIG['DEBUGMODE'])
-        ew = ElephantWalk(CONFIG, PERSIST)
+        fn3 = findNeighbour3(CONFIG, PERSIST)
         
 
         ########################  START THE SERVER ###################################
