@@ -2,7 +2,7 @@ import networkx as nx
 import datetime
 import unittest
 import logging
-
+import pandas as pd
 
 class snv_clustering():
     """ maintains clusters of samples """
@@ -215,6 +215,7 @@ class snv_clustering():
             h.append((self.change_id, "created {0} as {1}".format(attribute,value)))
             self.G.node[guid][attribute]=value
             self.G.node[guid]['history']=h
+            self.G.node[guid]['change_id']=self.change_id 
             return 
         else:
             existing_value = self.G.node[guid][attribute]
@@ -222,7 +223,7 @@ class snv_clustering():
                 h.append((self.change_id, "changed {0} from {1} to {2}".format(attribute,existing_value, value)))
                 self.G.node[guid][attribute]=value
                 self.G.node[guid]['history']=h
-            
+                self.G.node[guid]['change_id']=self.change_id            
     def is_mixed(self,guid):
         """ returns True if the is_mixed attribute is set True """
         try:
@@ -346,7 +347,18 @@ class snv_clustering():
                     retVal[cluster_id] = []  
                 retVal[cluster_id].append(guid)    
         return retVal        
-            
+
+    def clusters2guidmeta(self, after_change_id=None):
+        """ returns a cluster -> guid mapping """
+        retVal = []
+        for guid in self.G.nodes:
+            for cluster_id in self.G.node[guid]['cluster_id']:
+                change_id = self.G.node[guid]['change_id']
+                is_mixed = self.is_mixed(guid)
+                if (after_change_id is None) or (change_id > after_change_id):
+                    retVal.append({'guid':guid, 'cluster_id':cluster_id,'change_id':change_id, 'is_mixed':is_mixed})
+        return retVal
+    
 # unittests
 class test_snvc_init(unittest.TestCase):
     """ tests init method of snv_clustering """
@@ -424,6 +436,7 @@ class test_snvc_minimise_edges(unittest.TestCase):
             
         self.assertEqual(cc_post, cc_pre)      # still all connected
         self.assertTrue(neighbours_post < neighbours_pre)       # edges minimised
+        
 class test_snvc_add_sample_0(unittest.TestCase):
     """ tests allocation of new clusterids """
     def runTest(self):
@@ -656,4 +669,38 @@ class test_guid2clusters(unittest.TestCase):
 
         self.assertEqual(snvc.guid2clusters('n1'), [1])
         self.assertEqual(snvc.guid2clusters('n3'), [2])
-        self.assertEqual(snvc.clusters2guid(), {1:['n1','n2'], 2:['n3']})          
+        self.assertEqual(snvc.clusters2guid(), {1:['n1','n2'], 2:['n3']})
+        
+
+class test_clusters2guidmeta(unittest.TestCase):
+    """ tests recovery of list of guids """
+    def runTest(self):
+        snvc = snv_clustering(snv_threshold=12, mixed_sample_management='include')
+        self.assertEqual(snvc.guids(),set([]))
+            
+        # add two samples
+        snvc.add_sample('n1')      
+        snvc.add_sample('n2', ['n1'])      
+        snvc.add_sample('n3', ['n2'])      
+       
+        res = snvc.clusters2guidmeta()
+        self.assertEqual(res,
+                        [{'guid': 'n1', 'cluster_id': 1, 'change_id': 1, 'is_mixed': False},
+                         {'guid': 'n2', 'cluster_id': 1, 'change_id': 2, 'is_mixed': False},
+                         {'guid': 'n3', 'cluster_id': 1, 'change_id': 3, 'is_mixed': False}]
+                        )
+
+        res2 = snvc.clusters2guidmeta(after_change_id = 2)     
+        self.assertEqual(res2,
+                        [{'guid': 'n3', 'cluster_id': 1, 'change_id': 3, 'is_mixed': False}]
+                        )
+        
+        snvc.set_mixed('n2', neighbours=['n1','n3'])
+        res3 = snvc.clusters2guidmeta()
+        df = pd.DataFrame.from_records(res3)
+        self.assertEqual(len(df.index), 4)
+        self.assertEqual(len(df.query('guid=="n2"').index),2)
+        self.assertEqual(df['change_id'].tolist(), [4,4,4,4])
+
+        
+        

@@ -1152,6 +1152,7 @@ class test_insert_50(unittest.TestCase):
 				is_mixed = False
 				guid_to_insert = "nomix_{0}".format(n_pre+i)	
 			# make i mutations at position 500,000
+			
 			offset = 500000
 			for j in range(i):
 				mutbase = offset+j
