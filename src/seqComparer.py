@@ -5,11 +5,10 @@ import unittest
 import os
 import glob
 import sys
-from Bio import SeqIO
+
 import datetime
 import pickle
 import hashlib
-import collections
 import math
 import multiprocessing
 import uuid
@@ -20,9 +19,13 @@ import random
 import itertools
 import numpy as np
 from scipy.stats import binom_test
-
-# unittesting
 import pandas as pd
+from collections import Counter
+# only used for unit testing
+from Bio import SeqIO
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+from Bio.Alphabet import generic_nucleotide
 
 class seqComparer():
     def __init__(self,
@@ -83,7 +86,7 @@ class seqComparer():
 
         # check composition of the reference.
         self.reference=str(reference)           # if passed a Bio.Seq object, coerce to string.
-        letters=collections.Counter(self.reference)   
+        letters=Counter(self.reference)   
         if len(set(letters.keys())-set(['A','C','G','T']) )>0:
             raise TypeError("Reference sequence supplied contains characters other than ACTG: {0}".format(letters))
                        
@@ -223,9 +226,16 @@ class seqComparer():
         ii) a reference compressed version of the sequence
         iii) a reference compressed version relative to a consensus
         """
+                   
         if isinstance(sequence, str):
             return(self.compress(sequence))
         elif isinstance(sequence, dict):
+            try:
+                if sequence['invalid']==1:
+                    raise ValueError("Cannot uncompress an invalid sequence, as it is not stored. {0}".format(sequence.keys()))
+            except KeyError:
+                pass
+            
             if set(sequence.keys())==self.compressed_sequence_keys:
                 return(sequence)
             elif set(sequence.keys())==self.patch_and_consensus_keys:
@@ -236,8 +246,10 @@ class seqComparer():
                 raise KeyError("Was passed a dictionary with keys {0} but cannot handle this".format(sequence.keys()))
         else:
             raise TypeError("Cannot use object of class {0} as a sequence".format(type(sequence)))
+
+    
     def setComparator1(self,sequence):
-        """ stores a reference compressed sequence (no patch) in self._seq1 """
+        """ stores a reference compressed sequence (no patch) in self._seq1 """      
         self._seq1=self._computeComparator(sequence)
            
     def setComparator2(self,sequence):
@@ -479,7 +491,7 @@ class seqComparer():
                     # we have found something similar, with which we should compress;
                     visited_sequences.append(self.seqProfile[result[1]])
                     visited_guids.append(result[1])
-            
+        
         # compute the consensus for these  and store in consensi
         if len(visited_sequences)>1:    # we can compute a consensus
             consensus = self.consensus(visited_sequences, cutoff_proportion)
@@ -1165,7 +1177,60 @@ class test_seqComparer_43(unittest.TestCase):
         for original in originals:
             self.assertEqual(original, sc.uncompress(sc.seqProfile[original]))
 
-
+class test_seqComparer_45(unittest.TestCase):
+    """ tests insertion of large sequences """
+    def runTest(self):
+        inputfile = "../reference/NC_000962.fasta"
+        with open(inputfile, 'rt') as f:
+            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):
+                    goodseq = str(record.seq)
+                    badseq = ''.join('N'*len(goodseq))
+                    originalseq = list(str(record.seq))
+        sc=seqComparer( maxNs = 1e8,
+                           reference=record.seq,
+                           snpCeiling =100)
+        n_pre =  0          
+        guids_inserted = list()			
+        for i in range(1,40):
+            
+            seq = originalseq
+            if i % 5 ==0:
+                is_mixed = True
+                guid_to_insert = "mixed_{0}".format(n_pre+i)
+            else:
+                is_mixed = False
+                guid_to_insert = "nomix_{0}".format(n_pre+i)	
+            # make i mutations at position 500,000
+            
+            offset = 500000
+            for j in range(i):
+                mutbase = offset+j
+                ref = seq[mutbase]
+                if is_mixed == False:
+                    if not ref == 'T':
+                        seq[mutbase] = 'T'
+                    if not ref == 'A':
+                        seq[mutbase] = 'A'
+                if is_mixed == True:
+                        seq[mutbase] = 'N'					
+            seq = ''.join(seq)
+            
+            if i % 11 == 0:
+                seq = badseq        # invalid
+                
+            guids_inserted.append(guid_to_insert)			
+            if is_mixed:
+                    print("Adding TB sequence {2} of {0} bytes with {1} mutations relative to ref.".format(len(seq), i, guid_to_insert))
+            else:
+                    print("Adding mixed TB sequence {2} of {0} bytes with {1} Ns relative to ref.".format(len(seq), i, guid_to_insert))
+                
+                
+            self.assertEqual(len(seq), 4411532)		# check it's the right sequence
+    
+            c = sc.compress(seq)
+            sc.persist(c, guid=guid_to_insert )
+            sc.compress_relative_to_consensus(guid_to_insert)
+					
 class test_seqComparer_44(unittest.TestCase):
     """ tests the compression relative to a consensus with a consensus present.
     then adds more sequences, changing the consensus."""

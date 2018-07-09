@@ -14,5 +14,10 @@
 "LOGFILE":"../unittest_tmp/logfile_unittesting.log",
 "LOGLEVEL":"INFO",	
 "SNPCEILING": 20,
-"REST_PORT":5000
+"REST_PORT":5000,
+"CLUSTERING":{"SNV12_ignore":
+                {"snv_threshold":12,"mixed_sample_management":"ignore"},
+              "SNV12_include":
+                {"snv_threshold":12,"mixed_sample_management":"include"}
+            }
 }

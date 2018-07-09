@@ -335,7 +335,7 @@ class findNeighbour3():
 		if guids is None:
 			guids = self.PERSIST.guids()  # all the guids
 		for this_guid in guids:
-			app.logger.info("Repacking {0}".format(this_guid))
+			#app.logger.info("Repacking {0}".format(this_guid))
 			self.PERSIST.guid2neighbour_repack(this_guid)
 	
 	def record_server_status(self, message='No message supplied'):
@@ -398,7 +398,8 @@ class findNeighbour3():
 			# release semaphore
 			self.write_semaphore.release()                  # release the write semaphore
 
-			# clean up guid2neighbour; this can readily be done post-hoc, if the process proves to be slow.  it doesn't affect results.
+			# clean up guid2neighbour; this can readily be done post-hoc, if the process proves to be slow.
+			# it doesn't affect results.
 			guids = list(links.keys())
 			guids.append(guid)
 			self.repack(guids)
@@ -447,7 +448,7 @@ class findNeighbour3():
 				#print(msa)
 				#print(msa_mixed)
 				for mixed_guid in msa_mixed.index:
-					print("Mixed guid detected", mixed_guid)
+					#print("Mixed guid detected", mixed_guid)
 					links = self.PERSIST.guid2neighbours(mixed_guid, returned_format=3)['neighbours']
 					self.clustering[clustering_name].set_mixed(mixed_guid, neighbours = links)
 					
@@ -668,6 +669,23 @@ def server_info():
 		res = res+"{0}<p>".format(route)
 	return make_response(res)
 
+def construct_msa(guids, output_format):
+	""" constructs multiple sequence alignment for guids """
+	res = fn3.sc.multi_sequence_alignment(guids, output='df_dict')
+	df = pd.DataFrame.from_dict(res,orient='index')
+	html = df.to_html()
+	fasta= ""
+	for guid in df.index:
+		fasta=fasta + ">{0}\n{1}\n".format(guid, df.loc[guid,'aligned_seq'])
+		
+	if output_format == 'fasta':
+		return make_response(fasta)
+	elif output_format == 'html':
+		return make_response(html)
+	elif output_format == 'json':
+		return make_response(json.dumps(res))
+
+
 @app.route('/api/v2/multiple_alignment/guids', methods=['POST'])
 def msa_guids():
 	""" performs a multiple sequence alignment on a series of POSTed guids,
@@ -705,19 +723,137 @@ def msa_guids():
 
 		
 	# data validation complete.  construct outputs
-	res = fn3.sc.multi_sequence_alignment(guids, output='df_dict')
-	df = pd.DataFrame.from_dict(res,orient='index')
-	html = df.to_html()
-	fasta= ""
-	for guid in df.index:
-		fasta=fasta + ">{0}\n{1}\n".format(guid, df.loc[guid,'aligned_seq'])
+	return construct_msa(guids, output_format)
+
+
+class test_msa_2(unittest.TestCase):
+	""" tests route /api/v2/multiple_alignment/guids, with additional samples.
+	"""
+	def runTest(self):
+		relpath = "/api/v2/guids"
+		res = do_GET(relpath)
+		n_pre = len(json.loads(str(res.text)))		# get all the guids
+
+		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+		with open(inputfile, 'rt') as f:
+			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+					originalseq = list(str(record.seq))
+		inserted_guids = []			
+		for i in range(0,3):
+			guid_to_insert = "guid_{0}".format(n_pre+i)
+			inserted_guids.append(guid_to_insert)
+			
+			seq = originalseq			
+			# make i mutations at position 500,000
+			offset = 500000
+			for j in range(i):
+				mutbase = offset+j
+				ref = seq[mutbase]
+				if not ref == 'T':
+					seq[mutbase] = 'T'
+				if not ref == 'A':
+					seq[mutbase] = 'A'
+			seq = ''.join(seq)
+						
+			print("Adding TB sequence {2} of {0} bytes with {1} mutations relative to ref.".format(len(seq), i, guid_to_insert))
+			self.assertEqual(len(seq), 4411532)		# check it's the right sequence
+	
+			relpath = "/api/v2/insert"
+			res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
+			self.assertTrue(isjson(content = res.content))
+			info = json.loads(res.content.decode('utf-8'))
+			self.assertEqual(info, 'Guid {0} inserted.'.format(guid_to_insert))
+	
+		relpath = "/api/v2/multiple_alignment/guids"
+		payload = {'guids':';'.join(inserted_guids),'output_format':'html'}
+		res = do_POST(relpath, payload=payload)
+		self.assertFalse(isjson(res.content))
+		self.assertEqual(res.status_code, 200)
+		self.assertTrue(b"</table>" in res.content)
 		
-	if output_format == 'fasta':
-		return make_response(fasta)
-	elif output_format == 'html':
-		return make_response(html)
-	elif output_format == 'json':
-		return make_response(json.dumps(res))
+		
+		payload = {'guids':';'.join(inserted_guids),'output_format':'json'}
+		res = do_POST(relpath, payload=payload)
+		self.assertTrue(isjson(res.content))
+		self.assertEqual(res.status_code, 200)
+		self.assertFalse(b"</table>" in res.content)
+		d = json.loads(res.content, encoding='utf-8')
+		not_present = set(inserted_guids) - set(d.keys())
+		self.assertEqual(not_present, set())
+
+		payload = {'guids':';'.join(inserted_guids),'output_format':'fasta'}
+		res = do_POST(relpath, payload=payload)
+		self.assertFalse(isjson(res.content))
+		self.assertEqual(res.status_code, 200)
+	
+		relpath = "/api/v2/clustering/SNV12_ignore/guids2clusters"
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 200)
+		retVal = json.loads(str(res.text))
+		self.assertTrue(isinstance(retVal, list))
+		res = json.loads(res.content, encoding='utf-8')
+		cluster_id=None
+		for item in res:
+			if item['guid'] in inserted_guids:
+				cluster_id = item['cluster_id']
+		self.assertTrue(cluster_id is not None)
+			
+		relpath = "/api/v2/multiple_alignment/SNV12_ignore/{0}/json".format(cluster_id)
+		res = do_GET(relpath)
+		self.assertTrue(isjson(res.content))
+		self.assertEqual(res.status_code, 200)
+		d = json.loads(res.content, encoding='utf-8')
+		self.assertEqual(set(inserted_guids), set(d.keys()))
+
+		relpath = "/api/v2/multiple_alignment/SNV12_ignore/{0}".format(cluster_id)
+		res = do_GET(relpath)
+		self.assertTrue(isjson(res.content))
+		self.assertEqual(res.status_code, 200)
+		d = json.loads(res.content, encoding='utf-8')
+		self.assertEqual(set(inserted_guids), set(d.keys()))
+		
+@app.route('/api/v2/multiple_alignment/<string:clustering_algorithm>/<int:cluster_id>/<string:output_format>', methods=['GET'], defaults={'output_format':'json'})
+@app.route('/api/v2/multiple_alignment/<string:clustering_algorithm>/<int:cluster_id>', methods=['GET'], defaults={})
+
+def msa_guids_by_cluster(clustering_algorithm, cluster_id, output_format='json'):
+	""" performs a multiple sequence alignment on the contents of a cluster
+	
+	Valid values for format are:
+	json
+	html
+	"""
+	# validate input
+	try:
+		res = fn3.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)		
+	except KeyError:
+		# no clustering algorithm of this type
+		abort(404, "no clustering algorithm {0}".format(clustering_algorithm))
+		
+	if not output_format in ['html','json','fasta']:
+		abort(501, 'output_format must be one of html, json, or fasta not {0}'.format(format))
+
+	# check guids
+	df = pd.DataFrame.from_records(res)
+	if len(df.index)==0:
+		retVal = {}
+	else:
+		missing_guids = []
+		guids = []
+		for guid in df['guid'].tolist():
+			try:
+				result = fn3.exist_sample(guid)
+			except Exception as e:
+				abort(500, e)
+			if not result is True:
+				missing_guids.append(guid)
+			else:
+				guids.append(guid)
+		
+		if len(missing_guids)>0:
+			abort(501, "asked to perform multiple sequence alignment with the following missing guids: {0}".format(missing_guids))
+			
+		# data validation complete.  construct outputs
+		return construct_msa(guids, output_format)
 
 
 class test_msa_1(unittest.TestCase):
@@ -778,7 +914,11 @@ class test_msa_1(unittest.TestCase):
 		res = do_POST(relpath, payload=payload)
 		self.assertFalse(isjson(res.content))
 		self.assertEqual(res.status_code, 200)
-	
+
+		# recover clustering information
+		
+		#@app.route('/api/v2/multiple_alignment/<string:clustering_algorithm>/<int:cluster_id>/<string:output_format>', methods=['GET'], defaults={'output_format':'json'})
+
 @app.route('/api/v2/server_config', methods=['GET'])
 def server_config():
     """ returns server configuration.
@@ -827,11 +967,12 @@ class test_server_memory_usage(unittest.TestCase):
     def runTest(self):
         relpath = "/api/v2/server_memory_usage"
         res = do_GET(relpath)
+        self.assertEqual(res.status_code, 200)
         self.assertTrue(isjson(content = res.content))
 
         res = json.loads(res.content.decode('utf-8'))
         self.assertTrue(isinstance(res,list))
-        self.assertEqual(res.status_code, 200)
+
 
 
 @app.route('/api/v2/server_time', methods=['GET'])
@@ -1000,7 +1141,7 @@ class test_exist_sample(unittest.TestCase):
 
 @app.route('/api/v2/insert', methods=['POST'])
 def insert():
-	""" inserts a guids with sequence, which it expects gzipped."""
+	""" inserts a guids with sequence"""
 	try:
 		data_keys = set()
 		for key in request.form.keys():
@@ -1038,6 +1179,97 @@ def mirror():
 		abort(500, e)		
 			
 	return make_response(tojson(payload))
+
+@app.route('/api/v2/clustering', methods=['GET'])
+def algorithms():
+	"""  returns the available clustering algorithms """
+	res = sorted(fn3.clustering.keys())		
+	return make_response(tojson({'algorithms':res}))
+
+class test_algorithms(unittest.TestCase):
+	"""  tests return of a change_id number """
+	def runTest(self):
+		relpath = "/api/v2/clustering"
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 200)
+		retDict = json.loads(str(res.text))
+		self.assertEqual(retDict, {'algorithms': ['SNV12_ignore', 'SNV12_include']})
+
+
+@app.route('/api/v2/clustering/<string:clustering_algorithm>/change_id', methods=['GET'])
+def change_id(clustering_algorithm):
+	"""  returns the current change_id number, which is incremented each time a change is made.
+	     Useful for recovering changes in clustering after a particular point."""
+	try:
+		res = fn3.clustering[clustering_algorithm].change_id		
+	except KeyError:
+		# no clustering algorithm of this type
+		abort(404, "no clustering algorithm {0}".format(clustering_algorithm))
+		
+	return make_response(tojson({'change_id': res, 'clustering_algorithm':clustering_algorithm}))
+
+@app.route('/api/v2/clustering/<string:clustering_algorithm>/guids2clusters', methods=['GET'])
+def g2c(clustering_algorithm):
+	"""  returns a guid -> clusterid dictionary for all guids """
+	try:
+		res = fn3.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)		
+	except KeyError:
+		# no clustering algorithm of this type
+		abort(404, "no clustering algorithm {0}".format(clustering_algorithm))
+		
+	return make_response(tojson(res))
+
+class test_g2c(unittest.TestCase):
+	"""  tests return of a change_id number """
+	def runTest(self):
+		relpath = "/api/v2/clustering/SNV12_ignore/guids2clusters"
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 200)
+		retVal = json.loads(str(res.text))
+		self.assertTrue(isinstance(retVal, list))
+
+@app.route('/api/v2/clustering/<string:clustering_algorithm>/guids2clusters/after_change_id/<int:change_id>', methods=['GET'])
+def g2ca(clustering_algorithm, change_id):
+	"""  returns a guid -> clusterid dictionary, with changes occurring after change_id, a counter which is incremented each time a change is made.
+	     Useful for recovering changes in clustering after a particular point."""
+	try:
+		res = fn3.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = change_id)		
+	except KeyError:
+		# no clustering algorithm of this type
+		abort(404, "no clustering algorithm {0}".format(clustering_algorithm))
+		
+	return make_response(tojson(res))
+
+class test_g2ca(unittest.TestCase):
+	"""  tests return of a change_id number """
+	def runTest(self):
+		relpath = "/api/v2/clustering/SNV12_ignore/guids2clusters/after_change_id/1"
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 200)
+		retVal = json.loads(str(res.text))
+		self.assertTrue(isinstance(retVal, list))
+		
+class test_change_id(unittest.TestCase):
+	"""  tests return of a change_id number """
+	def runTest(self):
+		relpath = "/api/v2/clustering/SNV12_ignore/change_id"
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 200)
+		retDict = json.loads(str(res.text))
+		self.assertEqual(set(retDict.keys()), set(['change_id','clustering_algorithm']))
+		self.assertEqual(retDict['clustering_algorithm'],'SNV12_ignore')
+
+		relpath = "/api/v2/clustering/SNV12_ignore/change_id"
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 200)
+		retDict = json.loads(str(res.text))
+		self.assertEqual(set(retDict.keys()), set(['change_id','clustering_algorithm']))
+		self.assertEqual(retDict['clustering_algorithm'],'SNV12_ignore')
+
+		relpath = "/api/v2/clustering/not_exists/change_id"
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 404)
+		
 
 class test_insert_1(unittest.TestCase):
     """ tests route /api/v2/insert """
@@ -1128,7 +1360,7 @@ class test_insert_10(unittest.TestCase):
 			self.assertEqual(res.status_code, 200)
 			self.assertEqual(info, True)	
 
-class test_insert_50(unittest.TestCase):
+class test_insert_60(unittest.TestCase):
 	""" tests route /api/v2/insert, with additional samples.
 		Also provides a set of very similar samples, testing recompression code."""
 	def runTest(self):
@@ -1141,7 +1373,7 @@ class test_insert_50(unittest.TestCase):
 			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
 					originalseq = list(str(record.seq))
 		guids_inserted = list()			
-		for i in range(1,60):
+		for i in range(1,40):
 			
 
 			seq = originalseq
@@ -1194,6 +1426,29 @@ class test_insert_50(unittest.TestCase):
 			self.assertEqual(res.status_code, 200)
 			self.assertEqual(info, True)	
 
+		# check: is everything there?
+		for guid in guids_inserted:
+			relpath = "/api/v2/{0}/exists".format(guid)
+			res = do_GET(relpath)
+			self.assertTrue(isjson(content = res.content))
+			info = json.loads(res.content.decode('utf-8'))
+			self.assertEqual(type(info), bool)
+			self.assertEqual(res.status_code, 200)
+			self.assertEqual(info, True)	
+
+		# is everything clustered?
+		relpath = "/api/v2/clustering/SNV12_ignore/guids2clusters"
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 200)
+		retVal = json.loads(str(res.text))
+		self.assertTrue(isinstance(retVal, list))
+		
+		print("running mixed checks:")
+		for item in retVal:
+			if 'mixed_' in item['guid']:
+				self.assertTrue(item['is_mixed'])
+				print(item['guid'], item['is_mixed'])
+		
 class test_mirror(unittest.TestCase):
     """ tests route /api/v2/mirror """
     def runTest(self):
