@@ -366,12 +366,16 @@ class findNeighbour3():
 			links={}			
 			try:
 				# this process reports links less than self.sc.snpCeiling
+				#app.logger.info("Finding links: {0}".format(guid))
 
 				to_compress = 0
 				for key2 in self.sc.guidscachedinram():
 					if not guid==key2:
+						app.logger.info("Finding links: {0} vs {1}".format(guid, key2))
 						(guid1,guid2,dist,n1,n2,nboth, N1pos, N2pos, Nbothpos)=self.sc.countDifferences_byKey(keyPair=(guid,key2),
 																											  cutoff = self.snpCompressionCeiling)
+						#app.logger.info("Links found")
+					
 						link = {'dist':dist,'n1':n1,'n2':n2,'nboth':nboth}
 						to_compress +=1
 						if dist is not None:
@@ -379,14 +383,16 @@ class findNeighbour3():
 								links[guid2]=link
 								
 				if to_compress>= self.recompress_frequency and to_compress % self.recompress_frequency == 0:		# recompress if there are lots of neighbours, every fifth isolate
+					#app.logger.info("Recompressing: {0}".format(guid))
 					self.server_monitoring_store(message='Guid {0} being recompressed relative to neighbours'.format(guid))
 	
 					self.sc.compress_relative_to_consensus(guid)
 					if self.gc_on_recompress==1:
 						gc.collect()
 
-				# write
 				## should trap here to return sensible error message if database connectivity is lost.
+				app.logger.info("Persisting: {0}".format(guid))
+
 				self.PERSIST.refcompressedseq_store(guid, refcompressedsequence)     # store the parsed object on disc
 				self.PERSIST.guid_annotate(guid=guid, nameSpace='DNAQuality',annotDict=self.objExaminer.composition)						
 				self.PERSIST.guid2neighbour_add_links(guid=guid, targetguids=links)
@@ -400,14 +406,18 @@ class findNeighbour3():
 
 			# clean up guid2neighbour; this can readily be done post-hoc, if the process proves to be slow.
 			# it doesn't affect results.
+			app.logger.info("Repacking around: {0}".format(guid))
+		
 			guids = list(links.keys())
 			guids.append(guid)
 			self.repack(guids)
 			
 			# cluster
+			app.logger.info("Clustering around: {0}".format(guid))
+		
 			self.update_clustering()
 			
-			return "Guid {0} inserted.".format(guid)		# a 200 will be added by flask
+			return "Guid {0} inserted.".format(guid)		
 		else:
 			return "Guid {0} is already present".format(guid)
 	
@@ -429,7 +439,7 @@ class findNeighbour3():
 				to_add_guid = remaining_to_add_guids.pop()
 				links = self.PERSIST.guid2neighbours(to_add_guid, returned_format=3)['neighbours']
 				self.clustering[clustering_name].add_sample(to_add_guid, links)
-	
+			#print("Links added.")
 			# check if mixed; make a list of non-mixed guids, and their clusters, to analyse.
 			nMixed = 0
 			guids_to_check = set()
@@ -443,15 +453,17 @@ class findNeighbour3():
 			cl2guids = 	self.clustering[clustering_name].clusters2guid()
 			for cluster in clusters_to_check:
 				guids_for_msa = cl2guids[cluster]
+				#print("starting msa for ", guids_for_msa)
 				msa = self.sc.multi_sequence_alignment(guids, output='df')		#  a pandas dataframe; p_value tests mixed
-				msa_mixed = msa.query("p_value < 1e-3")
-				#print(msa)
-				#print(msa_mixed)
-				for mixed_guid in msa_mixed.index:
-					#print("Mixed guid detected", mixed_guid)
-					links = self.PERSIST.guid2neighbours(mixed_guid, returned_format=3)['neighbours']
-					self.clustering[clustering_name].set_mixed(mixed_guid, neighbours = links)
-					
+				if not msa is None:		# no alignment was made
+					msa_mixed = msa.query("p_value < 1e-3")
+					#print("** MSA", msa)
+					#print(msa_mixed)
+					for mixed_guid in msa_mixed.index:
+						print("Mixed guid detected", mixed_guid)
+						links = self.PERSIST.guid2neighbours(mixed_guid, returned_format=3)['neighbours']
+						self.clustering[clustering_name].set_mixed(mixed_guid, neighbours = links)
+			#print("Insert complete")		
 	def exist_sample(self,guid):
 		""" determine whether the sample exists in RAM"""
 		
@@ -567,8 +579,12 @@ class findNeighbour3():
 		""" gets masked sequence for the guid, in format sequence|fasta """
 		if not self.sc.iscachedinram(guid):
 			return None
-		else:
-			return self.sc.uncompress(self.sc.seqProfile[guid])
+		try:		
+			seq = self.sc.uncompress(self.sc.seqProfile[guid])
+			return {'guid':guid, 'invalid':0,'comment':'Masked sequence, as stored','masked_dna':seq}
+		except ValueError:
+				return {'guid':guid, 'invalid':1,'comment':'No sequence is available, as invalid sequences are not stored'}
+			
 # default parameters for unit testing only.
 RESTBASEURL   = "http://127.0.0.1:5000"
 ISDEBUG = True
@@ -827,7 +843,7 @@ def msa_guids_by_cluster(clustering_algorithm, cluster_id, output_format='json')
 		res = fn3.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)		
 	except KeyError:
 		# no clustering algorithm of this type
-		abort(404, "no clustering algorithm {0}".format(clustering_algorithm))
+		return make_response(tojson("no clustering algorithm {0}".format(clustering_algorithm)), 404)
 		
 	if not output_format in ['html','json','fasta']:
 		abort(501, 'output_format must be one of html, json, or fasta not {0}'.format(format))
@@ -917,9 +933,6 @@ class test_msa_1(unittest.TestCase):
 		self.assertFalse(isjson(res.content))
 		self.assertEqual(res.status_code, 200)
 
-		# recover clustering information
-		
-		#@app.route('/api/v2/multiple_alignment/<string:clustering_algorithm>/<int:cluster_id>/<string:output_format>', methods=['GET'], defaults={'output_format':'json'})
 
 @app.route('/api/v2/server_config', methods=['GET'])
 def server_config():
@@ -933,7 +946,7 @@ def server_config():
     """
     res = fn3.server_config()
     if res is None:		# not allowed to see it
-        abort(404, "Endpoint only available in debug mode")
+        return make_response(tojson("Endpoint is only available in debug mode"), 404)
     else:
         return make_response(tojson(CONFIG))
 
@@ -1380,7 +1393,6 @@ class test_insert_60(unittest.TestCase):
 		guids_inserted = list()			
 		for i in range(1,40):
 			
-
 			seq = originalseq
 			if i % 5 ==0:
 				is_mixed = True
@@ -1630,21 +1642,11 @@ class test_neighbours_within_6(unittest.TestCase):
 @app.route('/api/v2/<string:guid>/sequence', methods=['GET'])
 def sequence(guid):
 	""" returns the masked sequence as a string """	
-	try:
-		result = fn3.sequence(guid)
-		retVal = {'guid':guid, 'invalid':0,'comment':'Masked sequence, as stored','masked_dna':result}
-	except ValueError as e:
-		# the sequence is invalid
-		retVal = {'guid':guid, 'invalid':1,'comment':'No sequence is available, as invalid sequences are not stored'}
-		return make_response(tojson(retVal))
-
-	except Exception as e:
-		print("Exception raised", e)
-		abort(500, e)
+	result = fn3.sequence(guid)
 	if result is None:  # no guid exists
-		abort(404,'{0} does not exist'.format(guid))
-
-	return make_response(tojson(retVal))
+		return make_response(tojson('guid {0} does not exist'.format(guid)), 404)
+	else:
+		return make_response(tojson(result))
 
 class test_sequence_1(unittest.TestCase):
     """ tests route /api/v2/*guid*/sequence"""
@@ -1689,7 +1691,8 @@ class test_sequence_3(unittest.TestCase):
     def runTest(self):
         relpath = "/api/v2/guids"
         res = do_GET(relpath)
-        n_pre = len(json.loads(str(res.text)))		# get all the guids
+        print(res)
+        n_pre = len(json.loads(res.content.decode('utf-8')))		# get all the guids
 
         guid_to_insert = "guid_{0}".format(n_pre+1)
 
@@ -1698,7 +1701,7 @@ class test_sequence_3(unittest.TestCase):
             for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
                     seq = str(record.seq)
         seq = 'N'*4411532
-        print("Adding TB reference sequence of {0} bytes".format(len(seq)))
+        print("Adding TB reference sequence of {0} bytes with {1} Ns".format(len(seq), seq.count('N')))
         self.assertEqual(len(seq), 4411532)		# check it's the right sequence
 
         relpath = "/api/v2/insert"
@@ -1713,6 +1716,56 @@ class test_sequence_3(unittest.TestCase):
         print(info)
         self.assertEqual(info['guid'], guid_to_insert)
         self.assertEqual(info['invalid'], 1)
+
+class test_sequence_4(unittest.TestCase):
+    """ tests route /api/v2/*guid*/sequence"""
+    def runTest(self):
+        relpath = "/api/v2/guids"
+        res = do_GET(relpath)
+        print(res)
+        n_pre = len(json.loads(res.content.decode('utf-8')))		# get all the guids
+
+        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        with open(inputfile, 'rt') as f:
+            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+                    seq2 = str(record.seq)
+
+        guid_to_insert1 = "guid_{0}".format(n_pre+1)
+        guid_to_insert2 = "guid_{0}".format(n_pre+2)
+
+
+        seq1 = 'N'*4411532
+        print("Adding TB reference sequence of {0} bytes with {1} Ns".format(len(seq1), seq1.count('N')))
+        self.assertEqual(len(seq1), 4411532)		# check it's the right sequence
+
+        relpath = "/api/v2/insert"
+        res = do_POST(relpath, payload = {'guid':guid_to_insert1,'seq':seq1})
+        self.assertEqual(res.status_code, 200)
+
+        print("Adding TB reference sequence of {0} bytes with {1} Ns".format(len(seq2), seq2.count('N')))
+        self.assertEqual(len(seq2), 4411532)		# check it's the right sequence
+
+        relpath = "/api/v2/insert"
+        res = do_POST(relpath, payload = {'guid':guid_to_insert2,'seq':seq2})
+        self.assertEqual(res.status_code, 200)
+		
+        relpath = "/api/v2/{0}/sequence".format(guid_to_insert1)
+        res = do_GET(relpath)
+        self.assertEqual(res.status_code, 200)
+
+        info = json.loads(res.content.decode('utf-8'))
+        self.assertEqual(info['guid'], guid_to_insert1)
+        self.assertEqual(info['invalid'], 1)
+
+		
+        relpath = "/api/v2/{0}/sequence".format(guid_to_insert2)
+        res = do_GET(relpath)
+        self.assertEqual(res.status_code, 200)
+
+        info = json.loads(res.content.decode('utf-8'))
+        self.assertEqual(info['guid'], guid_to_insert2)
+        self.assertEqual(info['invalid'], 0)
+
 
 @app.route('/api/v2/nucleotides_excluded', methods=['GET'])
 def nucleotides_excluded():

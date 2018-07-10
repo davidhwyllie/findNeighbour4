@@ -173,9 +173,10 @@ class seqComparer():
         """ returns a sequence from a compressed_sequence """
         if 'invalid' in compressed_sequence.keys():
             if compressed_sequence['invalid']==1:
-                raise ValueError("Cannot uncompress an invalid sequence, as it is not stored")
-                    
-        compressed_sequence = self._computeComparator(compressed_sequence)    # decompress if it is a patch_consensus 
+                raise ValueError("Cannot uncompress an invalid sequence, because the sequence it is not stored {0}".format(compressed_sequence.keys()))
+          
+        compressed_sequence = self._computeComparator(compressed_sequence)    # decompress if it is a patch_consensus
+        
         seq = list(self.reference)
         
         # mark all positions excluded as N
@@ -249,13 +250,20 @@ class seqComparer():
 
     
     def setComparator1(self,sequence):
-        """ stores a reference compressed sequence (no patch) in self._seq1 """      
-        self._seq1=self._computeComparator(sequence)
-           
+        """ stores a reference compressed sequence (no patch) in self._seq1. If the sequence is invalid, stores None"""
+        try:
+            self._seq1=self._computeComparator(sequence)
+        except ValueError:
+            # it's invalid
+            self._seq1 = None
+            
     def setComparator2(self,sequence):
-        """ stores a reference compressed sequence (no patch) in self._seq2 """
-        self._seq2=self._computeComparator(sequence)
-        
+        """ stores a reference compressed sequence (no patch) in self._seq2. If the sequence is invalid, stores None. """
+        try:
+            self._seq2=self._computeComparator(sequence)
+        except ValueError:
+            # it's invalid
+            self._seq2 = None    
         
     def _setStats(self, sortedset1, sortedset2):
         """ compares sortedset1, which contains a series of ranges {(0,1) (10,11)}
@@ -321,7 +329,7 @@ class seqComparer():
         self.setComparator1(self.seqProfile[key1])
         self.setComparator2(self.seqProfile[key2])
         nDiff=self.countDifferences(cutoff=cutoff)
-        
+
         if nDiff is None:
             return((key1, key2, nDiff, None, None, None, None, None, None))
         elif nDiff<=cutoff:
@@ -343,6 +351,9 @@ class seqComparer():
             cutoff = self.snpCeiling
      
         nDiff=0
+        if self._seq1 is None or self._seq2 is None:
+            return(None)
+                 
         if self._seq1['invalid']==1 or self._seq2['invalid']==1:
             return(None)
          
@@ -518,16 +529,24 @@ class seqComparer():
         """ computes the median allN for sample_size guids, randomly selected from all guids except for exclude_guids.
         Used to estimate the expected number of Ns in an alignment """
         
-        guids = set(self.seqProfile.keys())-set(exclude_guids)
-        if len(guids)<sample_size:
-            return None     # cannot compute
-        else:
-            Ns = []
-            sampled_guids = np.random.choice(list(guids), sample_size, replace=False)
-            for guid in sampled_guids:
+        guids = list(set(self.seqProfile.keys())-set(exclude_guids))
+        np.random.shuffle(list(guids))
+  
+        retVal = None       # cannot compute 
+        Ns = []
+        for guid in guids:
+            try:
                 seq = self._computeComparator(self.seqProfile[guid])
                 Ns.append(len(seq['N']))
+            except ValueError:
+                # it is invalid
+                pass
+            if len(Ns)>=sample_size:
+                break
+        if len(Ns)>=sample_size:     
             return np.median(Ns)
+        else:
+            return None
         
     def multi_sequence_alignment(self, guids, output='dict'):
         """ computes a multiple sequence alignment containing only sites which vary between guids.
@@ -577,13 +596,13 @@ class seqComparer():
         guid2allNs = {}
         comparatorSeq = {}
         for guid in guids:
-            comparatorSeq[guid] = self._computeComparator(self.seqProfile[guid])
-            if comparatorSeq[guid]['invalid']==0:
+            try:
+                comparatorSeq[guid] = self._computeComparator(self.seqProfile[guid])
                 valid_guids.append(guid)
                 guid2allNs[guid] = len(comparatorSeq[guid]['N'])
-            else:
+            except ValueError:
                 invalid_guids.append(guid)
-                
+      
         # step 1: find non-reference positions
         for guid in valid_guids:
             seq = comparatorSeq[guid]
@@ -625,41 +644,49 @@ class seqComparer():
                         this_base = base
                 guid2seq[guid].append(this_base)
             guid2wholeseq[guid] = ''.join(guid2seq[guid])
+            
         # compute expected N for each.  Estimate expected N as median(observed Ns), which is a valid thing to do if the proportion of mixed samples is low.
         expected_N = self.estimate_expected_N(sample_size=30, exclude_guids= invalid_guids)
         
-        guid2pvalue = {}
-        guid2alignN = {}
-        for guid in valid_guids:
-            guid2alignN[guid]= guid2wholeseq[guid].count('N')
-            if expected_N is None:
-                p_value = None
-            else:
-                seq = comparatorSeq[guid]
-                expected_p = expected_N/len(guid2wholeseq[guid])
-                p_value = binom_test(len(seq['N']),guid2allNs[guid], expected_p)
-            guid2pvalue[guid]=p_value
-
-        # assemble dataframe
-        df1 = pd.DataFrame.from_dict(guid2wholeseq, orient='index')
-        df1.columns=['aligned_seq']
-        df2 = pd.DataFrame.from_dict(guid2allNs, orient='index')
-        df2.columns=['allN']
-        df3 = pd.DataFrame.from_dict(guid2alignN, orient='index')
-        df3.columns=['alignN']
-        df4 = pd.DataFrame.from_dict(guid2pvalue, orient='index')
-        df4.columns=['p_value']
-        df = df1.merge(df2, left_index=True, right_index=True)
-        df = df.merge(df3, left_index=True, right_index=True)
-        df = df.merge(df4, left_index=True, right_index=True)
-        if output=='dict':    
-            return({'variant_positions':ordered_variant_positions,
+        if len(valid_guids)>0:
+            guid2pvalue = {}
+            guid2alignN = {}
+            for guid in valid_guids:
+                guid2alignN[guid]= guid2wholeseq[guid].count('N')
+                if expected_N is None:
+                    p_value = None
+                else:
+                    seq = comparatorSeq[guid]
+                    expected_p = expected_N/len(guid2wholeseq[guid])
+                    p_value = binom_test(len(seq['N']),guid2allNs[guid], expected_p)
+                guid2pvalue[guid]=p_value
+    
+            # assemble dataframe
+            df1 = pd.DataFrame.from_dict(guid2wholeseq, orient='index')
+            df1.columns=['aligned_seq']
+            df2 = pd.DataFrame.from_dict(guid2allNs, orient='index')
+            df2.columns=['allN']
+            df3 = pd.DataFrame.from_dict(guid2alignN, orient='index')
+            df3.columns=['alignN']
+            df4 = pd.DataFrame.from_dict(guid2pvalue, orient='index')
+            df4.columns=['p_value']
+            df = df1.merge(df2, left_index=True, right_index=True)
+            df = df.merge(df3, left_index=True, right_index=True)
+            df = df.merge(df4, left_index=True, right_index=True)
+            
+            retDict = {'variant_positions':ordered_variant_positions,
                     'invalid_guids': invalid_guids,
                     'guid2sequence':guid2seq,
                     'guid2allN':guid2allNs,
                     'guid2wholeseq':guid2wholeseq,
                     'guid2pvalue':guid2pvalue,
-                    'guid2alignN':guid2alignN})
+                    'guid2alignN':guid2alignN}
+        
+        else:
+            return None
+                
+        if output=='dict':    
+            return(retDict)
         elif output=='df':
             return(df)
         elif output=='df_dict':
@@ -712,8 +739,46 @@ class test_seqComparer_48(unittest.TestCase):
             sc.persist(c, guid=this_guid)
             guid_names.append(this_guid)
 
+class test_seqComparer_47b(unittest.TestCase):
+    """ tests generation of a multisequence alignment with
+        testing for the proportion of Ns.
+        Tests all three outputs."""
+    def runTest(self):
+        # generate compressed sequences
+        refSeq='GGGGGG'
+        sc=seqComparer( maxNs = 3,
+                       reference=refSeq,
+                       snpCeiling =10)
+        # need > 30 sequences
+        originals = ['AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
+                     'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
+                     'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN']
+        guid_names = []
+        n=0
+        for original in originals:
+            n+=1
+            c = sc.compress(original)
+            this_guid = "{0}-{1}".format(original,n )
+            sc.persist(c, guid=this_guid)
+            guid_names.append(this_guid)
 
-class test_seqComparer_47(unittest.TestCase):
+        res= sc.multi_sequence_alignment(guid_names[0:8], output='dict')
+
+        # there's variation at positions 0,1,2,3
+        self.assertEqual(res['variant_positions'],[0,1,2,3])
+
+        df= sc.multi_sequence_alignment(guid_names[0:8], output='df')
+        # there's variation at positions 0,1,2,3
+        self.assertTrue(isinstance(df, pd.DataFrame))
+        self.assertEqual(set(df.columns.values),set(['aligned_seq','allN','alignN','p_value']))
+        self.assertEqual(len(df.index),7)
+        res= sc.multi_sequence_alignment(guid_names[0:8], output='df_dict')
+        df = pd.DataFrame.from_dict(res,orient='index')
+    
+        self.assertEqual(set(df.index.tolist()), set(['AAACGN-1','CCCCGN-2','TTTCGN-3','GGGGGN-4','ACTCGN-6', 'TCTNGN-7','AAACGN-8']))
+
+
+class test_seqComparer_47a(unittest.TestCase):
     """ tests generation of a multisequence alignment with
         testing for the proportion of Ns.
         Tests all three outputs."""
@@ -749,8 +814,8 @@ class test_seqComparer_47(unittest.TestCase):
         df = pd.DataFrame.from_dict(res,orient='index')
     
         self.assertEqual(set(df.index.tolist()), set(guid_names[0:8]))
-        print(df)
-class test_seqComparer_46(unittest.TestCase):
+ 
+class test_seqComparer_46a(unittest.TestCase):
     """ tests estimate_expected_N, a function estimating the number of Ns in sequences
         by sampling """
     def runTest(self):
@@ -779,7 +844,37 @@ class test_seqComparer_46(unittest.TestCase):
         # analyse the first two
         res = sc.estimate_expected_N(sample_size=2, exclude_guids = guids[2:7])      
         self.assertEqual(res, 1)
-class test_seqComparer_45(unittest.TestCase):
+class test_seqComparer_46b(unittest.TestCase):
+    """ tests estimate_expected_N, a function estimating the number of Ns in sequences
+        by sampling """
+    def runTest(self):
+        # generate compressed sequences
+        refSeq='GGGGGG'
+        sc=seqComparer( maxNs = 3,
+                       reference=refSeq,
+                       snpCeiling =10)
+        n=0
+        originals = [ 'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTGGN' ]
+        guids = []
+        for original in originals:
+            n+=1
+            c = sc.compress(original)
+            guid = "{0}-{1}".format(original,n )
+            guids.append(guid)
+            sc.persist(c, guid=guid)
+          
+        res = sc.estimate_expected_N()      # defaults to sample size 30
+        self.assertEqual(res, None)
+        
+        # analyse them all
+        res = sc.estimate_expected_N(sample_size=7, exclude_guids = [])      
+        self.assertEqual(res, None)
+
+        # analyse them all
+        res = sc.estimate_expected_N(sample_size=6, exclude_guids = [])      
+        self.assertEqual(res, 1)
+        
+class test_seqComparer_45a(unittest.TestCase):
     """ tests the generation of multiple alignments of variant sites."""
     def runTest(self):
         
@@ -805,7 +900,58 @@ class test_seqComparer_45(unittest.TestCase):
         df.columns=res['variant_positions']
         self.assertEqual(len(df.index), 7)
         self.assertEqual(res['variant_positions'],[0,1,2,3])
-                
+
+        
+class test_seqComparer_45b(unittest.TestCase):
+    """ tests the generation of multiple alignments of variant sites."""
+    def runTest(self):
+        
+        # generate compressed sequences
+        refSeq='GGGGGG'
+        sc=seqComparer( maxNs = 3,
+                       reference=refSeq,
+                       snpCeiling =10)
+        
+        originals = [ 'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTGGN' ]
+        guid_names = []
+        n=0
+        for original in originals:
+            n+=1
+            c = sc.compress(original)
+            this_guid = "{0}-{1}".format(original,n )
+            sc.persist(c, guid=this_guid)
+            guid_names.append(this_guid)
+
+        res= sc.multi_sequence_alignment(guid_names)
+        # there's variation at positions 0,1,2,3
+        df = pd.DataFrame.from_dict(res['guid2sequence'], orient='index')
+        df.columns=res['variant_positions']
+        self.assertEqual(len(df.index), 6)
+        self.assertEqual(res['variant_positions'],[0,1,2,3])
+
+class test_seqComparer_45c(unittest.TestCase):
+    """ tests the generation of multiple alignments of variant sites."""
+    def runTest(self):
+        
+        # generate compressed sequences
+        refSeq='GGGGGG'
+        sc=seqComparer( maxNs = 3,
+                       reference=refSeq,
+                       snpCeiling =10)
+        
+        originals = ['NNNCGN' ]
+        guid_names = []
+        n=0
+        for original in originals:
+            n+=1
+            c = sc.compress(original)
+            this_guid = "{0}-{1}".format(original,n )
+            sc.persist(c, guid=this_guid)
+            guid_names.append(this_guid)
+
+        res= sc.multi_sequence_alignment(guid_names)
+        self.assertTrue(res is None)
+   
 class test_seqComparer_1(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
@@ -865,7 +1011,31 @@ class test_seqComparer_6b(unittest.TestCase):
           
             roundtrip = sc.uncompress(compressed_sequence)
             self.assertEqual(original, roundtrip)
-            
+
+class test_seqComparer_6c(unittest.TestCase):
+    def runTest(self):
+        refSeq='ACTG'
+
+        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq)
+        originals = [ 'NNNN']
+        for original in originals:
+
+            compressed_sequence=sc.compress(sequence=original)
+            roundtrip = sc.uncompress(compressed_sequence)
+            self.assertEqual(original, roundtrip)
+
+class test_seqComparer_6d(unittest.TestCase):
+    def runTest(self):
+        refSeq='ACTG'
+
+        sc=seqComparer( maxNs = 3, snpCeiling = 20,reference=refSeq)
+        originals = [ 'NNNN']
+        for original in originals:
+
+            compressed_sequence=sc.compress(sequence=original)
+            with self.assertRaises(ValueError):
+                roundtrip = sc.uncompress(compressed_sequence)
+          
 class test_seqComparer_8(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
@@ -938,6 +1108,18 @@ class test_seqComparer_16(unittest.TestCase):
         sc._seq2 = sc.compress('CCCC')
         self.assertEqual(sc.countDifferences(),4)
 
+class test_seqComparer_17(unittest.TestCase):
+    """ tests the comparison of two sequences where one is invalid """
+    def runTest(self):   
+        # generate compressed sequences
+        refSeq='ACTG'
+        sc=seqComparer( maxNs = 3,
+                       reference=refSeq,
+                       snpCeiling =10)
+        
+        sc._seq1 = sc.compress('AAAA')
+        sc._seq2 = sc.compress('NNNN')
+        self.assertEqual(sc.countDifferences(),None)
 class test_seqComparer_saveload3(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
@@ -1020,6 +1202,13 @@ class test_seqComparer_34(unittest.TestCase):
         sc=seqComparer( maxNs = 1e8, reference=refSeq, snpCeiling =1)
         sc.setComparator2(sequence='TTTG')
         sc.setComparator1(sequence='NNTG')
+        self.assertEqual(sc.countDifferences(),0)
+class test_seqComparer_35(unittest.TestCase):
+    def runTest(self):
+        refSeq='ACTG'
+        sc=seqComparer( maxNs = 2, reference=refSeq, snpCeiling =1)
+        sc.setComparator2(sequence='TTTG')
+        sc.setComparator1(sequence='NNNG')
         self.assertEqual(sc.countDifferences(),0)
 class test_seqComparer_13(unittest.TestCase):
     def runTest(self):
@@ -1177,6 +1366,37 @@ class test_seqComparer_43(unittest.TestCase):
         for original in originals:
             self.assertEqual(original, sc.uncompress(sc.seqProfile[original]))
 
+class test_seqComparer_44(unittest.TestCase):
+    """ tests the compression relative to a consensus with a consensus present"""
+    def runTest(self):
+        
+        # generate compressed sequences
+        refSeq='GGGG'
+        sc=seqComparer( maxNs = 2,
+                       reference=refSeq,
+                       snpCeiling =10)
+        
+        originals = [ 'AAAC', 'NNNC' ]
+        for original in originals:   
+            c = sc.compress(original)
+            sc.persist(c, guid=original )
+
+        res = sc.countDifferences_byKey('AAAC','NNNC')
+        self.assertEqual(res, None)
+
+        refSeq='GGGG'
+        sc=seqComparer( maxNs = 1e8,
+                       reference=refSeq,
+                       snpCeiling =10)
+        
+        originals = [ 'AAAC', 'NNNC' ]
+        for original in originals:   
+            c = sc.compress(original)
+            sc.persist(c, guid=original )
+
+        res = sc.countDifferences_byKey('AAAC','NNNC')
+        self.assertEqual(res, 0)
+        
 class test_seqComparer_45(unittest.TestCase):
     """ tests insertion of large sequences """
     def runTest(self):
@@ -1191,7 +1411,7 @@ class test_seqComparer_45(unittest.TestCase):
                            snpCeiling =100)
         n_pre =  0          
         guids_inserted = list()			
-        for i in range(1,40):
+        for i in range(1,4):        #40
             
             seq = originalseq
             if i % 5 ==0:
@@ -1203,10 +1423,12 @@ class test_seqComparer_45(unittest.TestCase):
             # make i mutations at position 500,000
             
             offset = 500000
+            nVariants = 0
             for j in range(i):
                 mutbase = offset+j
                 ref = seq[mutbase]
                 if is_mixed == False:
+                    nVariants +=1
                     if not ref == 'T':
                         seq[mutbase] = 'T'
                     if not ref == 'A':
@@ -1219,18 +1441,18 @@ class test_seqComparer_45(unittest.TestCase):
                 seq = badseq        # invalid
                 
             guids_inserted.append(guid_to_insert)			
-            if is_mixed:
-                    print("Adding TB sequence {2} of {0} bytes with {1} mutations relative to ref.".format(len(seq), i, guid_to_insert))
+            if not is_mixed:
+                    print("Adding TB sequence {2} of {0} bytes with {1} Ns and {3} variants relative to ref.".format(len(seq), seq.count('N'), guid_to_insert, nVariants))
             else:
-                    print("Adding mixed TB sequence {2} of {0} bytes with {1} Ns relative to ref.".format(len(seq), i, guid_to_insert))
-                
-                
+                    print("Adding mixed TB sequence {2} of {0} bytes with {1} Ns relative to ref.".format(len(seq), seq.count('N'), guid_to_insert))
+                         
             self.assertEqual(len(seq), 4411532)		# check it's the right sequence
     
             c = sc.compress(seq)
             sc.persist(c, guid=guid_to_insert )
-            sc.compress_relative_to_consensus(guid_to_insert)
-					
+            if i % 5 == 0:
+                sc.compress_relative_to_consensus(guid_to_insert)
+
 class test_seqComparer_44(unittest.TestCase):
     """ tests the compression relative to a consensus with a consensus present.
     then adds more sequences, changing the consensus."""
