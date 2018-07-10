@@ -803,14 +803,14 @@ class test_msa_2(unittest.TestCase):
 		self.assertTrue(isjson(res.content))
 		self.assertEqual(res.status_code, 200)
 		d = json.loads(res.content, encoding='utf-8')
-		self.assertEqual(set(inserted_guids), set(d.keys()))
+		self.assertEqual(set(inserted_guids)-set(d.keys()),set([]))
 
 		relpath = "/api/v2/multiple_alignment/SNV12_ignore/{0}".format(cluster_id)
 		res = do_GET(relpath)
 		self.assertTrue(isjson(res.content))
 		self.assertEqual(res.status_code, 200)
 		d = json.loads(res.content, encoding='utf-8')
-		self.assertEqual(set(inserted_guids), set(d.keys()))
+		self.assertEqual(set(inserted_guids)-set(d.keys()),set([]))
 		
 @app.route('/api/v2/multiple_alignment/<string:clustering_algorithm>/<int:cluster_id>/<string:output_format>', methods=['GET'], defaults={'output_format':'json'})
 @app.route('/api/v2/multiple_alignment/<string:clustering_algorithm>/<int:cluster_id>', methods=['GET'], defaults={})
@@ -890,6 +890,8 @@ class test_msa_1(unittest.TestCase):
 	
 			relpath = "/api/v2/insert"
 			res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
+			self.assertEqual(res.status_code, 200)
+		
 			self.assertTrue(isjson(content = res.content))
 			info = json.loads(res.content.decode('utf-8'))
 			self.assertEqual(info, 'Guid {0} inserted.'.format(guid_to_insert))
@@ -1079,6 +1081,8 @@ class test_get_all_guids_examination_time_1(unittest.TestCase):
 
         relpath = "/api/v2/insert"
         res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
+        self.assertEqual(res.status_code, 200)
+
         self.assertTrue(isjson(content = res.content))
         info = json.loads(res.content.decode('utf-8'))
         self.assertEqual(info, 'Guid {0} inserted.'.format(guid_to_insert))
@@ -1290,6 +1294,7 @@ class test_insert_1(unittest.TestCase):
 
         relpath = "/api/v2/insert"
         res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
+        self.assertEqual(res.status_code, 200)
         self.assertTrue(isjson(content = res.content))
         info = json.loads(res.content.decode('utf-8'))
         self.assertEqual(info, 'Guid {0} inserted.'.format(guid_to_insert))
@@ -1408,6 +1413,8 @@ class test_insert_60(unittest.TestCase):
 	
 			relpath = "/api/v2/insert"
 			res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
+			self.assertEqual(res.status_code, 200)
+		
 			self.assertTrue(isjson(content = res.content))
 			info = json.loads(res.content.decode('utf-8'))
 			self.assertEqual(info, 'Guid {0} inserted.'.format(guid_to_insert))
@@ -1658,7 +1665,8 @@ class test_sequence_1(unittest.TestCase):
 
         relpath = "/api/v2/insert"
         res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
-    
+        self.assertEqual(res.status_code, 200)
+
         relpath = "/api/v2/{0}/sequence".format(guid_to_insert)
         res = do_GET(relpath)
         self.assertEqual(res.status_code, 200)
@@ -1695,7 +1703,8 @@ class test_sequence_3(unittest.TestCase):
 
         relpath = "/api/v2/insert"
         res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
-    
+        self.assertEqual(res.status_code, 200)
+
         relpath = "/api/v2/{0}/sequence".format(guid_to_insert)
         res = do_GET(relpath)
         self.assertEqual(res.status_code, 200)
