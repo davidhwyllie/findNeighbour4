@@ -680,9 +680,7 @@ def do_POST(relpath, payload):
 def server_info():
 	""" returns server info page
 	"""
-	res = """# findNeighbour3 web server operating.<p>Endpoints are <p>"""
-	for route in ['not available']:
-		res = res+"{0}<p>".format(route)
+	res = """findNeighbour3 web server operating.<p>Endpoints are in rest-routes.md, in the docs<p>"""
 	return make_response(res)
 
 def construct_msa(guids, output_format):
@@ -1845,7 +1843,7 @@ if __name__ == '__main__':
         stream_handler.setFormatter(formatter)
         mongo_handler.setFormatter(formatter)
         app.logger.addHandler(stream_handler)
-        #app.logger.addHandler(mongo_handler)
+
         ########################### prepare to launch server ###############################################################
         # construct the required global variables
         LISTEN_TO = '127.0.0.1'

@@ -1,3 +1,0 @@
-Please note that the gapi.py file is not included in the distribution.
-Please contact the authors if you require this.
-It is needed only for comparison of findNeighbour2 with deployed findNeighbour1 instances within the author's lab.
