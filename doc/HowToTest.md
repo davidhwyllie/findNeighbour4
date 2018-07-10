@@ -5,42 +5,40 @@ Description of how to test and use the system
 Python version
 --------------
 This application does not work with python 2.7.  
-It has been tested with python 3.5+ with SQLite and postgresql backends.  
-If you have two versions of python (e.g. python for 2.7, and python3 for python3) ensure you use the correct version.
-
+It has been tested with python 3.5 and 3.7, and with Mongodb v 3.6.1 and 4.0
 
 Dependencies
 ------------
 
-* Python 3.4+.   
+* Python 3.5+.   
 You may need to install pip3 with: 
 ```
 sudo apt-get install python3-pip
 ```
 
 Then install the following packages:
-* BioPython  
-* sqlalchemy  
-* psutil  
-* queue
-* numpy
-* pandas
-* banyan
-* psycopg2 (if using postgres as database)
-* pymysql (if using mysql as database)
-* flask (if using restful endpoints)
-
+ requests  
+ logging  
+ hashlib  
+ queue  
+ threading  
+ pymongo  
+ pandas as pd  
+ numpy as np  
+ flask  
+ psutil    
+ BioPython  
+ 
 Database backend
 ----------------
-The server will run using SQLite without any additional configuration.
-Please use this for initial testing; if you wish to use a more scalable database,
-please see the section on configuration files below.
+The server requires a mongodb database to work.
+This server has been tested both with a local mongodb database and with a free cloud instance of mongodb, Mongo Atlas.
 
 
 Protocol for configuring a clean Linux ubuntu 14.04 instance
 ============================================================
 Note that this protocol does not use a virtual environment.
-
+Note: this has not been tested with findneighbour3, only findNeighbour2.
 ```
 sudo apt-get update  
 sudo apt-get upgrade  
@@ -49,69 +47,12 @@ sudo apt-get install python3
 sudo apt-get install -y python3-pip --force-yes  
 sudo apt-get install build-essential libssl-dev libffi-dev python3-dev  
 sudo apt-get install python3-numpy  
-sudo apt-get install postgres postgres-dev-all  
-sudo apt-get install postgres-client postgres-contrib   
-
-# use of --proxy depends on whether the server is using one
-sudo pip3 install sqlalchemy --proxy http://[ip of proxy] 
-sudo pip3 install psutil --proxy http://[ip of proxy] 
-sudo pip3 install numpy --proxy http://[ip of proxy] 
-sudo pip3 install pandas --proxy http://[ip of proxy]
-sudo pip3 install banyan --proxy http://[ip of proxy] 
-sudo pip3 install psycopg2 --proxy http://[ip of proxy] 
-sudo pip3 install biopython --proxy http://[ip of proxy] 
-sudo pip3 install flask --proxy http://[ip of proxy]
 
 # optionally inform git of the proxy's location, depending whether there is one
 git config --global http.proxy http://[ip of proxy]
 
 # clone repository
-git clone https://github.com/davidhwyllie/findNeighbour2.git
-
-# configure postgres; assumes you're logged in as 'user'
-sudo -u postgres createuser user
-sudo -u postgres createuser ew2  
-sudo -u postgres createdb user   # may be unnecessary if you installed postgres, cf. https://stackoverflow.com/questions/17633422/psql-fatal-database-user-does-not-exist
-
-sudo -u postgres psql
-```
-
-The following commands are issued via the psql terminal.
-
-```
-CREATE ROLE ew2_daemon;
-
-CREATE DATABASE "TB_ew2_edges"
-  WITH OWNER = ew2_daemon
-       ENCODING = 'UTF8'
-       TABLESPACE = pg_default
-       LC_COLLATE = 'en_GB.UTF-8'
-       LC_CTYPE = 'en_GB.UTF-8'
-       CONNECTION LIMIT = -1;
-
-COMMENT ON DATABASE "TB_ew2_edges"
-  IS 'Edge list maintained by the EW2 server';
-  
-CREATE DATABASE "TB_ew2_seqProps"
-  WITH OWNER = ew2_daemon
-       ENCODING = 'UTF8'
-       TABLESPACE = pg_default
-       LC_COLLATE = 'en_GB.UTF-8'
-       LC_CTYPE = 'en_GB.UTF-8'
-       CONNECTION LIMIT = -1;
-
-COMMENT ON DATABASE "TB_ew2_seqProps"
-  IS 'Meta-data (apart from edges) related to EW2 server sequences';
-  
--- assign permissions to the EW2 daemon.  This assigns permission on all the tables;
--- more restricted permissions are possible
-ALTER DEFAULT PRIVILEGES 
-    GRANT INSERT, SELECT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLES
-    TO ew2_daemon;
-    
-ALTER USER "ew2_daemon" WITH PASSWORD "ew2";
-ALTER ROLE "ew2_daemon" WITH LOGIN;
-```
+git clone https://github.com/davidhwyllie/findNeighbour3.git
 
 
 After this, please follow the below steps.
@@ -120,23 +61,25 @@ After this, please follow the below steps.
 Start the server
 -----------------
 
-To start the server, go to the findNeighbour2 *src* folder and run the command:
+To start the server, go to the findNeighbour3 *src* folder and run the command:
 
 
 ```
-python3 webservice-server.py
+python3 findNeighbour3-server.py
 ```
 Note: This application doesn't work with python2, so be sure to use python 3.
+This will try to start the webserver with a default configuration, in debug mode.
+** Debug mode means, amongst other things, that all existing data will be wiped on server restart.  This is good for unittesting, but not in many other settings.  You need to edit the config file (see below) for your needs.**.
 
-This will try to start the webserver with a default configuration using SQLite.  If it fails to start, it's probably due to missing dependencies (which it will report).  Install them, then try again.  When it works, terminate the server, and kill any remaining process.
+If it fails to start, it's probably due to missing dependencies (which it will report).  Install them, then try again.  When it works, terminate the server, and kill any remaining process.
 
 The more general form for starting the server is:
 ```
-nohup python3 webservice-server.py {configfile.json} &  
+nohup python3 findNeighbour3-server.py {configfile.json} &  
 ```
 
 * If {configfile.json} is not provided, then it will use a default config file, config/default_config.json  
-This is suitable for testing. It runs a test instance on localhost using an SQLite backend in ../unittest_Tmp/.
+This is suitable for testing. It expects a mongodb running on localhost on the default port.
 **It is unsuitable for production.  A warning is emitted if the server is running with this default configuration.**  
 
 
@@ -147,162 +90,140 @@ At the moment, some kinds of unit testing assume a server is running.  Unit test
 You will need to do.  After this, you can run unit tests:
 
 ```
-# start the xmlrpc server
-nohup python3 webservice-server.py &
 
 # starting a test RESTFUL server
-nohup python3 webservice-server-rest.py &
+nohup python3 findNeighbour3-server.py &
 
 # And then (e.g. in a different terminal) launching unit tests with
-python3 -m unittest webservice-server-rest
+python3 -m unittest findNeighbour3-server
 # all should pass
 
 # you can also test the internal classes used by findNeighbour2; all should pass
 python3 -m unittest  seqComparer  
-python3 -m unittest  ewsnpstore  
-python3 -m unittest  FN  
+python3 -m unittest  clustering  
+python3 -m unittest  mongoStore  
 
 ```
 All should pass.
 Now kill the webserver
 
 ```
-ps -x | grep webservice-server
-# kill both xmlrpc and restful servers:
+ps -x | grep findNeighbour3-server
+# kill  servers:
 kill -9 <pid>
 ```
   
-Using the technology without a web server
------------------------------------------
-If you are interested in doing this (which is unlikely)
-please see the example in testdrive.py.
-This uses all the components of EW2 without the web server interface.
-
 Using the web server
 --------------------
 You need to start the web server with a sensible configuration, e.g. something like
 ```
-# start the xmlrpc server
-nohup python3 webservice-server.py config/tbproduction.json
 # start the restful server
-nohup python3 webservice-server-rest.py config/tbproduction.json
+nohup python3 findNeighbour3-server.py config/tbproduction.json &
 ```
 
-The json file should look something like this:
-```
-{
-"DESCRIPTION":"The production server used for the PHE relatedness test",
-"PORT":8185,
-"REST_PORT":8186,
-"IP":"IP of the machine that run this service",
-"INPUTREF":"../reference/reference.fasta",
-"PERSISTENCEDIR":"/home/dwyllie/data/relatednesstest/TB_SERVER/persist",
-"EXCLUDEFILE":"../reference/TB.txt",
-"SNPDIR":"/home/dwyllie/data/relatednesstest/TB_SERVER/snp",
-"DEBUGMODE":0,
-"SERVERNAME":"TBSNP",      
-"EDGEDB_CONNSTRING":"postgresql+psycopg2://ew2:*******@localhost:5432/ew2_edges",
-"FNPERSISTENCE_CONNSTRING":"postgresql+psycopg2://ew2:******@localhost:5432/ew2_seqProps",
-"MAXN_STORAGE":100000,
-"NCOMPRESSIONCUTOFF":100000,
-"MAXN_PROP_DEFAULT":0.85,
-"LOGFILE":"/home/dwyllie/data/relatednesstest/TB_SERVER/log/logfile.log",
-"LOGLEVEL":"INFO",
-"SNPCEILING":20
-}
-```
+									
+		An example CONFIG is below:
+		
+		{			
+		"DESCRIPTION":"A test server operating in ../unittest_tmp, only suitable for testing",
+		"IP":"127.0.0.1",
+		"INPUTREF":"../reference/TB-ref.fasta",
+		"EXCLUDEFILE":"../reference/TB-exclude.txt",
+		"DEBUGMODE":0,
+		"SERVERNAME":"TBSNP",
+		"FNPERSISTENCE_CONNSTRING":"mongodb://127.0.0.1",
+		"MAXN_STORAGE":100000,
+		"SNPCOMPRESSIONCEILING":250,
+		"MAXN_PROP_DEFAULT":0.70,
+		"LOGFILE":"../unittest_tmp/logfile.log",
+		"LOGLEVEL":"INFO",
+		"SNPCEILING": 20,
+		"GC_ON_RECOMPRESS":1,
+		"RECOMPRESS_FREQUENCY":5,
+		"CLUSTERING":{'SNV12_ignore' :{'snv_threshold':12, 'mixed_sample_management':'ignore'},
+		              'SNV12_include':{'snv_threshold':12, 'mixed_sample_management':'include'}
+					  }
+		}
+    
+		CONFIG contains Configuration parameters relevant to the reference based compression system which lies
+		at the core of the server.  More details on these are below.
+		
+		  INPUTREF:       the path to fasta format reference file.
+		  EXCLUDEFILE:    a file containing the zero-indexed positions in the supplied sequences which should be ignored in all cases.
+			           			Typically, this is because the software generating the mapped fasta file has elected not to call these regions,
+                            in any samples, e.g. because of difficulty mapping to these regions.
+                            Such regions can occupy up 5- 20% of the genome and it is important for efficient working of this software
+                            that these regions are supplied for exclusion on sequence loading.  Not doing so will slow loading, and markedly increase
+                            memory requirements, but will not alter the results produced.
+      DEBUGMODE:      False by default.  If true, will delete any samples in the backend data store on each run.
+      SERVERNAME:     the name of the server (used for display purposes only)
+			FNPERSISTENCE_CONNSTRING: a valid mongodb connection string. if shard keys are set, the 'guid' field is suitable key.
+      MAXN_STORAGE:   The maximum number of Ns in the sequence <excluding those defined in > EXCLUDEFILE which should be indexed.
+                            Other files, e.g. those with all Ns, will be tagged as 'invalid'.  Although a record of their presence in the database
+                            is kept, they are not compared with other sequences.
+			MAXN_PROP_DEFAULT: if the proportion not N in the sequence exceeds this, the sample is analysed, otherwise considered invalid.
+			LOGFILE:        the log file used
+			LOGLEVEL:		default logging level used by the server.  Valid values are DEBUG INFO WARNING ERROR CRITICAL
+			SNPCEILING: 	links between guids > this are not stored in the database
+			GC_ON_RECOMPRESS: if 'recompressing' sequences to a local reference, something the server does automatically, perform
+			                a full mark-and-sweep gc at this point.  This setting alters memory use and compute time, but not the results obtained.
+			RECOMPRESS_FREQ: if recompressable records are detected, recompress every RECOMPRESS_FREQ th detection (e.g. 5).
+							Trades off compute time with mem usage.  This setting alters memory use and compute time, but not the results obtained.
+			CLUSTERING:		a dictionary of parameters used for clustering.  In the below example, there are two different
+							clustering settings defined, one named 'SNV12_ignore' and the other 'SNV12_include.
+							{'SNV12_ignore' :{'snv_threshold':12, 'mixed_sample_management':'ignore'},
+							'SNV12_include':{'snv_threshold':12, 'mixed_sample_management':'include'}
+							}
+							Each setting is defined by two parameters:
+							snv_threshold: clusters are formed if samples are <= snv_threshold from each other
+							mixed_sample_management: this defines what happens if mixed samples are detected.
+								Suppose there are three samples, A,B and M.  M is a mixture of A and B.
+								A and B are > snv_threshold apart, but their distance to M is zero.
+								If mixed_sample_management is
+								'ignore', one cluster {A,B,M} is returned
+								'include', two clusters {A,M} and {B,M}
+								'exclude', three clusters are returns {A},{B},{C}
+		
 
-Notes on the configuration file are as follows:
+		Some of these settings are read when the server is first-run, stored in a database, and the server will not
+		change the settings on re-start even if the config file is changed.  Examples are:
+		SNPCEILING
+		MAXN_PROP_DEFAULT
+		EXCLUDEFILE
+		INPUTREF
+		CLUSTERING
+		These settings cannot be changed because they alter the way that the data is stored; if you want to change
+		the settings, the data will have to be re-loaded. 
+		
+		However, most other settings can be changed and will take effect on server restart.  These include:
+		server location
+		IP
+		SERVERNAME
+		REST_PORT
+		
+		internal logging	
+		LOGFILE
+		LOGLEVEL
+		
+		where the database connection binds to
+		FNPERSISTENCE_CONNSTRING
+		
+		related to internal server memory management:
+		GC_ON_RECOMPRESS
+		RECOMPRESS_FREQUENCY
+		SNPCOMPRESSIONCEILING
 
-Tag | Meaning | Example
---- | --- | ---
-DESCRIPTION| A user readable description of the server |The production server used for the PHE relatedness test
-PORT| The port the xml rpc server is communicating on  |8185
-RESTPORT| The port the RESTful server is communicating on  |8186
-IP| The IP of the server |127.0.0.1
-INPUTREF| The reference sequence to which the sequence has been mapped, in fasta format |../reference/reference.fasta
-PERSISTENCEDIR| The directory to which the reference compressed sequences are stored.  This directory is read by the server on startup, to load sequences into RAM. | home/dwyllie/data/relatednesstest/TB_SERVER/persist
-EXCLUDEFILE| A text file containing a single column containing the zero-indexed positions of bases in the reference sequence which cannot be reliably called (in the COMPASS Pipeline, these are marked as 'always-N'). However, the base does not have to be 'N' in the provided sequence; if (for example) regions are subsequently found to required 'extra masking' for relatedness studies, these positions just need to be present in the exclusion file.  Although the server will operate without this information, it is important to provide it as these bases are not considered by the algorithm, which makes for *much* smaller 'deltas' relative to the reference, and so reduced memory footprint and faster operation.  The contents of the exclusion file should not be changed if data is present in the server; doing so will result in incorrect comparisons between samples.  Further discussion is in [this paper](https://www.biorxiv.org/content/early/2018/01/23/252460) and code to develop such an exclusion list is [here](https://github.com/davidhwyllie/ADAPTIVEMASKING). |../reference/TB.txt
-SNPDIR| The directory in which the SNP database is placed, if SQLite is being used.  |/home/dwyllie/data/relatednesstest/TB_SERVER/snp
-DEBUGMODE| Whether to operate in production mode (0) or debug mode (1), in which only 500 samples will be stored by the server.    |0
-SERVERNAME| A short code name for the server.  Not used programmatically.   |TBSNP     
-EDGEDB_CONNSTRING| An sqlAlchemy connection string for connection to the database holding edges.  For sqlite, this all that is needed; the database will be created if it does not exist. For postgres, the database must exist, and the ew2 login must be able to write to it | postgresql+psycopg2://ew2:*******@localhost:5432/ew2_edges [for postgres];  OR   sqlite:///<<DEFAULT>>/findNeighbour.db  [for sqlite]
-FNPERSISTENCE_CONNSTRING| n sqlAlchemy connection string for connection to the database holding meta-data on sequences, e.g. GC content etc.  These statistics are calculated automatically by the server, at at present there are no methods for adding arbitrary meta-data, although this would be easy to do.    For sqlite, this all that is needed; the database will be created if it does not exist. For postgres, the database must exist, and the ew2 login must be able to write to it. | postgresql+psycopg2://ew2:******@localhost:5432/ew2_seqProps [for postgres]; sqlite:///<<DEFAULT>>/{0}.db [for sqlite]
-MAXN_STORAGE| Sequences with more than this number of 'N's in the sequence will be recorded in EW2, but will be tagged as 'invalid' and reference-compressed representations of them will not be stored in memory. These Ns do not include any 'excluded' positions, as present in EXCLUDEFILE |100000
-NCOMPRESSIONCUTOFF| It is recommended that this is set to equal to MAXN_STORAGE.  Sequences with less than NCOMPRESSIONCUTOFF Ns have Ns stored in a different way.  Instead of storing the positions of Ns as single integers e.g. {1,2,3,4,5} is positions 1-5 are Ns, it stores ranges {(1,5)}.  This markedly reduces memory usage in some settings (up to 3-5 fold) but it slows down the server's addition times up to 10x, despite use of in-memory C++ search trees (Banyan).  Therefore, this option is not recommended. |100000
-MAXN_PROP_DEFAULT| By default (unless a different value is given to the API), don't report edges if the sequences are < MAXN_PROP_DEFAULT Ns. |0.85
-LOGFILE| The location the server logs to |/home/dwyllie/data/relatednesstest/TB_SERVER/log/logfile.log
-LOGLEVEL| The logging level used. |INFO
-SNPCEILING | The maximum SNP distance to report | 20
-
-Edit this as appropriate.
+Edit the config file as appropriate.
 
 Database backend
 ----------------
-If you wish to use a database, you will need to create two databases for each server.
-* Their names must match those in the configuration string in the config.json
-* Their permissions must be set correctly so that the user connecting to the database (in this case, the 'ew2' user, which is part of the 'ew2_' group.)
-has relevant permissions.
-* SQL configuring two postgres databases is shown below.
-
-```
--- Database: "TB_ew2_edges"
--- DROP DATABASE "TB_ew2_edges";
-
-CREATE DATABASE "TB_ew2_edges"
-  WITH OWNER = ew2_daemon
-       ENCODING = 'UTF8'
-       TABLESPACE = pg_default
-       LC_COLLATE = 'en_GB.UTF-8'
-       LC_CTYPE = 'en_GB.UTF-8'
-       CONNECTION LIMIT = -1;
-
-COMMENT ON DATABASE "TB_ew2_edges"
-  IS 'Edge list maintained by the EW2 server';
-  
-  
--- Database: "TB_ew2_seqProps"
--- DROP DATABASE "TB_ew2_seqProps";
-
-CREATE DATABASE "TB_ew2_seqProps"
-  WITH OWNER = ew2_daemon
-       ENCODING = 'UTF8'
-       TABLESPACE = pg_default
-       LC_COLLATE = 'en_GB.UTF-8'
-       LC_CTYPE = 'en_GB.UTF-8'
-       CONNECTION LIMIT = -1;
-
-COMMENT ON DATABASE "TB_ew2_seqProps"
-  IS 'Meta-data (apart from edges) related to EW2 server sequences';
-  
-
--- alter 'me' to your user name if you want to admin the database 
-ALTER DEFAULT PRIVILEGES 
-    GRANT INSERT, SELECT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLES
-    TO me;
-
--- assign permissions to the EW2 daemon.  This assigns permission on all the tables;
--- more restricted permissions are possible
-ALTER DEFAULT PRIVILEGES 
-    GRANT INSERT, SELECT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLES
-    TO ew2_daemon;
-
-```
-
-Typical performance
--------------------
-Benchmarking results are below.[#2]
-
-Server | Cores | Dataset | Masking | MaxNStorage | Min Prop N | SNPCeiling | Memory [#3] | Add 1 sample [#1] | Restart server [#2] | On disc storage [#3] | Find all guids [#4] | Detailed comparison (rpt all variant positions, incl. N) [#4] | Find pairwise edges [#5] | Download all edges < 12 snp [#4] | Check server time [#5] | Get all guids & examination time [#5] | Get all guids and annotations [#5]    
---- | --- | --- | --- | --- | --- | --- | --- | --- | ---  | --- | --- | --- | --- | --- | --- | --- | --- | ---
-1 | 1 | TB, n= 15985 | Ambiguous + 329714 'always N' sites | 330k | 0.85 | 20 | 23.5G | 2.23s | 250 s | 2.4G | 0.19s | 0.09s /comparions | < 2msec | 60 s [198,584 edges found ] | 2 ms | 0.3s | 80s
-2 | 1 | NGON, n= 2455 | Ambiguous. No 'always N' sites. | 1000k | 0.7 | 500 | 19.3G | 2.95s | 105s | 2.9G | 0.03s | 0.03s / comparison |  < 2msec | 63s [126048 edges found] | 2msec | 0.05s | 15s
-3 | 1 | SALM, n= 5380 | Ambiguous + 51897 'always N' sites. | 1000k | 0.66 | 20 | 7.4G | 1.77s | 30s  | 0.84s | 0.03s | 0.06s /comparison | < 2msec |  30s [264209 edges found] | 2msec |  0.08s | 22s   
+Mongodb is required.
+Provided the findNeighbour server connection has sufficient priviledges, no configuration or pre-creation of databases is needed.
 
 
-
-The machine used to do the benchmarking was as follows:
-
+Benchmarking
+============
+To follow.  The machine used to do the benchmarking was as follows:
 
 Property | Result
 --- | ---
@@ -322,17 +243,17 @@ Note #5 | python pull_data.py {configfile.json}
 
 Services available
 ==================
-These are listed [here](endpoints.md).
+These are listed [here](rest-routes.md).
 
 
 Ensuring the services restart with the server
 =============================================
 (thanks to Hemanth M for this)
 
-* create a file “start_fn2” in /etc/init.d which runs a shell script as below, 
+* create a file “start_fn3” in /etc/init.d which runs a shell script as below, 
 ```
 #!/bin/sh -e
-su -l <entity_under_which_server_runs> -c "sh <directory>/startup_fn2.sh"
+su -l <entity_under_which_server_runs> -c "sh <directory>/startup_fn3.sh"
 ```
 
 The shell script, located in <directory> in turn starts the required web services:
@@ -340,14 +261,14 @@ The shell script, located in <directory> in turn starts the required web service
 ```
 #!/bin/bash
 cd <directory into which project cloned>/src
-nohup python3 webservice-server.py <options> &
-nohup python3 webservice-server-rest.py <options> &
+nohup python3 findNeighbour3-server.py <options> &
+
 ```
 
 Run the following to change the file permissions of the script and init.d file 
-sudo chmod +x /etc/init.d/startup_fn2.sh
+sudo chmod +x /etc/init.d/startup_fn3.sh
 
 Update the run levels to start our script at boot, by running the following command.
-sudo update-rc.d /etc/init.d/startup_fn2.sh defaults
+sudo update-rc.d /etc/init.d/startup_fn3.sh defaults
 
 Test the changes by restarting the server.

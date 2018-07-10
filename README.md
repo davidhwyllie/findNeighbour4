@@ -1,11 +1,11 @@
 # Abstract
 findNeighbour3 is a server application for investigating bacterial relatedness using reference-mapped data.
 Accessible via RESTful webservices, findNeighbour3 maintains a sparse distance matrix in a database
-for a set sequences.
+for a set of sequences.
 
 It has the following features:
 * Allows incremental addition of new sequences to a collection via RESTful web services.  
-* Automatically masks a pre-defined set of nucleotides in the reference mapped data.  Such sites are ignored in pairwise sequence computations;
+* Automatically masks a pre-defined set of nucleotides in the reference mapped data.  Such sites are ignored in pairwise sequence computations.
 * Maintains a sparse distance matrix of bacterial sequences using reference mapped sequence data.  Very large matrices can be efficiently and transparently stored.
 * Uses a highly compressed sequence representation, relying on compression to local reference, having first applied compression to the reference sequence to which mapping occurred.  This *double delta* technique aids storage of large numbers of sequences in RAM.
 * Tracks memory usage, logging to database, during routine operation.

@@ -40,7 +40,7 @@ Search/describe all sequences in the server, each identified by a guid
 /api/v2/guids_with_quality_over/*cutoff*
 * list all guids and their examination (i.e. insertion) time  
 /api/v2/guids_and_examination_times
-* describe annotations (e.g. quality) for all sequences
+* describe annotations (e.g. quality) for all sequences  
 /api/v2/annotations
 
 Describe properties/neighbours of a single sequence, identified by a guid
@@ -60,7 +60,7 @@ uses default output format, as specified in MAXN_PROP_DEFAULT in config file
 
 Recover masked sequences
 ------------------------
-* recover masked sequences for *guid*
+* recover masked sequences for *guid*  
 /api/v2/*guid*/sequence
 
 Multiple sequence alignments
