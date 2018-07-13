@@ -545,11 +545,117 @@ class seqComparer():
                 break
         if len(Ns)>=sample_size:     
             return np.median(Ns)
-        else:
+        else: 
             return None
+  
+    def assess_mixed(self, this_guid, related_guids, output='dict', max_sample_size=30):
+        """ estimates mixture for a single sample, this_guid, by sampling from similar sequences (related_guids)
+        in order to determine positions of recent variation.
         
-    def multi_sequence_alignment(self, guids, output='dict'):
+        The strategy used is draw at most max_sample_size unique related_guids, and from them
+        analyse all (max_sample_size * (max_sample_size-1))/2 unique pairs.
+        For each pair, we determine where they differ, and then
+        estimate the proportion of mixed bases in those variant sites.
+        
+        Pairs of related_guids which do not differ are uninformative and are ignored.
+
+        The output comprises a dictionary including mixture estimates for this_guid for each of a series of pairs.
+        
+        output can be either
+        'dict', in which case the output is presented as dictionaries mapping guid to results; or
+        'df' in which case the results is a pandas data frame like the below, where the index consists of the
+        guids identifying the sequences, or               
+        'df_dict'.  This is a serialisation of the above, which correctly json serialised.  It can be turned back into a
+        pandas DataFrame as follows:
+        
+        res= sc.multi_sequence_alignment(guid_names[0:8], output='df_dict')     # make the dictionary, see unit test _47
+        df = pd.DataFrame.from_dict(res,orient='index')                         # turn it back.
+        
+        The p values reported are derived from exact, two-sided binomial tests as implemented in pythons scipy.stats.binom_test().
+        
+        TEST 1:
+        This tests the hypothesis that the number of Ns in the *alignment*
+        is GREATER than those expected from the expected_N in the population of whole sequences.
+ 
+        Does so by comparing the observed number of Ns in the alignment (alignN),
+        given the alignment length (4 in the above case) and an expectation of the proportion of bases which will be N.
+        The expected number of Ns is estimated by randomly sampling sample_size guids from those stored in the server and
+        observing the number of Ns per base.  The estimate_expected_N() function performs this.
+        
+        This approach determines the median number of Ns in valid sequences, which (if bad samples with large Ns are rare)
+        is a relatively unbiased estimate of the median number of Ns in the good quality samples.
+        
+        If there  are not enough samples in the server to obtain an estimate, p_value is not computed, being
+        reported as None.
+        
+        TEST 2: tests whether the proportion of Ns in the alignment is greater
+        than in the bases not in the alignment, for this sequence.
+        """
+        
+        sample_size = 30        # number of stored sequences to sample in order to estimate the proportion of mixed bases in this population
+
+        # is this_guid mixed?
+        comparatorSeq = {}
+        try:
+            comparatorSeq[this_guid] = self._computeComparator(self.seqProfile[this_guid])
+        except ValueError:
+            raise ValueError("{0} is invalid".format(this_guid))
+
+        # Estimate expected N as median(observed Ns),
+        # which is a valid thing to do if the proportion of mixed samples is low.
+        expected_N1 = self.estimate_expected_N(sample_size=sample_size, exclude_guids= related_guids)
+        if expected_N1 is None:
+            expected_p1 = None
+        else:
+            expected_p1 = expected_N1 / len(self.reference)
+             
+        # step 0: find all valid guids in related_guids
+        valid_related_guids = []
+        invalid_related_guids = []
+        comparatorSeq = {}
+        for guid in related_guids:
+            try:
+                comparatorSeq[guid] = self._computeComparator(self.seqProfile[guid])
+                valid_related_guids.append(guid)
+            except ValueError:
+                invalid_related_guids.append(guid)
+                
+        # randomly sample valid_related_guids
+        if len(valid_related_guids)<= max_sample_size:
+            sample_valid_related_guids = valid_related_guids
+        else:
+            np.random.shuffle(valid_related_guids)
+            sample_valid_related_guids = valid_related_guids[0:max_sample_size]
+ 
+        # are there any valid related guids?
+        if len(sample_valid_related_guids)<2:
+            return None     # can't produce any conclusions
+        
+        # compute pairs
+        npairs = 0
+        
+        for i in range(len(sample_valid_related_guids)):
+            for j in range(i):
+                #print(i,j, sample_valid_related_guids[i], sample_valid_related_guids[j])
+                df = self._msa(valid_guids=[this_guid,
+                                            sample_valid_related_guids[i],
+                                            sample_valid_related_guids[j]],
+                               invalid_guids=[], expected_p1=expected_p1, output= 'df')
+                df = df[df.index==this_guid]
+                npairs +=1
+                df['pairid'] = npairs
+                if npairs == 1:
+                    retVal = df
+                else:
+                    retVal = retVal.append(df, ignore_index=True)
+        return retVal
+    def multi_sequence_alignment(self, guids, output='dict', sample_size=30, expected_p1=None):
         """ computes a multiple sequence alignment containing only sites which vary between guids.
+        
+        sample_size is the number of samples to randomly sample to estimate the expected number of Ns in
+        the population of sequences currently in the server.  From this, the routine computes expected_p1,
+        which is expected_expected_N/ the length of sequence.
+        if expected_p1 is supplied, then such sampling does not occur.
         
         output can be either
         'dict', in which case the output is presented as dictionaries mapping guid to results; or
@@ -572,40 +678,113 @@ class seqComparer():
         res= sc.multi_sequence_alignment(guid_names[0:8], output='df_dict')     # make the dictionary, see unit test _47
         df = pd.DataFrame.from_dict(res,orient='index')                         # turn it back.
         
-        The p value is derived from a binomial test, comparing an expected proportion of Ns with the
-        observed number of Ns in the alignment (alignN), given the alignment length (4 in this case)
-        and an expected number of Ns per based, obtained by randomly sampling 30 guids from those in the
-        server and observing the number of Ns per base, using the estimate_expected_N() function.  This
-        determines the median number of Ns in valid sequences, which (if bad samples with large Ns are rare)
+        The p values reported are derived from exact, two-sided binomial tests as implemented in pythons scipy.stats.binom_test().
+        
+        TEST 1:
+        This tests the hypothesis that the number of Ns in the *alignment*
+        is GREATER than those expected from the expected_N in the population of whole sequences.
+ 
+        Does so by comparing the observed number of Ns in the alignment (alignN),
+        given the alignment length (4 in the above case) and an expectation of the proportion of bases which will be N.
+        The expected number of Ns is estimated by randomly sampling sample_size guids from those stored in the server and
+        observing the number of Ns per base.  The estimate_expected_N() function performs this.
+        
+        This approach determines the median number of Ns in valid sequences, which (if bad samples with large Ns are rare)
         is a relatively unbiased estimate of the median number of Ns in the good quality samples.
         
         If there  are not enough samples in the server to obtain an estimate, p_value is not computed, being
         reported as None.
         
-        If the number of samples in the server is too low to obtain
-        (the items in the index below are from a unittest; they are unique, but are not guids)
-        
-
-
+        TEST 2: tests whether the proportion of Ns in the alignment is greater
+        than in the bases not in the alignment, for this sequence.
         """
         
+        # -1 validate input
+        if expected_p1 is not None:
+            if expected_p1 < 0 or expected_p1 > 1:
+                raise ValueError("Expected_p1 must lie between 0 and 1")
+        if sample_size is None:
+            sample_size = 30
+
         # step 0: find all valid guids
-        nrps = {}
+
         valid_guids = []
         invalid_guids = []
-        guid2allNs = {}
+
         comparatorSeq = {}
         for guid in guids:
             try:
                 comparatorSeq[guid] = self._computeComparator(self.seqProfile[guid])
                 valid_guids.append(guid)
-                guid2allNs[guid] = len(comparatorSeq[guid]['N'])
             except ValueError:
                 invalid_guids.append(guid)
-      
-        # step 1: find non-reference positions
+        # Estimate expected N as median(observed Ns),
+        # which is a valid thing to do if the proportion of mixed samples is low.
+        
+        if expected_p1 is None:
+            expected_N1 = self.estimate_expected_N(sample_size=sample_size, exclude_guids= invalid_guids)
+            if expected_N1 is None:
+                expected_p1 = None
+            else:
+                expected_p1 = expected_N1 / len(self.reference)
+        else:
+            expected_N1 = np.floor(expected_p1 * len(self.reference))
+            
+        return self._msa(valid_guids, invalid_guids, expected_p1, output)
+    
+    def _msa(self, valid_guids, invalid_guids, expected_p1, output):
+        """ perform multisequence alignment on the guids in valid_guids, with an
+        expected proportion of Ns of expected_p1.
+        
+        output can be either
+        'dict', in which case the output is presented as dictionaries mapping guid to results; or
+        'df' in which case the results is a pandas data frame like the below, where the index consists of the
+        guids identifying the sequences, or
+
+            (index)      aligned_seq  allN  alignN   p_value
+            AAACGN-1        AAAC     1       0  0.250000
+            CCCCGN-2        CCCC     1       0  0.250000
+            TTTCGN-3        TTTC     1       0  0.250000
+            GGGGGN-4        GGGG     1       0  0.250000
+            NNNCGN-5        NNNC     4       3  0.003906
+            ACTCGN-6        ACTC     1       0  0.250000
+            TCTNGN-7        TCTN     2       1  0.062500
+            AAACGN-8        AAAC     1       0  0.250000
+            
+        'df_dict'.  This is a serialisation of the above, which correctly json serialised.  It can be turned back into a
+        pandas DataFrame as follows:
+        
+        res= sc.multi_sequence_alignment(guid_names[0:8], output='df_dict')     # make the dictionary, see unit test _47
+        df = pd.DataFrame.from_dict(res,orient='index')                         # turn it back.
+        
+        The p values reported are derived from exact, two-sided binomial tests as implemented in pythons scipy.stats.binom_test().
+        
+        TEST 1:
+        This tests the hypothesis that the number of Ns in the *alignment*
+        is GREATER than those expected from the expected_N in the population of whole sequences.
+ 
+        Does so by comparing the observed number of Ns in the alignment (alignN),
+        given the alignment length (4 in the above case) and an expectation of the proportion of bases which will be N.
+        The expected number of Ns is estimated by randomly sampling sample_size guids from those stored in the server and
+        observing the number of Ns per base.  The estimate_expected_N() function performs this.
+        
+        This approach determines the median number of Ns in valid sequences, which (if bad samples with large Ns are rare)
+        is a relatively unbiased estimate of the median number of Ns in the good quality samples.
+        
+        If there  are not enough samples in the server to obtain an estimate, p_value is not computed, being
+        reported as None.
+        
+        TEST 2: tests whether the proportion of Ns in the alignment is greater
+        than in the bases not in the alignment, for this sequence.
+        """
+        
+        nrps = {}
+        comparatorSeq={}
+        guid2allNs = {}
         for guid in valid_guids:
+            comparatorSeq[guid] = self._computeComparator(self.seqProfile[guid])    
             seq = comparatorSeq[guid]
+            guid2allNs[guid] = len(comparatorSeq[guid]['N'])         
             for base in ['A','C','T','G']:
                 for position in seq[base]:
                   if not position in nrps.keys():     # if it's non-reference, and we've got no record of this position
@@ -633,7 +812,7 @@ class seqComparer():
         # step 4: determine the sequences of all bases.
         ordered_variant_positions = sorted(list(variant_positions))
         guid2seq = {}
-        guid2wholeseq={}
+        guid2msa_seq={}
         for guid in valid_guids:
             guid2seq[guid]=[]
             seq = comparatorSeq[guid]
@@ -643,43 +822,75 @@ class seqComparer():
                     if position in seq[base]:
                         this_base = base
                 guid2seq[guid].append(this_base)
-            guid2wholeseq[guid] = ''.join(guid2seq[guid])
+            guid2msa_seq[guid] = ''.join(guid2seq[guid])
             
-        # compute expected N for each.  Estimate expected N as median(observed Ns), which is a valid thing to do if the proportion of mixed samples is low.
-        expected_N = self.estimate_expected_N(sample_size=30, exclude_guids= invalid_guids)
-        
         if len(valid_guids)>0:
-            guid2pvalue = {}
+            guid2pvalue1 = {}
+            guid2pvalue2 = {}
             guid2alignN = {}
+            guid2observed_p = {}
+            guid2expected_p1 = {}
+            guid2expected_p2 = {}
             for guid in valid_guids:
-                guid2alignN[guid]= guid2wholeseq[guid].count('N')
-                if expected_N is None:
+                
+                # compute p value 1.  This tests the hypothesis that the number of Ns in the *alignment*
+                # is GREATER than those expected from the expected_N in the population of whole sequences.
+                guid2alignN[guid]= guid2msa_seq[guid].count('N')
+                if expected_p1 is None:     # we don't have an expectation, so we can't assess the first binomial test;
                     p_value = None
-                else:
-                    seq = comparatorSeq[guid]
-                    expected_p = expected_N/len(guid2wholeseq[guid])
-                    p_value = binom_test(len(seq['N']),guid2allNs[guid], expected_p)
-                guid2pvalue[guid]=p_value
-    
+                    observed_p = None
+                else:  
+                    observed_p = guid2alignN[guid]/len(guid2msa_seq[guid])
+                    p_value = binom_test(guid2alignN[guid],len(guid2msa_seq[guid]), expected_p1, alternative='greater')
+                    
+                guid2pvalue1[guid]=p_value
+                guid2observed_p[guid]=observed_p
+                guid2expected_p1[guid]=expected_p1
+                 # compute p value 2.  This tests the hypothesis that the number of Ns in the alignment of THIS SEQUENCE
+                # is GREATER than the number of Ns not in the alignment  IN THIS SEQUENCE
+                # based on sequences not in the alignment
+
+                expected_p2 = (guid2allNs[guid]-guid2alignN[guid])/(len(self.reference)-len(guid2msa_seq[guid]))
+                p_value = binom_test(guid2alignN[guid],len(guid2msa_seq[guid]), expected_p2, alternative='greater')
+                guid2pvalue2[guid]=p_value
+                guid2expected_p2[guid]=expected_p2
+                
             # assemble dataframe
-            df1 = pd.DataFrame.from_dict(guid2wholeseq, orient='index')
+            df1 = pd.DataFrame.from_dict(guid2msa_seq, orient='index')
             df1.columns=['aligned_seq']
             df2 = pd.DataFrame.from_dict(guid2allNs, orient='index')
             df2.columns=['allN']
             df3 = pd.DataFrame.from_dict(guid2alignN, orient='index')
             df3.columns=['alignN']
-            df4 = pd.DataFrame.from_dict(guid2pvalue, orient='index')
-            df4.columns=['p_value']
+            df4 = pd.DataFrame.from_dict(guid2pvalue1, orient='index')
+            df4.columns=['p_value1']
+            df5 = pd.DataFrame.from_dict(guid2pvalue2, orient='index')
+            df5.columns=['p_value2']
+            df6 = pd.DataFrame.from_dict(guid2observed_p, orient='index')
+            df6.columns=['observed_proportion']
+            df7 = pd.DataFrame.from_dict(guid2expected_p1, orient='index')
+            df7.columns=['expected_proportion1']
+            df8 = pd.DataFrame.from_dict(guid2expected_p2, orient='index')
+            df8.columns=['expected_proportion2']
+            
             df = df1.merge(df2, left_index=True, right_index=True)
             df = df.merge(df3, left_index=True, right_index=True)
             df = df.merge(df4, left_index=True, right_index=True)
-            
+            df = df.merge(df5, left_index=True, right_index=True)
+            df = df.merge(df6, left_index=True, right_index=True)
+            df = df.merge(df7, left_index=True, right_index=True)
+            df = df.merge(df8, left_index=True, right_index=True)
+                             
             retDict = {'variant_positions':ordered_variant_positions,
                     'invalid_guids': invalid_guids,
                     'guid2sequence':guid2seq,
                     'guid2allN':guid2allNs,
-                    'guid2wholeseq':guid2wholeseq,
-                    'guid2pvalue':guid2pvalue,
+                    'guid2msa_seq':guid2msa_seq,
+                    'guid2observed_proportion':guid2observed_p,
+                    'guid2expected_p1':guid2expected_p1,
+                    'guid2expected_p2':guid2expected_p2,
+                    'guid2pvalue1':guid2pvalue1,
+                    'guid2pvalue2':guid2pvalue2,
                     'guid2alignN':guid2alignN}
         
         else:
@@ -693,7 +904,30 @@ class seqComparer():
             return(df.to_dict(orient='index'))
         else:
             raise ValueError("Don't know how to format {0}.  Valid options are {'df','dict'}".format(output))
-                        
+class test_seqComparer_50(unittest.TestCase):
+    """ tests assess_mixed """
+    def runTest(self):
+        # generate compressed sequences
+        refSeq='GGGGGG'
+    
+        sc=seqComparer( maxNs = 1e8,
+                       reference=refSeq,
+                       snpCeiling =10)
+        # need > 30 sequences
+        originals = ['AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
+                     'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
+                     'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN']
+        guid_names = []
+        n=0
+        for original in originals:
+            n+=1
+            c = sc.compress(original)
+            this_guid = "{0}-{1}".format(original,n )
+            sc.persist(c, guid=this_guid)
+            guid_names.append(this_guid)
+
+        res = sc.assess_mixed(this_guid='AAACGN-1', related_guids=['CCCCGN-2','TTTCGN-3','GGGGGN-4','NNNCGN-5','ACTCGN-6', 'TCTNGN-7'],max_sample_size=5)
+        self.assertEqual(len(res.index), 10)
 class test_seqComparer_49(unittest.TestCase):
     """ tests reporting on stored contents """
     def runTest(self):
@@ -739,6 +973,43 @@ class test_seqComparer_48(unittest.TestCase):
             sc.persist(c, guid=this_guid)
             guid_names.append(this_guid)
 
+class test_seqComparer_47c(unittest.TestCase):
+    """ tests generation of a multisequence alignment with
+        testing for the proportion of Ns.
+        Tests situation with externally supplied _p1"""
+    def runTest(self):
+        # generate compressed sequences
+        refSeq='GGGGGG'
+        sc=seqComparer( maxNs = 3,
+                       reference=refSeq,
+                       snpCeiling =10)
+        # need > 30 sequences
+        originals = ['AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
+                     'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
+                     'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN']
+
+        guid_names = []
+        n=0
+        for original in originals:
+            n+=1
+            c = sc.compress(original)
+            this_guid = "{0}-{1}".format(original,n )
+            sc.persist(c, guid=this_guid)
+            guid_names.append(this_guid)
+
+        # but with expected_N supplied;
+        df= sc.multi_sequence_alignment(guid_names[0:8], output='df', expected_p1=0.995)      
+        # there's variation at positions 0,1,2,3
+        self.assertTrue(isinstance(df, pd.DataFrame))
+        self.assertEqual(set(df.columns.values),set(['aligned_seq','allN','alignN','p_value1','p_value2', 'observed_proportion','expected_proportion1','expected_proportion2']))
+        self.assertEqual(len(df.index),7)
+        res= sc.multi_sequence_alignment(guid_names[0:8], output='df_dict', expected_p1=0.995)
+        df = pd.DataFrame.from_dict(res,orient='index')
+        self.assertEqual(set(df.index.tolist()), set(['AAACGN-1','CCCCGN-2','TTTCGN-3','GGGGGN-4','ACTCGN-6', 'TCTNGN-7','AAACGN-8']))
+        self.assertTrue(df.loc['AAACGN-1','expected_proportion1'] is not None)        # check it computed a value
+        self.assertEqual(df.loc['AAACGN-1','expected_proportion1'], 0.995)        # check is used the value passed
+
+
 class test_seqComparer_47b(unittest.TestCase):
     """ tests generation of a multisequence alignment with
         testing for the proportion of Ns.
@@ -753,6 +1024,7 @@ class test_seqComparer_47b(unittest.TestCase):
         originals = ['AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
                      'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
                      'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN']
+
         guid_names = []
         n=0
         for original in originals:
@@ -766,17 +1038,16 @@ class test_seqComparer_47b(unittest.TestCase):
 
         # there's variation at positions 0,1,2,3
         self.assertEqual(res['variant_positions'],[0,1,2,3])
-
         df= sc.multi_sequence_alignment(guid_names[0:8], output='df')
+        
         # there's variation at positions 0,1,2,3
         self.assertTrue(isinstance(df, pd.DataFrame))
-        self.assertEqual(set(df.columns.values),set(['aligned_seq','allN','alignN','p_value']))
+        self.assertEqual(set(df.columns.values),set(['aligned_seq','allN','alignN','p_value1','p_value2', 'observed_proportion','expected_proportion1','expected_proportion2']))
         self.assertEqual(len(df.index),7)
         res= sc.multi_sequence_alignment(guid_names[0:8], output='df_dict')
         df = pd.DataFrame.from_dict(res,orient='index')
-    
+        self.assertTrue(df.loc['AAACGN-1','expected_proportion1'] is not None)        # check it computed a value
         self.assertEqual(set(df.index.tolist()), set(['AAACGN-1','CCCCGN-2','TTTCGN-3','GGGGGN-4','ACTCGN-6', 'TCTNGN-7','AAACGN-8']))
-
 
 class test_seqComparer_47a(unittest.TestCase):
     """ tests generation of a multisequence alignment with
@@ -808,7 +1079,7 @@ class test_seqComparer_47a(unittest.TestCase):
         df= sc.multi_sequence_alignment(guid_names[0:8], output='df')
         # there's variation at positions 0,1,2,3
         self.assertTrue(isinstance(df, pd.DataFrame))
-        self.assertEqual(set(df.columns.values),set(['aligned_seq','allN','alignN','p_value']))
+        self.assertEqual(set(df.columns.values),set(['aligned_seq','allN','alignN','p_value1','p_value2', 'observed_proportion','expected_proportion1','expected_proportion2']))
         self.assertEqual(len(df.index),8)
         res= sc.multi_sequence_alignment(guid_names[0:8], output='df_dict')
         df = pd.DataFrame.from_dict(res,orient='index')

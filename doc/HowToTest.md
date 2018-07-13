@@ -225,21 +225,6 @@ Benchmarking
 ============
 To follow.  The machine used to do the benchmarking was as follows:
 
-Property | Result
---- | ---
-Server | Baremetal server running Ubuntu 16.04 LTS    
-RAM | 128G RAM DDR3
-Cpu | 2 x Intel Xeon 2.4GHz
-Cores used | 1 for server, 1 for database
-Database |  Postgres on localhost.
-Database disc | Same as storage disc
-Storage disc | Storage of fasta and reference compressed data on 12 TB RAID5 device (4 x 4TB discs, SATA, 7200 rpm)
-Note #1 | python3 push_samples.py {configfile.json}
-Note #2 | Checked by manual server restart
-Note #3 | Checked manually
-Note #4 | python pull_edges.py {configfile.json}
-Note #5 | python pull_data.py {configfile.json}
-
 
 Services available
 ==================
