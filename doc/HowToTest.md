@@ -7,16 +7,19 @@ Python version
 This application does not work with python 2.7.  
 It has been tested with python 3.5 and 3.7, and with Mongodb v 3.6.1 and 4.0
 
+Operating system
+----------------
+The code has been tested on Linux (Ubuntu 16.04) and Windows 7.  The below instruction include linux-specific commands.
+
 Dependencies
 ------------
-
 * Python 3.5+.   
-You may need to install pip3 with: 
-```
+You may need to install pip3 with: ```
 sudo apt-get install python3-pip
 ```
 
 Then install the following packages:
+
  requests  
  logging  
  hashlib  
@@ -27,7 +30,10 @@ Then install the following packages:
  numpy as np  
  flask  
  psutil    
- BioPython  
+ BioPython
+ 
+ Example:
+ ```sudo pip3 install requests ```
  
 Database backend
 ----------------
@@ -36,7 +42,7 @@ This server has been tested both with a local mongodb database and with a free c
 
 
 Protocol for configuring a clean Linux ubuntu 14.04 instance
-============================================================
+-----------------------
 Note that this protocol does not use a virtual environment.
 Note: this has not been tested with findneighbour3, only findNeighbour2.
 ```
@@ -53,10 +59,9 @@ git config --global http.proxy http://[ip of proxy]
 
 # clone repository
 git clone https://github.com/davidhwyllie/findNeighbour3.git
-
+```
 
 After this, please follow the below steps.
-
 
 Start the server
 -----------------
@@ -69,9 +74,11 @@ python3 findNeighbour3-server.py
 ```
 Note: This application doesn't work with python2, so be sure to use python 3.
 This will try to start the webserver with a default configuration, in debug mode.
-** Debug mode means, amongst other things, that all existing data will be wiped on server restart.  This is good for unittesting, but not in many other settings.  You need to edit the config file (see below) for your needs.**.
+*Debug mode means, amongst other things, that all existing data will be wiped on server restart.  This is good for testing, but not in most other settings.  You need to edit the config file (see below) for your needs.*
 
-If it fails to start, it's probably due to missing dependencies (which it will report).  Install them, then try again.  When it works, terminate the server, and kill any remaining process.
+If the server fails to start, it's probably due to
+* mongodb not being operational (an error message will indicate this), or
+* missing dependencies (which it will report).  Install them, then try again.  When it works, terminate the server, and kill any remaining process.
 
 The more general form for starting the server is:
 ```
@@ -80,7 +87,7 @@ nohup python3 findNeighbour3-server.py {configfile.json} &
 
 * If {configfile.json} is not provided, then it will use a default config file, config/default_config.json  
 This is suitable for testing. It expects a mongodb running on localhost on the default port.
-**It is unsuitable for production.  A warning is emitted if the server is running with this default configuration.**  
+*It is unsuitable for production, and runs in debug mode, in which all data is wiped on server restart.  A warning is emitted if the server is running with this default configuration.*  
 
 
 Unit tests
@@ -115,15 +122,10 @@ kill -9 <pid>
   
 Using the web server
 --------------------
-You need to start the web server with a sensible configuration, e.g. something like
-```
-# start the restful server
-nohup python3 findNeighbour3-server.py config/tbproduction.json &
-```
+You need to start the web server with a sensible configuration, e.g. something like ```nohup python3 findNeighbour3-server.py config/tbproduction.json & ```
 
-									
-		An example CONFIG is below:
-		
+An example CONFIG is below:
+```		
 		{			
 		"DESCRIPTION":"A test server operating in ../unittest_tmp, only suitable for testing",
 		"IP":"127.0.0.1",
@@ -144,10 +146,10 @@ nohup python3 findNeighbour3-server.py config/tbproduction.json &
 		              'SNV12_include':{'snv_threshold':12, 'mixed_sample_management':'include'}
 					  }
 		}
-    
-		CONFIG contains Configuration parameters relevant to the reference based compression system which lies
+```
+CONFIG contains Configuration parameters relevant to the reference based compression system which lies
 		at the core of the server.  More details on these are below.
-		
+```		
 		  INPUTREF:       the path to fasta format reference file.
 		  EXCLUDEFILE:    a file containing the zero-indexed positions in the supplied sequences which should be ignored in all cases.
 			           			Typically, this is because the software generating the mapped fasta file has elected not to call these regions,
@@ -183,10 +185,11 @@ nohup python3 findNeighbour3-server.py config/tbproduction.json &
 								'ignore', one cluster {A,B,M} is returned
 								'include', two clusters {A,M} and {B,M}
 								'exclude', three clusters are returns {A},{B},{C}
-		
+```		
 
-		Some of these settings are read when the server is first-run, stored in a database, and the server will not
-		change the settings on re-start even if the config file is changed.  Examples are:
+Some of these settings are read when the server is first-run, stored in a database, and the server will not
+change the settings on re-start even if the config file is changed.  Examples are:
+
 		SNPCEILING
 		MAXN_PROP_DEFAULT
 		EXCLUDEFILE
