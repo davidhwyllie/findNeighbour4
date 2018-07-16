@@ -73,7 +73,7 @@ class fn3persistence():
             """
             
             self.logger = logging.getLogger()
-            
+            self.logger.setLevel(logging.DEBUG)
             # client calling mongostore should trap for connection errors etc      
             self.client = pymongo.MongoClient(connString)
             self.dbname = dbname

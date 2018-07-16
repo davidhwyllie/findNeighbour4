@@ -63,6 +63,11 @@ Recover masked sequences
 * recover masked sequences for *guid*  
 /api/v2/*guid*/sequence
 
+Mixtures
+----------------------------
+* compare a given sequence with a set of neighbours, estimating mixtures of recent origin
+/api/v2/assess_mixed (requires POST)  
+
 Multiple sequence alignments
 ----------------------------
 * return multiple sequence alignment for an arbitrary set of sequences, either in json or html format.

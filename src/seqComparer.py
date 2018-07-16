@@ -21,6 +21,7 @@ import numpy as np
 from scipy.stats import binom_test
 import pandas as pd
 from collections import Counter
+
 # only used for unit testing
 from Bio import SeqIO
 from Bio.Seq import Seq
@@ -37,7 +38,7 @@ class seqComparer():
                     snpCompressionCeiling = 250
                 ):
 
-        """ instantiates the sequence comparer, an object whcih manages in-memory reference compressed sequences.
+        """ instantiates the sequence comparer, an object which manages in-memory reference compressed sequences.
         
         It does not manage persistence, nor does it automatically load sequences.
         
@@ -548,7 +549,7 @@ class seqComparer():
         else: 
             return None
   
-    def assess_mixed(self, this_guid, related_guids, output='dict', max_sample_size=30):
+    def assess_mixed(self, this_guid, related_guids, max_sample_size=30):
         """ estimates mixture for a single sample, this_guid, by sampling from similar sequences (related_guids)
         in order to determine positions of recent variation.
         
@@ -559,18 +560,8 @@ class seqComparer():
         
         Pairs of related_guids which do not differ are uninformative and are ignored.
 
-        The output comprises a dictionary including mixture estimates for this_guid for each of a series of pairs.
-        
-        output can be either
-        'dict', in which case the output is presented as dictionaries mapping guid to results; or
-        'df' in which case the results is a pandas data frame like the below, where the index consists of the
-        guids identifying the sequences, or               
-        'df_dict'.  This is a serialisation of the above, which correctly json serialised.  It can be turned back into a
-        pandas DataFrame as follows:
-        
-        res= sc.multi_sequence_alignment(guid_names[0:8], output='df_dict')     # make the dictionary, see unit test _47
-        df = pd.DataFrame.from_dict(res,orient='index')                         # turn it back.
-        
+        The output is a pandas dataframe containing mixture estimates for this_guid for each of a series of pairs.
+
         The p values reported are derived from exact, two-sided binomial tests as implemented in pythons scipy.stats.binom_test().
         
         TEST 1:
@@ -646,9 +637,9 @@ class seqComparer():
                 df['pairid'] = npairs
                 if npairs == 1:
                     retVal = df
-                else:
+                else: 
                     retVal = retVal.append(df, ignore_index=True)
-        return retVal
+        return(retVal)
     def multi_sequence_alignment(self, guids, output='dict', sample_size=30, expected_p1=None):
         """ computes a multiple sequence alignment containing only sites which vary between guids.
         
@@ -839,6 +830,9 @@ class seqComparer():
                 if expected_p1 is None:     # we don't have an expectation, so we can't assess the first binomial test;
                     p_value = None
                     observed_p = None
+                elif len(guid2msa_seq[guid])==0:      # we don't have any information to work with
+                    p_value = None
+                    observed_p = None                    
                 else:  
                     observed_p = guid2alignN[guid]/len(guid2msa_seq[guid])
                     p_value = binom_test(guid2alignN[guid],len(guid2msa_seq[guid]), expected_p1, alternative='greater')
@@ -904,6 +898,32 @@ class seqComparer():
             return(df.to_dict(orient='index'))
         else:
             raise ValueError("Don't know how to format {0}.  Valid options are {'df','dict'}".format(output))
+
+class test_seqComparer_51(unittest.TestCase):
+    """ tests assess_mixed when there is no difference between samples analysed """
+    def runTest(self):
+        # generate compressed sequences
+        refSeq='GGGGGG'
+    
+        sc=seqComparer( maxNs = 1e8,
+                       reference=refSeq,
+                       snpCeiling =10)
+        # need > 30 sequences
+        originals = ['AAACGN','AAACGN','AAACGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
+                     'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
+                     'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN']
+        guid_names = []
+        n=0
+        for original in originals:
+            n+=1
+            c = sc.compress(original)
+            this_guid = "{0}-{1}".format(original,n )
+            sc.persist(c, guid=this_guid)
+            guid_names.append(this_guid)
+
+        res = sc.assess_mixed(this_guid='AAACGN-1', related_guids=['AAACGN-2','AAACGN-3'],max_sample_size=5)
+        self.assertEqual(len(res.index), 1)
+
 class test_seqComparer_50(unittest.TestCase):
     """ tests assess_mixed """
     def runTest(self):
@@ -928,6 +948,7 @@ class test_seqComparer_50(unittest.TestCase):
 
         res = sc.assess_mixed(this_guid='AAACGN-1', related_guids=['CCCCGN-2','TTTCGN-3','GGGGGN-4','NNNCGN-5','ACTCGN-6', 'TCTNGN-7'],max_sample_size=5)
         self.assertEqual(len(res.index), 10)
+
 class test_seqComparer_49(unittest.TestCase):
     """ tests reporting on stored contents """
     def runTest(self):
