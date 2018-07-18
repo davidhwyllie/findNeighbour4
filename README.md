@@ -24,6 +24,10 @@ findNeighbour3 is written entirely in python3.
 It operates on Windows and Linux environments.    
 It uses mongodb as a storage layer.
 
+# Access
+The server can be accessed via RESTful web services from any language.
+A python client (fn3client), which calls the REST endpoints and converts output into python objects, is also provided.
+
 # Comparison with findNeighbour2
 findNeighbour3 is a development of [findNeighbour2](https://github.com/davidhwyllie/findNeighbour2).
 findNeighbour3's RESTful API is backwards compatible with that of findNeighbour2, but offers increased functionality.  

@@ -7,7 +7,8 @@ It loads configuration from a config file, which must be set in production.
 
 If no config file is provided, it will run in  'testing' mode with the  parameters
 in default_test_config.json.  This expects a mongodb database to be running on
-the default port on local host.
+the default port on local host.  As a rough guide to the amount of space required in mongodb,
+about 0.5MB of database is used per sequence, or about 2,000 sequences per GB.
 
 All internal modules, and the restful API, are covered by unit testing.
 Unit testing can be achieved by:
@@ -434,7 +435,7 @@ class findNeighbour3():
 			in_clustering_guids = self.clustering[clustering_name].guids()
 			to_add_guids = guids - in_clustering_guids
 			remaining_to_add_guids = to_add_guids
-			print("Clustering graph {0} contains {1} guids out of {2}; updating.".format(clustering_name, len(guids), len(in_clustering_guids)))
+			print("Clustering graph {0} contains {2} guids out of {1}; updating.".format(clustering_name, len(guids), len(in_clustering_guids)))
 			while len(remaining_to_add_guids)>0:
 				to_add_guid = remaining_to_add_guids.pop()
 				links = self.PERSIST.guid2neighbours(to_add_guid, returned_format=3)['neighbours']
@@ -612,10 +613,8 @@ def tojson(content):
 	def converter(o):
 		if isinstance(o, datetime.datetime):
 			return o.isoformat()
-		elif isinstance(o, pd.DataFrame):
-			return o.to_json()  #(orient='index', date_format='iso')
 		else:
-			return o.__str__()
+			return json.JSONEncoder.default(o)
 	return(json.dumps(content, default=converter))
 
 # --------------------------------------------------------------------------------------------------
@@ -628,7 +627,7 @@ def not_found(error):
 @app.teardown_appcontext
 def shutdown_session(exception=None):
     fn3.PERSIST.closedown()		# close database connection
-	
+
 def do_GET(relpath):
 	""" makes a GET request  to relpath.
 		Used for unit testing.   """
@@ -662,18 +661,19 @@ def do_POST(relpath, payload):
 		payload should be a dictionary"""
 	
 	url = urljoiner(RESTBASEURL, relpath)
-	session = requests.Session()
-	session.trust_env = False
 
 	# print out diagnostics
 	print("POSTING to url {0}".format(url))
-	response = session.post(url=url, data=payload, timeout=None)
+	print("PAYLOAD {0}".format(payload))
+	if not isinstance(payload, dict):
+		raise TypeError("not a dict {0}".format(payload))
+	response = requests.post(url=url, data=payload)
 
 	print("Result:")
 	print("code: {0}".format(response.status_code))
 	print("reason: {0}".format(response.reason))
-	
-	session.close()
+	print("content: {0}".format(response.content))
+		
 	return(response)
 
 @app.route('/', methods=['GET'])
@@ -943,23 +943,22 @@ class test_msa_2(unittest.TestCase):
 				cluster_id = item['cluster_id']
 		self.assertTrue(cluster_id is not None)
 			
-		relpath = "/api/v2/multiple_alignment/SNV12_ignore/{0}/json".format(cluster_id)
+		relpath = "/api/v2/multiple_alignment_cluster/SNV12_ignore/{0}/json".format(cluster_id)
 		res = do_GET(relpath)
 		self.assertTrue(isjson(res.content))
 		self.assertEqual(res.status_code, 200)
 		d = json.loads(res.content, encoding='utf-8')
 		self.assertEqual(set(inserted_guids)-set(d.keys()),set([]))
 
-		relpath = "/api/v2/multiple_alignment/SNV12_ignore/{0}".format(cluster_id)
+		relpath = "/api/v2/multiple_alignment_cluster/SNV12_ignore/{0}".format(cluster_id)
 		res = do_GET(relpath)
 		self.assertTrue(isjson(res.content))
 		self.assertEqual(res.status_code, 200)
 		d = json.loads(res.content, encoding='utf-8')
 		self.assertEqual(set(inserted_guids)-set(d.keys()),set([]))
 		
-@app.route('/api/v2/multiple_alignment/<string:clustering_algorithm>/<int:cluster_id>/<string:output_format>', methods=['GET'], defaults={'output_format':'json'})
-@app.route('/api/v2/multiple_alignment/<string:clustering_algorithm>/<int:cluster_id>', methods=['GET'], defaults={})
-def msa_guids_by_cluster(clustering_algorithm, cluster_id, output_format='json'):
+@app.route('/api/v2/multiple_alignment_cluster/<string:clustering_algorithm>/<int:cluster_id>/<string:output_format>',methods=['GET'])
+def msa_guids_by_cluster(clustering_algorithm, cluster_id, output_format):
 	""" performs a multiple sequence alignment on the contents of a cluster
 	
 	Valid values for format are:
@@ -1312,18 +1311,12 @@ def insert():
 def mirror():
 	""" receives data, returns the dictionary it was passed. Takes no other action.
 	Used for testing that gateways etc don't remove data."""
-	try:
-		data_keys = set()
-		for key in request.form.keys():
-			data_keys.add(key)
-		payload = {}
-		for key in data_keys:
-			payload[key]= request.form[key]
-	except Exception as e:
-		print("Exception raised", e)
-		abort(500, e)		
-			
-	return make_response(tojson(payload))
+
+	retVal = {}
+	for key in request.form.keys():
+		retVal[key]=request.form[key]
+		print(key, request.form[key], type(request.form[key]))
+	return make_response(tojson(retVal))
 
 @app.route('/api/v2/clustering', methods=['GET'])
 def algorithms():
@@ -1601,12 +1594,11 @@ class test_mirror(unittest.TestCase):
     def runTest(self):
         
         relpath = "/api/v2/mirror"
-        payload = {'guid':'1','seq':"ACTG"}
+        payload = {'guid':'1', 'seq':"ACTG"}
         res = do_POST(relpath, payload = payload)
         res_dict = json.loads(res.content.decode('utf-8'))
         self.assertEqual(payload, res_dict)
-        self.assertTrue(isinstance(res_dict, dict))
-        print(res.text)
+
 
 @app.route('/api/v2/<string:guid>/neighbours_within/<int:threshold>', methods=['GET'])
 @app.route('/api/v2/<string:guid>/neighbours_within/<int:threshold>/with_quality_cutoff/<float:cutoff>', methods=['GET'])
