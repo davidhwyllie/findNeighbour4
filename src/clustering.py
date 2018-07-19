@@ -35,7 +35,7 @@ class snv_clustering():
     
         # if provided, reload the graph.        
         if isinstance(saved_result, dict):
-            logging.info("Reloading saved clustering result; TI and snv are ignored.")
+            logging.info("Reloading saved clustering result")
 
             self.G =  nx.json_graph.node_link_graph(saved_result['G'])
             self.change_id = saved_result['change_id']
@@ -172,11 +172,15 @@ class snv_clustering():
         # compute the number of guids per cluster, excluding any mixed samples;
         for guid in in_cluster_guids:
             if not self.is_mixed(guid):
-                this_cluster_id_list = self.G.node[guid]['cluster_id']
+                try:
+                    this_cluster_id_list = self.G.node[guid]['cluster_id']
+                except KeyError:
+                    this_cluster_id_list = []       # nil entered
+                    
                 for this_cluster_id in this_cluster_id_list:
                     if not this_cluster_id in cl2n.keys():
                         cl2n[this_cluster_id]=0
-                cl2n[this_cluster_id]+=1
+                    cl2n[this_cluster_id]+=1
         
         # find the cluster_id with the largest number of clusters;
         largest_cluster_size = max(cl2n.values())
@@ -191,16 +195,22 @@ class snv_clustering():
 
         # update the cluster designations                    
         for guid in in_cluster_guids:
-                this_guid2cl = guid2cl[guid]
-                made_update = False
-                for i in range(len(this_guid2cl)):
-                    if this_guid2cl[i] in existing_cluster_designations:
-                        this_guid2cl[i] = new_cluster_id
-                        made_update = True
-                if made_update:
-                    this_guid2cl = set(this_guid2cl)      # ensure unique elements
-                    self._change_guid_attribute(guid, 'cluster_id', sorted(list(this_guid2cl)))        ## keep deterministic; use custom function tracking history
+                try:
+                    this_guid2cl = guid2cl[guid]        # get the current cluster
 
+                    made_update = False
+                    for i in range(len(this_guid2cl)):
+                        if this_guid2cl[i] in existing_cluster_designations:
+                            this_guid2cl[i] = new_cluster_id
+                            made_update = True
+                    if made_update:
+                        this_guid2cl = set(this_guid2cl)      # ensure unique elements
+                        self._change_guid_attribute(guid, 'cluster_id', sorted(list(this_guid2cl)))        ## keep deterministic; use custom function tracking history
+                except KeyError:
+                    # the is currently no cluster_id assigned for in_cluster_guids element guid
+                    # this is because the guid doesn't exist in the graph
+                    pass
+                    
     def _change_guid_attribute(self,guid,attribute,value):
         """ updates a guid's attribute with a new value.
         Keeps a track of what changed, and when """

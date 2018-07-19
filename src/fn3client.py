@@ -192,7 +192,7 @@ class fn3Client():
         """
 
     def __init__(self,
-                baseurl="http://127.0.0.1:5000/api/v2/",
+                baseurl="http://127.0.0.1:5000",
                 ):
 
         """ set up logging """
@@ -200,7 +200,10 @@ class fn3Client():
         
         # load config
         self.baseurl = baseurl
-        self.config = self._decode(self.getpost('server_config', method='GET'))
+        
+        # run connection check
+        res =  self._decode(self.getpost('/api/v2/server_time', method='GET'))
+        logging.info("Connection established at server time", res['server_time'])
 
     def _decode(self, response):
         """ checks that a response object has response code in the 200s.
@@ -266,40 +269,40 @@ class fn3Client():
         """ returns payload via server round trip.
         payload much be a dictionary, with key- value pairs where values are strings.
         Useful for testing server """
-        r = self.getpost(relpath='mirror', timeout=timeout, payload=payload, method='POST')   
+        r = self.getpost(relpath='/api/v2/mirror', timeout=timeout, payload=payload, method='POST')   
         rd = self._decode(r)
         return rd
     def server_config(self,  timeout =0.2):
         """ returns server config as a dictionary """
-        return self._decode(self.getpost('server_config', timeout=timeout, method='GET'))
+        return self._decode(self.getpost('/api/v2/server_config', timeout=timeout, method='GET'))
     def server_time(self,  timeout =0.2):
         """ returns server time as an isoformat string"""
-        return self._decode(self.getpost('server_time',timeout=timeout, method='GET'))
+        return self._decode(self.getpost('/api/v2/server_time',timeout=timeout, method='GET'))
     def nucleotides_excluded(self,  timeout =0.2):
         """ returns the nucleotides excluded (i.e. the mask) """
-        return self._decode(self.getpost('nucleotides_excluded', timeout=timeout, method='GET'))
+        return self._decode(self.getpost('/api/v2/nucleotides_excluded', timeout=timeout, method='GET'))
     def guids(self,  timeout =0.2):
         """ returns all guids in the server """
-        return self._decode(self.getpost('guids', method='GET'))
+        return self._decode(self.getpost('/api/v2/guids', method='GET'))
     def annotations(self,  timeout =0.2):
         """ returns all guids and their annotations as a pandas dataframe"""
-        retVal = self._decode(self.getpost('annotations', timeout=timeout, method='GET'))
+        retVal = self._decode(self.getpost('/api/v2/annotations', timeout=timeout, method='GET'))
         return pd.DataFrame.from_dict(retVal, orient='index')   
     def clustering(self,  timeout =0.2):
         """ return clustering pipelines available """
-        return self._decode(self.getpost('clustering', timeout=timeout, method='GET'))
+        return self._decode(self.getpost('/api/v2/clustering', timeout=timeout, method='GET'))
     def guids_and_examination_times(self,  timeout =1):
-        return self._decode(self.getpost('guids_and_examination_times', timeout=timeout, method='GET'))
+        return self._decode(self.getpost('/api/v2/guids_and_examination_times', timeout=timeout, method='GET'))
     def guid_exists(self,  guid, timeout =1):
         """ returns True or False depending on whether the guid exists """
         if not isinstance(guid,str):  
             raise TypeError("guid {0} passed must be a string, not a {1}".format(guid,type(guid)))
-        return self._decode(self.getpost('{0}/exists'.format(guid), timeout=timeout, method='GET'))
+        return self._decode(self.getpost('/api/v2/{0}/exists'.format(guid), timeout=timeout, method='GET'))
     def sequence(self,  guid, timeout =1):
         """ returns masked sequence of an existing guid """
         if not isinstance(guid,str):  
             raise TypeError("guid {0} passed must be a string, not a {1}".format(guid,type(guid)))
-        res = self.getpost('{0}/sequence'.format(guid), timeout=timeout, method='GET')
+        res = self.getpost('/api/v2/{0}/sequence'.format(guid), timeout=timeout, method='GET')
         if res.status_code == 404:
             return None
         else:
@@ -308,26 +311,32 @@ class fn3Client():
         """ returns the current change_id associated with clustering_algorithm """
         if not isinstance(clustering_algorithm, str):
             raise TypeError("clustering_algorithm must be str not {0}".format(type(clustering_algorithm)))      
-        return self._decode(self.getpost('clustering/{0}/change_id'.format(clustering_algorithm), timeout=timeout, method='GET')) 
+        return self._decode(self.getpost('/api/v2/clustering/{0}/change_id'.format(clustering_algorithm), timeout=timeout, method='GET')) 
     def guids2clusters(self,  clustering_algorithm, after_change_id= None, timeout =1):
         """ returns a guid2cluster lookup """
         if not isinstance(clustering_algorithm, str):
             raise TypeError("clustering_algorithm must be str not {0}".format(type(clustering_algorithm)))
         if after_change_id is None:
-            return self._decode(self.getpost('clustering/{0}/guids2clusters'.format(clustering_algorithm), timeout=timeout, method='GET')) 
+            res = self._decode(self.getpost('/api/v2/clustering/{0}/guids2clusters'.format(clustering_algorithm), timeout=timeout, method='GET')) 
+            try:
+                return pd.DataFrame.from_records(res, index='guid')
+            except KeyError:
+                return pd.DataFrame.from_records(res)
+            
         elif isinstance(after_change_id, int):
-            return self._decode(self.getpost('clustering/{0}/guids2clusters/after_change_id/{1}'.format(clustering_algorithm, after_change_id), timeout=timeout, method='GET')) 
+            res = self._decode(self.getpost('/api/v2/clustering/{0}/guids2clusters/after_change_id/{1}'.format(clustering_algorithm, after_change_id), timeout=timeout, method='GET')) 
+            return pd.DataFrame.from_records(res, index='guid')
         else:
             raise TypeError("after must be None or an integer, not {0}".format(type(after_change_id)))
     def server_memory_usage(self,  nrows = 100, timeout =1):
         if not isinstance(nrows, int):
             raise TypeError("nrows must be integer not {0}".format(type(nrows)))      
-        retVal= self._decode(self.getpost('server_memory_usage/{0}'.format(nrows), timeout=timeout, method='GET')) 
+        retVal= self._decode(self.getpost('/api/v2/server_memory_usage/{0}'.format(nrows), timeout=timeout, method='GET')) 
         return(pd.DataFrame.from_records(retVal))
     def guids_with_quality_over(self,  cutoff = 0.8, timeout =1):
         if not type(cutoff) in [int, float]:
             raise TypeError("cutoff must be float or int not {0}".format(type(cutoff)))      
-        return self._decode(self.getpost('guids_with_quality_over/{0}'.format(cutoff), timeout=timeout, method='GET')) 
+        return self._decode(self.getpost('/api/v2/guids_with_quality_over/{0}'.format(cutoff), timeout=timeout, method='GET')) 
     def guid2neighbours(self,  guid, threshold, quality_cutoff=None, timeout =1):
         """ returns a guid2cluster lookup """
         if not isinstance(guid, str):
@@ -335,15 +344,15 @@ class fn3Client():
         if not isinstance(threshold, int):
             raise TypeError("threshold must be int not {0}".format(type(threshold)))
         if quality_cutoff is None:
-            return self._decode(self.getpost('{0}/neighbours_within/{1}'.format(guid, threshold), timeout=timeout, method='GET')) 
+            return self._decode(self.getpost('/api/v2/{0}/neighbours_within/{1}'.format(guid, threshold), timeout=timeout, method='GET')) 
         elif isinstance(quality_cutoff, float):
-            return self._decode(self.getpost('{0}/neighbours_within/{1}/with_quality_cutoff/{2}'.format(guid,threshold, quality_cutoff), timeout=timeout, method='GET')) 
+            return self._decode(self.getpost('/api/v2/{0}/neighbours_within/{1}/with_quality_cutoff/{2}'.format(guid,threshold, quality_cutoff), timeout=timeout, method='GET')) 
         else:
             raise TypeError("quality_cutoff must be None or float, not {0}".format(type(quality_cutoff)))
     def multiple_alignment_cluster(self, clustering_algorithm, cluster_id, output_format='json', timeout=1):
         """ does MSA on a cluster """
 
-        res= self.getpost('multiple_alignment_cluster/{0}/{1}/{2}'.format(clustering_algorithm, cluster_id, output_format), timeout=timeout, method='GET') 
+        res= self.getpost('/api/v2/multiple_alignment_cluster/{0}/{1}/{2}'.format(clustering_algorithm, cluster_id, output_format), timeout=timeout, method='GET') 
         if output_format=='json':
             retDict = self._decode(res)
             return pd.DataFrame.from_dict(retDict, orient='index')          
@@ -367,16 +376,21 @@ class fn3Client():
         """
         neighbourstring = ';'.join(neighbours)
         payload = {'this_guid':guid,'related_guids':neighbourstring,'sample_size':sample_size}
-        retVal = self.post('assess_mixed', payload = payload, timeout= timeout)
+        retVal = self.post('/api/v2/assess_mixed', payload = payload, timeout= timeout)
         res = self._decode(retVal)
-        df= pd.DataFrame.from_dict(res, orient='index')
+        
+        if res=={}:
+            return None     # no information
+        else:
+            df= pd.DataFrame.from_dict(res, orient='index')
         return df
+    
     def msa(self, guids, output_format = 'json', timeout=None):
         """ performs msa
         """
         guidstring = ';'.join(guids)
         payload = {'guids':guidstring,'output_format':output_format}
-        res = self.post('multiple_alignment/guids', payload = payload, timeout= timeout)
+        res = self.post('/api/v2/multiple_alignment/guids', payload = payload, timeout= timeout)
         if output_format=='json':
             retDict = self._decode(res)
             return pd.DataFrame.from_dict(retDict, orient='index')          
@@ -392,7 +406,7 @@ class fn3Client():
             raise TypeError("guid {0} passed must be a string, not a {1}".format(guid,type(guid)))
         if not isinstance(seq,str):  
             raise TypeError("sequence passed must be a string, not a {0}".format(type(seq)))
-        return self.post('insert', payload = {'guid':guid,'seq':seq}, timeout=timeout)
+        return self.post('/api/v2/insert', payload = {'guid':guid,'seq':seq}, timeout=timeout)
        
     def read_fasta_file(self, fastafile):
         """ reads the content of a fasta file into memory.
@@ -430,8 +444,7 @@ class test_fn3_client_init1(unittest.TestCase):
     def runTest(self):
         """ initialise an fn3 object.  Will unittest against localhost mongodb server on 5000 """
         fn3c =fn3Client()         # expect success
-        self.assertTrue(isinstance(fn3c.config, dict))
-        
+
 class test_fn3_client_init2(unittest.TestCase):
     def runTest(self):
         """ initialise an fn3 client, against mongodb which doesn't exist """
@@ -631,10 +644,12 @@ class test_fn3_client_guids2clusters(unittest.TestCase):
         res1 = fn3c.guids2clusters(clustering['algorithms'][0])
         res2 = fn3c.guids2clusters(clustering['algorithms'][0], after_change_id = c2['change_id'])
         
+        self.assertTrue(isinstance(res1, pd.DataFrame))
+        self.assertTrue(isinstance(res2, pd.DataFrame))
         # find clusters
         cluster_ids= set()
-        for item in res1:
-            cluster_ids.add(item['cluster_id'])
+        for ix in res1.index:
+            cluster_ids.add(res1.loc[ix, 'cluster_id'])
            
         # recover neighbours
         res = fn3c.guid2neighbours(guid= uuid1, threshold = 250)

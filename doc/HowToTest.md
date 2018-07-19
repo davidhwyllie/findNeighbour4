@@ -76,8 +76,8 @@ Note: This application doesn't work with python2, so be sure to use python 3.
 This will try to start the webserver with a default configuration, in debug mode.
 *Debug mode means, amongst other things, that all existing data will be wiped on server restart.  This is good for testing, but not in most other settings.  You need to edit the config file (see below) for your needs.*
 
-If the server fails to start, it's probably due to
-* mongodb not being operational (an error message will indicate this), or
+If the server fails to start, it's probably due to one of the following:
+* mongodb not being operational (a ```pymongo.errors.ServerSelectionTimeOutError``` will indicate this; in Windows, check in *Services* that the service is running; in linux, a command like ```sudo systemctl start mongod``` will be needed), or
 * missing dependencies (which it will report).  Install them, then try again.  When it works, terminate the server, and kill any remaining process.
 
 The more general form for starting the server is:
@@ -85,30 +85,37 @@ The more general form for starting the server is:
 nohup python3 findNeighbour3-server.py {configfile.json} &  
 ```
 
-* If {configfile.json} is not provided, then it will use a default config file, config/default_config.json  
-This is suitable for testing. It expects a mongodb running on localhost on the default port.
-*It is unsuitable for production, and runs in debug mode, in which all data is wiped on server restart.  A warning is emitted if the server is running with this default configuration.*  
-
+* If {configfile.json} is omitted, then it will use a default config file, config/default_test_config.json  
+This is suitable for unit testing, and other kinds of one-off tests. It expects a mongodb running on localhost on the default port.
+It is **unsuitable for production**, because:  
+1 it runs the flask webserver in debug mode, which is insecure   
+2 all data is wiped on server restart.   
+A warning is emitted if the server is running with this default configuration.  
 
 Unit tests
 ----------
-
 At the moment, some kinds of unit testing assume a server is running.  Unit tests don't start the server.
-You will need to do.  After this, you can run unit tests:
+You will need to do.  After this, you can run unit tests.  
 
 ```
+
+# you can test the internal classes used by findNeighbour3; all should pass
+python3 -m unittest  seqComparer  
+python3 -m unittest  clustering  
+python3 -m unittest  mongoStore  
 
 # starting a test RESTFUL server
 nohup python3 findNeighbour3-server.py &
 
-# And then (e.g. in a different terminal) launching unit tests with
-python3 -m unittest findNeighbour3-server
-# all should pass
+# And then (e.g. in a different terminal) launching unit tests as below.
+#
+# Note: unittesting is changes the data in the server.
+# Do not run unittests against a production server.
+# In the below configuration, the unittests will run against a
+# separate instance of the server used for debugging, called 'fn3_unittesting'
 
-# you can also test the internal classes used by findNeighbour2; all should pass
-python3 -m unittest  seqComparer  
-python3 -m unittest  clustering  
-python3 -m unittest  mongoStore  
+python3 -m unittest findNeighbour3-server 
+# all should pass
 
 ```
 All should pass.
@@ -122,101 +129,117 @@ kill -9 <pid>
   
 Using the web server
 --------------------
-You need to start the web server with a sensible configuration, e.g. something like ```nohup python3 findNeighbour3-server.py config/tbproduction.json & ```
+You need to start the web server with a sensible configuration, e.g. something like
+```nohup python3 findNeighbour3-server.py config/tbproduction.json & ```
 
-An example CONFIG is below:
-```		
-		{			
-		"DESCRIPTION":"A test server operating in ../unittest_tmp, only suitable for testing",
-		"IP":"127.0.0.1",
-		"INPUTREF":"../reference/TB-ref.fasta",
-		"EXCLUDEFILE":"../reference/TB-exclude.txt",
-		"DEBUGMODE":0,
-		"SERVERNAME":"TBSNP",
-		"FNPERSISTENCE_CONNSTRING":"mongodb://127.0.0.1",
-		"MAXN_STORAGE":100000,
-		"SNPCOMPRESSIONCEILING":250,
-		"MAXN_PROP_DEFAULT":0.70,
-		"LOGFILE":"../unittest_tmp/logfile.log",
-		"LOGLEVEL":"INFO",
-		"SNPCEILING": 20,
-		"GC_ON_RECOMPRESS":1,
-		"RECOMPRESS_FREQUENCY":5,
-		"CLUSTERING":{'SNV12_ignore' :{'snv_threshold':12, 'mixed_sample_management':'ignore'},
-		              'SNV12_include':{'snv_threshold':12, 'mixed_sample_management':'include'}
-					  }
-		}
+The parameter is a json file containing a number of important parameters:
 ```
-CONFIG contains Configuration parameters relevant to the reference based compression system which lies
-		at the core of the server.  More details on these are below.
-```		
-		  INPUTREF:       the path to fasta format reference file.
-		  EXCLUDEFILE:    a file containing the zero-indexed positions in the supplied sequences which should be ignored in all cases.
-			           			Typically, this is because the software generating the mapped fasta file has elected not to call these regions,
-                            in any samples, e.g. because of difficulty mapping to these regions.
-                            Such regions can occupy up 5- 20% of the genome and it is important for efficient working of this software
-                            that these regions are supplied for exclusion on sequence loading.  Not doing so will slow loading, and markedly increase
-                            memory requirements, but will not alter the results produced.
-      DEBUGMODE:      False by default.  If true, will delete any samples in the backend data store on each run.
-      SERVERNAME:     the name of the server (used for display purposes only)
-			FNPERSISTENCE_CONNSTRING: a valid mongodb connection string. if shard keys are set, the 'guid' field is suitable key.
-      MAXN_STORAGE:   The maximum number of Ns in the sequence <excluding those defined in > EXCLUDEFILE which should be indexed.
-                            Other files, e.g. those with all Ns, will be tagged as 'invalid'.  Although a record of their presence in the database
-                            is kept, they are not compared with other sequences.
-			MAXN_PROP_DEFAULT: if the proportion not N in the sequence exceeds this, the sample is analysed, otherwise considered invalid.
-			LOGFILE:        the log file used
-			LOGLEVEL:		default logging level used by the server.  Valid values are DEBUG INFO WARNING ERROR CRITICAL
-			SNPCEILING: 	links between guids > this are not stored in the database
-			GC_ON_RECOMPRESS: if 'recompressing' sequences to a local reference, something the server does automatically, perform
-			                a full mark-and-sweep gc at this point.  This setting alters memory use and compute time, but not the results obtained.
-			RECOMPRESS_FREQ: if recompressable records are detected, recompress every RECOMPRESS_FREQ th detection (e.g. 5).
-							Trades off compute time with mem usage.  This setting alters memory use and compute time, but not the results obtained.
-			CLUSTERING:		a dictionary of parameters used for clustering.  In the below example, there are two different
-							clustering settings defined, one named 'SNV12_ignore' and the other 'SNV12_include.
-							{'SNV12_ignore' :{'snv_threshold':12, 'mixed_sample_management':'ignore'},
-							'SNV12_include':{'snv_threshold':12, 'mixed_sample_management':'include'}
-							}
-							Each setting is defined by two parameters:
-							snv_threshold: clusters are formed if samples are <= snv_threshold from each other
-							mixed_sample_management: this defines what happens if mixed samples are detected.
-								Suppose there are three samples, A,B and M.  M is a mixture of A and B.
-								A and B are > snv_threshold apart, but their distance to M is zero.
-								If mixed_sample_management is
-								'ignore', one cluster {A,B,M} is returned
-								'include', two clusters {A,M} and {B,M}
-								'exclude', three clusters are returns {A},{B},{C}
-```		
+INPUTREF:       the path to fasta format reference file.
+EXCLUDEFILE:    a file containing the zero-indexed positions in the supplied sequences which should be ignored in all cases.
+                Typically, this is because the software generating the mapped fasta file has elected not to call these regions,
+                in any samples, e.g. because of difficulty mapping to these regions.
+                Such regions can occupy up 5- 20% of the genome and it is important for efficient working of this software
+                that these regions are supplied for exclusion on sequence loading.  Not doing so will slow loading, and markedly increase
+                memory requirements, but will not alter the results produced.
+DEBUGMODE:      Controls operation of the server:
 
+                DEBUGMODE =                                       0       1        2
+                Run server                                        Y       N        N
+                Run server in debug mode (errors reported)        N       Y        Y
+                Create Database if don't exist                    Y       Y        Y
+                Delete all data on startup                        N       N        Y
+
+If true, will delete any samples in the backend data store on each run.
+SERVERNAME:     the name of the server.  Used as the name of mongodb database which is bound to the server.
+FNPERSISTENCE_CONNSTRING: a valid mongodb connection string. if shard keys are set, the 'guid' field is suitable key.
+MAXN_STORAGE:   The maximum number of Ns in the sequence <excluding those defined in > EXCLUDEFILE which should be indexed.
+                Other files, e.g. those with all Ns, will be tagged as 'invalid'.  Although a record of their presence in the database
+                is kept, they are not compared with other sequences.
+MAXN_PROP_DEFAULT: if the proportion not N in the sequence exceeds this, the sample is analysed, otherwise considered invalid.
+LOGFILE:        the log file used
+LOGLEVEL:		default logging level used by the server.  Valid values are DEBUG INFO WARNING ERROR CRITICAL
+SNPCEILING: 	links between guids > this are not stored in the database
+GC_ON_RECOMPRESS: if 'recompressing' sequences to a local reference, something the server does automatically, perform
+                a full mark-and-sweep gc at this point.  This setting alters memory use and compute time, but not the results obtained.
+RECOMPRESS_FREQ: if recompressable records are detected, recompress every RECOMPRESS_FREQ th detection (e.g. 5).
+                Trades off compute time with mem usage.  This setting alters memory use and compute time, but not the results obtained.
+CLUSTERING:		a dictionary of parameters used for clustering.  In the below example, there are two different
+                clustering settings defined, one named 'SNV12_ignore' and the other 'SNV12_include.
+                {'SNV12_ignore' :{'snv_threshold':12, 'mixed_sample_management':'ignore', 'mixture_criterion':'pvalue_1', 'cutoff':0.001},
+           'SNV12_include':{'snv_threshold':12, 'mixed_sample_management':'include', 'mixture_criterion':'pvalue_1', 'cutoff':0.001}
+ }
+                Each setting is defined by four parameters:
+                snv_threshold: clusters are formed if samples are <= snv_threshold from each other
+                mixed_sample_management: this defines what happens if mixed samples are detected.
+                    Suppose there are three samples, A,B and M.  M is a mixture of A and B.
+                    A and B are > snv_threshold apart, but their distance to M is zero.
+                    If mixed_sample_management is
+                    'ignore', one cluster {A,B,M} is returned
+                    'include', two clusters {A,M} and {B,M}
+                    'exclude', three clusters are returns {A},{B},{C}
+                mixture_criterion: sensible values include 'p_value1','p_value2','p_value3' but other output from  seqComparer._msa() is also possible.
+                     these p-values arise from three different tests for mixtures.  Please see seqComparer._msa() for details.
+                cutoff: samples are regarded as mixed if the mixture_criterion is less than or equal to this value.
+```
+	
+An example CONFIG is below:
+
+```
+	{
+"DESCRIPTION":"A test server operating in on localhost for unit testing using mapped TB data",
+"IP":"127.0.0.1",
+"INPUTREF":"../reference/TB-ref.fasta",
+"EXCLUDEFILE":"../reference/TB-exclude-adaptive.txt",
+"DEBUGMODE":2,
+"SERVERNAME":"fn3_unittesting",      
+"FNPERSISTENCE_CONNSTRING":"mongodb://localhost",
+"MAXN_STORAGE":130000,
+"RECOMPRESS_FREQUENCY":5,
+"GC_ON_RECOMPRESS":1,
+"SNPCOMPRESSIONCEILING":250,
+"MAXN_PROP_DEFAULT":0.85,
+"LOGFILE":"../unittest_tmp/logfile_unittesting.log",
+"LOGLEVEL":"DEBUG",	
+"SNPCEILING": 20,
+"REST_PORT":5000,
+"CLUSTERING":{"SNV12_ignore":{"snv_threshold":12,"mixed_sample_management":"ignore","mixture_criterion":"p_value1","cutoff":0.001},
+              "SNV12_include":{"snv_threshold":12,"mixed_sample_management":"include","mixture_criterion":"p_value1","cutoff":0.001}
+             }
+}
+
+```
+Altering the CONFIG file
+
+```
 Some of these settings are read when the server is first-run, stored in a database, and the server will not
 change the settings on re-start even if the config file is changed.  Examples are:
+SNPCEILING
+MAXN_PROP_DEFAULT
+EXCLUDEFILE
+INPUTREF
+CLUSTERING
+These settings cannot be changed because they alter the way that the data is stored; if you want to change
+the settings, the data will have to be re-loaded. 
 
-		SNPCEILING
-		MAXN_PROP_DEFAULT
-		EXCLUDEFILE
-		INPUTREF
-		CLUSTERING
-		These settings cannot be changed because they alter the way that the data is stored; if you want to change
-		the settings, the data will have to be re-loaded. 
-		
-		However, most other settings can be changed and will take effect on server restart.  These include:
-		server location
-		IP
-		SERVERNAME
-		REST_PORT
-		
-		internal logging	
-		LOGFILE
-		LOGLEVEL
-		
-		where the database connection binds to
-		FNPERSISTENCE_CONNSTRING
-		
-		related to internal server memory management:
-		GC_ON_RECOMPRESS
-		RECOMPRESS_FREQUENCY
-		SNPCOMPRESSIONCEILING
+However, most other settings can be changed and will take effect on server restart.  These include:
+server location
+IP
+SERVERNAME
+REST_PORT
 
-Edit the config file as appropriate.
+internal logging	
+LOGFILE
+LOGLEVEL
+
+where the database connection binds to
+FNPERSISTENCE_CONNSTRING
+
+related to internal server memory management:
+GC_ON_RECOMPRESS
+RECOMPRESS_FREQUENCY
+SNPCOMPRESSIONCEILING
+
+```
 
 Database backend
 ----------------
@@ -227,6 +250,16 @@ Provided the findNeighbour server connection has sufficient priviledges, no conf
 Benchmarking
 ============
 To follow.  The machine used to do the benchmarking was as follows:
+
+
+Multiple instances of findNeighbour3
+----------------------------------------
+You can run multiple instances of findNeighbour3 (e.g. multiple different organisms) on the same physical server.
+However, you cannot run multiple instances on the same port.
+The API is not parameterised by 'instance' or 'organism' etc.
+* One port, one server, one config file.
+* Use different 'SERVERNAME' settings for each server.  This name becomes the name of the backend mongodb database.
+* Be aware that unittesting is destructive.  The database named in the CONFIG file used for unittesting (currently fn3_unittesting) will be recreated.
 
 
 Services available

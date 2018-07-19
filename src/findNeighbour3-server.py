@@ -80,46 +80,56 @@ class findNeighbour3():
 		
 	def __init__(self,CONFIG, PERSIST):
 		""" Using values in CONFIG, starts a server with CONFIG['NAME'] on port CONFIG['PORT'].
-		
-		CONFIG contains Configuration parameters relevant to the reference based compression system which lies
-		at the core of the server.
-		
-		    INPUTREF:       the path to fasta format reference file.
-		    EXCLUDEFILE:    a file containing the zero-indexed positions in the supplied sequences which should be ignored in all cases.
-							Typically, this is because the software generating the mapped fasta file has elected not to call these regions,
+
+        CONFIG contains Configuration parameters relevant to the reference based compression system which lies
+        at the core of the server.
+            INPUTREF:       the path to fasta format reference file.
+            EXCLUDEFILE:    a file containing the zero-indexed positions in the supplied sequences which should be ignored in all cases.
+                            Typically, this is because the software generating the mapped fasta file has elected not to call these regions,
                             in any samples, e.g. because of difficulty mapping to these regions.
                             Such regions can occupy up 5- 20% of the genome and it is important for efficient working of this software
                             that these regions are supplied for exclusion on sequence loading.  Not doing so will slow loading, and markedly increase
                             memory requirements, but will not alter the results produced.
-            DEBUGMODE:      False by default.  If true, will delete any samples in the backend data store on each run.
-            SERVERNAME:     the name of the server (used for display purposes only)
-			FNPERSISTENCE_CONNSTRING: a valid mongodb connection string. if shard keys are set, the 'guid' field is suitable key.
+            DEBUGMODE:      Controls operation of the server:
+
+                            DEBUGMODE =                                       0       1        2
+                            Run server                                        Y       N        N
+                            Run server in debug mode (errors reported)        N       Y        Y
+                            Create Database if don't exist                    Y       Y        Y
+                            Delete all data on startup                        N       N        Y
+
+            If true, will delete any samples in the backend data store on each run.
+            SERVERNAME:     the name of the server. used as the name of mongodb database which is bound to the server.
+            FNPERSISTENCE_CONNSTRING: a valid mongodb connection string. if shard keys are set, the 'guid' field is suitable key.
             MAXN_STORAGE:   The maximum number of Ns in the sequence <excluding those defined in > EXCLUDEFILE which should be indexed.
                             Other files, e.g. those with all Ns, will be tagged as 'invalid'.  Although a record of their presence in the database
                             is kept, they are not compared with other sequences.
-			MAXN_PROP_DEFAULT: if the proportion not N in the sequence exceeds this, the sample is analysed, otherwise considered invalid.
-			LOGFILE:        the log file used
-			LOGLEVEL:		default logging level used by the server.  Valid values are DEBUG INFO WARNING ERROR CRITICAL
-			SNPCEILING: 	links between guids > this are not stored in the database
-			GC_ON_RECOMPRESS: if 'recompressing' sequences to a local reference, something the server does automatically, perform
-			                a full mark-and-sweep gc at this point.  This setting alters memory use and compute time, but not the results obtained.
-			RECOMPRESS_FREQ: if recompressable records are detected, recompress every RECOMPRESS_FREQ th detection (e.g. 5).
-							Trades off compute time with mem usage.  This setting alters memory use and compute time, but not the results obtained.
-			CLUSTERING:		a dictionary of parameters used for clustering.  In the below example, there are two different
-							clustering settings defined, one named 'SNV12_ignore' and the other 'SNV12_include.
-							{'SNV12_ignore' :{'snv_threshold':12, 'mixed_sample_management':'ignore'},
-							'SNV12_include':{'snv_threshold':12, 'mixed_sample_management':'include'}
-							}
-							Each setting is defined by two parameters:
-							snv_threshold: clusters are formed if samples are <= snv_threshold from each other
-							mixed_sample_management: this defines what happens if mixed samples are detected.
-								Suppose there are three samples, A,B and M.  M is a mixture of A and B.
-								A and B are > snv_threshold apart, but their distance to M is zero.
-								If mixed_sample_management is
-								'ignore', one cluster {A,B,M} is returned
-								'include', two clusters {A,M} and {B,M}
-								'exclude', three clusters are returns {A},{B},{C}
-											
+            MAXN_PROP_DEFAULT: if the proportion not N in the sequence exceeds this, the sample is analysed, otherwise considered invalid.
+            LOGFILE:        the log file used
+            LOGLEVEL:		default logging level used by the server.  Valid values are DEBUG INFO WARNING ERROR CRITICAL
+            SNPCEILING: 	links between guids > this are not stored in the database
+            GC_ON_RECOMPRESS: if 'recompressing' sequences to a local reference, something the server does automatically, perform
+                            a full mark-and-sweep gc at this point.  This setting alters memory use and compute time, but not the results obtained.
+            RECOMPRESS_FREQ: if recompressable records are detected, recompress every RECOMPRESS_FREQ th detection (e.g. 5).
+                            Trades off compute time with mem usage.  This setting alters memory use and compute time, but not the results obtained.
+            CLUSTERING:		a dictionary of parameters used for clustering.  In the below example, there are two different
+                            clustering settings defined, one named 'SNV12_ignore' and the other 'SNV12_include.
+                            {'SNV12_ignore' :{'snv_threshold':12, 'mixed_sample_management':'ignore', 'mixture_criterion':'p_value1', 'cutoff':0.001},
+		                     'SNV12_include':{'snv_threshold':12, 'mixed_sample_management':'include', 'mixture_criterion':'p_value1', 'cutoff':0.001}
+					        }
+                            Each setting is defined by four parameters:
+                            snv_threshold: clusters are formed if samples are <= snv_threshold from each other
+                            mixed_sample_management: this defines what happens if mixed samples are detected.
+                                Suppose there are three samples, A,B and M.  M is a mixture of A and B.
+                                A and B are > snv_threshold apart, but their distance to M is zero.
+                                If mixed_sample_management is
+                                'ignore', one cluster {A,B,M} is returned
+                                'include', two clusters {A,M} and {B,M}
+                                'exclude', three clusters are returns {A},{B},{C}
+                            mixture_criterion: sensible values include 'p_value1','p_value2','p_value3' but other output from  seqComparer._msa() is also possible.
+                                 these p-values arise from three different tests for mixtures.  Please see seqComparer._msa() for details.
+                            cutoff: samples are regarded as mixed if the mixture_criterion is less than or equal to this value.
+
 		An example CONFIG is below:
 		
 		{			
@@ -138,9 +148,9 @@ class findNeighbour3():
 		"SNPCEILING": 20,
 		"GC_ON_RECOMPRESS":1,
 		"RECOMPRESS_FREQUENCY":5,
-		"CLUSTERING":{'SNV12_ignore' :{'snv_threshold':12, 'mixed_sample_management':'ignore'},
-		              'SNV12_include':{'snv_threshold':12, 'mixed_sample_management':'include'}
-					  }
+		"CLUSTERING":{'SNV12_ignore' :{'snv_threshold':12, 'mixed_sample_management':'ignore', 'mixture_criterion':'pvalue_1', 'cutoff':0.001},
+		              'SNV12_include':{'snv_threshold':12, 'mixed_sample_management':'include', 'mixture_criterion':'pvalue_1', 'cutoff':0.001}
+					 }
 		}
 
 		Some of these settings are read when the server is first-run, stored in a database, and the server will not
@@ -208,7 +218,7 @@ class findNeighbour3():
 								 'GC_ON_RECOMPRESS','RECOMPRESS_FREQ'])
 				
 		# determine whether this is a first-run situation.
-		if self.PERSIST.first_run:
+		if self.PERSIST.first_run():
 			self.first_run(do_not_persist_keys)
 
 		# load global settings from those stored at the first run.  
@@ -250,7 +260,7 @@ class findNeighbour3():
 		for guid in guids:
 			nLoaded+=1
 			obj = self.PERSIST.refcompressedsequence_read(guid)
-			self.sc.persist(obj)
+			self.sc.persist(obj, guid=guid)
 			if nLoaded % 500 ==0:
 				print(nLoaded)
 				self.server_monitoring_store(message='Loaded {0} from database'.format(nLoaded))
@@ -264,7 +274,8 @@ class findNeighbour3():
 		self.clustering={}		# a dictionary of clustering objects, one per SNV cutoff/mixture management setting
 		for clustering_name in self.clustering_settings.keys():
 			self.server_monitoring_store(message='Loading clustering data into memory for {0}'.format(clustering_name))
-			self.clustering[clustering_name] = snv_clustering(saved_result = self.PERSIST.clusters_read(clustering_name))
+			json_repr = self.PERSIST.clusters_read(clustering_name)
+			self.clustering[clustering_name] = snv_clustering(saved_result =json_repr)
 		
 		# ensure that clustering object is up to date.  clustering is an in-memory graph, which is periodically
 		# persisted to disc.  It is possible that, if the server crashes/does a disorderly shutdown,
@@ -314,8 +325,10 @@ class findNeighbour3():
 				config_settings['reference']=str(r.seq)
 
 		# create clusters objects
+		app.logger.info("Creating clustering objects..")
+		
 		self.clustering = {}
-		expected_clustering_config_keys = set(['snv_threshold',  'mixed_sample_management'])
+		expected_clustering_config_keys = set(['snv_threshold',  'mixed_sample_management', 'cutoff', 'mixture_criterion'])
 		for clustering_name in self.clustering_settings.keys():
 			observed = self.clustering_settings[clustering_name] 
 			if not observed.keys() == expected_clustering_config_keys:
@@ -329,6 +342,7 @@ class findNeighbour3():
 				config_settings[item]=self.CONFIG[item]
 				
 		res = self.PERSIST.config_store('config',config_settings)
+		app.logger.info("First run actions complete.")
 		
 	def repack(self,guids=None):
 		""" generates a smaller and faster representation in the persistence store
@@ -417,13 +431,14 @@ class findNeighbour3():
 			app.logger.info("Clustering around: {0}".format(guid))
 		
 			self.update_clustering()
-			
+
 			return "Guid {0} inserted.".format(guid)		
 		else:
 			return "Guid {0} is already present".format(guid)
 	
-	def update_clustering(self):
-		""" performs clustering on any samples within the persistence store which are not already clustered """
+	def update_clustering(self, store=True):
+		""" performs clustering on any samples within the persistence store which are not already clustered
+		    If Store=True, writes the clustered object to mongo."""
 		# update clustering and re-cluster
 		for clustering_name in self.clustering_settings.keys():
 			# ensure that clustering object is up to date.  clustering is an in-memory graph, which is periodically
@@ -435,12 +450,11 @@ class findNeighbour3():
 			in_clustering_guids = self.clustering[clustering_name].guids()
 			to_add_guids = guids - in_clustering_guids
 			remaining_to_add_guids = to_add_guids
-			print("Clustering graph {0} contains {2} guids out of {1}; updating.".format(clustering_name, len(guids), len(in_clustering_guids)))
+			logging.info("Clustering graph {0} contains {2} guids out of {1}; updating.".format(clustering_name, len(guids), len(in_clustering_guids)))
 			while len(remaining_to_add_guids)>0:
 				to_add_guid = remaining_to_add_guids.pop()
 				links = self.PERSIST.guid2neighbours(to_add_guid, returned_format=3)['neighbours']
 				self.clustering[clustering_name].add_sample(to_add_guid, links)
-			#print("Links added.")
 			# check if mixed; make a list of non-mixed guids, and their clusters, to analyse.
 			nMixed = 0
 			guids_to_check = set()
@@ -454,17 +468,27 @@ class findNeighbour3():
 			cl2guids = 	self.clustering[clustering_name].clusters2guid()
 			for cluster in clusters_to_check:
 				guids_for_msa = cl2guids[cluster]
-				#print("starting msa for ", guids_for_msa)
 				msa = self.sc.multi_sequence_alignment(guids, output='df')		#  a pandas dataframe; p_value tests mixed
 				if not msa is None:		# no alignment was made
-					msa_mixed = msa.query("p_value1 < 1e-3")
-					#print("** MSA", msa)
-					#print(msa_mixed)
+					mixture_criterion = self.clustering_settings[clustering_name]['mixture_criterion']
+					mixture_cutoff = self.clustering_settings[clustering_name]['cutoff']
+					##################################################################################################
+					## NOTE: query_criterion is EVAL'd by pandas.  This potentially a route to attack the server, but
+					# to do so requires that you can edit either the CONFIG file (pre-startup) or the Mongodb in which
+					# the config is stored post first-run
+					##################################################################################################
+					query_criterion = "{0} <= {1}".format(mixture_criterion,mixture_cutoff)
+					msa_mixed = msa.query(query_criterion)
+
 					for mixed_guid in msa_mixed.index:
-						print("Mixed guid detected", mixed_guid)
+						
 						links = self.PERSIST.guid2neighbours(mixed_guid, returned_format=3)['neighbours']
 						self.clustering[clustering_name].set_mixed(mixed_guid, neighbours = links)
-			#print("Insert complete")		
+			in_clustering_guids = self.clustering[clustering_name].guids()
+			logging.info("Cluster {0} updated; now contains {1} guids. Storing ..".format(clustering_name, len(in_clustering_guids)))
+			self.PERSIST.clusters_store(clustering_name, self.clustering[clustering_name].to_dict())
+			logging.info("Cluster {0} persisted".format(clustering_name))
+			
 	def exist_sample(self,guid):
 		""" determine whether the sample exists in RAM"""
 		
@@ -483,7 +507,7 @@ class findNeighbour3():
 		backend databases and perhaps connection strings with passwords.
 		"""
 		
-		if self.debugMode==True:
+		if self.debugMode==2:
 			return self.CONFIG
 		else:
 			return None
@@ -601,11 +625,9 @@ def isjson(content):
         """ returns true if content parses as json, otherwise false. used by unit testing. """
         try:
             x = json.loads(content.decode('utf-8'))
-            print("JSON DECODE SUCCEEDED YIELDING {1}: {0}".format(x,type(x)))
             return True
  
         except json.decoder.JSONDecodeError:
-            print("JSON DECODE FAILED : {0}".format(content.decode('utf-8')))
             return False
 
 def tojson(content):
@@ -664,7 +686,6 @@ def do_POST(relpath, payload):
 
 	# print out diagnostics
 	print("POSTING to url {0}".format(url))
-	print("PAYLOAD {0}".format(payload))
 	if not isinstance(payload, dict):
 		raise TypeError("not a dict {0}".format(payload))
 	response = requests.post(url=url, data=payload)
@@ -693,11 +714,11 @@ def assess_mixed():
 	 'related_guids':'guid1;guid2;guid3',
 	 'sample_size':30}
 	
-	 The strategy used is draw at most max_sample_size unique related_guids, and from them
-        analyse all (max_sample_size * (max_sample_size-1))/2 unique pairs.
-        For each pair, we determine where they differ, and then
-        estimate the proportion of mixed bases in those variant sites.
-        
+	The strategy used is draw at most max_sample_size unique related_guids, and from them
+		analyse all (max_sample_size * (max_sample_size-1))/2 unique pairs.
+		For each pair, we determine where they differ, and then
+		estimate the proportion of mixed bases in those variant sites.
+
         Pairs of related_guids which do not differ are uninformative and are ignored.
 
         The output is a pandas dataframe containing mixture estimates for this_guid for each of a series of pairs.
@@ -727,12 +748,15 @@ def assess_mixed():
 	# validate input
 	request_payload = request.form.to_dict()
 	if 'this_guid' in request_payload.keys() and 'related_guids' in request_payload.keys():
-	
+		if len(request_payload['related_guids'])==0:
+			# no related guids
+			return make_response(json.dumps({}))
+		
 		related_guids = request_payload['related_guids'].split(';')		# coerce both guid and seq to strings
 		this_guid= request_payload['this_guid']
 	else:
 		abort(501, 'this_guid and related_guids are not present in the POSTed data {0}'.format(request_payload.keys()))
-	
+
 	# check guids
 	missing_guids = []
 	for guid in related_guids:
@@ -740,18 +764,24 @@ def assess_mixed():
 			result = fn3.exist_sample(guid)
 		except Exception as e:
 			abort(500, e)
-		if not result is True:
+		if result is False:
 			missing_guids.append(guid)
 	
 	if len(missing_guids)>0:
 		abort(501, "asked to perform mixture assessment relative to the following missing guids: {0}".format(missing_guids))
-		
+	
 	# data validation complete.  construct outputs
-	res = fn3.sc.assess_mixed(this_guid= this_guid, related_guids = related_guids, max_sample_size = 10)
+	res = fn3.sc.assess_mixed(
+		this_guid= this_guid,
+		related_guids = related_guids,
+		max_sample_size = 10)
+	
 	if res is None:
 		retVal = {}
+		
 	else:
 		retVal = pd.DataFrame.to_dict(res,orient='index')
+
 	return make_response(json.dumps(retVal))
 	
 class test_assess_mixed_1(unittest.TestCase):
@@ -800,7 +830,6 @@ class test_assess_mixed_1(unittest.TestCase):
 		self.assertEqual(res.status_code, 200)
 		d = json.loads(res.content, encoding='utf-8')
 		df = pd.DataFrame.from_dict(d,orient='index')
-		print(df)
 		self.assertEqual(df.index.tolist(), [inserted_guids[0]])
 
 		relpath = "/api/v2/assess_mixed"
@@ -810,7 +839,7 @@ class test_assess_mixed_1(unittest.TestCase):
 		self.assertEqual(res.status_code, 200)
 		d = json.loads(res.content, encoding='utf-8')
 		df = pd.DataFrame.from_dict(d,orient='index')
-		print(df)
+		
 
 
 def construct_msa(guids, output_format):
@@ -950,13 +979,11 @@ class test_msa_2(unittest.TestCase):
 		d = json.loads(res.content, encoding='utf-8')
 		self.assertEqual(set(inserted_guids)-set(d.keys()),set([]))
 
-		relpath = "/api/v2/multiple_alignment_cluster/SNV12_ignore/{0}".format(cluster_id)
+		relpath = "/api/v2/multiple_alignment_cluster/SNV12_ignore/{0}/fasta".format(cluster_id)
 		res = do_GET(relpath)
-		self.assertTrue(isjson(res.content))
+		self.assertFalse(isjson(res.content))
 		self.assertEqual(res.status_code, 200)
-		d = json.loads(res.content, encoding='utf-8')
-		self.assertEqual(set(inserted_guids)-set(d.keys()),set([]))
-		
+
 @app.route('/api/v2/multiple_alignment_cluster/<string:clustering_algorithm>/<int:cluster_id>/<string:output_format>',methods=['GET'])
 def msa_guids_by_cluster(clustering_algorithm, cluster_id, output_format):
 	""" performs a multiple sequence alignment on the contents of a cluster
@@ -1073,7 +1100,7 @@ def server_config():
     """
     res = fn3.server_config()
     if res is None:		# not allowed to see it
-        return make_response(tojson("Endpoint is only available in debug mode"), 404)
+        return make_response(tojson({'NotAvailable':"Endpoint is only available in debug mode"}), 404)
     else:
         return make_response(tojson(CONFIG))
 
@@ -1085,6 +1112,8 @@ class test_server_config(unittest.TestCase):
         self.assertTrue(isjson(content = res.content))
 
         config_dict = json.loads(res.content.decode('utf-8'))
+        print(config_dict)
+		
         self.assertTrue('GC_ON_RECOMPRESS' in config_dict.keys())
         self.assertEqual(res.status_code, 200)
 
@@ -1315,7 +1344,6 @@ def mirror():
 	retVal = {}
 	for key in request.form.keys():
 		retVal[key]=request.form[key]
-		print(key, request.form[key], type(request.form[key]))
 	return make_response(tojson(retVal))
 
 @app.route('/api/v2/clustering', methods=['GET'])
@@ -1907,7 +1935,6 @@ class test_nucleotides_excluded(unittest.TestCase):
     def runTest(self):
         relpath = "api/v2/nucleotides_excluded"
         res = do_GET(relpath)
-        print(res.text[0:1000])
         resDict = json.loads(res.text)
         self.assertTrue(isinstance(resDict, dict))
         self.assertEqual(set(resDict.keys()), set(['exclusion_id', 'excluded_nt']))
@@ -1973,14 +2000,12 @@ if __name__ == '__main__':
 
         #########################  CONFIGURE HELPER APPLICATIONS ######################
         ## configure mongodb persistence store
-        PERSIST=fn3persistence(connString=CONFIG['FNPERSISTENCE_CONNSTRING'], debug=CONFIG['DEBUGMODE'])
+        PERSIST=fn3persistence(dbname = CONFIG['SERVERNAME'],connString=CONFIG['FNPERSISTENCE_CONNSTRING'], debug=CONFIG['DEBUGMODE'])
         fn3 = findNeighbour3(CONFIG, PERSIST)
         
 
         ########################  START THE SERVER ###################################
-        if CONFIG['DEBUGMODE']==1:
-                app.logger.info("No config file name supplied ; using a configuration ('default_test_config.json') suitable only for testing, not for production. ")
-        if CONFIG['DEBUGMODE']==1:
+        if CONFIG['DEBUGMODE']>0:
                 flask_debug = True
                 app.config['PROPAGATE_EXCEPTIONS'] = True
         else:

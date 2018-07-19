@@ -45,6 +45,7 @@ There are the following other differences:
 # More information
 [How to test it](doc/HowToTest.md)  
 [Endpoints](doc/rest-routes.md)
+[Demonstrations using real and simulated data](doc/demos.md)
 
 # Publication
 A publication describing findNeighbour3 is planned.

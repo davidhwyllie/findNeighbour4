@@ -1,7 +1,5 @@
 #!/usr/bin/env python
-""" FNhelper, a class which provides a storage layer for meta-data (but not SNP distances) about sequences
-  linked to this are SQL alchemy table definition classes FN*.
- """
+""" fnPersistence, a class which provides a storage layer for meta-data and snv distances in mongodb """
           
 import os
 import datetime
@@ -22,11 +20,6 @@ import io
 import unittest
 from NucleicAcid import NucleicAcid 
 
-
-## TODO: add classes which persist
-# compressed sequences
-# snv
-
 class fn3persistence():
         """ System for persisting results from  large numbers of sequences stored in FindNeighbour.
         Uses Mongodb.
@@ -41,13 +34,13 @@ class fn3persistence():
         -'guid2meta', contains guid -> metadata
         
         -'guid2neighbour', contains links between guids, including snv
-        Here, individuals documents are identified by mongo assigned unique ids.
-        Each document contains three keys:
-        {'guid':'a1234', 'rstat':'s', 'neighbours':{}}
+            Here, individuals documents are identified by mongo assigned unique ids.
+            Each document contains three keys:
+            {'guid':'a1234', 'rstat':'s', 'neighbours':{}}
         
-        Up to max_neighbours_per_document neighbours can be stored per document.
+            Up to max_neighbours_per_document neighbours can be stored per document.
         
-        This parameter should be less than 5,000, because there is a max. document size in mongodb.
+        *max_neighbours_per_document* should be less than 5,000, because there is a max. document size in mongodb.
         In debug mode, it is automatically set to 3.
         if max_neighbours_per_document exist in the document, 'rstat' is set to 'f' (full).
         If there is a single item only, rstat is set to 's' (single); if there are multiple items, it is set to 'm'.
@@ -57,23 +50,26 @@ class fn3persistence():
                          
         This class provides methods to access these four entities.
         
-        NOTE:  regarding sharding, the most important collection is guid2neighbour.  A hashed sharding based on guid should work well.
+        NOTE:  regarding sharding, the most important collection is guid2neighbour.
+        A hashed sharding based on guid should work well when ensuring database scalability.
         
         """
         
         # code handling startup and shutdown.
-        def __init__(self, connString, dbname = 'fn3', debug = 0, config_settings={}, max_neighbours_per_document=5000):
+        def __init__(self, connString, dbname = 'fn3_unittesting', debug=0, config_settings={}, max_neighbours_per_document=5000):
             """ Creates a connection to a MongoDb database.
             
             connString : the mongoDb connection string
             dbname: the name of the mongoDb database to use.
-            if debug = 0, the database is opened or created.
-            if debug = 1, any existing collections are deleted.
+            if debug = 0 or 1, the database is opened or created.
+            if debug = 2, any existing collections are deleted.
             config_settings: only used on db creation; optional dictionary to note items in the database's config collection.
             """
             
             self.logger = logging.getLogger()
-            self.logger.setLevel(logging.DEBUG)
+            self.logger.setLevel(logging.INFO)
+            logging.info("Created connection to mongodb db named {0}".format(dbname))
+            
             # client calling mongostore should trap for connection errors etc      
             self.client = pymongo.MongoClient(connString)
             self.dbname = dbname
@@ -90,26 +86,28 @@ class fn3persistence():
             self.max_neighbours_per_document = max_neighbours_per_document
 
             # delete any pre-existing data if we are in debug mode.
-            if debug == 1:
+            if debug == 2:
                 self.logger.warning("Debug mode operational; deleting all data from collections.")
                 for collection in self.expected_collections:
                     self.db[collection].delete_many({})
 
-                self.max_neighbours_per_document =2
-     
+                self.max_neighbours_per_document =2             # used for unittests
+            else:
+                self.logger.info("Using stored data in mongostore")
+                
             # create indices on guid2neighbours
             # should really test whether these are already there
             ix1 = pymongo.IndexModel([("guid",pymongo.ASCENDING)], name='by_guid')
             ix2 = pymongo.IndexModel([("guid",pymongo.ASCENDING),("rstat", pymongo.ASCENDING)], name='by_guid_full')
             self.db['guid2neighbour'].create_indexes([ix1,ix2])            
             
-            # create gridfs systems
+            # open gridfs systems
             self.fs = gridfs.GridFS(self.db, collection='refcompressedseq', disable_md5=False)       
             self.clusters = gridfs.GridFS(self.db, collection='clusters', disable_md5=False)       
     
         def first_run(self):
             """ if there is no config entry, it is a first-run situation """
-            if self.db.config.find_one({'_id':'server_config'}) is None:
+            if self.db.config.find_one({'_id':'config'}) is None:
                 return True
             else:
                 return False
@@ -218,12 +216,9 @@ class fn3persistence():
                  """
                 if not isinstance(obj, dict):
                         raise TypeError("Can only store dictionary objects, not {0}".format(type(dict)))
-                try:
-                        self.clusters.delete(clustering_setting)
-                except gridfs.errors.NoFile:
-                        pass            # didn't exist in the first place
-                        
-                with io.BytesIO(json.dumps(obj).encode('utf-8')) as f:
+                self.clusters.delete(clustering_setting)
+                json_repr = json.dumps(obj).encode('utf-8')
+                with io.BytesIO(json_repr) as f:
                         id = self.clusters.put(f, _id=clustering_setting, filename=clustering_setting)
                         return id
 
@@ -233,8 +228,8 @@ class fn3persistence():
                 res = self.clusters.find_one({'_id':clustering_setting})
                 if res is None:
                     return None
-                return json.loads(res.read(), encoding='utf-8')
-        
+                json_repr = json.loads(res.read(), encoding='utf-8')
+                return json_repr
         # methods for refcompressedseq, which holds the reference compressed details of the sequences
         # in a gridFS store.
         def refcompressedseq_store(self, guid, obj):
@@ -587,7 +582,7 @@ UNITTEST_MONGOCONN = "mongodb://localhost"
 class Test_Server_Monitoring_1(unittest.TestCase):
         """ adds server monitoring info"""
         def runTest(self):
-                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 1)
+                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
                 p.server_monitoring_store(message='one')
                 
                 res = p.recent_server_monitoring(100)
@@ -598,7 +593,7 @@ class Test_Server_Monitoring_1(unittest.TestCase):
 class Test_Server_Monitoring_2(unittest.TestCase):
         """ adds server monitoring info"""
         def runTest(self):
-                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 1)
+                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
                 p.server_monitoring_store(message='one')
                 p.server_monitoring_store(message='two')
                 p.server_monitoring_store(message='three')
@@ -629,7 +624,7 @@ class Test_Server_Monitoring_2(unittest.TestCase):
 class Test_SeqMeta_guid2neighbour_8(unittest.TestCase):
         """ tests guid2neighboursOf"""
         def runTest(self):
-                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 1)
+                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
                 p.guid2neighbour_add_links("srcguid",{'guid1':{'dist':12}, 'guid2':{'dist':0}, 'guid3':{'dist':3}, 'guid4':{'dist':4}, 'guid5':{'dist':5}})
                 
                 res1 = p.guid2neighbours('srcguid',returned_format=1)
@@ -643,7 +638,7 @@ class Test_SeqMeta_guid2neighbour_8(unittest.TestCase):
 class Test_SeqMeta_guid2neighbour_7(unittest.TestCase):
         """ tests guid2neighboursOf"""
         def runTest(self):
-                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 1)
+                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
                 p.guid2neighbour_add_links("srcguid",{'guid1':{'dist':12}, 'guid2':{'dist':0}, 'guid3':{'dist':3}, 'guid4':{'dist':4}, 'guid5':{'dist':5}})
                 
                 res1 = p.guid2neighbours('srcguid')
@@ -655,7 +650,7 @@ class Test_SeqMeta_guid2neighbour_7(unittest.TestCase):
 class Test_SeqMeta_guid2neighbour_6(unittest.TestCase):
         """ tests repack where repack spans multiple containers"""
         def runTest(self):
-                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 1)
+                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
                 res = p.guid2neighbour_add_links("srcguid",{'guid1':{'dist':12}, 'guid2':{'dist':0}, 'guid3':{'dist':3}, 'guid4':{'dist':4}, 'guid5':{'dist':5}})
                 
                 # check the insert worked
@@ -712,7 +707,7 @@ class Test_SeqMeta_guid2neighbour_6(unittest.TestCase):
 class Test_SeqMeta_guid2neighbour_5(unittest.TestCase):
         """ tests repack """
         def runTest(self):
-                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 1)
+                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
                 res = p.guid2neighbour_add_links("srcguid",{'guid1':{'dist':12}, 'guid2':{'dist':0}})
                 
                 # check the insert worked
@@ -736,7 +731,7 @@ class Test_SeqMeta_guid2neighbour_5(unittest.TestCase):
 class Test_SeqMeta_guid2neighbour_4(unittest.TestCase):
         """ tests creation of a new guid2neighbour entry """
         def runTest(self):
-                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 1)
+                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
                 res = p.guid2neighbour_add_links("srcguid",{'guid1':{'dist':12}, 'guid2':{'dist':0}})
                 res = p.db.guid2neighbour.count_documents({'guid':'guid1'})
                 self.assertEqual(res, 1)
@@ -746,7 +741,7 @@ class Test_SeqMeta_guid2neighbour_4(unittest.TestCase):
 class Test_SeqMeta_guid2neighbour_3(unittest.TestCase):
         """ tests creation of a new guid2neighbour entry """
         def runTest(self):
-                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 1)
+                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
                 res = p.guid2neighbour_add_links("srcguid",{'guid1':{'dist':12}})
                 res = p.db.guid2neighbour.count_documents({'guid':'guid1'})
                 self.assertEqual(res, 1)
@@ -756,7 +751,7 @@ class Test_SeqMeta_guid2neighbour_3(unittest.TestCase):
 class Test_SeqMeta_guid2neighbour_2(unittest.TestCase):
         """ tests creation of a new guid2neighbour entry """
         def runTest(self):
-                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 1)
+                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
                 res = p.guid2neighbour_add_links("srcguid",{})
                 res = p.db.guid2neighbour.count_documents({'guid':'guid1'})
                 self.assertEqual(res, 0)
@@ -769,7 +764,7 @@ class Test_SeqMeta_version(unittest.TestCase):
 class Test_SeqMeta_file_store1(unittest.TestCase):
         """ tests storage of pickle files in database """
         def runTest(self):
-                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 1)
+                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
                 obj1 = {1,2,3}
                 guid ="guid1"
                 p.fs.delete({'filename':guid})              # delete if present
@@ -780,7 +775,7 @@ class Test_SeqMeta_file_store1(unittest.TestCase):
 class Test_SeqMeta_file_store2(unittest.TestCase):
         """ tests storage of pickle files in database """
         def runTest(self):
-                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 1)
+                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
                 obj1 = {1,2,3}
                 guid ="guid1"
                 p.fs.delete({'filename':guid})              # delete if present
@@ -791,7 +786,7 @@ class Test_SeqMeta_file_store2(unittest.TestCase):
 class Test_SeqMeta_file_store3(unittest.TestCase):
         """ tests storage of pickle files in database """
         def runTest(self):
-                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 1)
+                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
                 obj1 = {1,2,3}
                 guid ="guid1"
                 p.fs.delete({'filename':"guid1"})              # delete if present
@@ -807,7 +802,7 @@ class Test_SeqMeta_file_store3(unittest.TestCase):
 class Test_SeqMeta_guid_annotate_1(unittest.TestCase):
     """ tests insert of new data item""" 
     def runTest(self): 
-        p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 1)
+        p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
         
         # test there is no 'test' item; insert, and confirm insert
         guid = 1
@@ -820,7 +815,7 @@ class Test_SeqMeta_guid_annotate_1(unittest.TestCase):
 class Test_SeqMeta_guid_exists_1(unittest.TestCase):
     """ tests insert of new data item and existence check""" 
     def runTest(self): 
-        p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 1)
+        p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
         
         # test there is no 'test' item; insert, and confirm insert
         guid = 1
@@ -835,7 +830,7 @@ class Test_SeqMeta_guid_exists_1(unittest.TestCase):
 class Test_SeqMeta_guid_annotate_2(unittest.TestCase):
     """ tests update of existing data item with same namespace""" 
     def runTest(self): 
-        p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 1)
+        p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
         
         # test there is no 'test' item; insert, and confirm insert
         guid = 1
@@ -852,7 +847,7 @@ class Test_SeqMeta_guid_annotate_2(unittest.TestCase):
 class Test_SeqMeta_guid_annotate_3(unittest.TestCase):
     """ tests update of existing data item with different namespace""" 
     def runTest(self): 
-        p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 1)
+        p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
         
         # test there is no 'test' item; insert, and confirm insert
         guid = 1
@@ -872,14 +867,15 @@ class Test_SeqMeta_guid_annotate_3(unittest.TestCase):
 class Test_SeqMeta_init(unittest.TestCase):
     """ tests version of library.  only tested with > v3.0""" 
     def runTest(self): 
-        p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 1)
+        p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
         self.assertTrue(p.first_run() == True)
-      
+        p.config_store('config',{'item':1})
+        self.assertTrue(p.first_run() == False)      
         
 class Test_SeqMeta_guids(unittest.TestCase):
     """ tests recovery of sequence guids""" 
     def runTest(self): 
-        p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 1)
+        p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
         
         startup = {'_id':1}
         res = p.db.guid2meta.insert_one(startup)
@@ -892,7 +888,7 @@ class Test_SeqMeta_guids(unittest.TestCase):
 class Test_SeqMeta_Base(unittest.TestCase):
     """ sets up a connection for unit testing""" 
     def setUp(self): 
-        self.t = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 1)
+        self.t = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
         self.assertTrue(self.t.first_run() == True)
            
 class Test_SeqMeta_guid_quality_check_1(Test_SeqMeta_Base):
@@ -978,7 +974,7 @@ class Test_SeqMeta_guid2quality2(Test_SeqMeta_Base):
 class Test_SeqMeta_Base1(unittest.TestCase):
         """ initialise FN persistence and adds data """     
         def setUp(self):
-                self.t = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 1)
+                self.t = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
      
                 dna=NucleicAcid()
 
@@ -1014,7 +1010,7 @@ class Test_SeqMeta_allAnnotations(Test_SeqMeta_Base1):
 class Test_Clusters(unittest.TestCase):
         """ tests saving and recovery of dictionaries to Clusters"""
         def runTest(self):
-                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 1)              
+                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)              
                 payload1 = {'one':1, 'two':2}
                 p.clusters_store('cl1', payload1)
                 payload2 = p.clusters_read('cl1')   
