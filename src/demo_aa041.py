@@ -32,7 +32,7 @@ clusters=fn3c.clustering()
 # add control fasta files.  The system evaluates the %N in terms of the population existing
 # we load 40 randomly selected guids as controls
 
-for i,fastafile in enumerate(glob.glob(os.path.join(fastadir, 'controls','*.fasta'))):
+for i,fastafile in enumerate(glob.glob(os.path.join(fastadir, 'control','*.fasta'))):
     guid = "ctrl_"+os.path.basename(fastafile).replace('.fasta','')
     seq = fn3c.read_fasta_file(fastafile)['seq']
     print("Controls",datetime.datetime.now(), i, guid)

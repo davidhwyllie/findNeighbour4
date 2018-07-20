@@ -473,9 +473,9 @@ class findNeighbour3():
 			cl2guids = 	self.clustering[clustering_name].clusters2guid()	# dictionary allowing cluster -> guid lookup
 			for cluster in clusters_to_check:
 				guids_for_msa = cl2guids[cluster]							# do msa on the cluster
-				logging.info("** Checking cluster {0}; performing MSA on {1} samples".format(cluster,len(guids_for_msa)))
+				logging.debug("** Checking cluster {0}; performing MSA on {1} samples".format(cluster,len(guids_for_msa)))
 				msa = self.sc.multi_sequence_alignment(guids_for_msa, output='df')		#  a pandas dataframe; p_value tests mixed
-				logging.info("** Multi sequence alignment is complete")
+				logging.debug("** Multi sequence alignment is complete")
 
 				if not msa is None:		# no alignment was made
 					mixture_criterion = self.clustering_settings[clustering_name]['mixture_criterion']
@@ -489,8 +489,10 @@ class findNeighbour3():
 					
 					msa_mixed = msa.query(query_criterion)
 					for mixed_guid in msa_mixed.index:
-						links = self.PERSIST.guid2neighbours(mixed_guid, returned_format=3)['neighbours']
-						self.clustering[clustering_name].set_mixed(mixed_guid, neighbours = links)
+						if not self.clustering[clustering_name].is_mixed(mixed_guid):   # if it's not known to be mixed
+							# set it as mixed
+							links = self.PERSIST.guid2neighbours(mixed_guid, returned_format=3)['neighbours']
+							self.clustering[clustering_name].set_mixed(mixed_guid, neighbours = links)
 						
 			in_clustering_guids = self.clustering[clustering_name].guids()
 			logging.info("Cluster {0} updated; now contains {1} guids. ".format(clustering_name, len(in_clustering_guids)))
@@ -1180,7 +1182,7 @@ class test_server_time(unittest.TestCase):
 
 	
 @app.route('/api/v2/guids', methods=['GET'])
-def get_all_guids(**kwargs):
+def get_all_guids(**debug):
 	""" returns all guids.  reference, if included, is ignored."""
 	try:
 		result = list(fn3.get_all_guids())
