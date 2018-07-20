@@ -28,6 +28,15 @@ It uses mongodb as a storage layer.
 The server can be accessed via RESTful web services from any language.
 A python client (fn3client), which calls the REST endpoints and converts output into python objects, is also provided.
 
+# Memory and disc usage
+This depends on the kind of sequences stored.
+For *M. tuberculosis*,
+* Memory usage is about 2G per 1,000 samples,   or 2M per sample. [calculated on Windows]  It scales linearly with sample numbers.
+* 50,000 samples will use about 100G of RAM
+* a machine with 2TB of RAM should be able to cope with 1M samples.
+* database is actually lower, at about 200M per 1,000 samples, or 200k per sample.
+* a free MongoDb test instance with MongoDb Atlas with 512M of storage will manage about 2,000 samples.
+
 # Comparison with findNeighbour2
 findNeighbour3 is a development of [findNeighbour2](https://github.com/davidhwyllie/findNeighbour2).
 findNeighbour3's RESTful API is backwards compatible with that of findNeighbour2, but offers increased functionality.  
