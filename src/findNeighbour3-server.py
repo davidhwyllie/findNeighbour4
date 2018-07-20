@@ -38,6 +38,7 @@ import gc
 import pymongo
 import pandas as pd
 import numpy as np
+import copy
 
 # flask
 from flask import Flask, make_response, jsonify, Markup
@@ -452,30 +453,29 @@ class findNeighbour3():
 			guids = self.PERSIST.refcompressedsequence_guids()			# all guids processed and refernece compressed
 			in_clustering_guids = self.clustering[clustering_name].guids()  # all clustered guids
 			to_add_guids = guids - in_clustering_guids					# what we need to add
-			remaining_to_add_guids = to_add_guids						# we iterate until there's nothing left to add
-			
+			remaining_to_add_guids = copy.copy(to_add_guids)				# we iterate until there's nothing left to add
 			logging.info("Clustering graph {0} contains {2} guids out of {1}; updating.".format(clustering_name, len(guids), len(in_clustering_guids)))
 			while len(remaining_to_add_guids)>0:
 				to_add_guid = remaining_to_add_guids.pop()				# get the guid
-				links = self.PERSIST.guid2neighbours(to_add_guid, returned_format=3)['neighbours']	# and its links
+				links = self.PERSIST.guid2neighbours(to_add_guid, returned_format=3)['neighbours']	# and its links	
 				self.clustering[clustering_name].add_sample(to_add_guid, links)		# add it to the clustering db
 				
-			# check any clusters to which to_add_guids have been added.
+			# check any clusters to which to_add_guids have been added for mixtures.
 			nMixed = 0
 			guids_to_check = set()
 			clusters_to_check = set()
+			
 			for guid in to_add_guids:
-				if not self.clustering[clustering_name].is_mixed(guid):		# if it's not known to be mixed
-					guids_to_check.add(guid)								# then we need to check it and
-					for cluster in self.clustering[clustering_name].guid2clusters(guid):
-						clusters_to_check.add(cluster)						# everything else in the same cluster as it
+				guids_to_check.add(guid)								# then we need to check it and
+				for cluster in self.clustering[clustering_name].guid2clusters(guid):
+					clusters_to_check.add(cluster)						# everything else in the same cluster as it
 			
 			cl2guids = 	self.clustering[clustering_name].clusters2guid()	# dictionary allowing cluster -> guid lookup
 			for cluster in clusters_to_check:
 				guids_for_msa = cl2guids[cluster]							# do msa on the cluster
-				logging.info("Checking cluster {0}; performing MSA on {1} samples".format(cluster,len(guids_for_msa)))
-				msa = self.sc.multi_sequence_alignment(guids, output='df')		#  a pandas dataframe; p_value tests mixed
-				logging.info("MSA complete")
+				logging.info("** Checking cluster {0}; performing MSA on {1} samples".format(cluster,len(guids_for_msa)))
+				msa = self.sc.multi_sequence_alignment(guids_for_msa, output='df')		#  a pandas dataframe; p_value tests mixed
+				logging.info("** Multi sequence alignment is complete")
 
 				if not msa is None:		# no alignment was made
 					mixture_criterion = self.clustering_settings[clustering_name]['mixture_criterion']
@@ -486,17 +486,18 @@ class findNeighbour3():
 					# the config is stored post first-run
 					##################################################################################################
 					query_criterion = "{0} <= {1}".format(mixture_criterion,mixture_cutoff)
+					
 					msa_mixed = msa.query(query_criterion)
-
 					for mixed_guid in msa_mixed.index:
-						
 						links = self.PERSIST.guid2neighbours(mixed_guid, returned_format=3)['neighbours']
 						self.clustering[clustering_name].set_mixed(mixed_guid, neighbours = links)
 						
 			in_clustering_guids = self.clustering[clustering_name].guids()
-			logging.info("Cluster {0} updated; now contains {1} guids. Storing ..".format(clustering_name, len(in_clustering_guids)))
-			self.PERSIST.clusters_store(clustering_name, self.clustering[clustering_name].to_dict())
-			logging.info("Cluster {0} persisted".format(clustering_name))
+			logging.info("Cluster {0} updated; now contains {1} guids. ".format(clustering_name, len(in_clustering_guids)))
+			
+			if store==True:
+				self.PERSIST.clusters_store(clustering_name, self.clustering[clustering_name].to_dict())
+				logging.info("Cluster {0} persisted".format(clustering_name))
 			
 	def exist_sample(self,guid):
 		""" determine whether the sample exists in RAM"""

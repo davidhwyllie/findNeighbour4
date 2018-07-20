@@ -3,7 +3,7 @@ assumes a findNeighbour3 server is running, with the connection string stated in
 
 An example command doing this would be (starting from /src)
 
-python findNeighbour3-server.py ../demos/AC587/config/config.json
+python findNeighbour3-server.py ../demos/AA041/config/config.json
 """
 
 import os
@@ -20,8 +20,8 @@ def ll2s(x):
     return neighbour_set
 
 # define directory where the fastas are
-fastadir = os.path.join('..','demos','AC587','fasta')
-outputdir = os.path.join('..','demos','AC587','output')
+fastadir = os.path.join('..','demos','AA041','fasta')
+outputdir = os.path.join('..','demos','AA041','output')
 
 # instantiate client
 fn3c = fn3Client()      # expects operation on local host; pass baseurl if somewhere else.
@@ -33,13 +33,13 @@ clusters=fn3c.clustering()
 # we load 40 randomly selected guids as controls
 
 for i,fastafile in enumerate(glob.glob(os.path.join(fastadir, 'controls','*.fasta'))):
-    guid = os.path.basename(fastafile).replace('.fasta','')
+    guid = "ctrl_"+os.path.basename(fastafile).replace('.fasta','')
     seq = fn3c.read_fasta_file(fastafile)['seq']
     print("Controls",datetime.datetime.now(), i, guid)
     fn3c.insert(guid=guid,seq=seq)
  
  
-for i,fastafile in enumerate(glob.glob(os.path.join(fastadir, 'test', '*.fasta'))):
+for i,fastafile in enumerate(sorted(glob.glob(os.path.join(fastadir, 'test', '*.fasta')))):
     for clustering_algorithm in clusters['algorithms']:
     
         df = fn3c.guids2clusters(clustering_algorithm)
