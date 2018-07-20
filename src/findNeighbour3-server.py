@@ -386,7 +386,7 @@ class findNeighbour3():
 				to_compress = 0
 				for key2 in self.sc.guidscachedinram():
 					if not guid==key2:
-						app.logger.info("Finding links: {0} vs {1}".format(guid, key2))
+						#app.logger.info("Finding links: {0} vs {1}".format(guid, key2))
 						(guid1,guid2,dist,n1,n2,nboth, N1pos, N2pos, Nbothpos)=self.sc.countDifferences_byKey(keyPair=(guid,key2),
 																											  cutoff = self.snpCompressionCeiling)
 						#app.logger.info("Links found")
@@ -439,36 +439,44 @@ class findNeighbour3():
 	def update_clustering(self, store=True):
 		""" performs clustering on any samples within the persistence store which are not already clustered
 		    If Store=True, writes the clustered object to mongo."""
+		
 		# update clustering and re-cluster
 		for clustering_name in self.clustering_settings.keys():
+			
 			# ensure that clustering object is up to date.  clustering is an in-memory graph, which is periodically
 			# persisted to disc.  It is possible that, if the server crashes/does a disorderly shutdown,
 			# the clustering object which is persisted might not include all the guids in the reference compressed
 			# database.  This situation is OK, because the clustering object will bring itself up to date when
 			# the new guids and their links are loaded into it.
-			guids = self.PERSIST.refcompressedsequence_guids()
-			in_clustering_guids = self.clustering[clustering_name].guids()
-			to_add_guids = guids - in_clustering_guids
-			remaining_to_add_guids = to_add_guids
+			
+			guids = self.PERSIST.refcompressedsequence_guids()			# all guids processed and refernece compressed
+			in_clustering_guids = self.clustering[clustering_name].guids()  # all clustered guids
+			to_add_guids = guids - in_clustering_guids					# what we need to add
+			remaining_to_add_guids = to_add_guids						# we iterate until there's nothing left to add
+			
 			logging.info("Clustering graph {0} contains {2} guids out of {1}; updating.".format(clustering_name, len(guids), len(in_clustering_guids)))
 			while len(remaining_to_add_guids)>0:
-				to_add_guid = remaining_to_add_guids.pop()
-				links = self.PERSIST.guid2neighbours(to_add_guid, returned_format=3)['neighbours']
-				self.clustering[clustering_name].add_sample(to_add_guid, links)
-			# check if mixed; make a list of non-mixed guids, and their clusters, to analyse.
+				to_add_guid = remaining_to_add_guids.pop()				# get the guid
+				links = self.PERSIST.guid2neighbours(to_add_guid, returned_format=3)['neighbours']	# and its links
+				self.clustering[clustering_name].add_sample(to_add_guid, links)		# add it to the clustering db
+				
+			# check any clusters to which to_add_guids have been added.
 			nMixed = 0
 			guids_to_check = set()
 			clusters_to_check = set()
-			for guid in guids:
-				if not self.clustering[clustering_name].is_mixed(guid):
-					guids_to_check.add(guid)
+			for guid in to_add_guids:
+				if not self.clustering[clustering_name].is_mixed(guid):		# if it's not known to be mixed
+					guids_to_check.add(guid)								# then we need to check it and
 					for cluster in self.clustering[clustering_name].guid2clusters(guid):
-						clusters_to_check.add(cluster)
+						clusters_to_check.add(cluster)						# everything else in the same cluster as it
 			
-			cl2guids = 	self.clustering[clustering_name].clusters2guid()
+			cl2guids = 	self.clustering[clustering_name].clusters2guid()	# dictionary allowing cluster -> guid lookup
 			for cluster in clusters_to_check:
-				guids_for_msa = cl2guids[cluster]
+				guids_for_msa = cl2guids[cluster]							# do msa on the cluster
+				logging.info("Checking cluster {0}; performing MSA on {1} samples".format(cluster,len(guids_for_msa)))
 				msa = self.sc.multi_sequence_alignment(guids, output='df')		#  a pandas dataframe; p_value tests mixed
+				logging.info("MSA complete")
+
 				if not msa is None:		# no alignment was made
 					mixture_criterion = self.clustering_settings[clustering_name]['mixture_criterion']
 					mixture_cutoff = self.clustering_settings[clustering_name]['cutoff']
@@ -484,6 +492,7 @@ class findNeighbour3():
 						
 						links = self.PERSIST.guid2neighbours(mixed_guid, returned_format=3)['neighbours']
 						self.clustering[clustering_name].set_mixed(mixed_guid, neighbours = links)
+						
 			in_clustering_guids = self.clustering[clustering_name].guids()
 			logging.info("Cluster {0} updated; now contains {1} guids. Storing ..".format(clustering_name, len(in_clustering_guids)))
 			self.PERSIST.clusters_store(clustering_name, self.clustering[clustering_name].to_dict())
@@ -977,6 +986,8 @@ class test_msa_2(unittest.TestCase):
 		self.assertTrue(isjson(res.content))
 		self.assertEqual(res.status_code, 200)
 		d = json.loads(res.content, encoding='utf-8')
+		print(d)
+		exit()
 		self.assertEqual(set(inserted_guids)-set(d.keys()),set([]))
 
 		relpath = "/api/v2/multiple_alignment_cluster/SNV12_ignore/{0}/fasta".format(cluster_id)

@@ -43,6 +43,7 @@ for i,fastafile in enumerate(glob.glob(os.path.join(fastadir, 'test', '*.fasta')
     for clustering_algorithm in clusters['algorithms']:
     
         df = fn3c.guids2clusters(clustering_algorithm)
+        df['guid']=df.index
         df['step'] = i
         df['clustering_algorithm']=clustering_algorithm
         if i==0:
@@ -52,16 +53,19 @@ for i,fastafile in enumerate(glob.glob(os.path.join(fastadir, 'test', '*.fasta')
 
     guid = os.path.basename(fastafile).replace('.fasta','')
     seq = fn3c.read_fasta_file(fastafile)['seq']
-    print(datetime.datetime.now(), i, guid)
+    print("Test   ",datetime.datetime.now(), i, guid)
     fn3c.insert(guid=guid,seq=seq)
     
     # find neighbours
-    neighbour_set = ll2s(fn3c.guid2neighbours(guid, threshold=30))
-    print("found {0} neighbours".format(neighbour_set))
+    #neighbour_set = ll2s(fn3c.guid2neighbours(guid, threshold=30))
+    #print("found {0} neighbours".format(len(neighbour_set)))
     
-    # compute pairwise links with neighbours
-    df = fn3c.assess_mixed(guid, neighbour_set)
-    if not df is None:
-        df.to_excel(os.path.join(outputdir,"{0}.xlsx".format(guid)))
+    # compute pairwise links with neighbours [slow - we'll run post hoc]
+    #print("Assessing mixtures")
+    #df = fn3c.assess_mixed(guid, neighbour_set)
+    #print("Mixture assessment over")
+    #if not df is None:
+    #    df['nneighbours']= len(neighbour_set)        
+    #    df.to_excel(os.path.join(outputdir,"{0}.xlsx".format(guid)))
 
 clustering_df.to_excel(os.path.join(outputdir, "clustering.xlsx"))

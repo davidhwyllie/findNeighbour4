@@ -1098,6 +1098,12 @@ class test_seqComparer_50a(unittest.TestCase):
             guid_names.append(this_guid)
 
         res = sc.assess_mixed(this_guid='AAACGN-1', related_guids=['CCCCGN-2','TTTCGN-3','GGGGGN-4','NNNCGN-5','ACTCGN-6', 'TCTNGN-7'],max_sample_size=5)
+        self.assertEqual(res.columns.tolist(),['aligned_seq', 'allN', 'alignN', 'p_value1', 'p_value2', 'p_value3', 'observed_proportion',
+                                               'expected_proportion1', 'expected_proportion2', 'expected_proportion3', 'pairid'])
+        for ix in res.index:
+            self.assertEqual(res.loc[ix,'p_value1'],1)
+            self.assertEqual(res.loc[ix,'p_value2'],1)
+            self.assertEqual(res.loc[ix,'p_value3'],1)
         self.assertEqual(len(res.index), 10)
 
 class test_seqComparer_49(unittest.TestCase):
@@ -1177,6 +1183,9 @@ class test_seqComparer_47c(unittest.TestCase):
         self.assertEqual(len(df.index),7)
         res= sc.multi_sequence_alignment(guid_names[0:8], output='df_dict', expected_p1=0.995)
         df = pd.DataFrame.from_dict(res,orient='index')
+        self.assertEqual(df.columns.tolist(),['aligned_seq', 'allN', 'alignN', 'p_value1', 'p_value2', 'p_value3', 'observed_proportion',
+                                               'expected_proportion1', 'expected_proportion2', 'expected_proportion3', 'pairid'])
+    
         self.assertEqual(set(df.index.tolist()), set(['AAACGN-1','CCCCGN-2','TTTCGN-3','GGGGGN-4','ACTCGN-6', 'TCTNGN-7','AAACGN-8']))
         self.assertTrue(df.loc['AAACGN-1','expected_proportion1'] is not None)        # check it computed a value
         self.assertEqual(df.loc['AAACGN-1','expected_proportion1'], 0.995)        # check is used the value passed
