@@ -29,33 +29,45 @@ fn3c = fn3Client()      # expects operation on local host; pass baseurl if somew
 # names of the clustering algorithms
 clusters=fn3c.clustering()
 
+existing_guids = set(fn3c.guids())
+clustering_created = False
+print("There are {0} existing guids".format(len(existing_guids)))
 # add control fasta files.  The system evaluates the %N in terms of the population existing
 # we load 40 randomly selected guids as controls
 
 for i,fastafile in enumerate(glob.glob(os.path.join(fastadir, 'control','*.fasta'))):
     guid = "ctrl_"+os.path.basename(fastafile).replace('.fasta','')
     seq = fn3c.read_fasta_file(fastafile)['seq']
-    print("Controls",datetime.datetime.now(), i, guid)
-    fn3c.insert(guid=guid,seq=seq)
- 
+    if not guid in existing_guids:
+        fn3c.insert(guid=guid,seq=seq)
+        result= 'inserted'
+    else:
+        result = 'exists, skipped re-insert'
+    print("Controls",datetime.datetime.now(), i, guid, result)
  
 for i,fastafile in enumerate(sorted(glob.glob(os.path.join(fastadir, 'test', '*.fasta')))):
-    for clustering_algorithm in clusters['algorithms']:
     
-        df = fn3c.guids2clusters(clustering_algorithm)
-        df['guid']=df.index
-        df['step'] = i
-        df['clustering_algorithm']=clustering_algorithm
-        if i==0:
-            clustering_df = df
-        else:
-            clustering_df = pd.concat([clustering_df,df], ignore_index=True, sort=False)
-
     guid = os.path.basename(fastafile).replace('.fasta','')
     seq = fn3c.read_fasta_file(fastafile)['seq']
-    print("Test   ",datetime.datetime.now(), i, guid)
-    fn3c.insert(guid=guid,seq=seq)
-    
+    if not guid in existing_guids:
+        fn3c.insert(guid=guid,seq=seq)
+        result= 'inserted'
+        for clustering_algorithm in clusters['algorithms']:
+        
+            df = fn3c.guids2clusters(clustering_algorithm)
+            df['guid']=df.index
+            df['step'] = i
+            df['clustering_algorithm']=clustering_algorithm
+            if not clustering_created:
+                clustering_df = df
+                clustering_created = True
+            else:
+                clustering_df = pd.concat([clustering_df,df], ignore_index=True, sort=False)
+
+    else:
+        result = 'exists, skipped re-insert'
+    print("Test   ",datetime.datetime.now(), i, guid, result)
+
     # find neighbours
     #neighbour_set = ll2s(fn3c.guid2neighbours(guid, threshold=30))
     #print("found {0} neighbours".format(len(neighbour_set)))
