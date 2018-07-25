@@ -14,9 +14,7 @@ The code has been tested on Linux (Ubuntu 16.04) and Windows 7.  The below instr
 Dependencies
 ------------
 * Python 3.5+.   
-You may need to install pip3 with: ```
-sudo apt-get install python3-pip
-```
+You may need to install pip3 with: ```sudo apt-get install python3-pip```
 
 Then install the following packages:
 
@@ -33,7 +31,7 @@ Then install the following packages:
  BioPython
  
  Example:
- ```sudo pip3 install requests ```
+ ```sudo pip3 install requests```
  
 Database backend
 ----------------
@@ -44,7 +42,7 @@ This server has been tested both with a local mongodb database and with a free c
 Protocol for configuring a clean Linux ubuntu 14.04 instance
 -----------------------
 Note that this protocol does not use a virtual environment.
-Note: this has not been tested with findneighbour3, only findNeighbour2.
+Note: **at present this has not been tested with findneighbour3, only findNeighbour2.**
 ```
 sudo apt-get update  
 sudo apt-get upgrade  
@@ -53,28 +51,25 @@ sudo apt-get install python3
 sudo apt-get install -y python3-pip --force-yes  
 sudo apt-get install build-essential libssl-dev libffi-dev python3-dev  
 sudo apt-get install python3-numpy  
-
-# optionally inform git of the proxy's location, depending whether there is one
-git config --global http.proxy http://[ip of proxy]
-
-# clone repository
-git clone https://github.com/davidhwyllie/findNeighbour3.git
 ```
+
+Optionally, set a proxy: inform git of the proxy's location, depending whether there is one:
+```git config --global http.proxy http://[ip of proxy]```
+
+Then clone repository:
+```git clone https://github.com/davidhwyllie/findNeighbour3.git```
 
 After this, please follow the below steps.
 
 Start the server
 -----------------
 
-To start the server, go to the findNeighbour3 *src* folder and run the command:
+To start the server, go to the findNeighbour3 *src* folder and run the command:  
+```python3 findNeighbour3-server.py```  
 
-
-```
-python3 findNeighbour3-server.py
-```
 Note: This application doesn't work with python2, so be sure to use python 3.
-This will try to start the webserver with a default configuration, in debug mode.
-*Debug mode means, amongst other things, that all existing data will be wiped on server restart.  This is good for testing, but not in most other settings.  You need to edit the config file (see below) for your needs.*
+This will try to start the webserver with a default configuration, in debug mode.  
+**Important**: *Debug mode means, amongst other things, that all existing data will be wiped on server restart.  This is good for testing, but not in most other settings.  You need to edit the config file (see below) for your needs.*
 
 If the server fails to start, it's probably due to one of the following:
 * mongodb not being operational (a ```pymongo.errors.ServerSelectionTimeOutError``` will indicate this; in Windows, check in *Services* that the service is running; in linux, a command like ```sudo systemctl start mongod``` will be needed), or
@@ -85,8 +80,7 @@ The more general form for starting the server is:
 nohup python3 findNeighbour3-server.py {configfile.json} &  
 ```
 
-* If {configfile.json} is omitted, then it will use a default config file, config/default_test_config.json  
-This is suitable for unit testing, and other kinds of one-off tests. It expects a mongodb running on localhost on the default port.
+If {configfile.json} is omitted, then it will use a default config file, config/default_test_config.json.  This is suitable for unit testing, and other kinds of one-off tests. It expects a mongodb running on localhost on the default port.
 It is **unsuitable for production**, because:  
 1 it runs the flask webserver in debug mode, which is insecure   
 2 all data is wiped on server restart.   
@@ -98,7 +92,6 @@ At the moment, some kinds of unit testing assume a server is running.  Unit test
 You will need to do.  After this, you can run unit tests.  
 
 ```
-
 # you can test the internal classes used by findNeighbour3; all should pass
 python3 -m unittest  seqComparer  
 python3 -m unittest  clustering  
@@ -115,7 +108,6 @@ nohup python3 findNeighbour3-server.py &
 # separate instance of the server used for debugging, called 'fn3_unittesting'
 
 python3 -m unittest findNeighbour3-server 
-# all should pass
 
 ```
 All should pass.
@@ -208,7 +200,7 @@ An example CONFIG is below:
 }
 
 ```
-Altering the CONFIG file
+Notes on altering the CONFIG file
 
 ```
 Some of these settings are read when the server is first-run, stored in a database, and the server will not
