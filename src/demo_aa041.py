@@ -2,7 +2,6 @@
 assumes a findNeighbour3 server is running, with the connection string stated in ../config/config.json.
 
 An example command doing this would be (starting from /src)
-
 python findNeighbour3-server.py ../demos/AA041/config/config.json
 """
 
@@ -55,7 +54,6 @@ for i,fastafile in enumerate(sorted(glob.glob(os.path.join(fastadir, 'test', '*.
         for clustering_algorithm in clusters['algorithms']:
         
             df = fn3c.guids2clusters(clustering_algorithm)
-            df['guid']=df.index
             df['step'] = i
             df['clustering_algorithm']=clustering_algorithm
             if not clustering_created:

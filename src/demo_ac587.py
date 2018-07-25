@@ -40,10 +40,14 @@ for i,fastafile in enumerate(glob.glob(os.path.join(fastadir, 'controls','*.fast
  
  
 for i,fastafile in enumerate(sorted(glob.glob(os.path.join(fastadir, 'test', '*.fasta')))):
+    guid = os.path.basename(fastafile).replace('.fasta','')
+    seq = fn3c.read_fasta_file(fastafile)['seq']
+    print("Test   ",datetime.datetime.now(), i, guid)
+    fn3c.insert(guid=guid,seq=seq)
+    
     for clustering_algorithm in clusters['algorithms']:
     
         df = fn3c.guids2clusters(clustering_algorithm)
-        df['guid']=df.index
         df['step'] = i
         df['clustering_algorithm']=clustering_algorithm
         if i==0:
@@ -51,11 +55,13 @@ for i,fastafile in enumerate(sorted(glob.glob(os.path.join(fastadir, 'test', '*.
         else:
             clustering_df = pd.concat([clustering_df,df], ignore_index=True, sort=False)
 
-    guid = os.path.basename(fastafile).replace('.fasta','')
-    seq = fn3c.read_fasta_file(fastafile)['seq']
-    print("Test   ",datetime.datetime.now(), i, guid)
-    fn3c.insert(guid=guid,seq=seq)
-    
+        # note the MSA for all clusters this sample is in
+        df = fn3c.guids2clusters(clustering_algorithm)
+        print(guid)
+        print(df.query('guid==@guid'))
+
+    #    df.to_excel(os.path.join(outputdir,"{0}.xlsx".format(guid)))
+
     # find neighbours
     #neighbour_set = ll2s(fn3c.guid2neighbours(guid, threshold=30))
     #print("found {0} neighbours".format(len(neighbour_set)))
