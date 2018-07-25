@@ -318,14 +318,11 @@ class fn3Client():
             raise TypeError("clustering_algorithm must be str not {0}".format(type(clustering_algorithm)))
         if after_change_id is None:
             res = self._decode(self.getpost('/api/v2/clustering/{0}/guids2clusters'.format(clustering_algorithm), timeout=timeout, method='GET')) 
-            try:
-                return pd.DataFrame.from_records(res, index='guid')
-            except KeyError:
-                return pd.DataFrame.from_records(res)
-            
+            return pd.DataFrame.from_records(res)
+           
         elif isinstance(after_change_id, int):
             res = self._decode(self.getpost('/api/v2/clustering/{0}/guids2clusters/after_change_id/{1}'.format(clustering_algorithm, after_change_id), timeout=timeout, method='GET')) 
-            return pd.DataFrame.from_records(res, index='guid')
+            return pd.DataFrame.from_records(res)
         else:
             raise TypeError("after must be None or an integer, not {0}".format(type(after_change_id)))
     def server_memory_usage(self,  nrows = 100, timeout =None):
@@ -643,7 +640,7 @@ class test_fn3_client_guids2clusters(unittest.TestCase):
         # recover clustering
         res1 = fn3c.guids2clusters(clustering['algorithms'][0])
         res2 = fn3c.guids2clusters(clustering['algorithms'][0], after_change_id = c2['change_id'])
-        
+
         self.assertTrue(isinstance(res1, pd.DataFrame))
         self.assertTrue(isinstance(res2, pd.DataFrame))
         # find clusters
