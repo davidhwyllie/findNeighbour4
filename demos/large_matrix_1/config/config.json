@@ -1,0 +1,20 @@
+{
+"DESCRIPTION":"A test server operating in on localhost for testing storage of large matrices.",
+"IP":"127.0.0.1",
+"INPUTREF":"../reference/TB-ref.fasta",
+"EXCLUDEFILE":"../reference/TB-exclude-adaptive.txt",
+"DEBUGMODE":0,
+"SERVERNAME":"fn3_large_matrix",      
+"FNPERSISTENCE_CONNSTRING":"mongodb://localhost",
+"MAXN_STORAGE":130000,
+"RECOMPRESS_FREQUENCY":5,
+"REPACK_FREQUENCY":0,
+"GC_ON_RECOMPRESS":0,
+"SNPCOMPRESSIONCEILING":250,
+"MAXN_PROP_DEFAULT":0.85,
+"LOGFILE":"../unittest_tmp/logfile_unittesting.log",
+"LOGLEVEL":"INFO",	
+"SNPCEILING": 20,
+"REST_PORT":5000,
+"CLUSTERING":{}
+}
