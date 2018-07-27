@@ -464,6 +464,7 @@ class fn3persistence():
                 """                
                 
                 # determine whether there are any rstat 's' entries for this guid.
+                # these include only one 'cell' of the distance matrix.
                 s_ids=[]
                 s_ids = [res["_id"] for res in self.db.guid2neighbour.find({'guid':guid, 'rstat':'s'})]
 
@@ -471,6 +472,7 @@ class fn3persistence():
                         return 1
 
                 # determine whether there are any rstat 'm' entries for this guid.
+                # these contain multiple cells on each row/column of the matrix.
                 m_ids = [x['_id'] for x in self.db.guid2neighbour.find({'guid':guid, 'rstat':'m'})]
                 
                 
@@ -533,7 +535,7 @@ class fn3persistence():
                         Internally, the documents in guid2neighbour are of the form
                         {'guid':'guid1', 'rstat':'s', 'neighbours':{'guid2':{'dist':12, ...}}} OR
                         {'guid':'guid1', 'rstat':'m', 'neighbours':{'guid2':{'dist':12, ...}, 'guid3':{'dist':5, ...}} OR
-                        {'guid':'guid1', 'rstat':'f', 'neighbours':{'guid2':{'dist':12, ...}, 'guid3':{'dist':5, ...}} 
+                        {'guid':'guid1', 'rstat':'f', 'neighbours':{S'guid2':{'dist':12, ...}, 'guid3':{'dist':5, ...}} 
                           
                         However, irrespective of their internal representation, this function always returns
                         exactly one item for each link of 'guid'; duplicates are not possible.
