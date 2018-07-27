@@ -153,8 +153,14 @@ LOGLEVEL:		default logging level used by the server.  Valid values are DEBUG INF
 SNPCEILING: 	links between guids > this are not stored in the database
 GC_ON_RECOMPRESS: if 'recompressing' sequences to a local reference, something the server does automatically, perform
                 a full mark-and-sweep gc at this point.  This setting alters memory use and compute time, but not the results obtained.
-RECOMPRESS_FREQ: if recompressable records are detected, recompress every RECOMPRESS_FREQ th detection (e.g. 5).
+RECOMPRESS_FREQUENCY: if recompressable records are detected, recompress every RECOMPRESS_FREQ th detection (e.g. 5).
                 Trades off compute time with mem usage.  This setting alters memory use and compute time, but not the results obtained.
+REPACK_FREQUENCY: concerns how the matrix is stored in mongodb.
+                if REPACK_FREQ=0, there will be one document for every non-empty matrix cell.
+			             if REPACK_FREQ>0, then if a guid has REPACK_FREQ-1 neighbours, then a 'repack' operation
+							         occurs.  This transfers multiple matrix cells into one mongodb document: essentially, part or all of a row
+							         will be packed into a single document.  This reduces query times, but the repack operation slows inserts.
+							         Repacking doesn't alter the results at all, and could be performed independently of inserts.
 CLUSTERING:		a dictionary of parameters used for clustering.  In the below example, there are two different
                 clustering settings defined, one named 'SNV12_ignore' and the other 'SNV12_include.
                 {'SNV12_ignore' :{'snv_threshold':12, 'mixed_sample_management':'ignore', 'mixture_criterion':'pvalue_1', 'cutoff':0.001},
@@ -187,6 +193,7 @@ An example CONFIG is below:
 "FNPERSISTENCE_CONNSTRING":"mongodb://localhost",
 "MAXN_STORAGE":130000,
 "RECOMPRESS_FREQUENCY":5,
+"REPACK_FREQUENCY":1,
 "GC_ON_RECOMPRESS":1,
 "SNPCOMPRESSIONCEILING":250,
 "MAXN_PROP_DEFAULT":0.85,
@@ -210,6 +217,7 @@ MAXN_PROP_DEFAULT
 EXCLUDEFILE
 INPUTREF
 CLUSTERING
+
 These settings cannot be changed because they alter the way that the data is stored; if you want to change
 the settings, the data will have to be re-loaded. 
 
@@ -230,6 +238,7 @@ related to internal server memory management:
 GC_ON_RECOMPRESS
 RECOMPRESS_FREQUENCY
 SNPCOMPRESSIONCEILING
+REPACK_FREQUENCY
 
 ```
 

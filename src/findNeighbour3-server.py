@@ -111,9 +111,14 @@ class findNeighbour3():
             SNPCEILING: 	links between guids > this are not stored in the database
             GC_ON_RECOMPRESS: if 'recompressing' sequences to a local reference, something the server does automatically, perform
                             a full mark-and-sweep gc at this point.  This setting alters memory use and compute time, but not the results obtained.
-            RECOMPRESS_FREQ: if recompressable records are detected, recompress every RECOMPRESS_FREQ th detection (e.g. 5).
+            RECOMPRESS_FREQUENCY: if recompressable records are detected, recompress every RECOMPRESS_FREQ th detection (e.g. 5).
                             Trades off compute time with mem usage.  This setting alters memory use and compute time, but not the results obtained.
-            CLUSTERING:		a dictionary of parameters used for clustering.  In the below example, there are two different
+            REPACK_FREQUENCY: how the matrix is stored in mongodb.  if REPACK_FREQ=0, there will be one document for every non-empty matrix cell.
+			                if REPACK_FREQ>0, then if a guid has REPACK_FREQ-1 neighbours, then a 'repack' operation
+							occurs.  This transfers multiple matrix cells into one mongodb document: essentially, part or all of a row
+							will be packed into a single document.  This reduces query times, but the repack operation slows inserts.
+							Repacking doesn't alter the results at all, and could be performed independently of inserts.
+			CLUSTERING:		a dictionary of parameters used for clustering.  In the below example, there are two different
                             clustering settings defined, one named 'SNV12_ignore' and the other 'SNV12_include.
                             {'SNV12_ignore' :{'snv_threshold':12, 'mixed_sample_management':'ignore', 'mixture_criterion':'p_value1', 'cutoff':0.001},
 		                     'SNV12_include':{'snv_threshold':12, 'mixed_sample_management':'include', 'mixture_criterion':'p_value1', 'cutoff':0.001}
@@ -206,7 +211,7 @@ class findNeighbour3():
 		required_keys=set(['IP','INPUTREF','EXCLUDEFILE','DEBUGMODE','SERVERNAME',
 						   'FNPERSISTENCE_CONNSTRING', 'MAXN_STORAGE',
 						   'SNPCOMPRESSIONCEILING', "SNPCEILING", 'MAXN_PROP_DEFAULT', 'REST_PORT',
-						   'LOGFILE','LOGLEVEL','GC_ON_RECOMPRESS','RECOMPRESS_FREQUENCY', 'CLUSTERING'])
+						   'LOGFILE','LOGLEVEL','GC_ON_RECOMPRESS','RECOMPRESS_FREQUENCY', 'REPACK_FREQUENCY', 'CLUSTERING'])
 		missing=required_keys-set(self.CONFIG.keys())
 		if not missing == set([]):
 			raise KeyError("Required keys were not found in CONFIG. Missing are {0}".format(missing))
@@ -216,7 +221,7 @@ class findNeighbour3():
 		
 		do_not_persist_keys=set(['IP','SERVERNAME','FNPERSISTENCE_CONNSTRING',
 								 'LOGFILE','LOGLEVEL','REST_PORT',
-								 'GC_ON_RECOMPRESS','RECOMPRESS_FREQ'])
+								 'GC_ON_RECOMPRESS','RECOMPRESS_FREQUENCY', 'REPACK_FREQUENCY'])
 				
 		# determine whether this is a first-run situation.
 		if self.PERSIST.first_run():
@@ -235,6 +240,7 @@ class findNeighbour3():
 		self.maxn_prop_default = cfg['MAXN_PROP_DEFAULT']
 		self.clustering_settings = cfg['CLUSTERING']
 		self.recompress_frequency = self.CONFIG['RECOMPRESS_FREQUENCY']
+		self.repack_frequency = self.CONFIG['REPACK_FREQUENCY']
 		self.gc_on_recompress = self.CONFIG['GC_ON_RECOMPRESS']
 		
 		## start setup
@@ -422,11 +428,14 @@ class findNeighbour3():
 
 			# clean up guid2neighbour; this can readily be done post-hoc, if the process proves to be slow.
 			# it doesn't affect results.
-			app.logger.info("Repacking around: {0}".format(guid))
-		
+
 			guids = list(links.keys())
 			guids.append(guid)
-			self.repack(guids)
+			app.logger.info("Repacking around: {0}".format(guid))
+		
+			if self.repack_frequency>0:
+				if len(guids) % self.repack_frequency ==0:		# repack if there are repack_frequency-1 neighbours
+					self.repack(guids)
 			
 			# cluster
 			app.logger.info("Clustering around: {0}".format(guid))
