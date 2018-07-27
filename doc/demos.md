@@ -3,10 +3,10 @@
 # large_matrix1
 simulates TB samples for which a complete distance matrix will be stored
 
-* Scenario tested:
+* Scenario tested  
 A large, complete matrix is stored.  No repacking is used.
 
-* Background
+* Background  
 An open question is whether the storage engine (now mongodb) is capable of storing a very large matrix with reasonable efficiency.  This is one of the big unknowns.
 In the current configuration, the server stores a sparse matrix of pairwise distances.  In the worst case, it has to store a complete matrix.  If the requirement is to be able to store 10^6 samples, that’s at worst about 10^12 cells.
 There are databases which happily store billions of records (like mongo) and the current server uses such.
@@ -22,10 +22,10 @@ It could also be run as a separate process, were it to be slow; it can occur sim
 
 In this test,  
 repacking is switched off.  
-each sequence differs by only 1nt from the reference, so memory usage is very low
+each sequence differs by only 1nt from the reference, so memory usage is very low  
 there is no clustering enabled.  
 
-* Outcome measures  
+* Outcome measures    
 Insertion time  
 Time to read all the neighbours of one sample  
 
