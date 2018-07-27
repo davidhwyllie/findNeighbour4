@@ -20,7 +20,10 @@ This can be linked to insertion, switched on or off.  This converts the records,
 If we store (say) 10,000 (10^4) cells from each row/column in a single mongodb document (this is possible, within the limits of mongo document sizes), that leaves us with about 10^8 documents.  This is well within the capabilities of mongodb.  However, the repacking operations may be expensive.
 It could also be run as a separate process, were it to be slow; it can occur simultaneously to insertion.
 
-In this test, repacking is switched off.
+In this test,  
+repacking is switched off.  
+each sequence differs by only 1nt from the reference, so memory usage is very low
+there is no clustering enabled.  
 
 * Outcome measures  
 Insertion time  
@@ -31,7 +34,10 @@ They are written to files by the script
 
 * How to run the test
 ``` python findNeighbour3-server.py ../demos/large_matrix_1/config/config.json ```  
--- run the software adding samples to the server  
+-- run the software adding samples to the server
+-- edit line 29 to reflect the size of the test required.
+-- if there are already (say 1000) samples in the server,
+running the test with a higher max_sequences will increase the number of samples up to max_sequences.
 ``` python demo_large_matrix_1.py ```
 
 * How the output is analysed
