@@ -1981,6 +1981,7 @@ if __name__ == '__main__':
         try:
                 with open(configFile,'r') as f:
                         CONFIG=f.read()
+
         except FileNotFoundError:
                 raise FileNotFoundError("Passed one parameter, which should be a CONFIG file name; tried to open a config file at {0} but it does not exist ".format(sys.argv[1]))
 
@@ -2009,11 +2010,9 @@ if __name__ == '__main__':
         # configure logging object 
         app.logger.setLevel(logging.DEBUG)          
         stream_handler = logging.StreamHandler()
-        mongo_handler = MongoHandler(host='localhost')
 
         formatter = logging.Formatter( "%(asctime)s | %(pathname)s:%(lineno)d | %(funcName)s | %(levelname)s | %(message)s ")
         stream_handler.setFormatter(formatter)
-        mongo_handler.setFormatter(formatter)
         app.logger.addHandler(stream_handler)
 
         ########################### prepare to launch server ###############################################################

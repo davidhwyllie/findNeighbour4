@@ -7,10 +7,10 @@ Storing these in RAM is very cheap, but the matrix stored will include all pairw
 
 To run the test, start up a server, e.g.
 1 python findNeighbour3-server.py ../config/large_matrix_config.json
-Then run the test (it operates against the server on port 5000
-2 python demo_large_matrix_1.py
-Then analyse the ouput
-3 Rscript demo_depict_timings.R ../demos_large_matrix_1/output
+Then run the test 
+2 python demo_large_matrix_1.py 2000 ../demos/large_matrix_1/output
+Then analyse the output
+3 Rscript demo_depict_timings.R ../demos/large_matrix_1/output
 
 
 """
