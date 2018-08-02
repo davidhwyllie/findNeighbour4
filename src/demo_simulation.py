@@ -244,7 +244,7 @@ if __name__ == '__main__':
     
     # generate a birth death tree
     print("generating birth-death tree")
-    bdtree = birth_death_tree(1,0.7, nsize=30, remlosses=False)
+    bdtree = birth_death_tree(1.5,0.7, nsize=30, remlosses=False)
 
     # name internal nodes and store distance to root for all nodes
     counter = 0
@@ -276,7 +276,7 @@ if __name__ == '__main__':
     print("Writing tree cluster depiction to AVI")
     avi_filename = os.path.join("..",'output','movie.avi')
     
-    with imageio.get_writer(avi_filename, mode='I', fps=3, quality=10) as f:
+    with imageio.get_writer(avi_filename, mode='I',  quality=10) as f:
 
         for i in range(len(nprops.index)):
             for node in bdtree.traverse():
@@ -286,15 +286,13 @@ if __name__ == '__main__':
                 nstyle['size']=0
                 nstyle['fgcolor']='black'
                 nstyle['bgcolor']='white'
+                #node.add_face(ete3.TextFace('-'), column=1, position = 'branch-right')
                 if node.is_leaf():
-                    nstyle['size']=1
-                    nstyle['fgcolor']='gray'
-                    nstyle['bgcolor']='white'
-                    
                     if node_order < i:
+                        #node.add_face(ete3.TextFace(str(i)), column=1, position='branch-right')
                         nstyle['size']=1
                         nstyle['fgcolor']='blue'
-                        nstyle['bgcolor']='white'
+                        nstyle['bgcolor']='white'                        
     
                 node.set_style(nstyle)
             filename = os.path.join("..",'output','{0}.png'.format(i))

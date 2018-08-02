@@ -3,8 +3,8 @@
 # large_matrix1
 simulates TB samples for which a complete distance matrix will be stored
 
-* Scenario tested  
-A large, complete matrix is stored.  No repacking is used.
+* Scenario tested
+A large matrix is stored.  No repacking is used.
 
 * Background  
 An open question is whether the storage engine (now mongodb) is capable of storing a very large matrix with reasonable efficiency.  This is one of the big unknowns.
@@ -28,20 +28,32 @@ there is no clustering enabled.
 * Outcome measures    
 Insertion time  
 Time to read all the neighbours of one sample  
-
+domes
 * How outcome measures are recorded  
 They are written to files by the script  
 
 * How to run the test
-``` python findNeighbour3-server.py ../demos/large_matrix_1/config/config.json ```  
--- run the software adding samples to the server
--- edit line 29 to reflect the size of the test required.
--- if there are already (say 1000) samples in the server,
-running the test with a higher max_sequences will increase the number of samples up to max_sequences.
-``` python demo_large_matrix_1.py ```
 
-* How the output is analysed
-Nothing written yet
+To run the test, start up a server, e.g.
+```python findNeighbour3-server.py ../demos/large_matrix_1/config/config.json```
+
+Then run the test.
+
+**Note**: at present, the server which the test runs against isn't configurable.
+It runs against the server running on localhost:5000.  Minor changes will adjust this:
+The client url needs to be be passed to the call instantiating the fn3Client().
+
+The below inserts until 500 samples are present in the server.
+```python demo_large_matrix.py 500 ../demos/large_matrix_1/output```
+
+If we now do this, then 250 more will be added
+```python demo_large_matrix.py 750 ../demos/large_matrix_1/output```
+
+* How the output is analysed  
+
+This will analyse all output from the above:
+```Rscript demo_depict_timings.R ../demos/large_matrix_1/output```
+
 
 # AC587  
 a collection of 43 mapped samples containing TB data, as well as 38 control TB samples.  The latter are added before the 43 related samples, as they are used by the server to estimate expected N frequencies in real data.

@@ -1,5 +1,5 @@
 {
-"DESCRIPTION":"A test server operating in on localhost for testing storage of large matrices.",
+"DESCRIPTION":"A test server operating in on localhost for testing storage of large matrices.  There is very little RAM use, only matrix storage",
 "IP":"127.0.0.1",
 "INPUTREF":"../reference/TB-ref.fasta",
 "EXCLUDEFILE":"../reference/TB-exclude-adaptive.txt",
@@ -14,7 +14,7 @@
 "MAXN_PROP_DEFAULT":0.85,
 "LOGFILE":"../unittest_tmp/logfile_unittesting.log",
 "LOGLEVEL":"INFO",	
-"SNPCEILING": 20,
+"SNPCEILING": 100000,
 "REST_PORT":5000,
 "CLUSTERING":{}
 }
