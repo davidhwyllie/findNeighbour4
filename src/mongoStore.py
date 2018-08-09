@@ -228,7 +228,7 @@ class fn3persistence():
                 res = self.clusters.find_one({'_id':clustering_setting})
                 if res is None:
                     return None
-                json_repr = json.loads(res.read(), encoding='utf-8')
+                json_repr = json.loads(res.read().decode('utf-8'))
                 return json_repr
         # methods for refcompressedseq, which holds the reference compressed details of the sequences
         # in a gridFS store.
