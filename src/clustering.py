@@ -351,17 +351,17 @@ class snv_clustering():
     def clusters2guid(self):
         """ returns a cluster -> guid mapping """
         retVal = {}
-        for guid in self.G.nodes:
+        for guid in sorted(self.G.nodes):
             for cluster_id in self.G.node[guid]['cluster_id']:
                 if not cluster_id in retVal.keys():
                     retVal[cluster_id] = []  
-                retVal[cluster_id].append(guid)    
+                retVal[cluster_id].append(guid)   
         return retVal        
 
     def clusters2guidmeta(self, after_change_id=None):
         """ returns a cluster -> guid mapping """
         retVal = []
-        for guid in self.G.nodes:
+        for guid in sorted(self.G.nodes):
             for cluster_id in self.G.node[guid]['cluster_id']:
                 change_id = self.G.node[guid]['change_id']
                 is_mixed = self.is_mixed(guid)
