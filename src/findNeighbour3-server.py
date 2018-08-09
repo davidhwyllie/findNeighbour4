@@ -290,6 +290,7 @@ class findNeighbour3():
 		# database.  This situation is OK, because the clustering object will bring itself up to date when
 		# the new guids and their links are loaded into it.
 		self.update_clustering()
+		print("findNeighbour3 is ready.")
 	
 	def server_monitoring_store(self, message="No message supplied"):
 		""" reports server memory information to store """
