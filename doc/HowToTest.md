@@ -29,6 +29,9 @@ Then install the following packages:
  flask  
  psutil    
  BioPython
+ log4mongo 
+ scipy
+ networkx
  
  Example:
  ```sudo pip3 install requests```
