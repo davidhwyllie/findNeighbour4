@@ -1184,7 +1184,7 @@ class test_seqComparer_47c(unittest.TestCase):
         res= sc.multi_sequence_alignment(guid_names[0:8], output='df_dict', expected_p1=0.995)
         df = pd.DataFrame.from_dict(res,orient='index')
         self.assertEqual(df.columns.tolist(),['aligned_seq', 'allN', 'alignN', 'p_value1', 'p_value2', 'p_value3', 'observed_proportion',
-                                               'expected_proportion1', 'expected_proportion2', 'expected_proportion3', 'pairid'])
+                                               'expected_proportion1', 'expected_proportion2', 'expected_proportion3'])
     
         self.assertEqual(set(df.index.tolist()), set(['AAACGN-1','CCCCGN-2','TTTCGN-3','GGGGGN-4','ACTCGN-6', 'TCTNGN-7','AAACGN-8']))
         self.assertTrue(df.loc['AAACGN-1','expected_proportion1'] is not None)        # check it computed a value
