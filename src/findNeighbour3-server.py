@@ -999,6 +999,8 @@ class test_msa_2(unittest.TestCase):
 		self.assertTrue(isjson(res.content))
 		self.assertEqual(res.status_code, 200)
 		d = json.loads(res.content, encoding='utf-8')
+		print(d)
+		exit()
 		self.assertEqual(set(inserted_guids)-set(d.keys()),set([]))
 
 		relpath = "/api/v2/multiple_alignment_cluster/SNV12_ignore/{0}/fasta".format(cluster_id)
