@@ -91,19 +91,21 @@ A warning is emitted if the server is running with this default configuration.
 
 Unit tests
 ----------
-At the moment, some kinds of unit testing assume a server is running.  Unit tests don't start the server.
-You will need to do.  After this, you can run unit tests.  
 
 ```
-# you can test the internal classes used by findNeighbour3; all should pass
+# you can test the internal classes used by findNeighbour3; all should pass if a mongodb server is operational on local host
+python3 -m unittest  NucleicAcid
 python3 -m unittest  seqComparer  
 python3 -m unittest  clustering  
-python3 -m unittest  mongoStore  
+python3 -m unittest  mongoStore   # requires mongodb server on localhost
+
+More complex testing requires a findNeighbour3 server running.
+Unit tests don't start the server. You will need to do.  After this, you can run unit tests.  
 
 # starting a test RESTFUL server
 nohup python3 findNeighbour3-server.py &
 
-# And then (e.g. in a different terminal) launching unit tests as below.
+# And then (e.g. in a different terminal, in windows) launching unit tests as below.
 #
 # Note: unittesting is changes the data in the server.
 # Do not run unittests against a production server.
