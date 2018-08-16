@@ -850,7 +850,7 @@ class test_assess_mixed_1(unittest.TestCase):
 		res = do_POST(relpath, payload=payload)
 		self.assertTrue(isjson(res.content))
 		self.assertEqual(res.status_code, 200)
-		d = json.loads(res.content, encoding='utf-8')
+		d = json.loads(res.content.decode('utf-8'))
 		df = pd.DataFrame.from_dict(d,orient='index')
 		self.assertEqual(df.index.tolist(), [inserted_guids[0]])
 
@@ -859,7 +859,7 @@ class test_assess_mixed_1(unittest.TestCase):
 		res = do_POST(relpath, payload=payload)
 		self.assertTrue(isjson(res.content))
 		self.assertEqual(res.status_code, 200)
-		d = json.loads(res.content, encoding='utf-8')
+		d = json.loads(res.content.decode('utf-8'))
 		df = pd.DataFrame.from_dict(d,orient='index')
 		
 
@@ -973,7 +973,7 @@ class test_msa_2(unittest.TestCase):
 		self.assertTrue(isjson(res.content))
 		self.assertEqual(res.status_code, 200)
 		self.assertFalse(b"</table>" in res.content)
-		d = json.loads(res.content, encoding='utf-8')
+		d = json.loads(res.content.decode('utf-8'))
 		not_present = set(inserted_guids) - set(d.keys())
 		self.assertEqual(not_present, set())
 
@@ -987,7 +987,7 @@ class test_msa_2(unittest.TestCase):
 		self.assertEqual(res.status_code, 200)
 		retVal = json.loads(str(res.text))
 		self.assertTrue(isinstance(retVal, list))
-		res = json.loads(res.content, encoding='utf-8')
+		res = json.loads(res.content.decode('utf-8'))
 		cluster_id=None
 		for item in res:
 			if item['guid'] in inserted_guids:
@@ -998,7 +998,7 @@ class test_msa_2(unittest.TestCase):
 		res = do_GET(relpath)
 		self.assertTrue(isjson(res.content))
 		self.assertEqual(res.status_code, 200)
-		d = json.loads(res.content, encoding='utf-8')
+		d = json.loads(res.content.decode('utf-8'))
 		self.assertEqual(set(inserted_guids)-set(d.keys()),set([]))
 
 		relpath = "/api/v2/multiple_alignment_cluster/SNV12_ignore/{0}/fasta".format(cluster_id)
@@ -1101,7 +1101,7 @@ class test_msa_1(unittest.TestCase):
 		self.assertTrue(isjson(res.content))
 		self.assertEqual(res.status_code, 200)
 		self.assertFalse(b"</table>" in res.content)
-		d = json.loads(res.content, encoding='utf-8')
+		d = json.loads(res.content.decode('utf-8'))
 		self.assertEqual(set(d.keys()), set(inserted_guids))
 
 		payload = {'guids':';'.join(inserted_guids),'output_format':'fasta'}
