@@ -6,9 +6,9 @@ This code generates a large number of variants.
 Storing these in RAM is very cheap, but the matrix stored will include all pairwise differences.
 
 To run the test, start up a server, e.g.
-1 python findNeighbour3-server.py ../config/large_matrix_config.json
+1 python3 findNeighbour3-server.py ../config/large_matrix_config.json
 Then run the test 
-2 python demo_large_matrix_1.py 2000 ../demos/large_matrix_1/output
+2 python3 demo_large_matrix_1.py 2000 ../demos/large_matrix_1/output
 Then analyse the output
 3 Rscript demo_depict_timings.R ../demos/large_matrix_1/output
 

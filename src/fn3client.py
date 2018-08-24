@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""" A python client for findNeighbour3-server.
+""" A python3 client for findNeighbour3-server.
 
 Provides a class which allows access to the following routes:
 
@@ -110,7 +110,7 @@ from Bio.Alphabet import generic_nucleotide
 import uuid
 
 class fn3Client():
-    """ python API to the findNeighbour3-server REST endpoint.
+    """ python3 API to the findNeighbour3-server REST endpoint.
     
         All endpoints are supported:
         
@@ -420,7 +420,7 @@ class fn3Client():
             with open(fastafile, 'rt') as f:
                 content = f.read()
         
-        # now use BioPython SeqIO library to read the file.      
+        # now use BioPython3 SeqIO library to read the file.      
         nFiles = 0 
         with io.StringIO(content) as f:
            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):

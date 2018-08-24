@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# python code to compare fasta sequences
+# python3 code to compare fasta sequences
 import unittest
 import os
 import glob
@@ -64,7 +64,7 @@ class seqComparer():
         David Wyllie, University of Oxford, June 2018
         
         - to run unit tests, do
-        python -m unittest seqComparer
+        python3 -m unittest seqComparer
         """
         
         # we support three kinds of sequences.

@@ -145,7 +145,7 @@ class fn3persistence():
             return(retVal)
         
         def memory_usage(self):
-                """ returns memory usage by current python process  
+                """ returns memory usage by current python3 process  
                 Uses the psutil module, as the resource module is not available in windows.
                 """       
                 sm = psutil.virtual_memory()._asdict()

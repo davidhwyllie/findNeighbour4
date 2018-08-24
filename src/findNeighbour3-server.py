@@ -2,7 +2,7 @@
 """ 
 A server providing relatedness information for bacterial genomes via a Restful API.
 
-Implemented in pure Python 3, it uses in-memory data storage backed by MongoDb.
+Implemented in pure Python3 3, it uses in-memory data storage backed by MongoDb.
 It loads configuration from a config file, which must be set in production.
 
 If no config file is provided, it will run in  'testing' mode with the  parameters
@@ -73,10 +73,10 @@ class findNeighbour3():
 	    The high level arrangement is that
 		- This class interacts with in-memory sequences
 		  [handled by the seqComparer class] and backends [fn3Persistance class] used by the server
-		- methods in findNeighbour3() return native python objects.
+		- methods in findNeighbour3() return native python3 objects.
 		
 		- a web server, currently flask, handles the inputs and outputs of this class
-		- in particular, native python objects returned by this class are serialised by the Flask web server code.
+		- in particular, native python3 objects returned by this class are serialised by the Flask web server code.
 		"""
 		
 	def __init__(self,CONFIG, PERSIST):

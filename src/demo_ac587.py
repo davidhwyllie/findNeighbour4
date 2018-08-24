@@ -3,7 +3,7 @@ assumes a findNeighbour3 server is running, with the connection string stated in
 
 An example command doing this would be (starting from /src)
 
-python findNeighbour3-server.py ../demos/AC587/config/config.json
+python3 findNeighbour3-server.py ../demos/AC587/config/config.json
 """
 
 import os
