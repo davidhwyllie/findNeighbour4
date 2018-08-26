@@ -394,6 +394,10 @@ class fn3Client():
         else:            
             return res.content
         
+    def reset(self):
+        """ resets the server to a state with no data """      
+        return self.post('/api/v2/reset', payload = {}, timeout=timeout)
+       
     def insert(self, guid, seq, timeout=None):
         """ inserts a sequence seq with guid 
         """

@@ -88,8 +88,7 @@ class fn3persistence():
             # delete any pre-existing data if we are in debug mode.
             if debug == 2:
                 self.logger.warning("Debug mode operational; deleting all data from collections.")
-                for collection in self.expected_collections:
-                    self.db[collection].delete_many({})
+                self._delete_existing_data()
 
                 self.max_neighbours_per_document =2             # used for unittests
             else:
@@ -105,6 +104,11 @@ class fn3persistence():
             self.fs = gridfs.GridFS(self.db, collection='refcompressedseq', disable_md5=False)       
             self.clusters = gridfs.GridFS(self.db, collection='clusters', disable_md5=False)       
     
+        def _delete_existing_data(self):
+            """ deletes existing data from the databases """
+            for collection in self.expected_collections:
+                self.db[collection].delete_many({})
+                
         def first_run(self):
             """ if there is no config entry, it is a first-run situation """
             if self.db.config.find_one({'_id':'config'}) is None:
@@ -250,8 +254,7 @@ class fn3persistence():
                 if res is None:
                     return None
                 return pickle.loads(res.read())
-
-     
+        
         def refcompressedsequence_guids(self):
             """ loads guids from refcompressedseq collection.
             """

@@ -93,13 +93,13 @@ class findNeighbour3():
                             memory requirements, but will not alter the results produced.
             DEBUGMODE:      Controls operation of the server:
 
-                            DEBUGMODE =                                       0       1        2
-                            Run server                                        Y       N        N
-                            Run server in debug mode (errors reported)        N       Y        Y
-                            Create Database if don't exist                    Y       Y        Y
-                            Delete all data on startup                        N       N        Y
+                            DEBUGMODE =                                                              0       1        2
+                            Run server in production mode (errors logged, not returned to client)    Y       N        N
+                            Run server in debug mode (errors reported to client)                     N       Y        Y
+                            Create Database if it does not exist                                     Y       Y        Y
+                            Delete all data on startup                                               N       N        Y
+                            Enable /restart endpoint, which restarts empty server (for testing)      N       N        Y
 
-            If true, will delete any samples in the backend data store on each run.
             SERVERNAME:     the name of the server. used as the name of mongodb database which is bound to the server.
             FNPERSISTENCE_CONNSTRING: a valid mongodb connection string. if shard keys are set, the 'guid' field is suitable key.
             MAXN_STORAGE:   The maximum number of Ns in the sequence <excluding those defined in > EXCLUDEFILE which should be indexed.
@@ -249,6 +249,13 @@ class findNeighbour3():
 		# initialise nucleic acid analysis object
 		self.objExaminer=NucleicAcid()
 		
+		# load in-memory sequences
+		self._load_in_memory_data()
+		
+		print("findNeighbour3 is ready.")
+	
+	def _load_in_memory_data(self):
+		""" loads in memory data into the seqComparer object from database storage """
 		# initialise seqComparer, which manages in-memory reference compressed data
 		self.sc=seqComparer(reference=self.reference,
 							maxNs=self.maxNs,
@@ -290,8 +297,16 @@ class findNeighbour3():
 		# database.  This situation is OK, because the clustering object will bring itself up to date when
 		# the new guids and their links are loaded into it.
 		self.update_clustering()
-		print("findNeighbour3 is ready.")
-	
+
+	def reset(self):
+		""" restarts the server, deleting any existing data """
+		if not self.debugMode == 2:
+			return		 # no action taken by calls to this unless debugMode ==2
+		else:
+			print("Deleting existing data and restarting")
+			self.PERSIST._delete_existing_data()
+			self._load_in_memory_data()
+			
 	def server_monitoring_store(self, message="No message supplied"):
 		""" reports server memory information to store """
 		self.PERSIST.server_monitoring_store(message=message, content=self.sc.summarise_stored_items())
@@ -862,8 +877,6 @@ class test_assess_mixed_1(unittest.TestCase):
 		d = json.loads(res.content.decode('utf-8'))
 		df = pd.DataFrame.from_dict(d,orient='index')
 		
-
-
 def construct_msa(guids, output_format):
 	""" constructs multiple sequence alignment for guids
 	    and returns in one of 'fasta' 'html' or 'json' format."""
@@ -881,7 +894,49 @@ def construct_msa(guids, output_format):
 	elif output_format == 'json':
 		return make_response(json.dumps(res))
 
-
+@app.route('/api/v2/reset', methods=['POST'])
+def reset():
+	""" deletes any existing data from the server """
+	if not fn3.debugMode == 2:
+		# if we're not in debugMode==2, then this option is not allowed
+		abort(404, 'Calls to /reset are only allowed with debugMode == 2' )
+	else:
+		fn3.reset()
+		return make_response(json.dumps({'message':'reset completed'}))
+class test_reset(unittest.TestCase):
+	""" tests route /api/v2/reset
+	"""
+	def runTest(self):
+		relpath = "/api/v2/guids"
+		res = do_GET(relpath)
+		n_pre = len(json.loads(str(res.text)))		# get all the guids
+		
+		guid_to_insert = "guid_{0}".format(n_pre+1)
+		
+		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+		with open(inputfile, 'rt') as f:
+			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+					seq = str(record.seq)
+		
+		relpath = "/api/v2/insert"
+		res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
+		self.assertTrue(isjson(content = res.content))
+		info = json.loads(res.content.decode('utf-8'))
+		self.assertEqual(info, 'Guid {0} inserted.'.format(guid_to_insert))
+		
+		relpath = "/api/v2/guids"
+		res = do_GET(relpath)
+		n_post = len(json.loads(str(res.text)))		# get all the guids
+		
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
+		relpath = "/api/v2/guids"
+		res = do_GET(relpath)
+		n_post_reset = len(json.loads(str(res.text)))		# get all the guids
+			
+		self.assertTrue(n_post>0)
+		self.assertTrue(n_post_reset==0)
 @app.route('/api/v2/multiple_alignment/guids', methods=['POST'])
 def msa_guids():
 	""" performs a multiple sequence alignment on a series of POSTed guids,
@@ -916,8 +971,7 @@ def msa_guids():
 	
 	if len(missing_guids)>0:
 		abort(501, "asked to perform multiple sequence alignment with the following missing guids: {0}".format(missing_guids))
-
-		
+	
 	# data validation complete.  construct outputs
 	return construct_msa(guids, output_format)
 
@@ -1936,7 +1990,6 @@ class test_sequence_4(unittest.TestCase):
         self.assertEqual(info['guid'], guid_to_insert2)
         self.assertEqual(info['invalid'], 0)
 
-
 @app.route('/api/v2/nucleotides_excluded', methods=['GET'])
 def nucleotides_excluded():
 	""" returns all nucleotides excluded by the server.
@@ -1962,7 +2015,6 @@ class test_nucleotides_excluded(unittest.TestCase):
         self.assertEqual(set(resDict.keys()), set(['exclusion_id', 'excluded_nt']))
         self.assertEqual(res.status_code, 200)
  
-
 if __name__ == '__main__':
 
         # command line usage.  Pass the location of a config file as a single argument.
