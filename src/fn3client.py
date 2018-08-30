@@ -394,7 +394,7 @@ class fn3Client():
         else:            
             return res.content
         
-    def reset(self):
+    def reset(self, timeout=30):
         """ resets the server to a state with no data """      
         return self.post('/api/v2/reset', payload = {}, timeout=timeout)
        

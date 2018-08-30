@@ -194,8 +194,10 @@ class seqComparer():
         
         """
         if not len(sequence)==len(self.reference):
-            raise TypeError("sequence must of the same length as reference")
-        
+            raise TypeError("sequence must of the same length as reference; seq is {0} and ref is {1}".format(len(sequence),len(self.reference)))
+        if len(self.reference)==0:
+            raise TypeError("reference cannot be of zero length")
+               
         # we consider - characters to be the same as N
         sequence=sequence.replace('-','N')
         

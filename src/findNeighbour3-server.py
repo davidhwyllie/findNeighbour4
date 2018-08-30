@@ -113,6 +113,7 @@ class findNeighbour3():
                             a full mark-and-sweep gc at this point.  This setting alters memory use and compute time, but not the results obtained.
             RECOMPRESS_FREQUENCY: if recompressable records are detected, recompress every RECOMPRESS_FREQ th detection (e.g. 5).
                             Trades off compute time with mem usage.  This setting alters memory use and compute time, but not the results obtained.
+							If zero, recompression is disabled.
             REPACK_FREQUENCY: how the matrix is stored in mongodb.  if REPACK_FREQ=0, there will be one document for every non-empty matrix cell.
 			                if REPACK_FREQ>0, then if a guid has REPACK_FREQ-1 neighbours, then a 'repack' operation
 							occurs.  This transfers multiple matrix cells into one mongodb document: essentially, part or all of a row
@@ -242,7 +243,7 @@ class findNeighbour3():
 		self.recompress_frequency = self.CONFIG['RECOMPRESS_FREQUENCY']
 		self.repack_frequency = self.CONFIG['REPACK_FREQUENCY']
 		self.gc_on_recompress = self.CONFIG['GC_ON_RECOMPRESS']
-		
+			
 		## start setup
 		self.write_semaphore = threading.BoundedSemaphore(1)        # used to permit only one process to INSERT at a time.
 		
@@ -419,12 +420,13 @@ class findNeighbour3():
 						if dist is not None:
 							if link['dist'] <= self.snpCeiling:
 								links[guid2]=link
-								
-				if to_compress>= self.recompress_frequency and to_compress % self.recompress_frequency == 0:		# recompress if there are lots of neighbours, every fifth isolate
-					#app.logger.info("Recompressing: {0}".format(guid))
-					self.server_monitoring_store(message='Guid {0} being recompressed relative to neighbours'.format(guid))
+				
+				if self.recompress_frequency > 0:				
+					if to_compress>= self.recompress_frequency and to_compress % self.recompress_frequency == 0:		# recompress if there are lots of neighbours, every fifth isolate
+						#app.logger.info("Recompressing: {0}".format(guid))
+						self.server_monitoring_store(message='Guid {0} being recompressed relative to neighbours'.format(guid))
 	
-					self.sc.compress_relative_to_consensus(guid)
+						self.sc.compress_relative_to_consensus(guid)
 					if self.gc_on_recompress==1:
 						gc.collect()
 
@@ -447,9 +449,9 @@ class findNeighbour3():
 
 			guids = list(links.keys())
 			guids.append(guid)
-			app.logger.info("Repacking around: {0}".format(guid))
 		
 			if self.repack_frequency>0:
+				app.logger.info("Repacking around: {0}".format(guid))
 				if len(guids) % self.repack_frequency ==0:		# repack if there are repack_frequency-1 neighbours
 					self.repack(guids)
 			
