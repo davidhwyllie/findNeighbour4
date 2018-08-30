@@ -39,6 +39,7 @@ Then install the following packages:
 Database backend
 ----------------
 The server requires a mongodb database to work.
+[These instructions](mongoinstall.md) describe installation of mongodb.
 This server has been tested both with a local mongodb database and with a free cloud instance of mongodb, Mongo Atlas.
 
 
@@ -123,7 +124,15 @@ ps -x | grep findNeighbour3-server
 # kill  servers:
 kill -9 <pid>
 ```
-  
+
+Integration tests
+-----------------
+see [here](integration.md)
+
+Demonstrations
+--------------
+see [here](demos.md)
+
 Using the web server
 --------------------
 You need to start the web server with a sensible configuration, e.g. something like
