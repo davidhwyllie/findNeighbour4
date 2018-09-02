@@ -54,10 +54,10 @@ There are the following other differences:
 * It is only accessible via a RESTful endpoint.  The xmlrpc API included with findNeighbour2 has been removed.
 
 # More information
-[How to test it](doc/HowToTest.md)  
-[Endpoints](doc/rest-routes.md)
+[Set up and unit testing](doc/HowToTest.md)
+[Endpoints](doc/rest-routes.md)  
 [Demonstrations using real and simulated data](doc/demos.md)
-
+[Integration tests](doc/integration.md)
 # Publication
 A publication describing findNeighbour3 is planned.
 
