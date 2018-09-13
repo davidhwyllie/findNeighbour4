@@ -17,6 +17,7 @@ requests
  queue
  threading
  pymongo
+ dnspython
  pandas
  numpy
  flask
