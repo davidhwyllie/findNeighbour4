@@ -101,8 +101,8 @@ class fn3persistence():
             self.db['guid2neighbour'].create_indexes([ix1,ix2])            
             
             # open gridfs systems
-            self.fs = gridfs.GridFS(self.db, collection='refcompressedseq', disable_md5=False)       
-            self.clusters = gridfs.GridFS(self.db, collection='clusters', disable_md5=False)       
+            self.fs = gridfs.GridFS(self.db, collection='refcompressedseq')       
+            self.clusters = gridfs.GridFS(self.db, collection='clusters')       
     
         def _delete_existing_data(self):
             """ deletes existing data from the databases """
