@@ -1,4 +1,5 @@
 # Installing mongodb
+We have tested this application with MongoDb 2.6 (Linux, Ubuntu), Mongo 3.6.1 (Windows, and MongoDb atlas), and Mongo 4 (linux, windows).
 
 ## Windows
 MSI installers are [available](https://www.mongodb.com/download-center).
