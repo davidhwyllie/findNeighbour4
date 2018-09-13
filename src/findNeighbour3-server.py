@@ -46,7 +46,6 @@ from flask import request, abort
 
 # logging
 from logging.config import dictConfig
-from log4mongo.handlers import MongoHandler
 
 # utilities for file handling and measuring file size
 import psutil

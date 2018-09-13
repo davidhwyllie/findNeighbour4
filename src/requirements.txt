@@ -12,7 +12,6 @@ imageio==2.3.0
 itsdangerous==0.24
 jdcal==1.4
 Jinja2==2.10
-log4mongo==1.6.2
 MarkupSafe==1.0
 networkx==2.1
 numpy==1.14.5
