@@ -649,7 +649,7 @@ class findNeighbour3():
 				return {'guid':guid, 'invalid':1,'comment':'No sequence is available, as invalid sequences are not stored'}
 			
 # default parameters for unit testing only.
-RESTBASEURL   = "http://127.0.0.1:5000"
+RESTBASEURL   = "http://127.0.0.1:5020"
 ISDEBUG = True
 LISTEN_TO = '127.0.0.1'		# only local addresses
 
@@ -821,9 +821,11 @@ def assess_mixed():
 		retVal = pd.DataFrame.to_dict(res,orient='index')
 
 	return make_response(json.dumps(retVal))
+
 	
 class test_assess_mixed_1(unittest.TestCase):
 	""" tests route /api/v2/assess_mixed
+ 		- due for removal
 	"""
 	def runTest(self):
 		relpath = "/api/v2/guids"
