@@ -432,12 +432,23 @@ class findNeighbour3():
 				## should trap here to return sensible error message if database connectivity is lost.
 				app.logger.info("Persisting: {0}".format(guid))
 
-				self.PERSIST.refcompressedseq_store(guid, refcompressedsequence)     # store the parsed object on disc
+				self.PERSIST.refcompressedseq_store(guid, refcompressedsequence)     # store the parsed object to database
 				self.PERSIST.guid_annotate(guid=guid, nameSpace='DNAQuality',annotDict=self.objExaminer.composition)						
 				self.PERSIST.guid2neighbour_add_links(guid=guid, targetguids=links)
 
 			except Exception as e:
 				self.write_semaphore.release() 	# ensure release of the semaphore if an error is trapped
+
+				# TODO: If the problem is a mongodb timeout error, then we return 503 service unavailable
+				# as this is normally transient.
+
+				# for all other errors, we need to fall back
+				# we could also introduce a fallback option whereby it retries repeatedly.
+				# however, we need to consider atomicity: the record ** will ** have been persisted in RAM
+				# and it shoudl probably be removed from there - needs careful analysis
+
+				# this scenario can be mimicked using mongoatlas free edition
+				# and using up all the space
 				abort(500, e)
 				
 			# release semaphore

@@ -48,7 +48,7 @@ if __name__ == '__main__':
     seqbases = list(seq)        # a list with one nt per element.
 
     print("opening connection to fn3 server")
-    fn3c = fn3Client()
+    fn3c = fn3Client(baseurl = "http://127.0.0.1:5020")
 
     # determine all masked positions
     excluded_positions = fn3c.nucleotides_excluded()
