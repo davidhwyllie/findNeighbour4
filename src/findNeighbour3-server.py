@@ -2053,7 +2053,8 @@ if __name__ == '__main__':
         # an example config file is default_test_config.json
                
         ############################ LOAD CONFIG ######################################
-       
+        print("findNeighbour3 server .. reading configuration file.")
+
         if len(sys.argv) == 2:
                 configFile = sys.argv[1]
         else:
@@ -2083,6 +2084,7 @@ if __name__ == '__main__':
 
         ########################### SET UP LOGGING #####################################  
         # create a log file if it does not exist.
+        print("Starting logging")
         logdir = os.path.dirname(CONFIG['LOGFILE'])
         pathlib.Path(os.path.dirname(CONFIG['LOGFILE'])).mkdir(parents=True, exist_ok=True)  
    	
@@ -2109,6 +2111,7 @@ if __name__ == '__main__':
         #########################  CONFIGURE HELPER APPLICATIONS ######################
         ## once the flask app is running, errors get logged to app.logger.  However, problems on start up do not.
 	## configure mongodb persistence store
+        print("Connecting to backend data store")
         try:
                 PERSIST=fn3persistence(dbname = CONFIG['SERVERNAME'],connString=CONFIG['FNPERSISTENCE_CONNSTRING'], debug=CONFIG['DEBUGMODE'])
         except Exception as e:
@@ -2118,6 +2121,7 @@ if __name__ == '__main__':
                 raise
 
 	# instantiate server class
+        print("Loading sequences into server, please wait ...")
         try:
         	fn3 = findNeighbour3(CONFIG, PERSIST)
         except Exception as e:

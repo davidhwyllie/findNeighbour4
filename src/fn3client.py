@@ -17,7 +17,7 @@ Describing server configuration
 /api/v2/server_memory_usage/*nrows*
 * Return server time  
 /api/v2/server_time
-* List nucleotides masked (ignored) by the server in distance computations  
+* List nucleotides masked ( ignored) by the server in distance computations  
 /api/v2/nucleotides_excluded  
 
 Insert into server   
@@ -229,7 +229,8 @@ class fn3Client():
 
     def getpost(self, relpath, method='GET', payload=None, timeout=None):
         """ issues GET or POST against url.  returns a response object
-        will raise errors if they are generated
+	    will raise errors if generated, but does not raise errors if a valid
+            response object is returned, even if it has a status_code indicating the call failed
         """
         
         session = requests.Session()
@@ -237,17 +238,13 @@ class fn3Client():
     
         sc = -1
         url = self.absurl(relpath)
-        #print("** URL", url)
         if method == 'GET':
             response = session.get(url=url)
-            sc=response.status_code               
 
         elif method == 'POST':
-            #print("**POST PAYLOAD [in getpost]",json.dumps(payload))
             response = session.post(url=url,
                                         data = payload)
-            sc = response.status_code             
-                           
+                          
         else:
             raise NotImplementedError("either GET or POST is required as a method.  was passed {0}".format(method))
         
@@ -257,7 +254,7 @@ class fn3Client():
     def get(self, relpath,  timeout=None):
         """ issues GET against url.  returns a response object.
         raises errors if fails"""
-        response = self.getpost(relpath=relpath, raiseError=raiseError, timeout=timeout, method='GET')
+        response = self.getpost(relpath=relpath, timeout=timeout, method='GET')
         return response
 
     def post(self, relpath, payload,  timeout=None):
@@ -356,32 +353,6 @@ class fn3Client():
         else:            
             return res.content
         
-        
-        TODO = """
-           Insert into server   
-       Search/describe all sequences in the server, each identified by a guid
-   
-        Multiple sequence alignments
-        ----------------------------
-        * return multiple sequence alignment for an arbitrary set of sequences, either in json or html format.
-        /api/v2/multiple_alignment/guids   requires POST; see docs for details
-        
-           """
-
-    def assess_mixed(self,guid, neighbours, sample_size=10, timeout=None):
-        """ assesses whether a guid is mixed relative to neighbours
-        """
-        neighbourstring = ';'.join(neighbours)
-        payload = {'this_guid':guid,'related_guids':neighbourstring,'sample_size':sample_size}
-        retVal = self.post('/api/v2/assess_mixed', payload = payload, timeout= timeout)
-        res = self._decode(retVal)
-        
-        if res=={}:
-            return None     # no information
-        else:
-            df= pd.DataFrame.from_dict(res, orient='index')
-        return df
-    
     def msa(self, guids, output_format = 'json', timeout=None):
         """ performs msa
         """
@@ -424,7 +395,7 @@ class fn3Client():
             with open(fastafile, 'rt') as f:
                 content = f.read()
         
-        # now use BioPython3 SeqIO library to read the file.      
+        # use BioPython3 SeqIO library to read the file.      
         nFiles = 0 
         with io.StringIO(content) as f:
            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):

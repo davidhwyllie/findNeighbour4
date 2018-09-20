@@ -19,7 +19,7 @@ import os
 import random
 import datetime
 import argparse
-
+import pathlib
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
@@ -38,6 +38,10 @@ if __name__ == '__main__':
     args = parser.parse_args()
     max_sequences = args.max_sequences[0]
     outputdir = os.path.abspath(args.outputdir[0])
+
+    # make the directory
+    p = pathlib.Path(outputdir)
+    p.mkdir(parents=True, exist_ok=True)
     
     # H37Rv reference sequence
     print("reading h37rv control sequence")
@@ -89,19 +93,25 @@ if __name__ == '__main__':
             # add
             print("Inserting", guid)
             stime1 = datetime.datetime.now()
-            fn3c.insert(guid=guid, seq=mutseq)
+            resp = fn3c.insert(guid=guid, seq=mutseq)
+            print("Insert yielded status code {0}".format(resp.status_code))
+
             etime1 = datetime.datetime.now()
             delta1= etime1-stime1
             
-            # recover neighbours of guid1
+            # recover neighbours of guid
             stime2 = datetime.datetime.now()
-            neighbours = fn3c.guid2neighbours(guid, threshold=10000000)
-            etime2 = datetime.datetime.now()
-            delta2 = etime2 - stime2
-            print("Recovered {1} neighbours of {0}".format(guid, len(neighbours)))            
-            output_line = "{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\n".format(nSamples, stime1, etime1, delta1, stime2, etime2, delta2)
-            f.write(output_line)
-            f.flush()
+            # check it exists
+            if not fn3c.guid_exists(guid):
+                print("Guid {0} was not inserted".format(guid))   
+            else:
+                neighbours = fn3c.guid2neighbours(guid, threshold=10000000)
+                etime2 = datetime.datetime.now()
+                delta2 = etime2 - stime2
+                print("Recovered {1} neighbours of {0}".format(guid, len(neighbours)))            
+                output_line = "{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\n".format(nSamples, stime1, etime1, delta1, stime2, etime2, delta2)
+                f.write(output_line)
+                f.flush()
             
         print("Have added {0} sequences, stopping.".format(nSamples))
         exit(0)              
