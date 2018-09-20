@@ -110,6 +110,17 @@ class seqComparer():
             Compression relative to each other is carried out post-hoc in ram
             """
         self.seqProfile[guid]=object
+    def remove(self, guid):
+        """ removes a reference compressed object into RAM.
+            If compression relative to other sequences has been carried out post-hoc in ram,
+            only the sequence is removed; any consensus linked to it (and potentially to other sequences)
+            remain unaltered.
+            """
+        try:
+               del self.seqProfile[guid]
+        except KeyError:
+               pass 	# we permit attempts to delete things which don't exist
+
     def load(self, guid):
         """ recovers (loads) a variable containing a reference compressed object into RAM.
             Note: the sequences are stored on disc/db relative to the reference.
@@ -1613,7 +1624,17 @@ class test_seqComparer_saveload3(unittest.TestCase):
         sc.persist(compressedObj, 'one' )     
         retVal=sc.load(guid='one' )
         self.assertEqual(compressedObj,retVal)        
-
+class test_seqComparer_save_remove(unittest.TestCase):
+    def runTest(self):
+        refSeq='ACTG'
+        sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq)
+        compressedObj =sc.compress(sequence='ACTT')
+        sc.persist(compressedObj, 'one' )     
+        retVal=sc.iscachedinram(guid='one' )
+        self.assertEqual(True,retVal)        
+        sc.remove('one')
+        retVal=sc.iscachedinram(guid='one' )
+        self.assertEqual(False,retVal)  
 class test_seqComparer_24(unittest.TestCase):
     """ tests N compression """
     def runTest(self):

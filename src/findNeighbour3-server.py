@@ -39,6 +39,7 @@ import pymongo
 import pandas as pd
 import numpy as np
 import copy
+import pathlib
 
 # flask
 from flask import Flask, make_response, jsonify, Markup
@@ -373,7 +374,7 @@ class findNeighbour3():
 		if guids is None:
 			guids = self.PERSIST.guids()  # all the guids
 		for this_guid in guids:
-			#app.logger.info("Repacking {0}".format(this_guid))
+			app.logger.debug("Repacking {0}".format(this_guid))
 			self.PERSIST.guid2neighbour_repack(this_guid)
 	
 	def record_server_status(self, message='No message supplied'):
@@ -404,58 +405,74 @@ class findNeighbour3():
 			links={}			
 			try:
 				# this process reports links less than self.sc.snpCeiling
-				#app.logger.info("Finding links: {0}".format(guid))
+				app.logger.debug("Finding links: {0}".format(guid))
 
 				to_compress = 0
 				for key2 in self.sc.guidscachedinram():
 					if not guid==key2:
-						#app.logger.info("Finding links: {0} vs {1}".format(guid, key2))
+						app.logger.debug("Finding links: {0} vs {1}".format(guid, key2))
 						(guid1,guid2,dist,n1,n2,nboth, N1pos, N2pos, Nbothpos)=self.sc.countDifferences_byKey(keyPair=(guid,key2),
 																											  cutoff = self.snpCompressionCeiling)
-						#app.logger.info("Links found")
+						app.logger.debug("Links found")
 					
 						link = {'dist':dist,'n1':n1,'n2':n2,'nboth':nboth}
 						to_compress +=1
 						if dist is not None:
 							if link['dist'] <= self.snpCeiling:
-								links[guid2]=link
-				
-				if self.recompress_frequency > 0:				
-					if to_compress>= self.recompress_frequency and to_compress % self.recompress_frequency == 0:		# recompress if there are lots of neighbours, every fifth isolate
-						#app.logger.info("Recompressing: {0}".format(guid))
-						self.server_monitoring_store(message='Guid {0} being recompressed relative to neighbours'.format(guid))
+								links[guid2]=link			
+
+
+				## now persist in database.  
+				# we have considered what happens if database connectivity fails during the insert operations.
+				app.logger.debug("Persisting: {0}".format(guid))
+
+				# if the database connectivity fails after this refcompressedseq_store has completed, then 
+				# the 'document' will already exist within the mongo file store.
+				# in such a case, a FileExistsError is raised.
+				# we trap for such errors, logging a warning, but permitting continuing execution since
+				# this is expected if refcompressedseq_store succeeds, but subsequent inserts fail.
+				try:
+					self.PERSIST.refcompressedseq_store(guid, refcompressedsequence)     # store the parsed object to database
+				except FileExistsError:
+					app.logger.warning("Attempted to refcompressedseq_store {0}, but it already exists.  This is expected only if database connectivity failed during a previous INSERT operation.  Such failures should be noted in earlier logs".format(guid))
 	
-						self.sc.compress_relative_to_consensus(guid)
-					if self.gc_on_recompress==1:
-						gc.collect()
-
-				## should trap here to return sensible error message if database connectivity is lost.
-				app.logger.info("Persisting: {0}".format(guid))
-
-				self.PERSIST.refcompressedseq_store(guid, refcompressedsequence)     # store the parsed object to database
+				# annotation of guid will update if an existing record exists.  This is OK, and is acceptable if database connectivity failed during previous inserts
 				self.PERSIST.guid_annotate(guid=guid, nameSpace='DNAQuality',annotDict=self.objExaminer.composition)						
+
+				# addition of neighbours may cause neighbours to be entered more than once if database connectivity failed during previous inserts.
+				# because of the way that extraction of links works, this does not matter, and duplicates will not be reported.
 				self.PERSIST.guid2neighbour_add_links(guid=guid, targetguids=links)
 
 			except Exception as e:
+				app.logger.exception("Error raised on persisting {0}".format(guid))
 				self.write_semaphore.release() 	# ensure release of the semaphore if an error is trapped
 
-				# TODO: If the problem is a mongodb timeout error, then we return 503 service unavailable
-				# as this is normally transient.
+				# Rollback anything which could leave system in an inconsistent state
+				# remove the guid from RAM is the only step necessary
+				self.sc.remove(guid)	
+				app.logger.info("Guid successfully removed from ram. {0}".format(guid))
+                                    
+				if e.__module__ == "pymongo.errors":
+					app.logger.info("Error raised pertains to pyMongo connectivity")
+					abort(503,e)		# the mongo server may be refusing connections, or busy.  This is observed occasionally in real-world use
+				else:
+					abort(500,e)		# some other kind of error
 
-				# for all other errors, we need to fall back
-				# we could also introduce a fallback option whereby it retries repeatedly.
-				# however, we need to consider atomicity: the record ** will ** have been persisted in RAM
-				# and it shoudl probably be removed from there - needs careful analysis
-
-				# this scenario can be mimicked using mongoatlas free edition
-				# and using up all the space
-				abort(500, e)
 				
 			# release semaphore
 			self.write_semaphore.release()                  # release the write semaphore
 
+			if self.recompress_frequency > 0:				
+				if to_compress>= self.recompress_frequency and to_compress % self.recompress_frequency == 0:		# recompress if there are lots of neighbours, every self.recompress_frequency isolates
+					app.logger.debug("Recompressing: {0}".format(guid))
+					self.server_monitoring_store(message='Guid {0} being recompressed relative to neighbours'.format(guid))
+					self.sc.compress_relative_to_consensus(guid)
+				if self.gc_on_recompress==1:
+					gc.collect()
+			app.logger.info("Insert succeeded {0}".format(guid))
+
 			# clean up guid2neighbour; this can readily be done post-hoc, if the process proves to be slow.
-			# it doesn't affect results.
+			# it is a mongodb reformatting operation which doesn't affect results.
 
 			guids = list(links.keys())
 			guids.append(guid)
@@ -467,7 +484,6 @@ class findNeighbour3():
 			
 			# cluster
 			app.logger.info("Clustering around: {0}".format(guid))
-		
 			self.update_clustering()
 
 			return "Guid {0} inserted.".format(guid)		
@@ -2029,6 +2045,8 @@ class test_nucleotides_excluded(unittest.TestCase):
         self.assertEqual(set(resDict.keys()), set(['exclusion_id', 'excluded_nt']))
         self.assertEqual(res.status_code, 200)
  
+
+# startup
 if __name__ == '__main__':
 
         # command line usage.  Pass the location of a config file as a single argument.
@@ -2045,7 +2063,7 @@ if __name__ == '__main__':
         # open the config file
         try:
                 with open(configFile,'r') as f:
-                        CONFIG=f.read()
+                         CONFIG=f.read()
 
         except FileNotFoundError:
                 raise FileNotFoundError("Passed one parameter, which should be a CONFIG file name; tried to open a config file at {0} but it does not exist ".format(sys.argv[1]))
@@ -2064,32 +2082,48 @@ if __name__ == '__main__':
                 raise KeyError("Required keys were not found in CONFIG. Missing are {0}".format(missing))
 
         ########################### SET UP LOGGING #####################################  
-        # see http://flask.pocoo.org/docs/dev/logging/               
+        # create a log file if it does not exist.
+        logdir = os.path.dirname(CONFIG['LOGFILE'])
+        pathlib.Path(os.path.dirname(CONFIG['LOGFILE'])).mkdir(parents=True, exist_ok=True)  
+   	
+        # set up logger
         loglevel=logging.INFO
         if 'LOGLEVEL' in CONFIG.keys():
                 if CONFIG['LOGLEVEL']=='WARN':
                         loglevel=logging.WARN
                 elif CONFIG['LOGLEVEL']=='DEBUG':
                         loglevel=logging.DEBUG
-         
+
         # configure logging object 
-        app.logger.setLevel(logging.DEBUG)          
-        stream_handler = logging.StreamHandler()
-
+        app.logger.setLevel(loglevel)       
+        file_handler = logging.handlers.RotatingFileHandler(CONFIG['LOGFILE'], maxBytes = 1000000, backupCount=10)
         formatter = logging.Formatter( "%(asctime)s | %(pathname)s:%(lineno)d | %(funcName)s | %(levelname)s | %(message)s ")
-        stream_handler.setFormatter(formatter)
-        app.logger.addHandler(stream_handler)
-
+        file_handler.setFormatter(formatter)
+        app.logger.addHandler(file_handler)
+ 
         ########################### prepare to launch server ###############################################################
         # construct the required global variables
         LISTEN_TO = '127.0.0.1'
         RESTBASEURL = "http://{0}:{1}".format(CONFIG['IP'], CONFIG['REST_PORT'])
 
         #########################  CONFIGURE HELPER APPLICATIONS ######################
-        ## configure mongodb persistence store
-        PERSIST=fn3persistence(dbname = CONFIG['SERVERNAME'],connString=CONFIG['FNPERSISTENCE_CONNSTRING'], debug=CONFIG['DEBUGMODE'])
-        fn3 = findNeighbour3(CONFIG, PERSIST)
-        
+        ## once the flask app is running, errors get logged to app.logger.  However, problems on start up do not.
+	## configure mongodb persistence store
+        try:
+                PERSIST=fn3persistence(dbname = CONFIG['SERVERNAME'],connString=CONFIG['FNPERSISTENCE_CONNSTRING'], debug=CONFIG['DEBUGMODE'])
+        except Exception as e:
+                app.logger.exception("Error raised on creating persistence object")
+                if e.__module__ == "pymongo.errors":
+                      app.logger.info("Error raised pertains to pyMongo connectivity")
+                raise
+
+	# instantiate server class
+        try:
+        	fn3 = findNeighbour3(CONFIG, PERSIST)
+        except Exception as e:
+                app.logger.exception("Error raised on instantiating findNeighbour3 object")
+                raise
+
 
         ########################  START THE SERVER ###################################
         if CONFIG['DEBUGMODE']>0:
@@ -2097,5 +2131,15 @@ if __name__ == '__main__':
                 app.config['PROPAGATE_EXCEPTIONS'] = True
         else:
                 flask_debug = False
-        app.run(host=LISTEN_TO, debug=flask_debug, port = CONFIG['REST_PORT'])
+
+	# run server
+        app.logger.info("Launching server on {0}, debug = {1}, port = {2}".format(LISTEN_TO, flask_debug, CONFIG['REST_PORT']))
+        try:
+   	        app.run(host=LISTEN_TO, debug=flask_debug, port = CONFIG['REST_PORT'])
+
+        except Exception as e:
+                app.logger.exception("Failed to launch flask web server")
+                raise
+
+
 
