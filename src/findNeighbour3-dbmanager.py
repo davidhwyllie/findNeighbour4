@@ -25,6 +25,7 @@ import pymongo
 import pathlib
 import sentry_sdk
 import json
+import time
 
 # logging
 from logging.config import dictConfig
@@ -41,8 +42,8 @@ def repack(guids):
 	if guids is None:
 		guids = PERSIST.guids()  # all the guids
 	for this_guid in guids:
-		app.logger.debug("Repacking {0}".format(this_guid))
-		self.PERSIST.guid2neighbour_repack(this_guid)
+		logger.debug("Repacking {0}".format(this_guid))
+		PERSIST.guid2neighbour_repack(this_guid)
 		
 
 # startup
@@ -109,7 +110,7 @@ if __name__ == '__main__':
         # launch sentry if API key provided
         if 'SENTRY_URL' in CONFIG.keys():
                 logger.info("Launching logger")
-                sentry_sdk.init(CONFIG['SENTRY_URL'], integrations=[FlaskIntegration()])
+                sentry_sdk.init(CONFIG['SENTRY_URL'])
 
         #########################  CONFIGURE HELPER APPLICATIONS ######################
         logging.info("Connecting to backend data store")
@@ -123,12 +124,21 @@ if __name__ == '__main__':
 
         ########################  START Operations ###################################
         logger.info("Collecting samples for repacking")
-        s_ids=set()
-        for res in PERSIST.db.guid2neighbour.find({'rstat':'s'}):
-             s_ids.add(res["_id"])
-        logger.info("There are {0} samples to repack.".format(len(s_ids)))
-
-        s_ids = list(s_ids)[:10]		# pick ten
-        repack(s_ids)
+        
+        while True:
+             nModified = 0
+             for res1 in PERSIST.db.guid2meta.find({}):
+                 guid = res1['_id']
+                 # does this guid have any singleton guid2neighbour records which need compressing
+                 for res2 in PERSIST.db.guid2neighbour.find({'guid':guid,'rstat':'s'}).limit(1):
+                     
+                     logger.info("Repacking {0}".format(guid))
+                     repack([guid])
+                     nModified += 1
+             if nModified == 0:
+                     # everything has been packed
+                     logger.info("Nothing found to repack.  Waiting 60s .. ")
+                     time.sleep(60)	# recheck in 1 minute
+		 
 
 
