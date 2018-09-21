@@ -2161,6 +2161,7 @@ if __name__ == '__main__':
                 raise KeyError("CONFIG must be either a dictionary or a JSON string encoding a dictionary.  It is: {0}".format(CONFIG))
         
         # check that the keys of config are as expected.
+		
         required_keys=set(['IP', 'REST_PORT', 'DEBUGMODE', 'LOGFILE', 'MAXN_PROP_DEFAULT'])
         missing=required_keys-set(CONFIG.keys())
         if not missing == set([]):
