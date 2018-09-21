@@ -24,14 +24,16 @@ Then install the following packages:
  queue  
  threading  
  pymongo  
- pandas as pd  
- numpy as np  
+ pandas 
+ numpy  
  flask  
  psutil    
  BioPython
- log4mongo 
  scipy
  networkx
+ blinker
+ sentry-sdk
+ pathlib
  
  Example:
  ```sudo pip3 install requests```
