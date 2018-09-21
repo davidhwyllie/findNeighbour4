@@ -390,7 +390,7 @@ class findNeighbour3():
 		"""
 		
 		# clean, and provide summary statistics for the sequence
-		app.logger.info("Inserting: {0}".format(guid))
+		app.logger.info("Preparing to insert: {0}".format(guid))
 		if not self.sc.iscachedinram(guid):                   # if the guid is not already there
 			
 			# prepare to insert
@@ -412,10 +412,8 @@ class findNeighbour3():
 				to_compress = 0
 				for key2 in self.sc.guidscachedinram():
 					if not guid==key2:
-						app.logger.debug("Finding links: {0} vs {1}".format(guid, key2))
 						(guid1,guid2,dist,n1,n2,nboth, N1pos, N2pos, Nbothpos)=self.sc.countDifferences_byKey(keyPair=(guid,key2),
 																											  cutoff = self.snpCompressionCeiling)
-						app.logger.debug("Links found")
 					
 						link = {'dist':dist,'n1':n1,'n2':n2,'nboth':nboth}
 						to_compress +=1
@@ -426,7 +424,7 @@ class findNeighbour3():
 
 				## now persist in database.  
 				# we have considered what happens if database connectivity fails during the insert operations.
-				app.logger.debug("Persisting: {0}".format(guid))
+				app.logger.info("Persisting: {0}".format(guid))
 
 				# if the database connectivity fails after this refcompressedseq_store has completed, then 
 				# the 'document' will already exist within the mongo file store.
@@ -437,7 +435,9 @@ class findNeighbour3():
 					self.PERSIST.refcompressedseq_store(guid, refcompressedsequence)     # store the parsed object to database
 				except FileExistsError:
 					app.logger.warning("Attempted to refcompressedseq_store {0}, but it already exists.  This is expected only if database connectivity failed during a previous INSERT operation.  Such failures should be noted in earlier logs".format(guid))
-	
+				except Exception: 		# something else
+					raise			# we don't want to trap other things
+
 				# annotation of guid will update if an existing record exists.  This is OK, and is acceptable if database connectivity failed during previous inserts
 				self.PERSIST.guid_annotate(guid=guid, nameSpace='DNAQuality',annotDict=self.objExaminer.composition)						
 
@@ -491,6 +491,7 @@ class findNeighbour3():
 			return "Guid {0} inserted.".format(guid)		
 		else:
 			return "Guid {0} is already present".format(guid)
+			app.logger.info("Already present, no insert needed: {0}".format(guid))
 	
 	def update_clustering(self, store=True):
 		""" performs clustering on any samples within the persistence store which are not already clustered
