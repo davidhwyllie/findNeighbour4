@@ -103,7 +103,11 @@ class seqComparer():
         # prepare to load signatures into memory if directed to do so.
         self.seqProfile={}
         self.consensi = {}      # where consensus sequences are stored in ram
-      
+    def raise_error(self,token):
+        """ raises a ZeroDivisionError, with token as the message.
+            useful for unit tests of error logging """
+        raise ZeroDivisionError(token)
+    
     def persist(self, object, guid):
         """ keeps a reference compressed object into RAM.
             Note: the sequences are stored on disc/db relative to the reference.
@@ -318,7 +322,8 @@ class seqComparer():
         """ compares the in memory refCompressed sequences at
         self.seqProfile[key1] and self.seqProfile[key2]
 
-        Returns the number of SNPs between self._seq1 and self._seq2, and, if it is less than cutoff,
+        Returns the number of SNPs between self._seq1 and self._seq2, and,
+        if the pairwise SNP distance is less than cutoff,
         the number of Ns in the two sequences and the union of their positions.
         """
 
@@ -1881,28 +1886,33 @@ class test_seqComparer_44(unittest.TestCase):
         sc=seqComparer( maxNs = 2,
                        reference=refSeq,
                        snpCeiling =10)
-        
+
+        with self.assertRaises(KeyError):
+            res = sc.countDifferences_byKey(('AAAC','NNNC'))
+  
         originals = [ 'AAAC', 'NNNC' ]
         for original in originals:   
             c = sc.compress(original)
             sc.persist(c, guid=original )
 
-        res = sc.countDifferences_byKey('AAAC','NNNC')
-        self.assertEqual(res, None)
 
+        # use a Tuple
+        res = sc.countDifferences_byKey(('AAAC','NNNC'))
+        self.assertEqual(res[2], None)
+        
         refSeq='GGGG'
         sc=seqComparer( maxNs = 1e8,
                        reference=refSeq,
                        snpCeiling =10)
-        
         originals = [ 'AAAC', 'NNNC' ]
         for original in originals:   
             c = sc.compress(original)
             sc.persist(c, guid=original )
 
-        res = sc.countDifferences_byKey('AAAC','NNNC')
-        self.assertEqual(res, 0)
-        
+        res = sc.countDifferences_byKey(('AAAC','NNNC'))
+        self.assertEqual(res[2], 0)
+
+   
 class test_seqComparer_45(unittest.TestCase):
     """ tests insertion of large sequences """
     def runTest(self):
@@ -1959,7 +1969,7 @@ class test_seqComparer_45(unittest.TestCase):
             if i % 5 == 0:
                 sc.compress_relative_to_consensus(guid_to_insert)
 
-class test_seqComparer_44(unittest.TestCase):
+class test_seqComparer_46(unittest.TestCase):
     """ tests the compression relative to a consensus with a consensus present.
     then adds more sequences, changing the consensus."""
     def runTest(self):
@@ -1998,3 +2008,13 @@ class test_seqComparer_44(unittest.TestCase):
         self.assertNotEqual(initial_consensi_keys, later_consensi_keys)
         self.assertEqual(len(later_consensi_keys), 1)
  
+class test_seqComparer_47(unittest.TestCase):
+    """ tests raise_error"""
+    def runTest(self):
+                # generate compressed sequences
+        refSeq='GGGGGGGGGGGG'
+        sc=seqComparer( maxNs = 1e8,
+                       reference=refSeq,
+                       snpCeiling =10)
+        with self.assertRaises(ZeroDivisionError):
+            sc.raise_error("token")

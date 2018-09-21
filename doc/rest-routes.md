@@ -15,6 +15,8 @@ Testing the server
 ------------------
 * returns the dictionary posted to the server. Can be used for testing network connectivity.   
 /api/v2/mirror  (requires POST)
+* raises an error internally.  Can be used to test error logging.  Disabled unless in debug mode.
+/api/v2/raise_error/*component*/*token*/
 
 Describing server configuration
 ---------------------------------

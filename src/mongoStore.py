@@ -75,7 +75,6 @@ class fn3persistence():
             self.dbname = dbname
             self.db = self.client[dbname]
             
-            
             # can check what exists with connection.database_names()
             self.expected_collections = ['server_monitoring',
                                          'guid2meta','guid2neighbour',
@@ -103,6 +102,11 @@ class fn3persistence():
             # open gridfs systems
             self.fs = gridfs.GridFS(self.db, collection='refcompressedseq')       
             self.clusters = gridfs.GridFS(self.db, collection='clusters')       
+    
+        def raise_error(self,token):
+            """ raises a ZeroDivisionError, with token as the message.
+            useful for unit tests of error logging """
+            raise ZeroDivisionError(token)
     
         def _delete_existing_data(self):
             """ deletes existing data from the databases """
@@ -1021,3 +1025,10 @@ class Test_Clusters(unittest.TestCase):
                 payload2 = p.clusters_read('cl1')   
                 self.assertEqual(payload1, payload2)
                 
+class test_Raise_error(unittest.TestCase):
+    """ tests raise_error"""
+    def runTest(self):
+                # generate compressed sequences
+        p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)              
+        with self.assertRaises(ZeroDivisionError):
+            p.raise_error("token")

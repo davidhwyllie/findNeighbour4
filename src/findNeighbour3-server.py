@@ -40,6 +40,8 @@ import pandas as pd
 import numpy as np
 import copy
 import pathlib
+import sentry_sdk
+from sentry_sdk.integrations.flask import FlaskIntegration
 
 # flask
 from flask import Flask, make_response, jsonify, Markup
@@ -65,7 +67,7 @@ from Bio.Alphabet import generic_nucleotide
 import unittest
 from urllib.parse import urlparse as urlparser
 from urllib.parse import urljoin as urljoiner
-
+import uuid
 
 class findNeighbour3():
 	""" a server based application for maintaining a record of bacterial relatedness using SNP distances.
@@ -136,7 +138,7 @@ class findNeighbour3():
                             mixture_criterion: sensible values include 'p_value1','p_value2','p_value3' but other output from  seqComparer._msa() is also possible.
                                  these p-values arise from three different tests for mixtures.  Please see seqComparer._msa() for details.
                             cutoff: samples are regarded as mixed if the mixture_criterion is less than or equal to this value.
-
+            SENTRY_URL:  optional.  If provided, will launch link Sentry to the flask application using the API key provided.  See https://sentry.io for a description of this service. 
 		An example CONFIG is below:
 		
 		{			
@@ -769,6 +771,91 @@ def server_info():
 	res = """findNeighbour3 web server operating.<p>Endpoints are in rest-routes.md, in the docs<p>"""
 	return make_response(res)
 
+@app.route('/api/v2/raise_error/<string:component>/<string:token>', methods=['GET'])
+def raise_error(component, token):
+	""" * raises an error internally.  Can be used to test error logging.  Disabled unless in debug mode.
+
+	/api/v2/raise_error/*component*/*token*/
+
+	Valid values for component are:
+	main - raise error in main code
+	persist - raise in PERSIST object
+	clustering - raise in clustering
+	seqcomparer - raise in seqcomparer.
+	"""
+
+	if not fn3.debugMode == 2:
+		# if we're not in debugMode==2, then this option is not allowed
+		abort(404, 'Calls to /reset are only allowed with debugMode == 2' )
+
+	if component == 'main':
+		raise ZeroDivisionError(token)
+	elif component == 'clustering':
+		clustering_names = list(fn3.clustering_settings.keys())
+
+		if len(clustering_names)==0:
+			self.fail("no clustering settings defined; cannot test error generation in clustering")
+		else:
+			clustering_name = clustering_names[0]
+			fn3.clustering_settings[clustering_name].raise_error(token)
+	elif component == 'seqcomparer':
+		fn3.sc.raise_error(token)
+	elif component == 'persist':
+		fn3.PERSIST.raise_error(token)
+	else:
+		raise KeyError("Invalid component called.  Allowed: main;persist;clustering;seqcomparer.")
+
+@unittest.skip("skipped; known issue with error handling within flask")		
+class test_raise(unittest.TestCase):
+	""" tests route /api/v2/reset
+	
+	Note: this test currently fails, and has been disabled.
+	It appears that (at least as currently configured) errors raised during
+	Flask execution are not logged to app.logger.
+	
+	This is unexpected; the errors raised are printed to STDERR and
+	are also logged using Sentry, if configured.
+	
+	The logger is working, and explicit calls to app.logger.exception() within try/except blocks
+	do log.
+	
+	This remains an unresolved issue.
+	"""
+	def runTest(self):
+		
+		# get the server's config - requires that we're running in debug mode
+		relpath = "/api/v2/server_config"
+		try:
+			res = do_GET(relpath)
+		except requests.exceptions.HTTPError:
+			self.fail("Could not read config. This unit test requires a server in debug mode")
+			
+		self.assertTrue(isjson(content = res.content))
+
+		config_dict = json.loads(res.content.decode('utf-8'))
+		try:
+			logfile = config_dict['LOGFILE']
+		except KeyError:
+			self.fail("No LOGFILE element in config dictionary, as obtained from the server.")
+			
+		for error_at in ['main','persist','clustering','seqcomparer']:
+			guid = uuid.uuid4().hex
+			print(guid)
+			token = "TEST_ERROR_in_{0}_#_{1}".format(error_at, guid)
+			relpath = "/api/v2/raise_error/{0}/{1}".format(error_at, token)
+			print(relpath)
+			res = do_GET(relpath)
+	
+			if not os.path.exists(logfile):
+				self.fail("No logfile {0} exists.  This test only works when the server is on localhost, and debugmode is 2".format(logfile))
+			else:
+				with open(logfile, 'rt') as f:
+					txt = f.read()
+					if not token in txt:
+						print("NOT LOGGED: ***** {0} <<<<<<".format(txt[-200:]))
+						self.fail("Error was not logged {0}".format(error_at))
+
+	
 @app.route('/api/v2/assess_mixed', methods=['POST'])
 def assess_mixed():
 	""" computes estimates of whether *this_guid* is likely to be mixed, relative to the guids in the
@@ -1218,8 +1305,7 @@ class test_server_config(unittest.TestCase):
         self.assertTrue(isjson(content = res.content))
 
         config_dict = json.loads(res.content.decode('utf-8'))
-        print(config_dict)
-		
+       
         self.assertTrue('GC_ON_RECOMPRESS' in config_dict.keys())
         self.assertEqual(res.status_code, 200)
 
@@ -2010,8 +2096,6 @@ class test_sequence_4(unittest.TestCase):
         info = json.loads(res.content.decode('utf-8'))
         self.assertEqual(info['guid'], guid_to_insert1)
         self.assertEqual(info['invalid'], 1)
-
-		
         relpath = "/api/v2/{0}/sequence".format(guid_to_insert2)
         res = do_GET(relpath)
         self.assertEqual(res.status_code, 200)
@@ -2086,8 +2170,8 @@ if __name__ == '__main__':
         # create a log file if it does not exist.
         print("Starting logging")
         logdir = os.path.dirname(CONFIG['LOGFILE'])
-        pathlib.Path(os.path.dirname(CONFIG['LOGFILE'])).mkdir(parents=True, exist_ok=True)  
-   	
+        pathlib.Path(os.path.dirname(CONFIG['LOGFILE'])).mkdir(parents=True, exist_ok=True)
+
         # set up logger
         loglevel=logging.INFO
         if 'LOGLEVEL' in CONFIG.keys():
@@ -2098,11 +2182,19 @@ if __name__ == '__main__':
 
         # configure logging object 
         app.logger.setLevel(loglevel)       
-        file_handler = logging.handlers.RotatingFileHandler(CONFIG['LOGFILE'], maxBytes = 1000000, backupCount=10)
+        file_handler = logging.FileHandler(CONFIG['LOGFILE'])
         formatter = logging.Formatter( "%(asctime)s | %(pathname)s:%(lineno)d | %(funcName)s | %(levelname)s | %(message)s ")
         file_handler.setFormatter(formatter)
         app.logger.addHandler(file_handler)
  
+        # log a test error on startup
+        # app.logger.error("Test error logged on startup, to check logger is working")
+
+        # launch sentry if API key provided
+        if 'SENTRY_URL' in CONFIG.keys():
+                app.logger.info("Launching logger")
+                sentry_sdk.init(CONFIG['SENTRY_URL'], integrations=[FlaskIntegration()])
+
         ########################### prepare to launch server ###############################################################
         # construct the required global variables
         LISTEN_TO = '127.0.0.1'
@@ -2110,7 +2202,7 @@ if __name__ == '__main__':
 
         #########################  CONFIGURE HELPER APPLICATIONS ######################
         ## once the flask app is running, errors get logged to app.logger.  However, problems on start up do not.
-	## configure mongodb persistence store
+        ## configure mongodb persistence store
         print("Connecting to backend data store")
         try:
                 PERSIST=fn3persistence(dbname = CONFIG['SERVERNAME'],connString=CONFIG['FNPERSISTENCE_CONNSTRING'], debug=CONFIG['DEBUGMODE'])
@@ -2120,7 +2212,7 @@ if __name__ == '__main__':
                       app.logger.info("Error raised pertains to pyMongo connectivity")
                 raise
 
-	# instantiate server class
+        # instantiate server class
         print("Loading sequences into server, please wait ...")
         try:
         	fn3 = findNeighbour3(CONFIG, PERSIST)
@@ -2136,14 +2228,13 @@ if __name__ == '__main__':
         else:
                 flask_debug = False
 
-	# run server
         app.logger.info("Launching server on {0}, debug = {1}, port = {2}".format(LISTEN_TO, flask_debug, CONFIG['REST_PORT']))
-        try:
-   	        app.run(host=LISTEN_TO, debug=flask_debug, port = CONFIG['REST_PORT'])
+        #try:
+        app.run(host=LISTEN_TO, debug=flask_debug, port = CONFIG['REST_PORT'])
 
-        except Exception as e:
-                app.logger.exception("Failed to launch flask web server")
-                raise
+        #except Exception as e:
+        #       app.logger.exception("Failed to launch flask web server")
+        #        raise
 
 
 

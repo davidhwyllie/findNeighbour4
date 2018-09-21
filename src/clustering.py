@@ -54,6 +54,10 @@ class snv_clustering():
                 raise ValueError("On startup, mixed_sample_management must be one of all, include, exclude")
         else:
             raise TypeError("Do not know how to reload a clustering result from an object of class {0}; a dict is expected".format(saved_result))
+    def raise_error(self,token):
+        """ raises a ZeroDivisionError, with token as the message.
+        useful for unit tests of error logging """
+        raise ZeroDivisionError(token)
     def to_dict(self):
         """ converts snv_clustering object to a dictionary.  """
         retVal = {}
@@ -712,5 +716,12 @@ class test_clusters2guidmeta(unittest.TestCase):
         self.assertEqual(len(df.query('guid=="n2"').index),2)
         self.assertEqual(df['change_id'].tolist(), [4,4,4,4])
 
+class test_Raise_error(unittest.TestCase):
+    """ tests raise_error"""
+    def runTest(self):
+        snvc = snv_clustering(snv_threshold=12, mixed_sample_management='include')
+                      
+        with self.assertRaises(ZeroDivisionError):
+            snvc.raise_error("token")
         
         

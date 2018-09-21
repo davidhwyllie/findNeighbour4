@@ -175,11 +175,11 @@ REPACK_FREQUENCY: concerns how the matrix is stored in mongodb.
 							         occurs.  This transfers multiple matrix cells into one mongodb document: essentially, part or all of a row
 							         will be packed into a single document.  This reduces query times, but the repack operation slows inserts.
 							         Repacking doesn't alter the results at all, and could be performed independently of inserts.
-CLUSTERING:		a dictionary of parameters used for clustering.  In the below example, there are two different
+CLUSTERING:		   a dictionary of parameters used for clustering.  In the below example, there are two different
                 clustering settings defined, one named 'SNV12_ignore' and the other 'SNV12_include.
                 {'SNV12_ignore' :{'snv_threshold':12, 'mixed_sample_management':'ignore', 'mixture_criterion':'pvalue_1', 'cutoff':0.001},
-           'SNV12_include':{'snv_threshold':12, 'mixed_sample_management':'include', 'mixture_criterion':'pvalue_1', 'cutoff':0.001}
- }
+                 'SNV12_include':{'snv_threshold':12, 'mixed_sample_management':'include', 'mixture_criterion':'pvalue_1', 'cutoff':0.001}
+                }
                 Each setting is defined by four parameters:
                 snv_threshold: clusters are formed if samples are <= snv_threshold from each other
                 mixed_sample_management: this defines what happens if mixed samples are detected.
@@ -192,6 +192,8 @@ CLUSTERING:		a dictionary of parameters used for clustering.  In the below examp
                 mixture_criterion: sensible values include 'p_value1','p_value2','p_value3' but other output from  seqComparer._msa() is also possible.
                      these p-values arise from three different tests for mixtures.  Please see seqComparer._msa() for details.
                 cutoff: samples are regarded as mixed if the mixture_criterion is less than or equal to this value.
+SENTRY_URL:     optional.  If you wish to use the Sentry service to log any errors, provision of a sentry URL will effect this.  This URL will
+                look something like https://c*********************@sentry.io/12xxxxxx
 ```
 	
 An example CONFIG is below:
