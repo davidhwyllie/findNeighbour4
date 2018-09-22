@@ -70,11 +70,11 @@ class fn3persistence():
             self.logger.setLevel(logging.INFO)
             logging.info("Created connection to mongodb db named {0}".format(dbname))
             
-            # client calling mongostore should trap for connection errors etc      
-            self.client = pymongo.MongoClient(connString)
+            # client calling mongostore should trap for connection errors etc 
+            self.connString = connString     
             self.dbname = dbname
-            self.db = self.client[dbname]
-            
+            self._connect()		# will raise ConnectionError if fails
+
             # can check what exists with connection.database_names()
             self.expected_collections = ['server_monitoring',
                                          'guid2meta','guid2neighbour',
@@ -94,15 +94,41 @@ class fn3persistence():
                 self.logger.info("Using stored data in mongostore")
                 
             # create indices on guid2neighbours
-            # should really test whether these are already there
-            ix1 = pymongo.IndexModel([("guid",pymongo.ASCENDING)], name='by_guid')
-            ix2 = pymongo.IndexModel([("guid",pymongo.ASCENDING),("rstat", pymongo.ASCENDING)], name='by_guid_full')
-            self.db['guid2neighbour'].create_indexes([ix1,ix2])            
+            # note will do nothing if index already exists
+            ix = pymongo.IndexModel([("guid",pymongo.ASCENDING),("rstat", pymongo.ASCENDING)], name='by_guid_full')
+            self.db['guid2neighbour'].create_indexes([ix])            
             
+        def connect(self):
+            """ test whether the database is connected, and if not, tries to connect.
+            if the connection fails, raises pymongo.errors.ConnectionFailure """
+            if not self.is_connected():
+                  self._connect()
+
+        def _connect(self):
+            """ connect to the database """
+
+            # try to close any existing session, if it exists
+            self.closedown()
+
+            # open new client
+            self.client = pymongo.MongoClient(self.connString, retryWrites=True)
+            self.db = self.client[self.dbname]
+
             # open gridfs systems
             self.fs = gridfs.GridFS(self.db, collection='refcompressedseq')       
             self.clusters = gridfs.GridFS(self.db, collection='clusters')       
     
+        def is_connected(self):
+            """ Tests whether db is connected cf
+            http://api.mongodb.com/python/current/api/pymongo/mongo_client.html """
+            try:
+                # The ismaster command is cheap and does not require auth.
+                self.client.admin.command('ismaster')
+                # success
+                return True
+            except pymongo.errors.ConnectionFailure:
+                return False
+
         def raise_error(self,token):
             """ raises a ZeroDivisionError, with token as the message.
             useful for unit tests of error logging """
@@ -166,11 +192,13 @@ class fn3persistence():
         def config_store(self, key, object):
             """ stores object into config collection
             It is assumed object is a dictionary"""
+            self.connect()
             return self._store('config',key, object)
         
         def config_read(self, key):
             """ loads object from config.
                 It is assumed object is a dictionary"""
+            self.connect()
             return self._load('config',key)
         
         # methods for the server_monitoring
@@ -178,6 +206,7 @@ class fn3persistence():
             """ returns a list containing recent server monitoring, in reverse order (i.e. tail first).
                 The _id field is an integer reflecting the order added.  Lowest numbers are most recent.
             """
+
             if not isinstance(max_reported, int):
                 raise TypeError("limit must be an integer, but it is a {0}".format(type(max_reported)))
             if not max_reported>=0:
@@ -188,6 +217,7 @@ class fn3persistence():
         
             n= 0
             retVal = []
+            self.connect()
             formerly_cursor = self.db['server_monitoring'].find({}).sort('_id', pymongo.DESCENDING)
             for formerly in formerly_cursor:
                 n+=1
@@ -204,6 +234,7 @@ class fn3persistence():
             now['message'] = message
             
             # compute deltas
+            self.connect()
             formerly_cursor = self.db['server_monitoring'].find({}).sort('_id', pymongo.DESCENDING).limit(1)
             for formerly in formerly_cursor:
                 now_keys = list(now.keys())
@@ -222,6 +253,7 @@ class fn3persistence():
         def clusters_store(self, clustering_setting, obj):
                 """ stores the clustering object obj.  Overwrites any prior object
                  """
+                self.connect()
                 if not isinstance(obj, dict):
                         raise TypeError("Can only store dictionary objects, not {0}".format(type(dict)))
                 self.clusters.delete(clustering_setting)
@@ -233,6 +265,7 @@ class fn3persistence():
         def clusters_read(self, clustering_setting):
                 """ loads object from clusters collection.
                 It is assumed object is a dictionary"""
+                self.connect()
                 res = self.clusters.find_one({'_id':clustering_setting})
                 if res is None:
                     return None
@@ -245,7 +278,7 @@ class fn3persistence():
                 Issues an error FileExistsError
                 if the guid already exists. """
                 pickled_obj = pickle.dumps(obj, protocol=2)
-  
+                self.connect()
                 if guid in self.fs.list():
                         raise FileExistsError("Attempting to overwrite {0}".format(guid))
                 id = self.fs.put(pickled_obj, _id=guid, filename=guid)
@@ -254,14 +287,17 @@ class fn3persistence():
         def refcompressedsequence_read(self, guid):
                 """ loads object from refcompressedseq collection.
                 It is assumed object is a dictionary"""
+                self.connect()                
                 res = self.fs.find_one({'_id':guid})
                 if res is None:
                     return None
+                
                 return pickle.loads(res.read())
         
         def refcompressedsequence_guids(self):
             """ loads guids from refcompressedseq collection.
             """
+            self.connect()
             return(set(self.fs.list()))
 
         # methods for guid2meta        
@@ -271,6 +307,7 @@ class fn3persistence():
             creates the record if it does not exist"""
             
             # check whethere there is an existing metadata object for this
+            self.connect()
             metadataObj = self.db.guid2meta.find_one({'_id':guid})
             if metadataObj is None:
                 # it doesn't exist.  we create a new one.
@@ -288,11 +325,13 @@ class fn3persistence():
         
         def guids(self):
             """ returns all registered guids """
+            self.connect()
             retVal = [x['_id'] for x in self.db.guid2meta.find({}, {'_id':1})]
             return(set(retVal))
         
         def guid_exists(self, guid):
             """ checks the presence of a single guid """
+            self.connect()
             res = self.db.guid2meta.find_one({'_id':guid},{'sequence_meta':1})
             if res is None:
                 return False
@@ -314,6 +353,7 @@ class fn3persistence():
                  raise TypeError ("The guid passed should be as string, not %s" % str(guid))
 
          # recover record, compare with quality
+         self.connect()
          res = self.db.guid2meta.find_one({'_id':guid},{'sequence_meta':1})
          if res is None:        # no entry for this guid
                  return None
@@ -336,7 +376,7 @@ class fn3persistence():
             If guidList is None, all items are returned.
             An error is raised if namespace and tag is not present in each record.   
             """
-            
+            self.connect()            
             retDict={}
             if guidList is None:
                 results = self.db.guid2meta.find({},{'sequence_meta':1})
@@ -362,16 +402,19 @@ class fn3persistence():
         
         def guid2ExaminationDateTime(self, guidList=None):
             """ returns quality scores for all guids in guidlist.  If guidList is None, all results are returned. """
+            self.connect()
             return self.guid2item(guidList,'DNAQuality','examinationDate')
         
         def guid2quality(self, guidList=None):
             """ returns quality scores for all guids in guidlist (if guidList is None)"""
+            self.connect()
             return self.guid2item(guidList,'DNAQuality','propACTG')
         
         def guid2propACTG_filtered(self, cutoff=0.85):
             """ recover guids which have good quality, > cutoff.
             These are in the majority, so we run a table scan to find these.
             """
+            self.connect()
             allresults = self.guid2quality(None)        # get all results
             retDict = {}
             for guid in allresults.keys():
@@ -385,7 +428,7 @@ class fn3persistence():
             If guidList is None, all items are returned.
             To do this, a table scan is performed - indices are not used.
             """
-            
+            self.connect()            
             retDict={}
             if guidList is None:
                 results = self.db.guid2meta.find({},{'sequence_meta':1})
@@ -411,6 +454,7 @@ class fn3persistence():
         
         def guid_annotations(self):
             """ return all annotations of all guids """
+            self.connect()
             return self.guid2items(None,None)           # no restriction by namespace or by guid.
         
         def guid2neighbour_add_links(self,guid, targetguids):
@@ -431,7 +475,7 @@ class fn3persistence():
                 
                 
                 """                
-                 
+                self.connect()                 
                 # find guid2neighbour entry for guid.
                 to_insert = []
 
@@ -472,6 +516,7 @@ class fn3persistence():
                 
                 # determine whether there are any rstat 's' entries for this guid.
                 # these include only one 'cell' of the distance matrix.
+                self.connect()
                 s_ids=[]
                 s_ids = [res["_id"] for res in self.db.guid2neighbour.find({'guid':guid, 'rstat':'s'})]
 
@@ -548,6 +593,7 @@ class fn3persistence():
                         exactly one item for each link of 'guid'; duplicates are not possible.
                         The last example occurs when the maximum number of neighbours permitted per record has been reached.
                         """                
+                self.connect()
                 retVal=[]
                 formatting = {1:['dist'], 2:['dist','N_just1','N_just2','N_either'],3:[]}
                 desired_fields = formatting[returned_format]

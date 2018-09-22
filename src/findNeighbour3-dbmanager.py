@@ -113,20 +113,21 @@ if __name__ == '__main__':
                 sentry_sdk.init(CONFIG['SENTRY_URL'])
 
         #########################  CONFIGURE HELPER APPLICATIONS ######################
-        logging.info("Connecting to backend data store")
-        try:
-                PERSIST=fn3persistence(dbname = CONFIG['SERVERNAME'],connString=CONFIG['FNPERSISTENCE_CONNSTRING'], debug=CONFIG['DEBUGMODE'])
-        except Exception as e:
-                logger.exception("Error raised on creating persistence object")
-                if e.__module__ == "pymongo.errors":
-                      logger.info("Error raised pertains to pyMongo connectivity")
-                raise
+
 
         ########################  START Operations ###################################
         logger.info("Collecting samples for repacking")
         
         while True:
              nModified = 0
+             logging.info("Connecting to backend data store")
+             try:
+                    PERSIST=fn3persistence(dbname = CONFIG['SERVERNAME'],connString=CONFIG['FNPERSISTENCE_CONNSTRING'], debug=CONFIG['DEBUGMODE'])
+             except Exception as e:
+                    logger.exception("Error raised on creating persistence object")
+                    if e.__module__ == "pymongo.errors":
+                         logger.info("Error raised pertains to pyMongo connectivity")
+                    raise
              for res1 in PERSIST.db.guid2meta.find({}):
                  guid = res1['_id']
                  # does this guid have any singleton guid2neighbour records which need compressing
