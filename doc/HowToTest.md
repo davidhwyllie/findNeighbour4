@@ -24,25 +24,25 @@ Then install the following packages:
  queue  
  threading  
  pymongo  
- pandas 
+ pandas  
  numpy  
  flask  
  psutil    
- BioPython
- scipy
- networkx
- blinker
- sentry-sdk
- pathlib
+ BioPython  
+ scipy  
+ networkx  
+ blinker  
+ sentry-sdk  
+ pathlib  
  
  Example:
  ```sudo pip3 install requests```
  
 Database backend
 ----------------
-The server requires a mongodb database to work.
-[These instructions](mongoinstall.md) describe installation of mongodb.
-This server has been tested both with a local mongodb database and with a free cloud instance of mongodb, Mongo Atlas.
+The server requires a mongodb database to work.  
+[These instructions](mongoinstall.md) describe installation of mongodb.  
+This server has been tested both with a local mongodb database and with a free cloud instance of mongodb, Mongo Atlas.  
 
 
 Protocol for configuring a clean Linux ubuntu 14.04 instance
@@ -59,15 +59,15 @@ sudo apt-get install build-essential libssl-dev libffi-dev python3-dev
 sudo apt-get install python3-numpy  
 ```
 
-Optionally, set a proxy: inform git of the proxy's location, depending whether there is one:
+Optionally, set a proxy: inform git of the proxy's location, depending whether there is one:  
 ```git config --global http.proxy http://[ip of proxy]```
 
-Then clone repository:
+Then clone repository:  
 ```git clone https://github.com/davidhwyllie/findNeighbour3.git```
 
-After this, please follow the below steps.
+After this, please follow the below steps.  
 
-Start the server
+Start the server  
 -----------------
 
 To start the server, go to the findNeighbour3 *src* folder and run the command:  
@@ -77,11 +77,11 @@ Note: This application doesn't work with python2, so be sure to use python 3.
 This will try to start the webserver with a default configuration, in debug mode.  
 **Important**: *Debug mode means, amongst other things, that all existing data will be wiped on server restart.  This is good for testing, but not in most other settings.  You need to edit the config file (see below) for your needs.*
 
-If the server fails to start, it's probably due to one of the following:
-* mongodb not being operational (a ```pymongo.errors.ServerSelectionTimeOutError``` will indicate this; in Windows, check in *Services* that the service is running; in linux, a command like ```sudo systemctl start mongod``` will be needed), or
-* missing dependencies (which it will report).  Install them, then try again.  When it works, terminate the server, and kill any remaining process.
+If the server fails to start, it's probably due to one of the following:  
+* mongodb not being operational (a ```pymongo.errors.ServerSelectionTimeOutError``` will indicate this; in Windows, check in *Services* that the service is running; in linux, a command like ```sudo systemctl start mongod``` will be needed), or  
+* missing dependencies (which it will report).  Install them, then try again.  When it works, terminate the server, and kill any remaining process.  
 
-The more general form for starting the server is:
+The more general form for starting the server is:  
 ```
 nohup python3 findNeighbour3-server.py {configfile.json} &  
 ```
@@ -92,15 +92,27 @@ It is **unsuitable for production**, because:
 2 all data is wiped on server restart.   
 A warning is emitted if the server is running with this default configuration.  
 
+Start the database manager   
+---------------------------
+In production, it is normally a good idea to run the database manager application.  
+This is separate from the server, and [works in the background](repack.md) to minimise the database size.  
+This application is started exactly the same way as the server, and uses the same configuration file.  
+
+The more general form for starting the server is:  
+```
+nohup python3 findNeighbour3-dbmanager.py {configfile.json} &  
+```
+This application should not be running if you are running unit tests against the server.   
+
 Unit tests
 ----------
 
 ```
 # you can test the internal classes used by findNeighbour3; all should pass if a mongodb server is operational on local host
-python3 -m unittest  NucleicAcid
+python3 -m unittest  NucleicAcid  
 python3 -m unittest  seqComparer  
 python3 -m unittest  clustering  
-python3 -m unittest  mongoStore   # requires mongodb server on localhost
+python3 -m unittest  mongoStore     # requires mongodb server on localhost
 
 More complex testing requires a findNeighbour3 server running.
 Unit tests don't start the server. You will need to do.  After this, you can run unit tests.  
@@ -115,7 +127,7 @@ nohup python3 findNeighbour3-server.py &
 # In the below configuration, the unittests will run against a
 # separate instance of the server used for debugging, called 'fn3_unittesting'
 
-python3 -m unittest findNeighbour3-server 
+python3 -m unittest findNeighbour3-server   
 
 ```
 All should pass.
@@ -158,26 +170,26 @@ DEBUGMODE:      Controls operation of the server:
                 Delete all data on startup                        N       N        Y
 
 If true, will delete any samples in the backend data store on each run.
-SERVERNAME:     the name of the server.  Used as the name of mongodb database which is bound to the server.
-FNPERSISTENCE_CONNSTRING: a valid mongodb connection string. if shard keys are set, the 'guid' field is suitable key.
-MAXN_STORAGE:   The maximum number of Ns in the sequence <excluding those defined in > EXCLUDEFILE which should be indexed.
+SERVERNAME:     the name of the server.  Used as the name of mongodb database which is bound to the server.  
+FNPERSISTENCE_CONNSTRING: a valid mongodb connection string. if shard keys are set, the 'guid' field is suitable key.  
+MAXN_STORAGE:   The maximum number of Ns in the sequence <excluding those defined in > EXCLUDEFILE which should be indexed.  
                 Other files, e.g. those with all Ns, will be tagged as 'invalid'.  Although a record of their presence in the database
-                is kept, they are not compared with other sequences.
-MAXN_PROP_DEFAULT: if the proportion not N in the sequence exceeds this, the sample is analysed, otherwise considered invalid.
-LOGFILE:        the log file used
-LOGLEVEL:		default logging level used by the server.  Valid values are DEBUG INFO WARNING ERROR CRITICAL
-SNPCEILING: 	links between guids > this are not stored in the database
+                is kept, they are not compared with other sequences.   
+MAXN_PROP_DEFAULT: if the proportion not N in the sequence exceeds this, the sample is analysed, otherwise considered invalid.  
+LOGFILE:        the log file used  
+LOGLEVEL:		default logging level used by the server.  Valid values are DEBUG INFO WARNING ERROR CRITICAL  
+SNPCEILING: 	links between guids > this are not stored in the database  
 GC_ON_RECOMPRESS: if 'recompressing' sequences to a local reference, something the server does automatically, perform
-                a full mark-and-sweep gc at this point.  This setting alters memory use and compute time, but not the results obtained.
-RECOMPRESS_FREQUENCY: if recompressable records are detected, recompress every RECOMPRESS_FREQ th detection (e.g. 5).
-                Trades off compute time with mem usage.  This setting alters memory use and compute time, but not the results obtained.
-REPACK_FREQUENCY: concerns how the matrix is stored in mongodb.
+                a full mark-and-sweep gc at this point.  This setting alters memory use and compute time, but not the results obtained.  
+RECOMPRESS_FREQUENCY: if recompressable records are detected, recompress every RECOMPRESS_FREQ th detection (e.g. 5).  
+                This alters in-memory usage, not on-disc storage.  Trades off compute time with mem usage.  This setting alters memory use and compute time, but not the results obtained.    
+REPACK_FREQUENCY: concerns [how the matrix is stored in mongodb](repack.md). 
                 if REPACK_FREQ=0, there will be one document for every non-empty matrix cell.
-			             if REPACK_FREQ>0, then if a guid has REPACK_FREQ-1 neighbours, then a 'repack' operation
-							         occurs.  This transfers multiple matrix cells into one mongodb document: essentially, part or all of a row
-							         will be packed into a single document.  This reduces query times, but the repack operation slows inserts.
-							         Repacking doesn't alter the results at all, and could be performed independently of inserts.
-CLUSTERING:		   a dictionary of parameters used for clustering.  In the below example, there are two different
+	        if REPACK_FREQ>0, then if a guid has REPACK_FREQ-1 neighbours, then a 'repack' operation
+		 occurs.  This transfers multiple matrix cells into one mongodb document: essentially, part or all of a row
+		 will be packed into a single document.  This reduces query times, but the repack operation slows inserts.
+		 Repacking doesn't alter the results at all, and could be performed independently of inserts.
+CLUSTERING:     a dictionary of parameters used for clustering.  In the below example, there are two different
                 clustering settings defined, one named 'SNV12_ignore' and the other 'SNV12_include.
                 {'SNV12_ignore' :{'snv_threshold':12, 'mixed_sample_management':'ignore', 'mixture_criterion':'pvalue_1', 'cutoff':0.001},
                  'SNV12_include':{'snv_threshold':12, 'mixed_sample_management':'include', 'mixture_criterion':'pvalue_1', 'cutoff':0.001}

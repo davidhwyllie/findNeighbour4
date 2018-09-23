@@ -1,5 +1,6 @@
 # Installing mongodb
-We have tested this application with MongoDb 2.6 (Linux, Ubuntu), Mongo 3.6.1 (Windows, and MongoDb atlas), and Mongo 4 (linux, windows).
+We have tested this application with Mongo 3.6.1 (Windows, and MongoDb atlas), and Mongo 4 (linux, windows).
+It does not work with 2.6.  
 
 ## Windows
 MSI installers are [available](https://www.mongodb.com/download-center).
@@ -23,4 +24,7 @@ It can be stopped/restarted with
 ```
 sudo systemctl stop mongod
 sudo systemctl restart mongod
-```
+```  
+
+If a sharded cluster is considered necessary, please see [here](mongosharding.md).
+

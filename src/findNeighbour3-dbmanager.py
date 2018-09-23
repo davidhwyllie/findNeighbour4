@@ -117,22 +117,24 @@ if __name__ == '__main__':
 
         ########################  START Operations ###################################
         logger.info("Collecting samples for repacking")
-        
+
+        logging.info("Connecting to backend data store")
+        try:
+             PERSIST=fn3persistence(dbname = CONFIG['SERVERNAME'],connString=CONFIG['FNPERSISTENCE_CONNSTRING'], debug=CONFIG['DEBUGMODE'])
+        except Exception as e:
+             logger.exception("Error raised on creating persistence object")
+             if e.__module__ == "pymongo.errors":
+                 logger.info("Error raised pertains to pyMongo connectivity")
+                 raise        
         while True:
              nModified = 0
-             logging.info("Connecting to backend data store")
-             try:
-                    PERSIST=fn3persistence(dbname = CONFIG['SERVERNAME'],connString=CONFIG['FNPERSISTENCE_CONNSTRING'], debug=CONFIG['DEBUGMODE'])
-             except Exception as e:
-                    logger.exception("Error raised on creating persistence object")
-                    if e.__module__ == "pymongo.errors":
-                         logger.info("Error raised pertains to pyMongo connectivity")
-                    raise
+             to_update = set()
              for res1 in PERSIST.db.guid2meta.find({}):
                  guid = res1['_id']
                  # does this guid have any singleton guid2neighbour records which need compressing
-                 for res2 in PERSIST.db.guid2neighbour.find({'guid':guid,'rstat':'s'}).limit(1):
-                     
+                 for res2 in PERSIST.db.guid2neighbour.find({'guid':guid,'rstat':'s'}).limit(1):                    
+                     to_update.add(guid)
+             for guid in to_update:
                      logger.info("Repacking {0}".format(guid))
                      repack([guid])
                      nModified += 1

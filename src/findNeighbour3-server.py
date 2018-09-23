@@ -40,6 +40,7 @@ import pandas as pd
 import numpy as np
 import copy
 import pathlib
+
 import sentry_sdk
 from sentry_sdk.integrations.flask import FlaskIntegration
 
@@ -116,11 +117,7 @@ class findNeighbour3():
             RECOMPRESS_FREQUENCY: if recompressable records are detected, recompress every RECOMPRESS_FREQ th detection (e.g. 5).
                             Trades off compute time with mem usage.  This setting alters memory use and compute time, but not the results obtained.
 							If zero, recompression is disabled.
-            REPACK_FREQUENCY: how the matrix is stored in mongodb.  if REPACK_FREQ=0, there will be one document for every non-empty matrix cell.
-			                if REPACK_FREQ>0, then if a guid has REPACK_FREQ-1 neighbours, then a 'repack' operation
-							occurs.  This transfers multiple matrix cells into one mongodb document: essentially, part or all of a row
-							will be packed into a single document.  This reduces query times, but the repack operation slows inserts.
-							Repacking doesn't alter the results at all, and could be performed independently of inserts.
+            REPACK_FREQUENCY: see /docs/repack_frequency.md
 			CLUSTERING:		a dictionary of parameters used for clustering.  In the below example, there are two different
                             clustering settings defined, one named 'SNV12_ignore' and the other 'SNV12_include.
                             {'SNV12_ignore' :{'snv_threshold':12, 'mixed_sample_management':'ignore', 'mixture_criterion':'p_value1', 'cutoff':0.001},
