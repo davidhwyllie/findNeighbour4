@@ -147,6 +147,9 @@ class seqComparer():
         retVal['nCompressed'] =0
         retVal['nRecompressed'] =0
         
+        if len(self.seqProfile.keys())==0:
+            return(retVal)
+
         for guid in self.seqProfile.keys():
             if 'invalid' in self.seqProfile[guid]:
                 if self.seqProfile[guid]['invalid'] == 1:

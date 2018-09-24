@@ -267,7 +267,7 @@ class findNeighbour3():
 		# determine how many guids there in the database
 		guids = self.PERSIST.refcompressedsequence_guids()
 	
-		self.server_monitoring_store(message='Starting load of sequences into memory from database')
+		self.server_monitoring_store(message='server | Starting load of sequences into memory from database')
 
 		print("Loading {1} sequences from database .. excluding ({0})".format(self.sc.excluded_hash(),len(guids)))
 		nLoaded = 0
@@ -277,17 +277,17 @@ class findNeighbour3():
 			self.sc.persist(obj, guid=guid)
 			if nLoaded % 500 ==0:
 				print(nLoaded)
-				self.server_monitoring_store(message='Loaded {0} from database'.format(nLoaded))
+				self.server_monitoring_store(message='server | Loaded {0} from database'.format(nLoaded))
 
 		print("findNeighbour3 has loaded {0} sequences from database.".format(len(guids)))
-		self.server_monitoring_store(message='Loaded {0} from database; load complete.'.format(nLoaded))
+		self.server_monitoring_store(message='Load from database complete.'.format(nLoaded))
 
 		# set up clustering
 		print("findNeighbour3 is updating clustering.")
 
 		self.clustering={}		# a dictionary of clustering objects, one per SNV cutoff/mixture management setting
 		for clustering_name in self.clustering_settings.keys():
-			self.server_monitoring_store(message='Loading clustering data into memory for {0}'.format(clustering_name))
+			self.server_monitoring_store(message='server | Loading clustering data into memory | {0}'.format(clustering_name))
 			json_repr = self.PERSIST.clusters_read(clustering_name)
 			self.clustering[clustering_name] = snv_clustering(saved_result =json_repr)
 		
@@ -309,7 +309,10 @@ class findNeighbour3():
 			
 	def server_monitoring_store(self, message="No message supplied"):
 		""" reports server memory information to store """
-		self.PERSIST.server_monitoring_store(message=message, content=self.sc.summarise_stored_items())
+		sc_summary = self.sc.summarise_stored_items()
+		db_summary = self.PERSIST.summarise_stored_items()
+		
+		self.PERSIST.server_monitoring_store(message=message, content={**sc_summary, **db_summary})
 
 
 	def first_run(self, do_not_persist_keys):
@@ -394,9 +397,8 @@ class findNeighbour3():
 			self.objExaminer.examine(dna)  					  # examine the sequence
 			cleaned_dna=self.objExaminer.nucleicAcidString.decode()
 			refcompressedsequence =self.sc.compress(cleaned_dna)          # compress it and store it in RAM
-			self.server_monitoring_store(message='Guid {0} is about to be stored in ram'.format(guid))
 			self.sc.persist(refcompressedsequence, guid)			    # insert the DNA sequence into ram.
-			self.server_monitoring_store(message='Guid {0} stored in ram'.format(guid))
+			self.server_monitoring_store(message='server | Inserted one into RAM'.format(guid))
 						
 			# construct links with everything existing existing at the time the semaphore was acquired.
 			self.write_semaphore.acquire()				    # addition should be an atomic operation
@@ -464,8 +466,9 @@ class findNeighbour3():
 			if self.recompress_frequency > 0:				
 				if to_compress>= self.recompress_frequency and to_compress % self.recompress_frequency == 0:		# recompress if there are lots of neighbours, every self.recompress_frequency isolates
 					app.logger.debug("Recompressing: {0}".format(guid))
-					self.server_monitoring_store(message='Guid {0} being recompressed relative to neighbours'.format(guid))
 					self.sc.compress_relative_to_consensus(guid)
+					self.server_monitoring_store(message='server | sample recompressed in RAM'.format(guid))
+
 				if self.gc_on_recompress==1:
 					gc.collect()
 			app.logger.info("Insert succeeded {0}".format(guid))

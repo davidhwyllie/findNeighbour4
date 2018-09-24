@@ -96,11 +96,23 @@ class fn3persistence():
             ## configure database.  has no effect if these actions have already been performed.
             # create indices on guid2neighbours; note will do nothing if index already exists
             ix1 = pymongo.IndexModel([("guid",pymongo.ASCENDING),("rstat", pymongo.ASCENDING)], name='by_guid_full')
-            self.db['guid2neighbour'].create_indexes([ix1])            
+            ix2 = pymongo.IndexModel([("rstat", pymongo.ASCENDING)], name='by_rstat')
+    
+            self.db['guid2neighbour'].create_indexes([ix1, ix2])            
            
-            ix3 = pymongo.IndexModel([("files_id",pymongo.ASCENDING),("n", pymongo.ASCENDING)])
-            self.db['refcompressedseq.chunks'].create_indexes([ix3])		# needed iff we shard refcompressedseq.chunks
-
+        def summarise_stored_items(self):
+            """ counts how many sequences exist of various types """
+            retVal = {}
+            collections_present = self.db.list_collection_names()
+            for this_collection in self.expected_collections:
+                if this_collection in collections_present:
+                    res = self.db.command('collstats', this_collection)
+                    for relevant_metric in ['totalIndexSize','storageSize','count','avgObjSize']:
+                         if relevant_metric in res.keys():
+                              target_key = "dstats|{0}|{1}".format(this_collection.replace('.','-'), relevant_metric)
+                              retVal[target_key] = res[relevant_metric]
+            return(retVal)    
+ 
         def connect(self):
             """ test whether the database is connected, and if not, tries to connect.
             if the connection fails, raises pymongo.errors.ConnectionFailure """
@@ -505,7 +517,7 @@ class fn3persistence():
                 This stores links in the guid2neighbour collection;
                 each stored document links one guid to one target.
                 
-                The function guid2neighbour_simplify() reduces the number of documents
+                This function reduces the number of documents
                 required to store the same information.
                 
                 Internally, the documents in guid2neighbour are of the form
@@ -522,7 +534,7 @@ class fn3persistence():
                 
                 # determine whether there are any rstat 's' entries for this guid.
                 # these include only one 'cell' of the distance matrix.
-                #self.connect()
+                
                 s_ids=[]
                 s_ids = [res["_id"] for res in self.db.guid2neighbour.find({'guid':guid, 'rstat':'s'})]
 
@@ -540,17 +552,17 @@ class fn3persistence():
                 current_m = None
                 processed_s_ids = []
                 
-                # iterate
+                # iterate; for each 's' type record
                 while len(s_ids)>0:
-                        # read the record with s_id
+                        # read the record with this s_id
                         s_id = s_ids.pop()
                         processed_s_ids.append(s_id)
                         s = self.db.guid2neighbour.find_one({'_id':s_id})       # '_id':item
-                        if s is None:
-                                raise IOError("Failed to read record with id {0} of type {1}".format(s_id, type(s_id)))
-
-                        # make sure we have a record to write into
-                        if len(m_ids)==0 and current_m is None:
+                        if s is not None:
+                            # it is possible that another process has moved it into an m record already.                                         
+              
+                            # make sure we have a record to write into
+                            if len(m_ids)==0 and current_m is None:
                                 # create a record to write into
                                 to_insert = {'guid':guid, 'rstat':'m', 'neighbours': {}}
                                 current_m_id = self.db.guid2neighbour.insert_one(to_insert).inserted_id
@@ -558,18 +570,19 @@ class fn3persistence():
                                         raise IOError("Failed to create a rstat m record")
                                 current_m = self.db.guid2neighbour.find_one({'_id':current_m_id})
                 
-                        elif len(m_ids)>0 and current_m is None:
+                            elif len(m_ids)>0 and current_m is None:
                                 # we can use an existing record
                                 current_m_id = m_ids.pop()
                                 current_m = self.db.guid2neighbour.find_one({'_id':current_m_id})
                                 
-                        if current_m is None:
+                            if current_m is None:
                                 raise IOError("could not read or create record of id {0}".format(current_m_id))
-               
-                        current_m['neighbours']= dict(**current_m['neighbours'], **s['neighbours'])
+           
+                            # add the new neighbours to the existing neighbours    
+                            current_m['neighbours']= dict(**current_m['neighbours'], **s['neighbours'])
                         
-                        # if we've reached the maximum size permitted or there are none left to process
-                        if len(current_m['neighbours'].keys()) >= self.max_neighbours_per_document or len(s_ids)==0:
+                            # if we've reached the maximum size permitted or there are none left to process
+                            if len(current_m['neighbours'].keys()) >= self.max_neighbours_per_document or len(s_ids)==0:
                                 if len(current_m['neighbours'].keys()) >= self.max_neighbours_per_document:                        
                                         current_m['rstat']= 'f'    # full
                                 res = self.db.guid2neighbour.replace_one({'_id':current_m_id}, current_m)
@@ -1084,3 +1097,13 @@ class test_Raise_error(unittest.TestCase):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)              
         with self.assertRaises(ZeroDivisionError):
             p.raise_error("token")
+
+class Test_summarise_stored_items(unittest.TestCase):
+        """ adds server monitoring info"""
+        def runTest(self):
+                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)                
+                res = p.summarise_stored_items()
+
+
+
+

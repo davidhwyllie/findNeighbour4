@@ -26,6 +26,7 @@ import pathlib
 import sentry_sdk
 import json
 import time
+import random
 
 # logging
 from logging.config import dictConfig
@@ -54,6 +55,8 @@ if __name__ == '__main__':
                
         ############################ LOAD CONFIG ######################################
         print("findNeighbour3-dbmanager server .. reading configuration file.")
+
+        max_batch_size = 100
 
         if len(sys.argv) == 2:
                 configFile = sys.argv[1]
@@ -129,15 +132,23 @@ if __name__ == '__main__':
         while True:
              nModified = 0
              to_update = set()
-             for res1 in PERSIST.db.guid2meta.find({}):
-                 guid = res1['_id']
-                 # does this guid have any singleton guid2neighbour records which need compressing
-                 for res2 in PERSIST.db.guid2neighbour.find({'guid':guid,'rstat':'s'}).limit(1):                    
-                     to_update.add(guid)
+             # does this guid have any singleton guid2neighbour records which need compressing
+             print("Gathering guids for update .. ")
+             for res in PERSIST.db.guid2neighbour.find({'rstat':'s'}):                   
+                 to_update.add(res['guid'])
+                 if len(to_update)>max_batch_size:
+                     break
+             to_update = list(to_update)
+             random.shuffle(to_update)
              for guid in to_update:
                      logger.info("Repacking {0}".format(guid))
                      repack([guid])
                      nModified += 1
+
+                     # log database size
+                     db_summary = PERSIST.summarise_stored_items()
+                     PERSIST.server_monitoring_store(message="dbManager | Repack one", content=db_summary)
+
              if nModified == 0:
                      # everything has been packed
                      logger.info("Nothing found to repack.  Waiting 60s .. ")
