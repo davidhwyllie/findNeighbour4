@@ -579,7 +579,8 @@ class fn3persistence():
                                 raise IOError("could not read or create record of id {0}".format(current_m_id))
            
                             # add the new neighbours to the existing neighbours    
-                            current_m['neighbours']= dict(**current_m['neighbours'], **s['neighbours'])
+                            for key in s['neighbours'].keys():
+                                 current_m['neighbours'][key] = s['neighbours'][key]
                         
                             # if we've reached the maximum size permitted or there are none left to process
                             if len(current_m['neighbours'].keys()) >= self.max_neighbours_per_document or len(s_ids)==0:
