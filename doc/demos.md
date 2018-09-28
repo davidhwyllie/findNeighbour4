@@ -4,7 +4,7 @@
 simulates TB samples for which a complete distance matrix will be stored
 
 * Scenario tested
-A large matrix is stored.  No repacking is used.
+A large matrix is stored.  No repacking is used following insertion, but findNeighbour3-dbmanager can be run in the background to achieve repacking.
 
 * Background  
 An open question is whether the storage engine (now mongodb) is capable of storing a very large matrix with reasonable efficiency.  This is one of the big unknowns.
@@ -21,7 +21,7 @@ If we store (say) 10,000 (10^4) cells from each row/column in a single mongodb d
 It could also be run as a separate process, were it to be slow; it can occur simultaneously to insertion.
 
 In this test,  
-repacking is switched off.  
+repacking immediately after insertion is switched off.  
 each sequence differs by only 1nt from the reference, so memory usage is very low  
 there is no clustering enabled.  
 
@@ -37,17 +37,21 @@ They are written to files by the script
 To run the test, start up a server, e.g.
 ```python findNeighbour3-server.py ../demos/large_matrix_1/config/config.json```
 
+Optionally launch one or more findNeighbour3-dbmanager processes  
+```python findNeighbour3-dbmanager.py ../demos/large_matrix_1/config/config.json```
 Then run the test.
 
 **Note**: at present, the server which the test runs against isn't configurable.
-It runs against the server running on localhost:5000.  Minor changes will adjust this:
+It runs against the server running on localhost:5020.  Minor changes to the config file will cange this
 The client url needs to be be passed to the call instantiating the fn3Client().
 
 The below inserts until 500 samples are present in the server.
-```python demo_large_matrix.py 500 ../demos/large_matrix_1/output```
+The below inserts 100 samples, then pauses for 1 hour.  
+Set the third parameter to 0 to avoid pausing.
+```python demo_large_matrix.py 500 ../demos/large_matrix_1/output  100 3600```
 
 If we now do this, then 250 more will be added
-```python demo_large_matrix.py 750 ../demos/large_matrix_1/output```
+```python demo_large_matrix.py 750 ../demos/large_matrix_1/output  100 3600```
 
 * How the output is analysed  
 
@@ -65,6 +69,4 @@ To run the demo:
 -- run the software adding samples to the server  
 ``` python demo_ac587.py ```
 
-TODO: depict combinations of clusters over time with both algorithms
-check that mixed samples go into both.  ** IMPORTANT ** haven't observed this happening, except in unit tests
-a gif with the clusters on the L and the MSA on the R might work
+

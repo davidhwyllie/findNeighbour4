@@ -77,9 +77,10 @@ if __name__ == '__main__':
     with open(outputfile, 'w+t') as f:
         output_line = "{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\n".format('nSamples', 's_insert', 'e_insert', 'd_insert', 's_read', 'e_read', 'd_read')
         f.write(output_line) 
-        nAdded_this_batch +=1       
         while nSamples < max_sequences:   
             nSamples +=1  
+            nAdded_this_batch +=1       
+        
             if pause_after >0:
                 if nAdded_this_batch % pause_after==0:
                      print("Insert paused; will resume after {0} seconds.".format(pause_duration))
@@ -104,7 +105,7 @@ if __name__ == '__main__':
             guid = 'guid_{0}'.format(nSamples)
             
             # add
-            print("Inserting", guid)
+            print("Inserting", guid, "(samples in this batch = ",nAdded_this_batch,"); will pause every ",pause_after)
             stime1 = datetime.datetime.now()
             resp = fn3c.insert(guid=guid, seq=mutseq)
             print("Insert yielded status code {0}".format(resp.status_code))
