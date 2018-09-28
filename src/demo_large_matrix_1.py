@@ -6,9 +6,9 @@ This code generates a large number of variants.
 Storing these in RAM is very cheap, but the matrix stored will include all pairwise differences.
 
 To run the test, start up a server, e.g.
-1 python3 findNeighbour3-server.py ../config/large_matrix_config.json
-Then run the test 
-2 python3 demo_large_matrix_1.py 2000 ../demos/large_matrix_1/output
+1 python3 findNeighbour3-server.py ../config/large_matrix_config.json 
+Then run the test; this configuration does not pause during insertion.
+2 python3 demo_large_matrix_1.py 2000 ../demos/large_matrix_1/output 0 0 
 Then analyse the output
 3 Rscript demo_depict_timings.R ../demos/large_matrix_1/output
 
@@ -20,6 +20,7 @@ import random
 import datetime
 import argparse
 import pathlib
+import time
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
@@ -34,9 +35,15 @@ if __name__ == '__main__':
                         help='sequences will be added until max_sequences exist in the server.')
     parser.add_argument('outputdir', type=str, nargs=1,
                         help='output will be written to the outputdir')
+    parser.add_argument('pause_after', type=int, nargs=1,
+                        help='insertion will pause after adding pause_after sequences (set to zero to never pause)')
+    parser.add_argument('pause_duration', type=int, nargs=1,
+                        help='pause_duration in seconds')
 
     args = parser.parse_args()
     max_sequences = args.max_sequences[0]
+    pause_after = args.pause_after[0]
+    pause_duration = args.pause_duration[0]
     outputdir = os.path.abspath(args.outputdir[0])
 
     # make the directory
@@ -66,12 +73,18 @@ if __name__ == '__main__':
 
     # create output file with header line
     outputfile = os.path.join(outputdir, 'timings_{0}.tsv'.format(nSamples))
-    
+    nAdded_this_batch = 0
     with open(outputfile, 'w+t') as f:
         output_line = "{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\n".format('nSamples', 's_insert', 'e_insert', 'd_insert', 's_read', 'e_read', 'd_read')
-        f.write(output_line)        
+        f.write(output_line) 
+        nAdded_this_batch +=1       
         while nSamples < max_sequences:   
-            nSamples +=1            
+            nSamples +=1  
+            if pause_after >0:
+                if nAdded_this_batch % pause_after==0:
+                     print("Insert paused; will resume after {0} seconds.".format(pause_duration))
+                     time.sleep(pause_duration)
+        
             if nSamples>len(available_positions):
                 print("All available positions have been mutated")
                 exit(0)
