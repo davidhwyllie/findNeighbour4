@@ -2,3 +2,5 @@
 *.txt.gz
 /edges.txt
 /microtest.py
+*.Rproj
+*.log
