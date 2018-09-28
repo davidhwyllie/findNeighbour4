@@ -141,11 +141,11 @@ class seqComparer():
     def summarise_stored_items(self):
         """ counts how many sequences exist of various types """
         retVal = {}
-        retVal['nSeqs'] = len(self.seqProfile.keys())
-        retVal['nConsensi'] = len(self.consensi.keys())
-        retVal['nInvalid'] = 0
-        retVal['nCompressed'] =0
-        retVal['nRecompressed'] =0
+        retVal['scstat|nSeqs'] = len(self.seqProfile.keys())
+        retVal['scstat|nConsensi'] = len(self.consensi.keys())
+        retVal['scstat|nInvalid'] = 0
+        retVal['scstat|nCompressed'] =0
+        retVal['scstat|nRecompressed'] =0
         
         if len(self.seqProfile.keys())==0:
             return(retVal)
@@ -153,11 +153,11 @@ class seqComparer():
         for guid in self.seqProfile.keys():
             if 'invalid' in self.seqProfile[guid]:
                 if self.seqProfile[guid]['invalid'] == 1:
-                    retVal['nInvalid'] +=1
+                    retVal['scstat|nInvalid'] +=1
             if set(self.seqProfile[guid].keys())==self.patch_and_consensus_keys:
-                retVal['nRecompressed'] +=1
+                retVal['scstat|nRecompressed'] +=1
             else:
-                retVal['nCompressed'] +=1
+                retVal['scstat|nCompressed'] +=1
         return(retVal)    
     def iscachedinram(self,guid):
         """ returns true or false depending whether we have a local copy of the refCompressed representation of a sequence (name=guid) in this machine """
@@ -178,6 +178,7 @@ class seqComparer():
     def _delta(self,x):
         """ returns the difference between two numbers in a tuple x """
         return(x[1]-x[0])
+
     def excluded_hash(self):
         """ returns a string containing the number of nt excluded, and a hash of their positions.
         This is useful for version tracking & storing patterns of masking. """
@@ -1150,7 +1151,7 @@ class test_seqComparer_49(unittest.TestCase):
 
         res = sc.summarise_stored_items()
         self.assertTrue(isinstance(res, dict))
-        self.assertEqual(set(res.keys()), set(['nSeqs', 'nConsensi', 'nInvalid', 'nCompressed', 'nRecompressed']))
+        self.assertEqual(set(res.keys()), set(['scstat|nSeqs', 'scstat|nConsensi', 'scstat|nInvalid', 'scstat|nCompressed', 'scstat|nRecompressed']))
 class test_seqComparer_48(unittest.TestCase):
     """ tests computations of p values from exact bionomial test """
     def runTest(self):

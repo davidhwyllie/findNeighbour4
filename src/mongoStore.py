@@ -200,10 +200,10 @@ class fn3persistence():
                 """ returns memory usage by current python3 process  
                 Uses the psutil module, as the resource module is not available in windows.
                 """       
-                sm = psutil.virtual_memory()._asdict()
-                
-                sm['time_now']=datetime.datetime.now().isoformat()
-                sm['time_boot']=datetime.datetime.fromtimestamp(psutil.boot_time()).strftime("%Y-%m-%d %H:%M:%S")
+                memdict = psutil.virtual_memory()._asdict()
+                sm = {'mstat|'+k: v for k, v in memdict.items()}
+                sm['time|time_now']=datetime.datetime.now().isoformat()
+                sm['time|time_boot']=datetime.datetime.fromtimestamp(psutil.boot_time()).strftime("%Y-%m-%d %H:%M:%S")
                 return(sm)
 
         # methods for the config collection
@@ -246,10 +246,10 @@ class fn3persistence():
             return(retVal)
         
         def server_monitoring_store(self, message = 'No message provided', content={}):
-            """ stores object into config collection
+            """ stores object into config collection.  Adds memory usage.
             It is assumed object is a dictionary"""
-            now = dict(**content, **self.memory_usage())
-            now['message'] = message
+            now = dict(**content)
+            now['info|message'] = message
             
             # compute deltas
             #self.connect()

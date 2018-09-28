@@ -311,8 +311,8 @@ class findNeighbour3():
 		""" reports server memory information to store """
 		sc_summary = self.sc.summarise_stored_items()
 		db_summary = self.PERSIST.summarise_stored_items()
-		
-		self.PERSIST.server_monitoring_store(message=message, content={**sc_summary, **db_summary})
+		mem_summary = self.PERSIST.memory_usage()
+		self.PERSIST.server_monitoring_store(message=message, content={**sc_summary, **db_summary, **mem_summary})
 
 
 	def first_run(self, do_not_persist_keys):
