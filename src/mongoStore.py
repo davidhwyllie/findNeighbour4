@@ -202,8 +202,6 @@ class fn3persistence():
                 """       
                 memdict = psutil.virtual_memory()._asdict()
                 sm = {'mstat|'+k: v for k, v in memdict.items()}
-                sm['time|time_now']=datetime.datetime.now().isoformat()
-                sm['time|time_boot']=datetime.datetime.fromtimestamp(psutil.boot_time()).strftime("%Y-%m-%d %H:%M:%S")
                 return(sm)
 
         # methods for the config collection
@@ -251,8 +249,6 @@ class fn3persistence():
             now = dict(**content)
             now['info|message'] = message
             
-            # compute deltas
-            #self.connect()
             formerly_cursor = self.db['server_monitoring'].find({}).sort('_id', pymongo.DESCENDING).limit(1)
             for formerly in formerly_cursor:
                 now_keys = list(now.keys())
@@ -260,10 +256,17 @@ class fn3persistence():
                 
                 for item in now_keys:
                     if item in formerly_keys:
-                            if not '_delta' in item:
+                            if not '|delta' in item:
                                     if isinstance(now[item],int) and isinstance(formerly[item], int):
-                                            now["{0}_delta".format(item)] = now[item]-formerly[item]  # compute delta
-                                    
+                                            now["{0}|delta".format(item)] = now[item]-formerly[item]  # compute delta
+                    else:
+                        value = now[item]
+                        now['{0}|absolute'.format(item)]=value
+                        del now[item]
+
+            now['time|time_now']=datetime.datetime.now().isoformat()
+            now['time|time_boot']=datetime.datetime.fromtimestamp(psutil.boot_time()).strftime("%Y-%m-%d %H:%M:%S")  
+                      
             return self.db['server_monitoring'].insert_one(now)
 
         # methods for clusters, which holds the reference compressed details of the sequences
