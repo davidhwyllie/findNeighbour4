@@ -40,7 +40,8 @@ import pandas as pd
 import numpy as np
 import copy
 import pathlib
-
+import markdown
+import codecs
 import sentry_sdk
 from sentry_sdk.integrations.flask import FlaskIntegration
 
@@ -769,8 +770,12 @@ def do_POST(relpath, payload):
 def server_info():
 	""" returns server info page
 	"""
-	res = """findNeighbour3 web server operating.<p>Endpoints are in rest-routes.md, in the docs<p>"""
-	return make_response(res)
+	html = """findNeighbour3 web server operating.<p>Endpoints are in rest-routes.md, in the docs<p>"""
+	routes_file = os.path.join("..","doc","rest-routes.md")
+	with codecs.open(routes_file, mode="r", encoding="utf-8") as f:
+		text = f.read()
+		html = markdown.markdown(text)
+	return make_response(html)
 
 @app.route('/api/v2/raise_error/<string:component>/<string:token>', methods=['GET'])
 def raise_error(component, token):
@@ -1320,6 +1325,23 @@ def server_memory_usage(nrows):
 	try:
 		result = fn3.server_memory_usage(max_reported = nrows)
 
+	except Exception as e:
+		print("Exception raised", e)
+		abort(500, e)
+		
+	return make_response(tojson(result))
+
+@app.route('/frontend/server_status', defaults={'nrows':1}, methods=['GET'])
+@app.route('/frontend/server_status/<int:nrows>', methods=['GET'])
+def server_storage_status(nrows):
+	""" returns server memory usage information, as list.
+	The server notes memory usage at various key points (pre/post insert; pre/post recompression)
+	and these are stored. """
+	try:
+		result = fn3.server_memory_usage(max_reported = nrows)
+		df = pd.DataFrame.from_records(result, index='_id')
+		#df = df.transpose()
+		return(df.to_html())
 	except Exception as e:
 		print("Exception raised", e)
 		abort(500, e)
