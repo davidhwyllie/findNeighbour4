@@ -35,6 +35,7 @@ import hashlib
 import queue
 import threading
 import gc
+import io
 import pymongo
 import pandas as pd
 import numpy as np
@@ -43,11 +44,13 @@ import pathlib
 import markdown
 import codecs
 import sentry_sdk
+import matplotlib
+import dateutil.parser
 from sentry_sdk.integrations.flask import FlaskIntegration
 
 # flask
 from flask import Flask, make_response, jsonify, Markup
-from flask import request, abort
+from flask import request, abort, send_file
 
 # logging
 from logging.config import dictConfig
@@ -766,16 +769,27 @@ def do_POST(relpath, payload):
 		
 	return(response)
 
+def render_markdown(md_file):
+	""" render markdown as html
+	"""
+	with codecs.open(md_file, mode="r", encoding="utf-8") as f:
+		text = f.read()
+		html = markdown.markdown(text, extensions = ['tables'])
+	return html
+
 @app.route('/', methods=['GET'])
+def routes():
+	""" returns server info page
+	"""
+	routes_file = os.path.join("..","doc","rest-routes.md")
+	return make_response(render_markdown(routes_file))
+
+@app.route('/ui/info', methods=['GET'])
 def server_info():
 	""" returns server info page
 	"""
-	html = """findNeighbour3 web server operating.<p>Endpoints are in rest-routes.md, in the docs<p>"""
-	routes_file = os.path.join("..","doc","rest-routes.md")
-	with codecs.open(routes_file, mode="r", encoding="utf-8") as f:
-		text = f.read()
-		html = markdown.markdown(text)
-	return make_response(html)
+	routes_file = os.path.join("..","doc","serverinfo.md")
+	return make_response(render_markdown(routes_file))
 
 @app.route('/api/v2/raise_error/<string:component>/<string:token>', methods=['GET'])
 def raise_error(component, token):
@@ -1331,17 +1345,56 @@ def server_memory_usage(nrows):
 		
 	return make_response(tojson(result))
 
-@app.route('/frontend/server_status', defaults={'nrows':1}, methods=['GET'])
-@app.route('/frontend/server_status/<int:nrows>', methods=['GET'])
-def server_storage_status(nrows):
+@app.route('/ui/server_status', defaults={'absdelta':'absolute', 'stats_type':'mstat', 'nrows':1}, methods=['GET'])
+@app.route('/ui/server_status/<string:absdelta>/<string:stats_type>/<int:nrows>', methods=['GET'])
+def server_storage_status(absdelta, stats_type, nrows):
 	""" returns server memory usage information, as list.
 	The server notes memory usage at various key points (pre/post insert; pre/post recompression)
 	and these are stored. """
 	try:
 		result = fn3.server_memory_usage(max_reported = nrows)
 		df = pd.DataFrame.from_records(result, index='_id')
-		#df = df.transpose()
-		return(df.to_html())
+		
+		# identify target columns
+		valid_starts = ['clusters',
+						'guid2meta',
+						'guid2neighbour',
+						'refcompressedseq',
+						'server',
+						'mstat',
+						'scstat']
+		
+		if not stats_type in valid_starts:
+			abort(404, "Valid stats_type values are {0}".format(valid_starts))
+			
+		target_columns = []
+		target_string = "{0}".format(stats_type)
+		for col in df.columns.values:
+			if col.find(target_string)>=0:
+				if absdelta=='delta' and col.endswith('|delta'):
+					target_columns.append(col)
+				elif absdelta=='absolute' and not col.endswith('|delta'):
+					target_columns.append(col)
+					
+		if nrows<1:
+			return("More than one row must be requested.")
+		if len(target_columns)==0:
+			return("No data found matching this selection. <p> We tried to select from {2} rows of data, with {3} columns.<p>Valid values for the three variables passed in the URL are as follows: <p> stats_type: {0}. <p> absdelta: ['absolute', 'delta']. <p> nrows must be a positive integer. <p> The columns available for selection from the server's monitoring log are: {1}".format(valid_starts,df.columns.values, len(df.index), len(df.columns.values)))
+		
+		# convert x-axis to datetime
+		for ix in df.index:
+			df.loc[ix,'time|time_now']= dateutil.parser.parse(df.loc[ix,'time|time_now'])
+		
+		plts = df.plot(kind='line', x='time|time_now', subplots=True, y=target_columns)
+		for plt in plts:
+			fig = plt.get_figure()
+			fig.set_figheight(len(target_columns)*2)
+			fig.set_figwidth(8)
+			img = io.BytesIO()
+			fig.savefig(img)
+			img.seek(0)
+			return send_file(img, mimetype='image/png')
+
 	except Exception as e:
 		print("Exception raised", e)
 		abort(500, e)

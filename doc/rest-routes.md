@@ -1,6 +1,7 @@
 Frontend
 --------
-**/frontend/server_status/<int:nrows>** crude table showing server memory and disc usage
+**/ui/info** [server status page](/ui/info)   
+**/ui/server_status/*absdelta*/*stats_type*/*nrows* **  visualise server disc and application memory usage 
 
 Search/describe sequences in the server
 -----------------------------------------------------------------------

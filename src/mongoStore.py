@@ -261,7 +261,7 @@ class fn3persistence():
                                             now["{0}|delta".format(item)] = now[item]-formerly[item]  # compute delta
                     else:
                         value = now[item]
-                        now['{0}|absolute'.format(item)]=value
+                        now['{0}'.format(item)]=value
                         del now[item]
 
             now['time|time_now']=datetime.datetime.now().isoformat()
