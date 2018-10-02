@@ -1259,7 +1259,10 @@ def server_storage_status(absdelta, stats_type, nrows):
 		# convert x-axis to datetime
 		for ix in df.index:
 			df.loc[ix,'time|time_now']= dateutil.parser.parse(df.loc[ix,'time|time_now'])
-			
+		
+		# if values are not completed, then use the previous non-null version
+		# see https://stackoverflow.com/questions/14399689/matplotlib-drawing-lines-between-points-ignoring-missing-data
+		
 		plts = df.plot(kind='line', x='time|time_now', subplots=True, y=target_columns)
 		for plt in plts:
 			fig = plt.get_figure()
@@ -1267,6 +1270,7 @@ def server_storage_status(absdelta, stats_type, nrows):
 			fig.set_figwidth(8)
 			img = io.BytesIO()
 			fig.savefig(img)
+			matplotlib.pyplot.close('all')		# have to explicitly close, otherwise memory leaks 
 			img.seek(0)
 			return send_file(img, mimetype='image/png')
 
@@ -1286,8 +1290,6 @@ class test_server_memory_usage(unittest.TestCase):
 
         res = json.loads(res.content.decode('utf-8'))
         self.assertTrue(isinstance(res,list))
-
-
 
 @app.route('/api/v2/server_time', methods=['GET'])
 def server_time():
@@ -2159,6 +2161,10 @@ if __name__ == '__main__':
         #########################  CONFIGURE HELPER APPLICATIONS ######################
         ## once the flask app is running, errors get logged to app.logger.  However, problems on start up do not.
         ## configure mongodb persistence store
+
+        # plotting engine
+        matplotlib.use('agg')		#  prevent https://stackoverflow.com/questions/27147300/how-to-clean-images-in-python-django
+
         print("Connecting to backend data store")
         try:
                 PERSIST=fn3persistence(dbname = CONFIG['SERVERNAME'],connString=CONFIG['FNPERSISTENCE_CONNSTRING'], debug=CONFIG['DEBUGMODE'])
