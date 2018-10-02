@@ -46,6 +46,7 @@ import codecs
 import sentry_sdk
 import matplotlib
 import dateutil.parser
+from sentry_sdk import capture_message, capture_exception
 from sentry_sdk.integrations.flask import FlaskIntegration
 
 # flask
@@ -141,6 +142,7 @@ class findNeighbour3():
                             cutoff: samples are regarded as mixed if the mixture_criterion is less than or equal to this value.
             SENTRY_URL:  optional.  If provided, will launch link Sentry to the flask application using the API key provided.  See https://sentry.io for a description of this service. 
 		An example CONFIG is below:
+
 		
 		{			
 		"DESCRIPTION":"A test server operating in ../unittest_tmp, only suitable for testing",
@@ -459,8 +461,10 @@ class findNeighbour3():
                                     
 				if e.__module__ == "pymongo.errors":
 					app.logger.info("Error raised pertains to pyMongo connectivity")
+					capture_exception(e)
 					abort(503,e)		# the mongo server may be refusing connections, or busy.  This is observed occasionally in real-world use
 				else:
+					capture_exception(e)
 					abort(500,e)		# some other kind of error
 
 				
@@ -876,143 +880,6 @@ class test_raise(unittest.TestCase):
 						self.fail("Error was not logged {0}".format(error_at))
 
 	
-@app.route('/api/v2/assess_mixed', methods=['POST'])
-def assess_mixed():
-	""" computes estimates of whether *this_guid* is likely to be mixed, relative to the guids in the
-	semicolon separated list *related_guids*.
-	
-	The payload expected is a dictionary like htis:
-	{'this_guid':'guid0',
-	 'related_guids':'guid1;guid2;guid3',
-	 'sample_size':30}
-	
-	The strategy used is draw at most max_sample_size unique related_guids, and from them
-		analyse all (max_sample_size * (max_sample_size-1))/2 unique pairs.
-		For each pair, we determine where they differ, and then
-		estimate the proportion of mixed bases in those variant sites.
-
-        Pairs of related_guids which do not differ are uninformative and are ignored.
-
-        The output is a pandas dataframe containing mixture estimates for this_guid for each of a series of pairs.
-
-        The p values reported are derived from exact, two-sided binomial tests as implemented in pythons scipy.stats.binom_test().
-        
-        TEST 1:
-        This tests the hypothesis that the number of Ns in the *alignment*
-        is GREATER than those expected from the expected_N in the population of whole sequences.
- 
-        Does so by comparing the observed number of Ns in the alignment (alignN),
-        given the alignment length (4 in the above case) and an expectation of the proportion of bases which will be N.
-        The expected number of Ns is estimated by randomly sampling sample_size guids from those stored in the server and
-        observing the number of Ns per base.  The estimate_expected_N() function performs this.
-        
-        This approach determines the median number of Ns in valid sequences, which (if bad samples with large Ns are rare)
-        is a relatively unbiased estimate of the median number of Ns in the good quality samples.
-        
-        If there  are not enough samples in the server to obtain an estimate, p_value is not computed, being
-        reported as None.
-        
-        TEST 2: tests whether the proportion of Ns in the alignment is greater
-        than in the bases not in the alignment, for this sequence.
-
-	"""
-
-	# validate input
-	request_payload = request.form.to_dict()
-	if 'this_guid' in request_payload.keys() and 'related_guids' in request_payload.keys():
-		if len(request_payload['related_guids'])==0:
-			# no related guids
-			return make_response(json.dumps({}))
-		
-		related_guids = request_payload['related_guids'].split(';')		# coerce both guid and seq to strings
-		this_guid= request_payload['this_guid']
-	else:
-		abort(501, 'this_guid and related_guids are not present in the POSTed data {0}'.format(request_payload.keys()))
-
-	# check guids
-	missing_guids = []
-	for guid in related_guids:
-		try:
-			result = fn3.exist_sample(guid)
-		except Exception as e:
-			abort(500, e)
-		if result is False:
-			missing_guids.append(guid)
-	
-	if len(missing_guids)>0:
-		abort(501, "asked to perform mixture assessment relative to the following missing guids: {0}".format(missing_guids))
-	
-	# data validation complete.  construct outputs
-	res = fn3.sc.assess_mixed(
-		this_guid= this_guid,
-		related_guids = related_guids,
-		max_sample_size = 10)
-	
-	if res is None:
-		retVal = {}
-		
-	else:
-		retVal = pd.DataFrame.to_dict(res,orient='index')
-
-	return make_response(json.dumps(retVal))
-
-	
-class test_assess_mixed_1(unittest.TestCase):
-	""" tests route /api/v2/assess_mixed
- 		- due for removal
-	"""
-	def runTest(self):
-		relpath = "/api/v2/guids"
-		res = do_GET(relpath)
-		n_pre = len(json.loads(str(res.text)))		# get all the guids
-
-		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
-		with open(inputfile, 'rt') as f:
-			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
-					originalseq = list(str(record.seq))
-		inserted_guids = []
-		
-		for i in range(0,50):
-			guid_to_insert = "guid_{0}".format(n_pre+i)
-			inserted_guids.append(guid_to_insert)
-			
-			seq = originalseq			
-			# make i mutations at position 500,000
-			offset = 500000
-			for j in range(i):
-				mutbase = offset+j
-				ref = seq[mutbase]
-				if not ref == 'T':
-					seq[mutbase] = 'T'
-				if not ref == 'A':
-					seq[mutbase] = 'A'
-			seq = ''.join(seq)
-						
-			print("Adding TB sequence {2} of {0} bytes with {1} mutations relative to ref.".format(len(seq), i, guid_to_insert))
-			self.assertEqual(len(seq), 4411532)		# check it's the right sequence
-	
-			relpath = "/api/v2/insert"
-			res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
-			self.assertTrue(isjson(content = res.content))
-			info = json.loads(res.content.decode('utf-8'))
-			self.assertEqual(info, 'Guid {0} inserted.'.format(guid_to_insert))
-	
-		relpath = "/api/v2/assess_mixed"
-		payload = {'this_guid':inserted_guids[0], 'related_guids':';'.join(inserted_guids[1:3])}
-		res = do_POST(relpath, payload=payload)
-		self.assertTrue(isjson(res.content))
-		self.assertEqual(res.status_code, 200)
-		d = json.loads(res.content.decode('utf-8'))
-		df = pd.DataFrame.from_dict(d,orient='index')
-		self.assertEqual(df.index.tolist(), [inserted_guids[0]])
-
-		relpath = "/api/v2/assess_mixed"
-		payload = {'this_guid':inserted_guids[0], 'related_guids':';'.join(inserted_guids[1:20])}
-		res = do_POST(relpath, payload=payload)
-		self.assertTrue(isjson(res.content))
-		self.assertEqual(res.status_code, 200)
-		d = json.loads(res.content.decode('utf-8'))
-		df = pd.DataFrame.from_dict(d,orient='index')
 		
 def construct_msa(guids, output_format):
 	""" constructs multiple sequence alignment for guids
@@ -1102,11 +969,13 @@ def msa_guids():
 		try:
 			result = fn3.exist_sample(guid)
 		except Exception as e:
+			capture_exception(e)
 			abort(500, e)
 		if not result is True:
 			missing_guids.append(guid)
 	
 	if len(missing_guids)>0:
+		capture_message("asked to perform multiple sequence alignment with the following missing guids: {0}".format(missing_guids))		
 		abort(501, "asked to perform multiple sequence alignment with the following missing guids: {0}".format(missing_guids))
 	
 	# data validation complete.  construct outputs
@@ -1226,6 +1095,7 @@ def msa_guids_by_cluster(clustering_algorithm, cluster_id, output_format):
 			try:
 				result = fn3.exist_sample(guid)
 			except Exception as e:
+				capture_exception(e)
 				abort(500, e)
 			if not result is True:
 				missing_guids.append(guid)
@@ -1340,7 +1210,7 @@ def server_memory_usage(nrows):
 		result = fn3.server_memory_usage(max_reported = nrows)
 
 	except Exception as e:
-		print("Exception raised", e)
+		capture_exception(e)
 		abort(500, e)
 		
 	return make_response(tojson(result))
@@ -1353,8 +1223,8 @@ def server_storage_status(absdelta, stats_type, nrows):
 	and these are stored. """
 	try:
 		result = fn3.server_memory_usage(max_reported = nrows)
-		df = pd.DataFrame.from_records(result, index='_id')
-		
+		df = pd.DataFrame.from_records(result, index='_id', coerce_float=True)
+
 		# identify target columns
 		valid_starts = ['clusters',
 						'guid2meta',
@@ -1366,8 +1236,12 @@ def server_storage_status(absdelta, stats_type, nrows):
 		
 		if not stats_type in valid_starts:
 			abort(404, "Valid stats_type values are {0}".format(valid_starts))
-			
+		
+		if len(df.columns.values)==0:
+			return("No column data found from database query")
+		
 		target_columns = []
+		
 		target_string = "{0}".format(stats_type)
 		for col in df.columns.values:
 			if col.find(target_string)>=0:
@@ -1375,16 +1249,17 @@ def server_storage_status(absdelta, stats_type, nrows):
 					target_columns.append(col)
 				elif absdelta=='absolute' and not col.endswith('|delta'):
 					target_columns.append(col)
-					
 		if nrows<1:
 			return("More than one row must be requested.")
 		if len(target_columns)==0:
-			return("No data found matching this selection. <p> We tried to select from {2} rows of data, with {3} columns.<p>Valid values for the three variables passed in the URL are as follows: <p> stats_type: {0}. <p> absdelta: ['absolute', 'delta']. <p> nrows must be a positive integer. <p> The columns available for selection from the server's monitoring log are: {1}".format(valid_starts,df.columns.values, len(df.index), len(df.columns.values)))
+			return("No column data found matching this selection. <p>This may be normal if the server has just started up.<p>We tried to select from {2} rows of data, with {3} columns.  We looked for '{4}'.<p>Valid values for the three variables passed in the URL are as follows: <p> stats_type: {0}. <p> absdelta: ['absolute', 'delta']. <p> nrows must be a positive integer. <p> The columns available for selection from the server's monitoring log are: {1}".format(valid_starts,df.columns.values, len(df.index), len(df.columns.values), target_string))
+		if len(df.index)==0:
+			return("No row data found matching this selection. <p>This may be normal if the server has just started up.<p> We tried to select from {2} rows of data, with {3} columns.  We looked for '{4}'.<p>Valid values for the three variables passed in the URL are as follows: <p> stats_type: {0}. <p> absdelta: ['absolute', 'delta']. <p> nrows must be a positive integer. <p> The columns available for selection from the server's monitoring log are: {1}".format(valid_starts,df.columns.values, len(df.index), len(df.columns.values), target_string))
 		
 		# convert x-axis to datetime
 		for ix in df.index:
 			df.loc[ix,'time|time_now']= dateutil.parser.parse(df.loc[ix,'time|time_now'])
-		
+			
 		plts = df.plot(kind='line', x='time|time_now', subplots=True, y=target_columns)
 		for plt in plts:
 			fig = plt.get_figure()
@@ -1396,7 +1271,7 @@ def server_storage_status(absdelta, stats_type, nrows):
 			return send_file(img, mimetype='image/png')
 
 	except Exception as e:
-		print("Exception raised", e)
+		capture_exception(e)
 		abort(500, e)
 		
 	return make_response(tojson(result))
@@ -1421,6 +1296,7 @@ def server_time():
 		result = fn3.server_time()
 		
 	except Exception as e:
+		capture_exception(e)
 		abort(500, e)
 	return make_response(tojson(result))
 
@@ -1441,7 +1317,7 @@ def get_all_guids(**debug):
 	try:
 		result = list(fn3.get_all_guids())
 	except Exception as e:
-		print("Exception raised", e)
+		capture_exception(e)
 		abort(500, e)
 	return(make_response(tojson(result)))
 
@@ -1463,7 +1339,7 @@ def guids_with_quality_over(cutoff, **kwargs):
 	try:
 		result = fn3.guids_with_quality_over(cutoff)	
 	except Exception as e:
-		print("Exception raised", e)
+		capture_exception(e)
 		abort(500, e)
 	return make_response(tojson(result))
 
@@ -1485,7 +1361,7 @@ def guids_and_examination_times(**kwargs):
 	try:	
 		result =fn3.get_all_guids_examination_time()	
 	except Exception as e:
-		print("Exception raised", e)
+		capture_exception(e)
 		abort(500, e)
 	return make_response(tojson(result))
 
@@ -1538,6 +1414,7 @@ def annotations(**kwargs):
 		result = fn3.get_all_annotations()
 		
 	except Exception as e:
+		capture_exception(e)
 		abort(500, e)
 		
 	return(tojson(result))
@@ -1563,6 +1440,7 @@ def exist_sample(guid, **kwargs):
 		result = fn3.exist_sample(guid)
 		
 	except Exception as e:
+		capture_exception(e)
 		abort(500, e)
 		
 	return make_response(tojson(result))
@@ -1599,7 +1477,7 @@ def insert():
 			abort(501, 'seq and guid are not present in the POSTed data {0}'.format(data_keys))
 		
 	except Exception as e:
-		print("Exception raised", e)
+		capture_exception(e)
 		abort(500, e)
 		
 	return make_response(tojson(result))
@@ -1929,6 +1807,7 @@ def neighbours_within(guid, threshold, **kwargs):
 		# guid doesn't exist
 		abort(404, e)
 	except Exception as e:
+		capture_exception(e)
 		abort(500, e)
 	
 	return make_response(tojson(result))
@@ -2190,7 +2069,7 @@ def nucleotides_excluded():
 		result = fn3.server_nucleotides_excluded()
 		
 	except Exception as e:
-		print("Exception raised", e)
+		capture_exception(e)
 		abort(500, e)
 
 	return make_response(tojson(result))
@@ -2269,7 +2148,7 @@ if __name__ == '__main__':
 
         # launch sentry if API key provided
         if 'SENTRY_URL' in CONFIG.keys():
-                app.logger.info("Launching logger")
+                app.logger.info("Launching communication with Sentry bug-tracking service")
                 sentry_sdk.init(CONFIG['SENTRY_URL'], integrations=[FlaskIntegration()])
 
         ########################### prepare to launch server ###############################################################
@@ -2306,12 +2185,8 @@ if __name__ == '__main__':
                 flask_debug = False
 
         app.logger.info("Launching server on {0}, debug = {1}, port = {2}".format(LISTEN_TO, flask_debug, CONFIG['REST_PORT']))
-        #try:
         app.run(host=LISTEN_TO, debug=flask_debug, port = CONFIG['REST_PORT'])
 
-        #except Exception as e:
-        #       app.logger.exception("Failed to launch flask web server")
-        #        raise
 
 
 

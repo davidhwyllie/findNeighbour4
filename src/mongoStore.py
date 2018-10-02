@@ -249,21 +249,6 @@ class fn3persistence():
             now = dict(**content)
             now['info|message'] = message
             
-            formerly_cursor = self.db['server_monitoring'].find({}).sort('_id', pymongo.DESCENDING).limit(1)
-            for formerly in formerly_cursor:
-                now_keys = list(now.keys())
-                formerly_keys = list(formerly.keys())
-                
-                for item in now_keys:
-                    if item in formerly_keys:
-                            if not '|delta' in item:
-                                    if isinstance(now[item],int) and isinstance(formerly[item], int):
-                                            now["{0}|delta".format(item)] = now[item]-formerly[item]  # compute delta
-                    else:
-                        value = now[item]
-                        now['{0}'.format(item)]=value
-                        del now[item]
-
             now['time|time_now']=datetime.datetime.now().isoformat()
             now['time|time_boot']=datetime.datetime.fromtimestamp(psutil.boot_time()).strftime("%Y-%m-%d %H:%M:%S")  
                       
@@ -711,8 +696,7 @@ class Test_SeqMeta_guid2neighbour_8(unittest.TestCase):
                 self.assertEqual(5, len(res2['neighbours']))
                 res3 = p.guid2neighbours('srcguid',returned_format=3)
                 self.assertEqual(5, len(res3['neighbours']))
-                print(res3)                
-                        
+
 class Test_SeqMeta_guid2neighbour_7(unittest.TestCase):
         """ tests guid2neighboursOf"""
         def runTest(self):
