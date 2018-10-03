@@ -19,6 +19,7 @@ import io
 # used for unit testing only
 import unittest
 from NucleicAcid import NucleicAcid 
+import time
 
 class fn3persistence():
         """ System for persisting results from  large numbers of sequences stored in FindNeighbour.
@@ -56,7 +57,13 @@ class fn3persistence():
         """
         
         # code handling startup and shutdown.
-        def __init__(self, connString, dbname = 'fn3_unittesting', debug=0, config_settings={}, max_neighbours_per_document=5000):
+        def __init__(self,
+                     connString,
+                     dbname = 'fn3_unittesting',
+                     debug=0,
+                     config_settings={},
+                     max_neighbours_per_document=5000,
+                     server_monitoring_min_interval_msec=0):
             """ Creates a connection to a MongoDb database.
             
             connString : the mongoDb connection string
@@ -83,7 +90,10 @@ class fn3persistence():
                                          'clusters.chunks','clusters.files']
             
             self.max_neighbours_per_document = max_neighbours_per_document
-
+            self.server_monitoring_min_interval_msec = server_monitoring_min_interval_msec
+            self.previous_server_monitoring_data = {}
+            self.previous_server_monitoring_time = None
+            
             # delete any pre-existing data if we are in debug mode.
             if debug == 2:
                 self.logger.warning("Debug mode operational; deleting all data from collections.")
@@ -248,12 +258,28 @@ class fn3persistence():
             It is assumed object is a dictionary"""
             now = dict(**content)
             now['info|message'] = message
-            
-            now['time|time_now']=datetime.datetime.now().isoformat()
+            current_time = datetime.datetime.now()
+            now['time|time_now']=current_time.isoformat()
             now['time|time_boot']=datetime.datetime.fromtimestamp(psutil.boot_time()).strftime("%Y-%m-%d %H:%M:%S")  
-                      
-            return self.db['server_monitoring'].insert_one(now)
-
+               
+            # should we write this data?  We have the option not to log all messages, to prevent the store getting very full.
+            write_content = False       
+            if self.previous_server_monitoring_time is None:
+                write_content = True   # yes if this is the first record written.
+            else:
+                time_since_last_write = current_time - self.previous_server_monitoring_time  # yes if it's after the server_moni
+                t= 1000*float(time_since_last_write.seconds)+float(time_since_last_write.microseconds)/1000
+                if t >= self.server_monitoring_min_interval_msec:
+                        write_content = True
+                        
+            if write_content:      
+                self.db['server_monitoring'].insert_one(now)
+                self.previous_server_monitoring_time = current_time
+                self.previous_server_monitoring_data = now
+                return True
+            else:
+                return False
+        
         # methods for clusters, which holds the reference compressed details of the sequences
         # in a gridFS store.
         def clusters_store(self, clustering_setting, obj):
@@ -684,6 +710,29 @@ class Test_Server_Monitoring_2(unittest.TestCase):
                 with self.assertRaises(TypeError):
                         res = p.recent_server_monitoring("thing")
 
+class Test_Server_Monitoring_3(unittest.TestCase):
+        """ checks whether server_monitoring_min_interval_msec control works"""
+        def runTest(self):
+                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2, server_monitoring_min_interval_msec= 2000)
+                retVal = p.server_monitoring_store(message='one')  # should insert
+                self.assertEqual(retVal, True)
+                res = p.recent_server_monitoring(100)
+                self.assertEqual(len(res),1)
+                self.assertTrue(isinstance(res,list))
+
+                retVal = p.server_monitoring_store(message='two') # should not inserted
+                self.assertEqual(retVal, False)
+                res = p.recent_server_monitoring(100)
+                self.assertEqual(len(res),1)
+                self.assertTrue(isinstance(res,list))
+                
+                time.sleep(2)                   # seconds
+                retVal = p.server_monitoring_store(message='three')  # should insert
+                self.assertEqual(retVal, True)
+                res = p.recent_server_monitoring(100)
+                self.assertEqual(len(res),2)
+                self.assertTrue(isinstance(res,list))
+                              
 class Test_SeqMeta_guid2neighbour_8(unittest.TestCase):
         """ tests guid2neighboursOf"""
         def runTest(self):

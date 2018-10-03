@@ -115,7 +115,11 @@ if __name__ == '__main__':
                 logger.info("Launching logger")
                 sentry_sdk.init(CONFIG['SENTRY_URL'])
 
-        #########################  CONFIGURE HELPER APPLICATIONS ######################
+        # set min logging interval if not supplied
+        if not 'SERVER_MONITORING_MIN_INTERVAL_MSEC' in CONFIG.keys():
+               CONFIG['SERVER_MONITORING_MIN_INTERVAL_MSEC']=0
+
+          #########################  CONFIGURE HELPER APPLICATIONS ######################
 
 
         ########################  START Operations ###################################
@@ -123,7 +127,10 @@ if __name__ == '__main__':
 
         logging.info("Connecting to backend data store")
         try:
-             PERSIST=fn3persistence(dbname = CONFIG['SERVERNAME'],connString=CONFIG['FNPERSISTENCE_CONNSTRING'], debug=CONFIG['DEBUGMODE'])
+             PERSIST=fn3persistence(dbname = CONFIG['SERVERNAME'],
+									connString=CONFIG['FNPERSISTENCE_CONNSTRING'],
+									debug=CONFIG['DEBUGMODE'],
+									server_monitoring_min_interval_msec = CONFIG['SERVER_MONITORING_MIN_INTERVAL_MSEC'])
         except Exception as e:
              logger.exception("Error raised on creating persistence object")
              if e.__module__ == "pymongo.errors":

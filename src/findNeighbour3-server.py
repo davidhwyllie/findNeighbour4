@@ -160,6 +160,8 @@ class findNeighbour3():
 		"SNPCEILING": 20,
 		"GC_ON_RECOMPRESS":1,
 		"RECOMPRESS_FREQUENCY":5,
+		"SERVER_MONITORING_MIN_INTERVAL_MSEC":0,
+		"SENTRY_URL":"https://c******************@sentry.io/1******",
 		"CLUSTERING":{'SNV12_ignore' :{'snv_threshold':12, 'mixed_sample_management':'ignore', 'mixture_criterion':'pvalue_1', 'cutoff':0.001},
 		              'SNV12_include':{'snv_threshold':12, 'mixed_sample_management':'include', 'mixture_criterion':'pvalue_1', 'cutoff':0.001}
 					 }
@@ -192,6 +194,12 @@ class findNeighbour3():
 		GC_ON_RECOMPRESS
 		RECOMPRESS_FREQUENCY
 		SNPCOMPRESSIONCEILING
+		
+		related to what monitoring the server uses
+		SERVER_MONITORING_MIN_INTERVAL_MSEC (optional)
+		
+		related to error handling
+		SENTRY_URL (optional)
 		
 		PERSIST is a storage object needs to be supplied.  The fn3Persistence class in mongoStore is one suitable object.
 		PERSIST=fn3persistence(connString=CONFIG['FNPERSISTENCE_CONNSTRING'])
@@ -227,7 +235,7 @@ class findNeighbour3():
 		
 		do_not_persist_keys=set(['IP','SERVERNAME','FNPERSISTENCE_CONNSTRING',
 								 'LOGFILE','LOGLEVEL','REST_PORT',
-								 'GC_ON_RECOMPRESS','RECOMPRESS_FREQUENCY', 'REPACK_FREQUENCY'])
+								 'GC_ON_RECOMPRESS','RECOMPRESS_FREQUENCY', 'REPACK_FREQUENCY', 'SENTRY_URL', 'SERVER_MONITORING_MIN_INTERVAL_MSEC'])
 				
 		# determine whether this is a first-run situation.
 		if self.PERSIST.first_run():
@@ -248,7 +256,7 @@ class findNeighbour3():
 		self.recompress_frequency = self.CONFIG['RECOMPRESS_FREQUENCY']
 		self.repack_frequency = self.CONFIG['REPACK_FREQUENCY']
 		self.gc_on_recompress = self.CONFIG['GC_ON_RECOMPRESS']
-			
+		
 		## start setup
 		self.write_semaphore = threading.BoundedSemaphore(1)        # used to permit only one process to INSERT at a time.
 		
@@ -1262,8 +1270,12 @@ def server_storage_status(absdelta, stats_type, nrows):
 		
 		# if values are not completed, then use the previous non-null version
 		# see https://stackoverflow.com/questions/14399689/matplotlib-drawing-lines-between-points-ignoring-missing-data
-		
-		plts = df.plot(kind='line', x='time|time_now', subplots=True, y=target_columns)
+		dfp = df.dropna()
+		#dfp = df
+		if len(dfp.index)==0:
+			return("No non-null row data found matching this selection. <p>This may be normal if the server has just started up.<p> We tried to select from {2} rows of data, with {3} columns.  We looked for '{4}'.<p>Valid values for the three variables passed in the URL are as follows: <p> stats_type: {0}. <p> absdelta: ['absolute', 'delta']. <p> nrows must be a positive integer. <p> The columns available for selection from the server's monitoring log are: {1}".format(valid_starts,df.columns.values, len(df.index), len(df.columns.values), target_string))
+
+		plts = dfp.plot(kind='line', x='time|time_now', subplots=True, y=target_columns)
 		for plt in plts:
 			fig = plt.get_figure()
 			fig.set_figheight(len(target_columns)*2)
@@ -2165,9 +2177,19 @@ if __name__ == '__main__':
         # plotting engine
         matplotlib.use('agg')		#  prevent https://stackoverflow.com/questions/27147300/how-to-clean-images-in-python-django
 
+        if 'SENTRY_URL' in CONFIG.keys():
+                app.logger.info("Launching communication with Sentry bug-tracking service")
+                sentry_sdk.init(CONFIG['SENTRY_URL'], integrations=[FlaskIntegration()])
+
+        if not 'SERVER_MONITORING_MIN_INTERVAL_MSEC' in CONFIG.keys():
+               CONFIG['SERVER_MONITORING_MIN_INTERVAL_MSEC']=0
+
         print("Connecting to backend data store")
         try:
-                PERSIST=fn3persistence(dbname = CONFIG['SERVERNAME'],connString=CONFIG['FNPERSISTENCE_CONNSTRING'], debug=CONFIG['DEBUGMODE'])
+                PERSIST=fn3persistence(dbname = CONFIG['SERVERNAME'],
+									   connString=CONFIG['FNPERSISTENCE_CONNSTRING'],
+									   debug=CONFIG['DEBUGMODE'],
+									   server_monitoring_min_interval_msec = CONFIG['SERVER_MONITORING_MIN_INTERVAL_MSEC'])
         except Exception as e:
                 app.logger.exception("Error raised on creating persistence object")
                 if e.__module__ == "pymongo.errors":
