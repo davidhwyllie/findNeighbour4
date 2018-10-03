@@ -1270,8 +1270,10 @@ def server_storage_status(absdelta, stats_type, nrows):
 		
 		# if values are not completed, then use the previous non-null version
 		# see https://stackoverflow.com/questions/14399689/matplotlib-drawing-lines-between-points-ignoring-missing-data
-		dfp = df.dropna()
-		#dfp = df
+		select_cols = target_columns.copy()
+		select_cols.append('time|time_now')
+		dfp = df[select_cols]
+		dfp = dfp.dropna()
 		if len(dfp.index)==0:
 			return("No non-null row data found matching this selection. <p>This may be normal if the server has just started up.<p> We tried to select from {2} rows of data, with {3} columns.  We looked for '{4}'.<p>Valid values for the three variables passed in the URL are as follows: <p> stats_type: {0}. <p> absdelta: ['absolute', 'delta']. <p> nrows must be a positive integer. <p> The columns available for selection from the server's monitoring log are: {1}".format(valid_starts,df.columns.values, len(df.index), len(df.columns.values), target_string))
 
