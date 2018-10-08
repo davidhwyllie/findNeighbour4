@@ -29,13 +29,14 @@ The server can be accessed via RESTful web services from any language.
 A python client (fn3client), which calls the REST endpoints and converts output into python objects, is also provided.
 
 # Memory and disc usage
-This depends on the kind of sequences stored.
-For *M. tuberculosis*,
-**Memory usage**
+This depends on the kind of sequences stored.  For *M. tuberculosis*:
+
+**Memory usage**   
 * Memory usage is about 2G per 1,000 samples,   or 2M per sample. [calculated on Windows]  It scales linearly with sample numbers.
 * 50,000 samples will use about 100G of RAM
-* a machine with 2TB of RAM should be able to cope with 1M samples.
-**Database size**
+* a machine with 2TB of RAM should be able to cope with 1M samples.  
+   
+**Database size**   
 * database usage is about 0.2M (200kb) per sample.  This equates to about 5,000 samples per gigabyte.
 * a free MongoDb test instance with MongoDb Atlas with 512M of storage will manage about 2,000 samples. Using the same provider, 
 * an M20 EC2 instance (currently USD 0.22/hr) with 4G RAM and 20G disc storage will manage about 100,000 samples.
