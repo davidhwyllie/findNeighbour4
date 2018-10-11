@@ -11,7 +11,7 @@ The dependencies in this file can be added using
 ``` pip3 install -r requirements.txt ```
 
 The following are required for the server:  
-requests
+ requests
  logging
  hashlib
  queue
@@ -24,6 +24,8 @@ requests
  scipy
  psutil
  BioPython
+ matplotlib
+ markdown
  
 The following are required only for simulated data:
 
