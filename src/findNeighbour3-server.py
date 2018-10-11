@@ -973,7 +973,7 @@ def msa_guids():
 	
 	# check guids
 	missing_guids = []
-	for guid in guids:
+	for guid in sorted(guids):
 		try:
 			result = fn3.exist_sample(guid)
 		except Exception as e:
@@ -1002,31 +1002,42 @@ class test_msa_2(unittest.TestCase):
 		with open(inputfile, 'rt') as f:
 			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
 					originalseq = list(str(record.seq))
-		inserted_guids = []			
-		for i in range(0,3):
-			guid_to_insert = "guid_{0}".format(n_pre+i)
-			inserted_guids.append(guid_to_insert)
-			
-			seq = originalseq			
-			# make i mutations at position 500,000
-			offset = 500000
-			for j in range(i):
-				mutbase = offset+j
-				ref = seq[mutbase]
-				if not ref == 'T':
-					seq[mutbase] = 'T'
-				if not ref == 'A':
-					seq[mutbase] = 'A'
-			seq = ''.join(seq)
-						
-			print("Adding TB sequence {2} of {0} bytes with {1} mutations relative to ref.".format(len(seq), i, guid_to_insert))
-			self.assertEqual(len(seq), 4411532)		# check it's the right sequence
+		inserted_guids = []
+		for k in range(0,1):
+			# form two different clusters
+			for i in range(0,3):
+				guid_to_insert = "guid_{0}".format(n_pre+k*100+i)
+				inserted_guids.append(guid_to_insert)
+				
+				seq = originalseq			
+				# make i mutations at position 500,000
+				if k==1:
+					for j in range(1000000,1000100):		# make mutants at position 1m
+						mutbase = offset+j
+						ref = seq[mutbase]
+						if not ref == 'T':
+							seq[mutbase] = 'T'
+						if not ref == 'A':
+							seq[mutbase] = 'A'
 	
-			relpath = "/api/v2/insert"
-			res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
-			self.assertTrue(isjson(content = res.content))
-			info = json.loads(res.content.decode('utf-8'))
-			self.assertEqual(info, 'Guid {0} inserted.'.format(guid_to_insert))
+				offset = 500000
+				for j in range(i):
+					mutbase = offset+j
+					ref = seq[mutbase]
+					if not ref == 'T':
+						seq[mutbase] = 'T'
+					if not ref == 'A':
+						seq[mutbase] = 'A'
+				seq = ''.join(seq)
+							
+				print("Adding TB sequence {2} of {0} bytes with {1} mutations relative to ref.".format(len(seq), i, guid_to_insert))
+				self.assertEqual(len(seq), 4411532)		# check it's the right sequence
+		
+				relpath = "/api/v2/insert"
+				res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
+				self.assertTrue(isjson(content = res.content))
+				info = json.loads(res.content.decode('utf-8'))
+				self.assertEqual(info, 'Guid {0} inserted.'.format(guid_to_insert))
 	
 		relpath = "/api/v2/multiple_alignment/guids"
 		payload = {'guids':';'.join(inserted_guids),'output_format':'html'}
@@ -1061,7 +1072,6 @@ class test_msa_2(unittest.TestCase):
 			if item['guid'] in inserted_guids:
 				cluster_id = item['cluster_id']
 		self.assertTrue(cluster_id is not None)
-			
 		relpath = "/api/v2/multiple_alignment_cluster/SNV12_ignore/{0}/json".format(cluster_id)
 		res = do_GET(relpath)
 		self.assertTrue(isjson(res.content))
@@ -1080,6 +1090,7 @@ def msa_guids_by_cluster(clustering_algorithm, cluster_id, output_format):
 	
 	Valid values for format are:
 	json
+	fasta
 	html
 	"""
 	# validate input
@@ -1094,12 +1105,17 @@ def msa_guids_by_cluster(clustering_algorithm, cluster_id, output_format):
 
 	# check guids
 	df = pd.DataFrame.from_records(res)
+	df = df[df["cluster_id"]==cluster_id]
 	if len(df.index)==0:
-		retVal = {}
+		return make_response(
+								json.dumps(
+									{'status':'No samples exist for that cluster'}
+								)
+							)
 	else:
 		missing_guids = []
 		guids = []
-		for guid in df['guid'].tolist():
+		for guid in sorted(df['guid'].tolist()):
 			try:
 				result = fn3.exist_sample(guid)
 			except Exception as e:
@@ -1164,7 +1180,6 @@ class test_msa_1(unittest.TestCase):
 		self.assertEqual(res.status_code, 200)
 		self.assertTrue(b"</table>" in res.content)
 		
-		
 		payload = {'guids':';'.join(inserted_guids),'output_format':'json'}
 		res = do_POST(relpath, payload=payload)
 		self.assertTrue(isjson(res.content))
@@ -1173,6 +1188,8 @@ class test_msa_1(unittest.TestCase):
 		d = json.loads(res.content.decode('utf-8'))
 		self.assertEqual(set(d.keys()), set(inserted_guids))
 
+		self.assertEqual(len(d.keys()), 3)		# should create a cluster of three
+		
 		payload = {'guids':';'.join(inserted_guids),'output_format':'fasta'}
 		res = do_POST(relpath, payload=payload)
 		self.assertFalse(isjson(res.content))

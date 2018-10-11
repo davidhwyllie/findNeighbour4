@@ -24,10 +24,17 @@ import numpy as np
 import argparse
 import json
 import networkx as nx
+import itertools
+from string import ascii_uppercase
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import generic_nucleotide
+
+def iter_all_strings():
+    for size in itertools.count(1):
+        for s in itertools.product(ascii_uppercase, repeat=size):
+            yield "".join(s)
 
 def introduce_n(seq, p):
     """ introduce Ns at random into a sequence, seq.
@@ -121,7 +128,7 @@ python make_large_sequence_set.py 10 1000 3 50 1e-8 ../output/lss_tb
         node_id = 0
         for node in t.traverse():
             node_id+=1
-            node.name = "N{0}_{1}".format(i, node_id)
+            node.name = "{0}_{1}".format(i, node_id)
             if node.is_root():
                 seqs[node.name]= mutate(refseq, k1)
                 print("Mutating ancestor # {0}".format(i))
@@ -137,9 +144,15 @@ python make_large_sequence_set.py 10 1000 3 50 1e-8 ../output/lss_tb
                     print("generated {0} children ..".format(node_id))
         
         print("Exporting {0} sequences, with Ns added".format(node_id))
+        
         for seq_name in seqs.keys():
-            with open(os.path.join(outputdir, "{0}.fasta".format(seq_name)),'wt') as f:
+            # get a unique output file name
+            for prefix in iter_all_strings():
+                outputfile = os.path.join(outputdir, "{1}_{0}.fasta".format(seq_name, prefix))
+                if not os.path.exists(outputfile):
+                    break
+            with open(outputfile,'wt') as f:
                 seq = introduce_n(seqs[seq_name],p)
-                f.write(">{0}\n{1}\n".format(seq_name,seq))
+                f.write(">{2}_{0}\n{1}\n".format(seq_name, seq, prefix))
     
     print("Export complete.")

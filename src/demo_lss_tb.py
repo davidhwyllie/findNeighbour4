@@ -104,7 +104,7 @@ if __name__ == '__main__':
         raise ValueError("Asked to add {0} sequences, but only {1} are available in the input directory {2}".format(max_sequences, len(inputfiles), inputdir))
     else:
         inputfiles = inputfiles[0:max_sequences]
-  
+
     print("opening connection to fn3 server")
     fn3c = fn3Client(baseurl = "http://127.0.0.1:5020")
 
@@ -121,9 +121,7 @@ if __name__ == '__main__':
     with open(outputfile, 'w+t') as f:
         output_line = "{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\n".format('nSamples', 's_insert', 'e_insert', 'd_insert', 's_read', 'e_read', 'd_read')
         f.write(output_line) 
-        while nSamples < max_sequences:   
-            nSamples +=1  
-            nAdded_this_batch +=1       
+        while nAdded_this_batch < max_sequences:   
         
             if pause_after >0:
                 if nAdded_this_batch % pause_after==0:
@@ -131,34 +129,42 @@ if __name__ == '__main__':
                      time.sleep(pause_duration)
         
             # read samples
-            inputfile = inputfiles[nSamples-1]
+            inputfile = inputfiles[nAdded_this_batch]
+            nSamples +=1  
+            nAdded_this_batch +=1      
             with open(inputfile, 'rt') as f_in:
                 for record in SeqIO.parse(f_in,'fasta', alphabet=generic_nucleotide):               
                     seq = str(record.seq)
                     guid = str(record.id)
        
-            # add
-            print("Inserting", guid, "(samples in this batch = ",nAdded_this_batch,"); will pause every ",pause_after)
-            stime1 = datetime.datetime.now()
-            resp = fn3c.insert(guid=guid, seq=seq)
-            print("Insert yielded status code {0}".format(resp.status_code))
-
-            etime1 = datetime.datetime.now()
-            delta1= etime1-stime1
-            
-            # recover neighbours of guid
-            stime2 = datetime.datetime.now()
-            # check it exists
-            if not fn3c.guid_exists(guid):
-                print("Guid {0} was not inserted".format(guid))   
-            else:
-                neighbours = fn3c.guid2neighbours(guid, threshold=10000000)
-                etime2 = datetime.datetime.now()
-                delta2 = etime2 - stime2
-                print("Recovered {1} neighbours of {0}".format(guid, len(neighbours)))            
-                output_line = "{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\n".format(nSamples, stime1, etime1, delta1, stime2, etime2, delta2)
-                f.write(output_line)
-                f.flush()
-            
-        print("Have added {0} sequences, stopping.".format(nSamples))
+                    # add
+                    print("Inserting", guid, "(samples in this batch = ",nAdded_this_batch,"); will pause every ",pause_after)
+                    stime1 = datetime.datetime.now()
+                    resp = fn3c.insert(guid=guid, seq=seq)
+                    print("Insert yielded status code {0}".format(resp.status_code))
+        
+                   
+                    etime1 = datetime.datetime.now()
+                    delta1= etime1-stime1
+                   
+                    # recover neighbours of guid
+                    stime2 = datetime.datetime.now()
+                    # check it exists
+                    if not fn3c.guid_exists(guid):
+                        print("Guid {0} was not inserted".format(guid))   
+                    else:
+                        neighbours = fn3c.guid2neighbours(guid, threshold=10000000)
+                        etime2 = datetime.datetime.now()
+                        delta2 = etime2 - stime2
+                        print("Recovered {1} neighbours of {0}".format(guid, len(neighbours)))            
+                        output_line = "{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\n".format(nSamples, stime1, etime1, delta1, stime2, etime2, delta2)
+                        f.write(output_line)
+                        f.flush()
+            # delete the source file - keep disc space down
+            try:
+                os.unlink(inputfile)
+                print("Fasta input file deleted")
+            except PermissionError:
+                print("Fasta input file not deleted, as locked")
+            print("Have added {0} sequences, stopping.".format(nSamples))
         exit(0)              
