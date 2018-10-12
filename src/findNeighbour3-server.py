@@ -285,15 +285,53 @@ class findNeighbour3():
 
 		print("Loading {1} sequences from database .. excluding ({0})".format(self.sc.excluded_hash(),len(guids)))
 		nLoaded = 0
+		nRecompressed = 0
+		snvc = snv_clustering(snv_threshold=12, mixed_sample_management='ignore')
+	
 		for guid in guids:
 			nLoaded+=1
 			obj = self.PERSIST.refcompressedsequence_read(guid)
 			self.sc.persist(obj, guid=guid)
+			
+			# recompression in ram is relatively slow.
+			# to keep the server load fast, and memory usage low, we recompress after every 2500th sequence;
+			# we identify samples clustered together using an in-ram graph and recompress those clustered with each other
+			# cluster by cluster.
+			
+			# if the server is configured to compress memory	
+			if self.recompress_frequency > 0:
+					# we find the neighbours of this guid within self.snpCompressionCeiling
+					linked_guids = []
+					links = self.PERSIST.guid2neighbours(guid, cutoff=self.snpCompressionCeiling)
+					for x in links['neighbours']:
+						linked_guids.append(x[0])
+					# and then add these links to our in-ram clustering graph.
+					snvc.add_sample(guid,linked_guids)
+					
+					# every 2500 samples, or when the load is over, get the clusters
+					if nLoaded % 2500 == 0 or nLoaded == len(guids):		# every 2500, or on completion
+						print("Recompressing memory ..")
+						nRecompressed = 0 	
+						cl2g = snvc.clusters2guid()
+						total_clusters = len(cl2g.keys())
+						nClusters = 0
+						for cl in cl2g.keys():
+							nClusters +=1
+							if len(cl2g[cl]) > 3:
+								# find a single guid from this cluster
+								# and recompress relative to that.
+								to_recompress = cl2g[cl][0]
+								nRecompressed = nRecompressed + len(cl2g[cl])
+								if nClusters % 25 == 0:
+									print("Recompressed {0}/{1} clusters, {2}/{3} sequences ...".format(nClusters, total_clusters, nRecompressed,nLoaded))
+								self.sc.compress_relative_to_consensus(to_recompress)
+				
 			if nLoaded % 500 ==0:
-				print(nLoaded)
-				self.server_monitoring_store(message='server | Loaded {0} from database'.format(nLoaded))
+				print("load in progress; {0} loaded and {1} have been recompressed in ram relative to local consensus.".format(nLoaded,nRecompressed))
+				self.server_monitoring_store(message='server | Loaded {0} from database; Recompressed {1} in ram relative to local consensus'.format(nLoaded,nRecompressed))
 
-		print("findNeighbour3 has loaded {0} sequences from database.".format(len(guids)))
+		print("findNeighbour3 has loaded {0} sequences from database; Recompressed {1}".format(len(guids),nRecompressed))
+		gc.collect()		# free up ram		
 		self.server_monitoring_store(message='Load from database complete.'.format(nLoaded))
 
 		# set up clustering
@@ -466,7 +504,7 @@ class findNeighbour3():
 				# remove the guid from RAM is the only step necessary
 				self.sc.remove(guid)	
 				app.logger.info("Guid successfully removed from ram. {0}".format(guid))
-                                    
+
 				if e.__module__ == "pymongo.errors":
 					app.logger.info("Error raised pertains to pyMongo connectivity")
 					capture_exception(e)
