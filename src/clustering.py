@@ -356,10 +356,14 @@ class snv_clustering():
         """ returns a cluster -> guid mapping """
         retVal = {}
         for guid in sorted(self.G.nodes):
-            for cluster_id in self.G.node[guid]['cluster_id']:
-                if not cluster_id in retVal.keys():
-                    retVal[cluster_id] = []  
-                retVal[cluster_id].append(guid)   
+            try:
+                for cluster_id in self.G.node[guid]['cluster_id']:
+                    if not cluster_id in retVal.keys():
+                        retVal[cluster_id] = []  
+                    retVal[cluster_id].append(guid)
+            except KeyError:
+                # no cluster_id
+                pass
         return retVal        
 
     def clusters2guidmeta(self, after_change_id=None):
@@ -607,7 +611,7 @@ class test_add_sample_3(unittest.TestCase):
         
 
 class test_add_sample_4(unittest.TestCase):
-    """ tests combinating clusters, one of which is mixed.  """
+    """ tests combining clusters, one of which is mixed.  """
     def runTest(self):
                
         snvc = snv_clustering(snv_threshold=12, mixed_sample_management='include')
