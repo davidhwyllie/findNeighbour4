@@ -166,5 +166,5 @@ if __name__ == '__main__':
                 print("Fasta input file deleted")
             except PermissionError:
                 print("Fasta input file not deleted, as locked")
-            print("Have added {0} sequences, stopping.".format(nSamples))
+        print("Have added {0} sequences, stopping.".format(nSamples))
         exit(0)              
