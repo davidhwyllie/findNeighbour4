@@ -141,6 +141,7 @@ class findNeighbour3():
                                  these p-values arise from three different tests for mixtures.  Please see seqComparer._msa() for details.
                             cutoff: samples are regarded as mixed if the mixture_criterion is less than or equal to this value.
             SENTRY_URL:  optional.  If provided, will launch link Sentry to the flask application using the API key provided.  See https://sentry.io for a description of this service. 
+            LISTEN_TO:   optional.  If missing, will bind to localhost (only) on 127.0.0.1.  If present, will listen to requests from the IP stated.  if '0.0.0.0', the server will respond to all external requests.
 		An example CONFIG is below:
 
 		
@@ -164,7 +165,8 @@ class findNeighbour3():
 		"SENTRY_URL":"https://c******************@sentry.io/1******",
 		"CLUSTERING":{'SNV12_ignore' :{'snv_threshold':12, 'mixed_sample_management':'ignore', 'mixture_criterion':'pvalue_1', 'cutoff':0.001},
 		              'SNV12_include':{'snv_threshold':12, 'mixed_sample_management':'include', 'mixture_criterion':'pvalue_1', 'cutoff':0.001}
-					 }
+					 },
+		"LISTEN_TO":"127.0.0.1"
 		}
 
 		Some of these settings are read when the server is first-run, stored in a database, and the server will not
@@ -182,6 +184,7 @@ class findNeighbour3():
 		IP
 		SERVERNAME
 		REST_PORT
+		LISTEN_TO (optional)
 		
 		internal logging	
 		LOGFILE
@@ -2225,6 +2228,9 @@ if __name__ == '__main__':
         ########################### prepare to launch server ###############################################################
         # construct the required global variables
         LISTEN_TO = '127.0.0.1'
+        if 'LISTEN_TO' in CONFIG.keys():
+            LISTEN_TO = CONFIG['LISTEN_TO']
+
         RESTBASEURL = "http://{0}:{1}".format(CONFIG['IP'], CONFIG['REST_PORT'])
 
         #########################  CONFIGURE HELPER APPLICATIONS ######################
@@ -2269,7 +2275,7 @@ if __name__ == '__main__':
         else:
                 flask_debug = False
 
-        app.logger.info("Launching server on {0}, debug = {1}, port = {2}".format(LISTEN_TO, flask_debug, CONFIG['REST_PORT']))
+        app.logger.info("Launching server listening to IP {0}, debug = {1}, port = {2}".format(LISTEN_TO, flask_debug, CONFIG['REST_PORT']))
         app.run(host=LISTEN_TO, debug=flask_debug, port = CONFIG['REST_PORT'])
 
 
