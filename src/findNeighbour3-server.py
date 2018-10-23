@@ -62,7 +62,7 @@ import psutil
 # reference based compression, storage and clustering modules
 from NucleicAcid import NucleicAcid
 from mongoStore import fn3persistence
-from seqComparer import seqComparer
+from seqComparer_mt import seqComparer
 from clustering import snv_clustering
 
 # only used for unit testing
@@ -280,6 +280,7 @@ class findNeighbour3():
 							debugMode=self.debugMode,
 							excludePositions=self.excludePositions,
 							snpCompressionCeiling = self.snpCompressionCeiling)
+		print("In-RAM data store set up; sequence comparison uses {0} threads".format(self.sc.cpuCount))
 		
 		# determine how many guids there in the database
 		guids = self.PERSIST.refcompressedsequence_guids()
@@ -460,21 +461,17 @@ class findNeighbour3():
 
 			links={}			
 			try:
-				# this process reports links less than self.sc.snpCeiling
+				# this process reports links less than self.snpCeiling
 				app.logger.debug("Finding links: {0}".format(guid))
 
+				res = self.sc.mcompare(guid)		# compare against all
 				to_compress = 0
-				for key2 in self.sc.guidscachedinram():
-					if not guid==key2:
-						(guid1,guid2,dist,n1,n2,nboth, N1pos, N2pos, Nbothpos)=self.sc.countDifferences_byKey(keyPair=(guid,key2),
-																											  cutoff = self.snpCompressionCeiling)
-					
-						link = {'dist':dist,'n1':n1,'n2':n2,'nboth':nboth}
-						to_compress +=1
-						if dist is not None:
-							if link['dist'] <= self.snpCeiling:
-								links[guid2]=link			
-
+				for (guid1,guid2,dist,n1,n2,nboth, N1pos, N2pos, Nbothpos) in self.sc.mcompare(guid): 	# all against all
+					link = {'dist':dist,'n1':n1,'n2':n2,'nboth':nboth}
+					if dist is not None:
+						if link['dist'] <= self.snpCeiling:
+							links[guid2]=link			
+							to_compress +=1
 
 				## now persist in database.  
 				# we have considered what happens if database connectivity fails during the insert operations.
