@@ -466,12 +466,13 @@ class findNeighbour3():
 
 				res = self.sc.mcompare(guid)		# compare against all
 				to_compress = 0
-				for (guid1,guid2,dist,n1,n2,nboth, N1pos, N2pos, Nbothpos) in self.sc.mcompare(guid): 	# all against all
-					link = {'dist':dist,'n1':n1,'n2':n2,'nboth':nboth}
-					if dist is not None:
-						if link['dist'] <= self.snpCeiling:
-							links[guid2]=link			
-							to_compress +=1
+				for (guid1,guid2,dist,n1,n2,nboth, N1pos, N2pos, Nbothpos) in res: 	# all against all
+					if not guid1==guid2:
+						link = {'dist':dist,'n1':n1,'n2':n2,'nboth':nboth}
+						if dist is not None:
+							if link['dist'] <= self.snpCeiling:
+								links[guid1]=link			
+								to_compress +=1
 
 				## now persist in database.  
 				# we have considered what happens if database connectivity fails during the insert operations.
@@ -494,6 +495,7 @@ class findNeighbour3():
 
 				# addition of neighbours may cause neighbours to be entered more than once if database connectivity failed during previous inserts.
 				# because of the way that extraction of links works, this does not matter, and duplicates will not be reported.
+
 				self.PERSIST.guid2neighbour_add_links(guid=guid, targetguids=links)
 
 			except Exception as e:
@@ -1040,23 +1042,28 @@ class test_msa_2(unittest.TestCase):
 		with open(inputfile, 'rt') as f:
 			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
 					originalseq = list(str(record.seq))
-		inserted_guids = []
+		inserted_guids = ['guid_ref']
+		seq="".join(originalseq)
+		res = do_POST("/api/v2/insert", payload = {'guid':'guid_ref','seq':seq})
+
+
 		for k in range(0,1):
-			# form two different clusters
+			# form one clusters
 			for i in range(0,3):
 				guid_to_insert = "guid_{0}".format(n_pre+k*100+i)
 				inserted_guids.append(guid_to_insert)
-				
+				muts = 0
 				seq = originalseq			
 				# make i mutations at position 500,000
 				if k==1:
-					for j in range(1000000,1000100):		# make mutants at position 1m
+					for j in range(1000000,1000100):		# make 100 mutants at position 1m
 						mutbase = offset+j
 						ref = seq[mutbase]
 						if not ref == 'T':
 							seq[mutbase] = 'T'
 						if not ref == 'A':
 							seq[mutbase] = 'A'
+						muts+=1
 	
 				offset = 500000
 				for j in range(i):
@@ -1066,9 +1073,10 @@ class test_msa_2(unittest.TestCase):
 						seq[mutbase] = 'T'
 					if not ref == 'A':
 						seq[mutbase] = 'A'
+					muts+=1
 				seq = ''.join(seq)
 							
-				print("Adding TB sequence {2} of {0} bytes with {1} mutations relative to ref.".format(len(seq), i, guid_to_insert))
+				print("Adding TB sequence {2} of {0} bytes with {1} mutations relative to ref.".format(len(seq), muts, guid_to_insert))
 				self.assertEqual(len(seq), 4411532)		# check it's the right sequence
 		
 				relpath = "/api/v2/insert"
@@ -1106,15 +1114,19 @@ class test_msa_2(unittest.TestCase):
 		self.assertTrue(isinstance(retVal, list))
 		res = json.loads(res.content.decode('utf-8'))
 		cluster_id=None
+		print("CLUSTERS",res)
 		for item in res:
 			if item['guid'] in inserted_guids:
 				cluster_id = item['cluster_id']
+		print("Am examining cluster_id",cluster_id)
 		self.assertTrue(cluster_id is not None)
 		relpath = "/api/v2/multiple_alignment_cluster/SNV12_ignore/{0}/json".format(cluster_id)
 		res = do_GET(relpath)
 		self.assertTrue(isjson(res.content))
 		self.assertEqual(res.status_code, 200)
 		d = json.loads(res.content.decode('utf-8'))
+		print(d)
+		print(d.keys())
 		self.assertEqual(set(inserted_guids)-set(d.keys()),set([]))
 
 		relpath = "/api/v2/multiple_alignment_cluster/SNV12_ignore/{0}/fasta".format(cluster_id)
