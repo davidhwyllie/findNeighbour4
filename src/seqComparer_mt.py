@@ -39,7 +39,9 @@ from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import generic_nucleotide
 
 class ComparingThread (threading.Thread):
-    """ wraps the tasks a thread needs to perform when comparing sequences """
+    """ wraps the tasks a thread needs to perform when comparing sequences.
+    
+    Contains a number of methods also present in seqComparer"""
     def __init__(self, threadID, guidList, startIn, endIn, seqProfile, consensi, new_guid, neighbours,
                  compressed_sequence_keys, patch_and_consensus_keys, consensus_keys, snpCeiling):
         threading.Thread.__init__(self)
@@ -53,6 +55,7 @@ class ComparingThread (threading.Thread):
         self.seqProfile = seqProfile            # Dictionary of 'guid':'sequence'
         self.consensi = consensi                # any consensus sequences used in recompressing seqProfiles
 
+        # parameters which mean the same as those in seqComparer
         self.compressed_sequence_keys = compressed_sequence_keys
         self.patch_and_consensus_keys=patch_and_consensus_keys
         self.consensus_keys = consensus_keys
@@ -60,7 +63,7 @@ class ComparingThread (threading.Thread):
         
     def run(self):  #When the thread starts, it will do the task here
         for i in range(self.startIndex,self.endIndex):#Go thru the index range
-            rs = self.countDifferences_byKey((self.guidList[i], self.new_guid), self.snpCeiling)    #Compare sequence 
+            rs = self.countDifferences_byKey((self.new_guid, self.guidList[i]), self.snpCeiling)    #Compare sequence 
             self.neighbours.append(rs)
                 
     def apply_patch(self, patch, consensus):
@@ -212,7 +215,8 @@ class seqComparer():
                     snpCeiling,
                     debugMode=False,
                     excludePositions=set(),
-                    snpCompressionCeiling = 250
+                    snpCompressionCeiling = 250,
+                    cpuCount = None
                 ):
 
         """ instantiates the sequence comparer, an object which manages in-memory reference compressed sequences.
@@ -237,6 +241,10 @@ class seqComparer():
         
         If snpCompressionCeiling is not None, then will consider samples up to snpCompressionCeiling
         when performing deltas compression relative to close neighbours.
+        
+        If cpuCount is a positive integer, will multithread up to that number of threads.
+        if None, it will multithread multi-sequence comparisons using all available threads.
+        if 1, will not use multithreading.
         
         David Wyllie, University of Oxford, June 2018
         
@@ -281,8 +289,15 @@ class seqComparer():
         self.seqProfile={}
         self.consensi = {}      # where consensus sequences are stored in ram
         
-        # use all available threads
-        self.cpuCount = multiprocessing.cpu_count()
+        # set an appropriate number of threads to use
+        nCpus = multiprocessing.cpu_count()
+        self.cpuCount = cpuCount
+        if self.cpuCount is None:
+            self.cpuCount = nCpus
+        if self.cpuCount > nCpus:
+            self.cpuCount = nCpus
+        if self.cpuCount < 1:
+            self.cpuCount = 1
  
     def raise_error(self,token):
         """ raises a ZeroDivisionError, with token as the message.
@@ -335,29 +350,40 @@ class seqComparer():
         
         guids = list(set(guids))       
         sampleCount = len(guids)
-        
-        interval = math.ceil(sampleCount / self.cpuCount) #How many sample each thread should compare with the current sample
-        threads = []
         neighbours = []
-        # Create new threads
-        for i in range(0,self.cpuCount):
-            startIn = i * interval      #Calculate the start index
-            endIn = startIn + interval  #End index
-            if endIn > sampleCount:     #The last range 
-                endIn = sampleCount    
-            #Create a new thread and add it to a list
-            threads.append(ComparingThread(i, guids, startIn, endIn, self.seqProfile, self.consensi, guid, neighbours,
-                                           self.compressed_sequence_keys, self.patch_and_consensus_keys, self.consensus_keys,
-                                           self.snpCeiling))
         
-        # Start new Threads 
-        for th in threads:
-            th.start()
-        
-        # Wait for them to finish  - don't combine with the above loop  
-        for th in threads:
-            th.join()
-        
+        if self.cpuCount == 1:
+            # we use a single thread
+            for key2 in guids:
+                if not guid==key2:
+                    (guid1,guid2,dist,n1,n2,nboth, N1pos, N2pos, Nbothpos)=self.countDifferences_byKey(keyPair=(guid,key2),
+                                                                                                          cutoff = self.snpCompressionCeiling)            
+                    neighbours.append([guid1,guid2,dist,n1,n2,nboth,N1pos, N2pos, Nbothpos])
+
+        else:
+            # we multithread
+            interval = math.ceil(sampleCount / self.cpuCount) #How many sample each thread should compare with the current sample
+            threads = []
+
+            # Create new threads
+            for i in range(0,self.cpuCount):
+                startIn = i * interval      #Calculate the start index
+                endIn = startIn + interval  #End index
+                if endIn > sampleCount:     #The last range 
+                    endIn = sampleCount    
+                #Create a new thread and add it to a list
+                threads.append(ComparingThread(i, guids, startIn, endIn, self.seqProfile, self.consensi, guid, neighbours,
+                                               self.compressed_sequence_keys, self.patch_and_consensus_keys, self.consensus_keys,
+                                               self.snpCeiling))
+            
+            # Start new Threads 
+            for th in threads:
+                th.start()
+            
+            # Wait for them to finish  - don't combine with the above loop  
+            for th in threads:
+                th.join()
+            
         return(neighbours)
     
     def summarise_stored_items(self):
@@ -2231,7 +2257,8 @@ class test_seqComparer_mc1(unittest.TestCase):
         refSeq='GGGGGGGGGGGG'
         sc=seqComparer( maxNs = 1e8,
                        reference=refSeq,
-                       snpCeiling =10)
+                       snpCeiling =10,
+                       cpuCount = None)
         
         originals = [ 'AAACACTGACTG','CCCCACTGACTG','TTTCACTGACTG','GGGCACTGACTG','NNNCACTGACTG','ACTCACTGACTG','ACTCACTGACTG', 'TCTNACTGACTG' ]
         for original in originals:   
@@ -2251,7 +2278,7 @@ class test_seqComparer_mc1(unittest.TestCase):
         self.assertTrue(len(res),3)
 
         for (key1,key2,n,n1,n2,n3,s1,s2,s3) in res:
-            expected_n = expected_results[key1]
+            expected_n = expected_results[key2]
             #print(key1,key2,n,n1,n2,n3,s1,s2,s3)
             self.assertEqual(expected_n, n)
 
@@ -2260,7 +2287,47 @@ class test_seqComparer_mc1(unittest.TestCase):
         self.assertTrue(len(res),7)
 
         for (key1,key2,n,n1,n2,n3,s1,s2,s3) in res:
-            expected_n = expected_results[key1]
+            expected_n = expected_results[key2]
+            #print(key1,key2,n,n1,n2,n3,s1,s2,s3)
+            self.assertEqual(expected_n, n)
+        
+class test_seqComparer_mc2(unittest.TestCase):
+    """ tests single threaded search"""
+    def runTest(self):
+        refSeq='GGGGGGGGGGGG'
+        sc=seqComparer( maxNs = 1e8,
+                       reference=refSeq,
+                       snpCeiling =10,
+                       cpuCount = 1)
+        
+        originals = [ 'AAACACTGACTG','CCCCACTGACTG','TTTCACTGACTG','GGGCACTGACTG','NNNCACTGACTG','ACTCACTGACTG','ACTCACTGACTG', 'TCTNACTGACTG' ]
+        for original in originals:   
+            c = sc.compress(original)
+            sc.persist(c, guid=original )
+
+        expected_results = {'CCCCACTGACTG':3,
+                            'TTTCACTGACTG':3,
+                            'GGGCACTGACTG':3,
+                            'NNNCACTGACTG':0,
+                            'ACTCACTGACTG':2,
+                            'TCTNACTGACTG':3,
+                            'AAACACTGACTG':0}
+        
+        # test against selected guids
+        res = sc.mcompare('AAACACTGACTG', ['CCCCACTGACTG','TTTCACTGACTG','GGGCACTGACTG'])
+        self.assertTrue(len(res),3)
+
+        for (key1,key2,n,n1,n2,n3,s1,s2,s3) in res:
+            expected_n = expected_results[key2]
+            #print(key1,key2,n,n1,n2,n3,s1,s2,s3)
+            self.assertEqual(expected_n, n)
+
+        # test against all
+        res = sc.mcompare('AAACACTGACTG')
+        self.assertTrue(len(res),7)
+
+        for (key1,key2,n,n1,n2,n3,s1,s2,s3) in res:
+            expected_n = expected_results[key2]
             #print(key1,key2,n,n1,n2,n3,s1,s2,s3)
             self.assertEqual(expected_n, n)
         

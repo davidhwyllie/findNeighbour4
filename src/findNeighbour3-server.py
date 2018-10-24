@@ -464,14 +464,14 @@ class findNeighbour3():
 				# this process reports links less than self.snpCeiling
 				app.logger.debug("Finding links: {0}".format(guid))
 
-				res = self.sc.mcompare(guid)		# compare against all
+				res = self.sc.mcompare(guid)		# compare guid against all
 				to_compress = 0
 				for (guid1,guid2,dist,n1,n2,nboth, N1pos, N2pos, Nbothpos) in res: 	# all against all
 					if not guid1==guid2:
 						link = {'dist':dist,'n1':n1,'n2':n2,'nboth':nboth}
 						if dist is not None:
 							if link['dist'] <= self.snpCeiling:
-								links[guid1]=link			
+								links[guid2]=link			
 								to_compress +=1
 
 				## now persist in database.  
@@ -1114,19 +1114,18 @@ class test_msa_2(unittest.TestCase):
 		self.assertTrue(isinstance(retVal, list))
 		res = json.loads(res.content.decode('utf-8'))
 		cluster_id=None
-		print("CLUSTERS",res)
+
 		for item in res:
 			if item['guid'] in inserted_guids:
 				cluster_id = item['cluster_id']
-		print("Am examining cluster_id",cluster_id)
+		#print("Am examining cluster_id",cluster_id)
 		self.assertTrue(cluster_id is not None)
 		relpath = "/api/v2/multiple_alignment_cluster/SNV12_ignore/{0}/json".format(cluster_id)
 		res = do_GET(relpath)
 		self.assertTrue(isjson(res.content))
 		self.assertEqual(res.status_code, 200)
 		d = json.loads(res.content.decode('utf-8'))
-		print(d)
-		print(d.keys())
+
 		self.assertEqual(set(inserted_guids)-set(d.keys()),set([]))
 
 		relpath = "/api/v2/multiple_alignment_cluster/SNV12_ignore/{0}/fasta".format(cluster_id)
