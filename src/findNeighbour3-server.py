@@ -14,7 +14,7 @@ All internal modules, and the restful API, are covered by unit testing.
 Unit testing can be achieved by:
 
 # starting a test RESTFUL server
-python3 findNeighbour3-server-rest.py
+python3 findNeighbour3-server.py
 
 # And then (e.g. in a different terminal) launching unit tests with
 python3 -m unittest findNeighbour3-server
@@ -46,6 +46,7 @@ import codecs
 import sentry_sdk
 import matplotlib
 import dateutil.parser
+import argparse
 from sentry_sdk import capture_message, capture_exception
 from sentry_sdk.integrations.flask import FlaskIntegration
 
@@ -62,7 +63,7 @@ import psutil
 # reference based compression, storage and clustering modules
 from NucleicAcid import NucleicAcid
 from mongoStore import fn3persistence
-from seqComparer import seqComparer
+from seqComparer_mt import seqComparer
 from clustering import snv_clustering
 
 # only used for unit testing
@@ -78,7 +79,7 @@ import uuid
 class findNeighbour3():
 	""" a server based application for maintaining a record of bacterial relatedness using SNP distances.
 	
-	    The high level arrangement is that
+		The high level arrangement is that
 		- This class interacts with in-memory sequences
 		  [handled by the seqComparer class] and backends [fn3Persistance class] used by the server
 		- methods in findNeighbour3() return native python3 objects.
@@ -87,61 +88,61 @@ class findNeighbour3():
 		- in particular, native python3 objects returned by this class are serialised by the Flask web server code.
 		"""
 		
-	def __init__(self,CONFIG, PERSIST):
+	def __init__(self,CONFIG, PERSIST, on_startup_repack_memory_every =None):
 		""" Using values in CONFIG, starts a server with CONFIG['NAME'] on port CONFIG['PORT'].
 
-        CONFIG contains Configuration parameters relevant to the reference based compression system which lies
-        at the core of the server.
-            INPUTREF:       the path to fasta format reference file.
-            EXCLUDEFILE:    a file containing the zero-indexed positions in the supplied sequences which should be ignored in all cases.
-                            Typically, this is because the software generating the mapped fasta file has elected not to call these regions,
-                            in any samples, e.g. because of difficulty mapping to these regions.
-                            Such regions can occupy up 5- 20% of the genome and it is important for efficient working of this software
-                            that these regions are supplied for exclusion on sequence loading.  Not doing so will slow loading, and markedly increase
-                            memory requirements, but will not alter the results produced.
-            DEBUGMODE:      Controls operation of the server:
+		CONFIG contains Configuration parameters relevant to the reference based compression system which lies
+		at the core of the server.
+			INPUTREF:       the path to fasta format reference file.
+			EXCLUDEFILE:    a file containing the zero-indexed positions in the supplied sequences which should be ignored in all cases.
+							Typically, this is because the software generating the mapped fasta file has elected not to call these regions,
+							in any samples, e.g. because of difficulty mapping to these regions.
+							Such regions can occupy up 5- 20% of the genome and it is important for efficient working of this software
+							that these regions are supplied for exclusion on sequence loading.  Not doing so will slow loading, and markedly increase
+							memory requirements, but will not alter the results produced.
+			DEBUGMODE:      Controls operation of the server:
 
-                            DEBUGMODE =                                                              0       1        2
-                            Run server in production mode (errors logged, not returned to client)    Y       N        N
-                            Run server in debug mode (errors reported to client)                     N       Y        Y
-                            Create Database if it does not exist                                     Y       Y        Y
-                            Delete all data on startup                                               N       N        Y
-                            Enable /restart endpoint, which restarts empty server (for testing)      N       N        Y
+							DEBUGMODE =                                                              0       1        2
+							Run server in production mode (errors logged, not returned to client)    Y       N        N
+							Run server in debug mode (errors reported to client)                     N       Y        Y
+							Create Database if it does not exist                                     Y       Y        Y
+							Delete all data on startup                                               N       N        Y
+							Enable /restart endpoint, which restarts empty server (for testing)      N       N        Y
 
-            SERVERNAME:     the name of the server. used as the name of mongodb database which is bound to the server.
-            FNPERSISTENCE_CONNSTRING: a valid mongodb connection string. if shard keys are set, the 'guid' field is suitable key.
-            MAXN_STORAGE:   The maximum number of Ns in the sequence <excluding those defined in > EXCLUDEFILE which should be indexed.
-                            Other files, e.g. those with all Ns, will be tagged as 'invalid'.  Although a record of their presence in the database
-                            is kept, they are not compared with other sequences.
-            MAXN_PROP_DEFAULT: if the proportion not N in the sequence exceeds this, the sample is analysed, otherwise considered invalid.
-            LOGFILE:        the log file used
-            LOGLEVEL:		default logging level used by the server.  Valid values are DEBUG INFO WARNING ERROR CRITICAL
-            SNPCEILING: 	links between guids > this are not stored in the database
-            GC_ON_RECOMPRESS: if 'recompressing' sequences to a local reference, something the server does automatically, perform
-                            a full mark-and-sweep gc at this point.  This setting alters memory use and compute time, but not the results obtained.
-            RECOMPRESS_FREQUENCY: if recompressable records are detected, recompress every RECOMPRESS_FREQ th detection (e.g. 5).
-                            Trades off compute time with mem usage.  This setting alters memory use and compute time, but not the results obtained.
+			SERVERNAME:     the name of the server. used as the name of mongodb database which is bound to the server.
+			FNPERSISTENCE_CONNSTRING: a valid mongodb connection string. if shard keys are set, the 'guid' field is suitable key.
+			MAXN_STORAGE:   The maximum number of Ns in the sequence <excluding those defined in > EXCLUDEFILE which should be indexed.
+							Other files, e.g. those with all Ns, will be tagged as 'invalid'.  Although a record of their presence in the database
+							is kept, they are not compared with other sequences.
+			MAXN_PROP_DEFAULT: if the proportion not N in the sequence exceeds this, the sample is analysed, otherwise considered invalid.
+			LOGFILE:        the log file used
+			LOGLEVEL:		default logging level used by the server.  Valid values are DEBUG INFO WARNING ERROR CRITICAL
+			SNPCEILING: 	links between guids > this are not stored in the database
+			GC_ON_RECOMPRESS: if 'recompressing' sequences to a local reference, something the server does automatically, perform
+							a full mark-and-sweep gc at this point.  This setting alters memory use and compute time, but not the results obtained.
+			RECOMPRESS_FREQUENCY: if recompressable records are detected, recompress every RECOMPRESS_FREQ th detection (e.g. 5).
+							Trades off compute time with mem usage.  This setting alters memory use and compute time, but not the results obtained.
 							If zero, recompression is disabled.
-            REPACK_FREQUENCY: see /docs/repack_frequency.md
+			REPACK_FREQUENCY: see /docs/repack_frequency.md
 			CLUSTERING:		a dictionary of parameters used for clustering.  In the below example, there are two different
-                            clustering settings defined, one named 'SNV12_ignore' and the other 'SNV12_include.
-                            {'SNV12_ignore' :{'snv_threshold':12, 'mixed_sample_management':'ignore', 'mixture_criterion':'p_value1', 'cutoff':0.001},
-		                     'SNV12_include':{'snv_threshold':12, 'mixed_sample_management':'include', 'mixture_criterion':'p_value1', 'cutoff':0.001}
-					        }
-                            Each setting is defined by four parameters:
-                            snv_threshold: clusters are formed if samples are <= snv_threshold from each other
-                            mixed_sample_management: this defines what happens if mixed samples are detected.
-                                Suppose there are three samples, A,B and M.  M is a mixture of A and B.
-                                A and B are > snv_threshold apart, but their distance to M is zero.
-                                If mixed_sample_management is
-                                'ignore', one cluster {A,B,M} is returned
-                                'include', two clusters {A,M} and {B,M}
-                                'exclude', three clusters are returns {A},{B},{C}
-                            mixture_criterion: sensible values include 'p_value1','p_value2','p_value3' but other output from  seqComparer._msa() is also possible.
-                                 these p-values arise from three different tests for mixtures.  Please see seqComparer._msa() for details.
-                            cutoff: samples are regarded as mixed if the mixture_criterion is less than or equal to this value.
-            SENTRY_URL:  optional.  If provided, will launch link Sentry to the flask application using the API key provided.  See https://sentry.io for a description of this service. 
-            LISTEN_TO:   optional.  If missing, will bind to localhost (only) on 127.0.0.1.  If present, will listen to requests from the IP stated.  if '0.0.0.0', the server will respond to all external requests.
+							clustering settings defined, one named 'SNV12_ignore' and the other 'SNV12_include.
+							{'SNV12_ignore' :{'snv_threshold':12, 'mixed_sample_management':'ignore', 'mixture_criterion':'p_value1', 'cutoff':0.001},
+							 'SNV12_include':{'snv_threshold':12, 'mixed_sample_management':'include', 'mixture_criterion':'p_value1', 'cutoff':0.001}
+							}
+							Each setting is defined by four parameters:
+							snv_threshold: clusters are formed if samples are <= snv_threshold from each other
+							mixed_sample_management: this defines what happens if mixed samples are detected.
+								Suppose there are three samples, A,B and M.  M is a mixture of A and B.
+								A and B are > snv_threshold apart, but their distance to M is zero.
+								If mixed_sample_management is
+								'ignore', one cluster {A,B,M} is returned
+								'include', two clusters {A,M} and {B,M}
+								'exclude', three clusters are returns {A},{B},{C}
+							mixture_criterion: sensible values include 'p_value1','p_value2','p_value3' but other output from  seqComparer._msa() is also possible.
+								 these p-values arise from three different tests for mixtures.  Please see seqComparer._msa() for details.
+							cutoff: samples are regarded as mixed if the mixture_criterion is less than or equal to this value.
+			SENTRY_URL:  optional.  If provided, will launch link Sentry to the flask application using the API key provided.  See https://sentry.io for a description of this service. 
+			LISTEN_TO:   optional.  If missing, will bind to localhost (only) on 127.0.0.1.  If present, will listen to requests from the IP stated.  if '0.0.0.0', the server will respond to all external requests.
 		An example CONFIG is below:
 
 		
@@ -164,7 +165,7 @@ class findNeighbour3():
 		"SERVER_MONITORING_MIN_INTERVAL_MSEC":0,
 		"SENTRY_URL":"https://c******************@sentry.io/1******",
 		"CLUSTERING":{'SNV12_ignore' :{'snv_threshold':12, 'mixed_sample_management':'ignore', 'mixture_criterion':'pvalue_1', 'cutoff':0.001},
-		              'SNV12_include':{'snv_threshold':12, 'mixed_sample_management':'include', 'mixture_criterion':'pvalue_1', 'cutoff':0.001}
+					  'SNV12_include':{'snv_threshold':12, 'mixed_sample_management':'include', 'mixture_criterion':'pvalue_1', 'cutoff':0.001}
 					 },
 		"LISTEN_TO":"127.0.0.1"
 		}
@@ -244,7 +245,8 @@ class findNeighbour3():
 		if self.PERSIST.first_run():
 			self.first_run(do_not_persist_keys)
 
-		# load global settings from those stored at the first run.  
+		# load global settings from those stored at the first run.
+		self.on_startup_repack_memory_every = on_startup_repack_memory_every
 		cfg = self.PERSIST.config_read('config')
 		
 		# set easy to read properties from the config
@@ -280,6 +282,7 @@ class findNeighbour3():
 							debugMode=self.debugMode,
 							excludePositions=self.excludePositions,
 							snpCompressionCeiling = self.snpCompressionCeiling)
+		print("In-RAM data store set up; sequence comparison uses {0} threads".format(self.sc.cpuCount))
 		
 		# determine how many guids there in the database
 		guids = self.PERSIST.refcompressedsequence_guids()
@@ -297,7 +300,7 @@ class findNeighbour3():
 			self.sc.persist(obj, guid=guid)
 			
 			# recompression in ram is relatively slow.
-			# to keep the server load fast, and memory usage low, we recompress after every 2500th sequence;
+			# to keep the server load fast, and memory usage low, we recompress after every 10000th sequence;
 			# we identify samples clustered together using an in-ram graph and recompress those clustered with each other
 			# cluster by cluster.
 			
@@ -311,8 +314,8 @@ class findNeighbour3():
 					# and then add these links to our in-ram clustering graph.
 					snvc.add_sample(guid,linked_guids)
 					
-					# every 2500 samples, or when the load is over, get the clusters
-					if nLoaded % 2500 == 0 or nLoaded == len(guids):		# every 2500, or on completion
+					# every self.on_startup_repack_memory_every samples, or when the load is over, get the clusters
+					if nLoaded % self.on_startup_repack_memory_every == 0 or nLoaded == len(guids):		# every 2500, or on completion
 						print("Recompressing memory ..")
 						nRecompressed = 0 	
 						cl2g = snvc.clusters2guid()
@@ -460,21 +463,18 @@ class findNeighbour3():
 
 			links={}			
 			try:
-				# this process reports links less than self.sc.snpCeiling
+				# this process reports links less than self.snpCeiling
 				app.logger.debug("Finding links: {0}".format(guid))
 
+				res = self.sc.mcompare(guid)		# compare guid against all
 				to_compress = 0
-				for key2 in self.sc.guidscachedinram():
-					if not guid==key2:
-						(guid1,guid2,dist,n1,n2,nboth, N1pos, N2pos, Nbothpos)=self.sc.countDifferences_byKey(keyPair=(guid,key2),
-																											  cutoff = self.snpCompressionCeiling)
-					
+				for (guid1,guid2,dist,n1,n2,nboth, N1pos, N2pos, Nbothpos) in res: 	# all against all
+					if not guid1==guid2:
 						link = {'dist':dist,'n1':n1,'n2':n2,'nboth':nboth}
-						to_compress +=1
 						if dist is not None:
 							if link['dist'] <= self.snpCeiling:
 								links[guid2]=link			
-
+								to_compress +=1
 
 				## now persist in database.  
 				# we have considered what happens if database connectivity fails during the insert operations.
@@ -497,6 +497,7 @@ class findNeighbour3():
 
 				# addition of neighbours may cause neighbours to be entered more than once if database connectivity failed during previous inserts.
 				# because of the way that extraction of links works, this does not matter, and duplicates will not be reported.
+
 				self.PERSIST.guid2neighbour_add_links(guid=guid, targetguids=links)
 
 			except Exception as e:
@@ -552,7 +553,7 @@ class findNeighbour3():
 	
 	def update_clustering(self, store=True):
 		""" performs clustering on any samples within the persistence store which are not already clustered
-		    If Store=True, writes the clustered object to mongo."""
+			If Store=True, writes the clustered object to mongo."""
 		
 		# update clustering and re-cluster
 		for clustering_name in self.clustering_settings.keys():
@@ -747,13 +748,13 @@ app.logger.setLevel(logging.DEBUG)
 			
 
 def isjson(content):
-        """ returns true if content parses as json, otherwise false. used by unit testing. """
-        try:
-            x = json.loads(content.decode('utf-8'))
-            return True
+		""" returns true if content parses as json, otherwise false. used by unit testing. """
+		try:
+			x = json.loads(content.decode('utf-8'))
+			return True
  
-        except json.decoder.JSONDecodeError:
-            return False
+		except json.decoder.JSONDecodeError:
+			return False
 
 def tojson(content):
 	""" json dumps, formatting dates as isoformat """
@@ -767,13 +768,13 @@ def tojson(content):
 # --------------------------------------------------------------------------------------------------
 @app.errorhandler(404)
 def not_found(error):
-    json_err = jsonify({'error': 'Not found (custom error handler for mis-routing)'})
-    return make_response(json_err, 404)
+	json_err = jsonify({'error': 'Not found (custom error handler for mis-routing)'})
+	return make_response(json_err, 404)
 # --------------------------------------------------------------------------------------------------
  
 @app.teardown_appcontext
 def shutdown_session(exception=None):
-    fn3.PERSIST.closedown()		# close database connection
+	fn3.PERSIST.closedown()		# close database connection
 
 def do_GET(relpath):
 	""" makes a GET request  to relpath.
@@ -932,7 +933,7 @@ class test_raise(unittest.TestCase):
 		
 def construct_msa(guids, output_format):
 	""" constructs multiple sequence alignment for guids
-	    and returns in one of 'fasta' 'html' or 'json' format."""
+		and returns in one of 'fasta' 'html' or 'json' format."""
 	res = fn3.sc.multi_sequence_alignment(guids, output='df_dict')
 	df = pd.DataFrame.from_dict(res,orient='index')
 	html = df.to_html()
@@ -1043,23 +1044,28 @@ class test_msa_2(unittest.TestCase):
 		with open(inputfile, 'rt') as f:
 			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
 					originalseq = list(str(record.seq))
-		inserted_guids = []
+		inserted_guids = ['guid_ref']
+		seq="".join(originalseq)
+		res = do_POST("/api/v2/insert", payload = {'guid':'guid_ref','seq':seq})
+
+
 		for k in range(0,1):
-			# form two different clusters
+			# form one clusters
 			for i in range(0,3):
 				guid_to_insert = "guid_{0}".format(n_pre+k*100+i)
 				inserted_guids.append(guid_to_insert)
-				
+				muts = 0
 				seq = originalseq			
 				# make i mutations at position 500,000
 				if k==1:
-					for j in range(1000000,1000100):		# make mutants at position 1m
+					for j in range(1000000,1000100):		# make 100 mutants at position 1m
 						mutbase = offset+j
 						ref = seq[mutbase]
 						if not ref == 'T':
 							seq[mutbase] = 'T'
 						if not ref == 'A':
 							seq[mutbase] = 'A'
+						muts+=1
 	
 				offset = 500000
 				for j in range(i):
@@ -1069,9 +1075,10 @@ class test_msa_2(unittest.TestCase):
 						seq[mutbase] = 'T'
 					if not ref == 'A':
 						seq[mutbase] = 'A'
+					muts+=1
 				seq = ''.join(seq)
 							
-				print("Adding TB sequence {2} of {0} bytes with {1} mutations relative to ref.".format(len(seq), i, guid_to_insert))
+				print("Adding TB sequence {2} of {0} bytes with {1} mutations relative to ref.".format(len(seq), muts, guid_to_insert))
 				self.assertEqual(len(seq), 4411532)		# check it's the right sequence
 		
 				relpath = "/api/v2/insert"
@@ -1109,15 +1116,18 @@ class test_msa_2(unittest.TestCase):
 		self.assertTrue(isinstance(retVal, list))
 		res = json.loads(res.content.decode('utf-8'))
 		cluster_id=None
+
 		for item in res:
 			if item['guid'] in inserted_guids:
 				cluster_id = item['cluster_id']
+		#print("Am examining cluster_id",cluster_id)
 		self.assertTrue(cluster_id is not None)
 		relpath = "/api/v2/multiple_alignment_cluster/SNV12_ignore/{0}/json".format(cluster_id)
 		res = do_GET(relpath)
 		self.assertTrue(isjson(res.content))
 		self.assertEqual(res.status_code, 200)
 		d = json.loads(res.content.decode('utf-8'))
+
 		self.assertEqual(set(inserted_guids)-set(d.keys()),set([]))
 
 		relpath = "/api/v2/multiple_alignment_cluster/SNV12_ignore/{0}/fasta".format(cluster_id)
@@ -1239,31 +1249,31 @@ class test_msa_1(unittest.TestCase):
 
 @app.route('/api/v2/server_config', methods=['GET'])
 def server_config():
-    """ returns server configuration.
+	""" returns server configuration.
 
-        returns the config file with which the server was launched.
-        This may be highly undesirable,
-        as it reveals the internal server architecture  including
-        backend databases and perhaps connection strings with passwords.
+		returns the config file with which the server was launched.
+		This may be highly undesirable,
+		as it reveals the internal server architecture  including
+		backend databases and perhaps connection strings with passwords.
 
-    """
-    res = fn3.server_config()
-    if res is None:		# not allowed to see it
-        return make_response(tojson({'NotAvailable':"Endpoint is only available in debug mode"}), 404)
-    else:
-        return make_response(tojson(CONFIG))
+	"""
+	res = fn3.server_config()
+	if res is None:		# not allowed to see it
+		return make_response(tojson({'NotAvailable':"Endpoint is only available in debug mode"}), 404)
+	else:
+		return make_response(tojson(CONFIG))
 
 class test_server_config(unittest.TestCase):
-    """ tests route v2/server_config"""
-    def runTest(self):
-        relpath = "/api/v2/server_config"
-        res = do_GET(relpath)
-        self.assertTrue(isjson(content = res.content))
+	""" tests route v2/server_config"""
+	def runTest(self):
+		relpath = "/api/v2/server_config"
+		res = do_GET(relpath)
+		self.assertTrue(isjson(content = res.content))
 
-        config_dict = json.loads(res.content.decode('utf-8'))
-       
-        self.assertTrue('GC_ON_RECOMPRESS' in config_dict.keys())
-        self.assertEqual(res.status_code, 200)
+		config_dict = json.loads(res.content.decode('utf-8'))
+	   
+		self.assertTrue('GC_ON_RECOMPRESS' in config_dict.keys())
+		self.assertEqual(res.status_code, 200)
 
 
 @app.route('/api/v2/server_memory_usage', defaults={'nrows':100}, methods=['GET'])
@@ -1353,15 +1363,15 @@ def server_storage_status(absdelta, stats_type, nrows):
 	return make_response(tojson(result))
 
 class test_server_memory_usage(unittest.TestCase):
-    """ tests route /api/v2/server_memory_usage"""
-    def runTest(self):
-        relpath = "/api/v2/server_memory_usage"
-        res = do_GET(relpath)
-        self.assertEqual(res.status_code, 200)
-        self.assertTrue(isjson(content = res.content))
+	""" tests route /api/v2/server_memory_usage"""
+	def runTest(self):
+		relpath = "/api/v2/server_memory_usage"
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 200)
+		self.assertTrue(isjson(content = res.content))
 
-        res = json.loads(res.content.decode('utf-8'))
-        self.assertTrue(isinstance(res,list))
+		res = json.loads(res.content.decode('utf-8'))
+		self.assertTrue(isinstance(res,list))
 
 @app.route('/api/v2/server_time', methods=['GET'])
 def server_time():
@@ -1375,14 +1385,14 @@ def server_time():
 	return make_response(tojson(result))
 
 class test_server_time(unittest.TestCase):
-    """ tests route /api/v2/server_time"""
-    def runTest(self):
-        relpath = "/api/v2/server_time"
-        res = do_GET(relpath)
-        self.assertTrue(isjson(content = res.content))
-        config_dict = json.loads(res.content.decode('utf-8'))
-        self.assertTrue('server_time' in config_dict.keys())
-        self.assertEqual(res.status_code, 200)
+	""" tests route /api/v2/server_time"""
+	def runTest(self):
+		relpath = "/api/v2/server_time"
+		res = do_GET(relpath)
+		self.assertTrue(isjson(content = res.content))
+		config_dict = json.loads(res.content.decode('utf-8'))
+		self.assertTrue('server_time' in config_dict.keys())
+		self.assertEqual(res.status_code, 200)
 
 	
 @app.route('/api/v2/guids', methods=['GET'])
@@ -1396,15 +1406,15 @@ def get_all_guids(**debug):
 	return(make_response(tojson(result)))
 
 class test_get_all_guids_1(unittest.TestCase):
-    """ tests route /api/v2/guids"""
-    def runTest(self):
-        relpath = "/api/v2/guids"
-        res = do_GET(relpath)
-        self.assertTrue(isjson(content = res.content))
-        guidlist = json.loads(str(res.content.decode('utf-8')))
-        self.assertTrue(isinstance(guidlist, list))
-        self.assertEqual(res.status_code, 200)
-        ## TODO: insert guids, check it doesn't fail.
+	""" tests route /api/v2/guids"""
+	def runTest(self):
+		relpath = "/api/v2/guids"
+		res = do_GET(relpath)
+		self.assertTrue(isjson(content = res.content))
+		guidlist = json.loads(str(res.content.decode('utf-8')))
+		self.assertTrue(isinstance(guidlist, list))
+		self.assertEqual(res.status_code, 200)
+		## TODO: insert guids, check it doesn't fail.
 
 @app.route('/api/v2/guids_with_quality_over/<float:cutoff>', methods=['GET'])
 @app.route('/api/v2/guids_with_quality_over/<int:cutoff>', methods=['GET'])
@@ -1418,15 +1428,15 @@ def guids_with_quality_over(cutoff, **kwargs):
 	return make_response(tojson(result))
 
 class test_guids_with_quality_over_1(unittest.TestCase):
-    """ tests route /api/v2/guids_with_quality_over"""
-    def runTest(self):
-        relpath = "/api/v2/guids_with_quality_over/0.7"
-        res = do_GET(relpath)
-        self.assertTrue(isjson(content = res.content))
-        guidlist = json.loads(res.content.decode('utf-8'))
-        self.assertTrue(isinstance(guidlist, list))
-        self.assertEqual(res.status_code, 200)
-        
+	""" tests route /api/v2/guids_with_quality_over"""
+	def runTest(self):
+		relpath = "/api/v2/guids_with_quality_over/0.7"
+		res = do_GET(relpath)
+		self.assertTrue(isjson(content = res.content))
+		guidlist = json.loads(res.content.decode('utf-8'))
+		self.assertTrue(isinstance(guidlist, list))
+		self.assertEqual(res.status_code, 200)
+		
 
 @app.route('/api/v2/guids_and_examination_times', methods=['GET'])
 def guids_and_examination_times(**kwargs):
@@ -1441,42 +1451,42 @@ def guids_and_examination_times(**kwargs):
 
 
 class test_get_all_guids_examination_time_1(unittest.TestCase):
-    """ tests route /api/v2/guids_and_examination_times"""
-    def runTest(self):
-        relpath = "/api/v2/guids_and_examination_times"
-        res = do_GET(relpath)
-        self.assertTrue(isjson(content = res.content))
-        guidlist = json.loads(res.content.decode('utf-8'))
-        
-        self.assertTrue(isinstance(guidlist, dict))
-        self.assertEqual(res.status_code, 200)
+	""" tests route /api/v2/guids_and_examination_times"""
+	def runTest(self):
+		relpath = "/api/v2/guids_and_examination_times"
+		res = do_GET(relpath)
+		self.assertTrue(isjson(content = res.content))
+		guidlist = json.loads(res.content.decode('utf-8'))
+		
+		self.assertTrue(isinstance(guidlist, dict))
+		self.assertEqual(res.status_code, 200)
 
-        #  test that it actually works
-        relpath = "/api/v2/guids"
-        res = do_GET(relpath)
-        n_pre = len(json.loads(str(res.text)))		# get all the guids
+		#  test that it actually works
+		relpath = "/api/v2/guids"
+		res = do_GET(relpath)
+		n_pre = len(json.loads(str(res.text)))		# get all the guids
 
-        guid_to_insert = "guid_{0}".format(n_pre+1)
+		guid_to_insert = "guid_{0}".format(n_pre+1)
 
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
-        with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
-                    seq = str(record.seq)
+		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+		with open(inputfile, 'rt') as f:
+			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+					seq = str(record.seq)
 
-        print("Adding TB reference sequence of {0} bytes".format(len(seq)))
-        self.assertEqual(len(seq), 4411532)		# check it's the right sequence
+		print("Adding TB reference sequence of {0} bytes".format(len(seq)))
+		self.assertEqual(len(seq), 4411532)		# check it's the right sequence
 
-        relpath = "/api/v2/insert"
-        res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
-        self.assertEqual(res.status_code, 200)
+		relpath = "/api/v2/insert"
+		res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
+		self.assertEqual(res.status_code, 200)
 
-        self.assertTrue(isjson(content = res.content))
-        info = json.loads(res.content.decode('utf-8'))
-        self.assertEqual(info, 'Guid {0} inserted.'.format(guid_to_insert))
+		self.assertTrue(isjson(content = res.content))
+		info = json.loads(res.content.decode('utf-8'))
+		self.assertEqual(info, 'Guid {0} inserted.'.format(guid_to_insert))
 
-        relpath = "/api/v2/guids_and_examination_times"
-        res = do_GET(relpath)
-        et= len(json.loads(res.content.decode('utf-8')))
+		relpath = "/api/v2/guids_and_examination_times"
+		res = do_GET(relpath)
+		et= len(json.loads(res.content.decode('utf-8')))
 
 
 @app.route('/api/v2/annotations', methods=['GET'])
@@ -1494,16 +1504,16 @@ def annotations(**kwargs):
 	return(tojson(result))
 
 class test_annotations_1(unittest.TestCase):
-    """ tests route /api/v2/annotations """
-    def runTest(self):
-        relpath = "/api/v2/annotations"
-        res = do_GET(relpath)
-        self.assertEqual(res.status_code, 200)
-        self.assertTrue(isjson(content = res.content))
-        inputDict = json.loads(res.content.decode('utf-8'))
-        self.assertTrue(isinstance(inputDict, dict)) 
-        guiddf = pd.DataFrame.from_dict(inputDict,orient='index')		#, orient='index'
-        self.assertTrue(isinstance(guiddf, pd.DataFrame)) 
+	""" tests route /api/v2/annotations """
+	def runTest(self):
+		relpath = "/api/v2/annotations"
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 200)
+		self.assertTrue(isjson(content = res.content))
+		inputDict = json.loads(res.content.decode('utf-8'))
+		self.assertTrue(isinstance(inputDict, dict)) 
+		guiddf = pd.DataFrame.from_dict(inputDict,orient='index')		#, orient='index'
+		self.assertTrue(isinstance(guiddf, pd.DataFrame)) 
 
 @app.route('/api/v2/<string:guid>/exists', methods=['GET'])
 def exist_sample(guid, **kwargs):
@@ -1520,16 +1530,16 @@ def exist_sample(guid, **kwargs):
 	return make_response(tojson(result))
 
 class test_exist_sample(unittest.TestCase):
-    """ tests route /api/v2/guid/exists """
-    def runTest(self):
-        relpath = "/api/v2/non_existent_guid/exists"
-        res = do_GET(relpath)
-       
-        self.assertEqual(res.status_code, 200)
-        self.assertTrue(isjson(content = res.content))
-        info = json.loads(res.content.decode('utf-8'))
-        self.assertEqual(type(info), bool)
-        self.assertEqual(info, False)
+	""" tests route /api/v2/guid/exists """
+	def runTest(self):
+		relpath = "/api/v2/non_existent_guid/exists"
+		res = do_GET(relpath)
+	   
+		self.assertEqual(res.status_code, 200)
+		self.assertTrue(isjson(content = res.content))
+		info = json.loads(res.content.decode('utf-8'))
+		self.assertEqual(type(info), bool)
+		self.assertEqual(info, False)
 
 
 @app.route('/api/v2/insert', methods=['POST'])
@@ -1585,7 +1595,7 @@ class test_algorithms(unittest.TestCase):
 @app.route('/api/v2/clustering/<string:clustering_algorithm>/change_id', methods=['GET'])
 def change_id(clustering_algorithm):
 	"""  returns the current change_id number, which is incremented each time a change is made.
-	     Useful for recovering changes in clustering after a particular point."""
+		 Useful for recovering changes in clustering after a particular point."""
 	try:
 		res = fn3.clustering[clustering_algorithm].change_id		
 	except KeyError:
@@ -1617,7 +1627,7 @@ class test_g2c(unittest.TestCase):
 @app.route('/api/v2/clustering/<string:clustering_algorithm>/guids2clusters/after_change_id/<int:change_id>', methods=['GET'])
 def g2ca(clustering_algorithm, change_id):
 	"""  returns a guid -> clusterid dictionary, with changes occurring after change_id, a counter which is incremented each time a change is made.
-	     Useful for recovering changes in clustering after a particular point."""
+		 Useful for recovering changes in clustering after a particular point."""
 	try:
 		res = fn3.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = change_id)		
 	except KeyError:
@@ -1658,43 +1668,43 @@ class test_change_id(unittest.TestCase):
 		
 
 class test_insert_1(unittest.TestCase):
-    """ tests route /api/v2/insert """
-    def runTest(self):
-        relpath = "/api/v2/guids"
-        res = do_GET(relpath)
-        n_pre = len(json.loads(str(res.text)))		# get all the guids
+	""" tests route /api/v2/insert """
+	def runTest(self):
+		relpath = "/api/v2/guids"
+		res = do_GET(relpath)
+		n_pre = len(json.loads(str(res.text)))		# get all the guids
 
-        guid_to_insert = "guid_{0}".format(n_pre+1)
+		guid_to_insert = "guid_{0}".format(n_pre+1)
 
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
-        with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
-                    seq = str(record.seq)
+		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+		with open(inputfile, 'rt') as f:
+			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+					seq = str(record.seq)
 
-        print("Adding TB reference sequence of {0} bytes".format(len(seq)))
-        self.assertEqual(len(seq), 4411532)		# check it's the right sequence
+		print("Adding TB reference sequence of {0} bytes".format(len(seq)))
+		self.assertEqual(len(seq), 4411532)		# check it's the right sequence
 
-        relpath = "/api/v2/insert"
-        res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
-        self.assertEqual(res.status_code, 200)
-        self.assertTrue(isjson(content = res.content))
-        info = json.loads(res.content.decode('utf-8'))
-        self.assertEqual(info, 'Guid {0} inserted.'.format(guid_to_insert))
+		relpath = "/api/v2/insert"
+		res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
+		self.assertEqual(res.status_code, 200)
+		self.assertTrue(isjson(content = res.content))
+		info = json.loads(res.content.decode('utf-8'))
+		self.assertEqual(info, 'Guid {0} inserted.'.format(guid_to_insert))
 
-        relpath = "/api/v2/guids"
-        res = do_GET(relpath)
-        n_post = len(json.loads(res.content.decode('utf-8')))
-        self.assertEqual(n_pre+1, n_post)
-                
+		relpath = "/api/v2/guids"
+		res = do_GET(relpath)
+		n_post = len(json.loads(res.content.decode('utf-8')))
+		self.assertEqual(n_pre+1, n_post)
+				
 
-        # check if it exists
-        relpath = "/api/v2/{0}/exists".format(guid_to_insert)
-        res = do_GET(relpath)
-        self.assertTrue(isjson(content = res.content))
-        info = json.loads(res.content.decode('utf-8'))
-        self.assertEqual(type(info), bool)
-        self.assertEqual(res.status_code, 200)
-        self.assertEqual(info, True)
+		# check if it exists
+		relpath = "/api/v2/{0}/exists".format(guid_to_insert)
+		res = do_GET(relpath)
+		self.assertTrue(isjson(content = res.content))
+		info = json.loads(res.content.decode('utf-8'))
+		self.assertEqual(type(info), bool)
+		self.assertEqual(res.status_code, 200)
+		self.assertEqual(info, True)
 
 class test_insert_10(unittest.TestCase):
 	""" tests route /api/v2/insert, with additional samples.
@@ -1838,14 +1848,14 @@ class test_insert_60(unittest.TestCase):
 				print(item['guid'], item['is_mixed'])
 		
 class test_mirror(unittest.TestCase):
-    """ tests route /api/v2/mirror """
-    def runTest(self):
-        
-        relpath = "/api/v2/mirror"
-        payload = {'guid':'1', 'seq':"ACTG"}
-        res = do_POST(relpath, payload = payload)
-        res_dict = json.loads(res.content.decode('utf-8'))
-        self.assertEqual(payload, res_dict)
+	""" tests route /api/v2/mirror """
+	def runTest(self):
+		
+		relpath = "/api/v2/mirror"
+		payload = {'guid':'1', 'seq':"ACTG"}
+		res = do_POST(relpath, payload = payload)
+		res_dict = json.loads(res.content.decode('utf-8'))
+		self.assertEqual(payload, res_dict)
 
 
 @app.route('/api/v2/<string:guid>/neighbours_within/<int:threshold>', methods=['GET'])
@@ -1887,126 +1897,126 @@ def neighbours_within(guid, threshold, **kwargs):
 	return make_response(tojson(result))
 	
 class test_neighbours_within_1(unittest.TestCase):
-    """ tests route /api/v2/guid/neighbours_within/ """
-    def runTest(self):
-        relpath = "/api/v2/non_existent_guid/neighbours_within/12"
-        res = do_GET(relpath)
-        self.assertTrue(isjson(content = res.content))
-        info = json.loads(res.content.decode('utf-8'))
-        self.assertEqual(type(info), dict)
-        self.assertEqual(res.status_code, 404)
+	""" tests route /api/v2/guid/neighbours_within/ """
+	def runTest(self):
+		relpath = "/api/v2/non_existent_guid/neighbours_within/12"
+		res = do_GET(relpath)
+		self.assertTrue(isjson(content = res.content))
+		info = json.loads(res.content.decode('utf-8'))
+		self.assertEqual(type(info), dict)
+		self.assertEqual(res.status_code, 404)
 
 class test_neighbours_within_2(unittest.TestCase):
-    """ tests route /api/v2/guid/neighbours_within/ """
-    def runTest(self):
-        relpath = "/api/v2/non_existent_guid/neighbours_within/12/with_quality_cutoff/0.5"
-        res = do_GET(relpath)
-        self.assertTrue(isjson(content = res.content))
-        info = json.loads(res.content.decode('utf-8'))
-        self.assertEqual(type(info), dict)
-        self.assertEqual(res.status_code, 404)
+	""" tests route /api/v2/guid/neighbours_within/ """
+	def runTest(self):
+		relpath = "/api/v2/non_existent_guid/neighbours_within/12/with_quality_cutoff/0.5"
+		res = do_GET(relpath)
+		self.assertTrue(isjson(content = res.content))
+		info = json.loads(res.content.decode('utf-8'))
+		self.assertEqual(type(info), dict)
+		self.assertEqual(res.status_code, 404)
 
 class test_neighbours_within_3(unittest.TestCase):
-    """ tests route /api/v2/guid/neighbours_within/ """
-    def runTest(self):
-        relpath = "/api/v2/non_existent_guid/neighbours_within/12/with_quality_cutoff/0.5/in_format/1"
-        res = do_GET(relpath)
-        print(res)
-        self.assertTrue(isjson(content = res.content))
-        info = json.loads(res.content.decode('utf-8'))
-        self.assertEqual(type(info), dict)
-        self.assertEqual(res.status_code, 404)
+	""" tests route /api/v2/guid/neighbours_within/ """
+	def runTest(self):
+		relpath = "/api/v2/non_existent_guid/neighbours_within/12/with_quality_cutoff/0.5/in_format/1"
+		res = do_GET(relpath)
+		print(res)
+		self.assertTrue(isjson(content = res.content))
+		info = json.loads(res.content.decode('utf-8'))
+		self.assertEqual(type(info), dict)
+		self.assertEqual(res.status_code, 404)
 
 class test_neighbours_within_4(unittest.TestCase):
-    """ tests route /api/v2/guid/neighbours_within/ """
-    def runTest(self):
-        relpath = "/api/v2/non_existent_guid/neighbours_within/12/with_quality_cutoff/0.5/in_format/2"
-        res = do_GET(relpath)
-        print(res)
-        self.assertTrue(isjson(content = res.content))
-        info = json.loads(res.content.decode('utf-8'))
-        self.assertEqual(type(info), dict)
-        self.assertEqual(res.status_code, 404)
+	""" tests route /api/v2/guid/neighbours_within/ """
+	def runTest(self):
+		relpath = "/api/v2/non_existent_guid/neighbours_within/12/with_quality_cutoff/0.5/in_format/2"
+		res = do_GET(relpath)
+		print(res)
+		self.assertTrue(isjson(content = res.content))
+		info = json.loads(res.content.decode('utf-8'))
+		self.assertEqual(type(info), dict)
+		self.assertEqual(res.status_code, 404)
 
 class test_neighbours_within_5(unittest.TestCase):
-    """ tests route /api/v2/guid/neighbours_within/ """
-    def runTest(self):
-        relpath = "/api/v2/non_existent_guid/neighbours_within/12/in_format/2"
-        res = do_GET(relpath)
-        print(res)
-        self.assertTrue(isjson(content = res.content))
-        info = json.loads(res.content.decode('utf-8'))
-        self.assertEqual(type(info), dict)
-        self.assertEqual(res.status_code, 404)
- 
+	""" tests route /api/v2/guid/neighbours_within/ """
+	def runTest(self):
+		relpath = "/api/v2/non_existent_guid/neighbours_within/12/in_format/2"
+		res = do_GET(relpath)
+		print(res)
+		self.assertTrue(isjson(content = res.content))
+		info = json.loads(res.content.decode('utf-8'))
+		self.assertEqual(type(info), dict)
+		self.assertEqual(res.status_code, 404)
+
 class test_neighbours_within_6(unittest.TestCase):
-   """ tests all the /api/v2/guid/neighbours_within methods using test data """
-   def runTest(self):
-        relpath = "/api/v2/guids"
-        res = do_GET(relpath)
-        n_pre = len(json.loads(str(res.text)))
+	""" tests all the /api/v2/guid/neighbours_within methods using test data """
+	def runTest(self):
+		relpath = "/api/v2/guids"
+		res = do_GET(relpath)
+		n_pre = len(json.loads(str(res.text)))
 
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
-        with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
-                    seq = str(record.seq)
-                    
-        # generate variants
-        variants = {}
-        for i in range(4):
-                 guid_to_insert = "guid_insert_{0}".format(n_pre+i+1)
-                 vseq=list(seq)
-                 vseq[100*i]='A'
-                 vseq=''.join(vseq)
-                 variants[guid_to_insert] = vseq
+		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+		with open(inputfile, 'rt') as f:
+			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+					seq = str(record.seq)
+					
+		# generate variants
+		variants = {}
+		for i in range(4):
+				 guid_to_insert = "guid_insert_{0}".format(n_pre+i+1)
+				 vseq=list(seq)
+				 vseq[100*i]='A'
+				 vseq=''.join(vseq)
+				 variants[guid_to_insert] = vseq
 
-        for guid_to_insert in variants.keys():
+		for guid_to_insert in variants.keys():
 
-                print("Adding mutated TB reference sequence called {0}".format(guid_to_insert))        
-                relpath = "/api/v2/insert"
-                
-                res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':variants[guid_to_insert]})
-                self.assertTrue(isjson(content = res.content))
-                info = json.loads(res.content.decode('utf-8'))
-                self.assertTrue('inserted' in info)
+				print("Adding mutated TB reference sequence called {0}".format(guid_to_insert))        
+				relpath = "/api/v2/insert"
+				
+				res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':variants[guid_to_insert]})
+				self.assertTrue(isjson(content = res.content))
+				info = json.loads(res.content.decode('utf-8'))
+				self.assertTrue('inserted' in info)
 
-                # check if it exists
-                relpath = "/api/v2/{0}/exists".format(guid_to_insert)
-                res = do_GET(relpath)
-                self.assertTrue(isjson(content = res.content))
-                info = json.loads(res.content.decode('utf-8'))
-                self.assertEqual(type(info), bool)
-                self.assertEqual(res.status_code, 200)
-                self.assertEqual(info, True)
-        
-        relpath = "/api/v2/guids"
-        res = do_GET(relpath)
-        n_post = len(json.loads(res.content.decode('utf-8')))
-        self.assertEqual(n_pre+4, n_post)
+				# check if it exists
+				relpath = "/api/v2/{0}/exists".format(guid_to_insert)
+				res = do_GET(relpath)
+				self.assertTrue(isjson(content = res.content))
+				info = json.loads(res.content.decode('utf-8'))
+				self.assertEqual(type(info), bool)
+				self.assertEqual(res.status_code, 200)
+				self.assertEqual(info, True)
+		
+		relpath = "/api/v2/guids"
+		res = do_GET(relpath)
+		n_post = len(json.loads(res.content.decode('utf-8')))
+		self.assertEqual(n_pre+4, n_post)
 
-        test_guid = min(variants.keys())
-        print("Searching for ",test_guid)
-        
-        search_paths = ["/api/v2/{0}/neighbours_within/1",
-                        "/api/v2/{0}/neighbours_within/1/with_quality_cutoff/0.5",
-                        "/api/v2/{0}/neighbours_within/1/with_quality_cutoff/0.5/in_format/1"
-                        "/api/v2/{0}/neighbours_within/1/with_quality_cutoff/0.5/in_format/2"
-                        "/api/v2/{0}/neighbours_within/1/in_format/1"
-                        "/api/v2/{0}/neighbours_within/1/in_format/2"
-                        ]
-        
-        for search_path in search_paths:
-                url = search_path.format(test_guid)
-                res = do_GET(relpath)
-                self.assertTrue(isjson(content = res.content))
-                info = json.loads(res.content.decode('utf-8'))
-                self.assertEqual(type(info), list)
-                guids_found = set()
-                for item in info:
-                        guids_found.add(item)
-                recovered = guids_found.intersection(variants.keys())
-                self.assertEqual(len(recovered),4)
-                self.assertEqual(res.status_code, 200)
+		test_guid = min(variants.keys())
+		print("Searching for ",test_guid)
+		
+		search_paths = ["/api/v2/{0}/neighbours_within/1",
+						"/api/v2/{0}/neighbours_within/1/with_quality_cutoff/0.5",
+						"/api/v2/{0}/neighbours_within/1/with_quality_cutoff/0.5/in_format/1"
+						"/api/v2/{0}/neighbours_within/1/with_quality_cutoff/0.5/in_format/2"
+						"/api/v2/{0}/neighbours_within/1/in_format/1"
+						"/api/v2/{0}/neighbours_within/1/in_format/2"
+						]
+		
+		for search_path in search_paths:
+				url = search_path.format(test_guid)
+				res = do_GET(relpath)
+				self.assertTrue(isjson(content = res.content))
+				info = json.loads(res.content.decode('utf-8'))
+				self.assertEqual(type(info), list)
+				guids_found = set()
+				for item in info:
+						guids_found.add(item)
+				recovered = guids_found.intersection(variants.keys())
+				self.assertEqual(len(recovered),4)
+				self.assertEqual(res.status_code, 200)
 
 @app.route('/api/v2/<string:guid>/sequence', methods=['GET'])
 def sequence(guid):
@@ -2018,120 +2028,119 @@ def sequence(guid):
 		return make_response(tojson(result))
 
 class test_sequence_1(unittest.TestCase):
-    """ tests route /api/v2/*guid*/sequence"""
-    def runTest(self):
-        relpath = "/api/v2/guids"
-        res = do_GET(relpath)
-        n_pre = len(json.loads(str(res.text)))		# get all the guids
+	""" tests route /api/v2/*guid*/sequence"""
+	def runTest(self):
+		relpath = "/api/v2/guids"
+		res = do_GET(relpath)
+		n_pre = len(json.loads(str(res.text)))		# get all the guids
 
-        guid_to_insert = "guid_{0}".format(n_pre+1)
+		guid_to_insert = "guid_{0}".format(n_pre+1)
 
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
-        with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
-                    seq = str(record.seq)
+		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+		with open(inputfile, 'rt') as f:
+			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+					seq = str(record.seq)
 
-        print("Adding TB reference sequence of {0} bytes".format(len(seq)))
-        self.assertEqual(len(seq), 4411532)		# check it's the right sequence
+		print("Adding TB reference sequence of {0} bytes".format(len(seq)))
+		self.assertEqual(len(seq), 4411532)		# check it's the right sequence
 
-        relpath = "/api/v2/insert"
-        res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
-        self.assertEqual(res.status_code, 200)
+		relpath = "/api/v2/insert"
+		res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
+		self.assertEqual(res.status_code, 200)
 
-        relpath = "/api/v2/{0}/sequence".format(guid_to_insert)
-        res = do_GET(relpath)
-        self.assertEqual(res.status_code, 200)
+		relpath = "/api/v2/{0}/sequence".format(guid_to_insert)
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 200)
 
-        info = json.loads(res.content.decode('utf-8'))
-        self.assertEqual(info['guid'], guid_to_insert)
-        self.assertEqual(info['invalid'], 0)
-        self.assertEqual(info['masked_dna'].count('N'), 557291)
+		info = json.loads(res.content.decode('utf-8'))
+		self.assertEqual(info['guid'], guid_to_insert)
+		self.assertEqual(info['invalid'], 0)
+		self.assertEqual(info['masked_dna'].count('N'), 557291)
 
 class test_sequence_2(unittest.TestCase):
-    """ tests route /api/v2/*guid*/sequence"""
-    def runTest(self):
- 
-        relpath = "/api/v2/{0}/sequence".format('no_guid_exists')
-        res = do_GET(relpath)
-        self.assertEqual(res.status_code, 404)
+	""" tests route /api/v2/*guid*/sequence"""
+	def runTest(self):
+		relpath = "/api/v2/{0}/sequence".format('no_guid_exists')
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 404)
 
 class test_sequence_3(unittest.TestCase):
-    """ tests route /api/v2/*guid*/sequence"""
-    def runTest(self):
-        relpath = "/api/v2/guids"
-        res = do_GET(relpath)
-        print(res)
-        n_pre = len(json.loads(res.content.decode('utf-8')))		# get all the guids
+	""" tests route /api/v2/*guid*/sequence"""
+	def runTest(self):
+		relpath = "/api/v2/guids"
+		res = do_GET(relpath)
+		print(res)
+		n_pre = len(json.loads(res.content.decode('utf-8')))		# get all the guids
 
-        guid_to_insert = "guid_{0}".format(n_pre+1)
+		guid_to_insert = "guid_{0}".format(n_pre+1)
 
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
-        with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
-                    seq = str(record.seq)
-        seq = 'N'*4411532
-        print("Adding TB reference sequence of {0} bytes with {1} Ns".format(len(seq), seq.count('N')))
-        self.assertEqual(len(seq), 4411532)		# check it's the right sequence
+		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+		with open(inputfile, 'rt') as f:
+			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+					seq = str(record.seq)
+		seq = 'N'*4411532
+		print("Adding TB reference sequence of {0} bytes with {1} Ns".format(len(seq), seq.count('N')))
+		self.assertEqual(len(seq), 4411532)		# check it's the right sequence
 
-        relpath = "/api/v2/insert"
-        res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
-        self.assertEqual(res.status_code, 200)
+		relpath = "/api/v2/insert"
+		res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
+		self.assertEqual(res.status_code, 200)
 
-        relpath = "/api/v2/{0}/sequence".format(guid_to_insert)
-        res = do_GET(relpath)
-        self.assertEqual(res.status_code, 200)
+		relpath = "/api/v2/{0}/sequence".format(guid_to_insert)
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 200)
 
-        info = json.loads(res.content.decode('utf-8'))
-        print(info)
-        self.assertEqual(info['guid'], guid_to_insert)
-        self.assertEqual(info['invalid'], 1)
+		info = json.loads(res.content.decode('utf-8'))
+		print(info)
+		self.assertEqual(info['guid'], guid_to_insert)
+		self.assertEqual(info['invalid'], 1)
 
 class test_sequence_4(unittest.TestCase):
-    """ tests route /api/v2/*guid*/sequence"""
-    def runTest(self):
-        relpath = "/api/v2/guids"
-        res = do_GET(relpath)
-        print(res)
-        n_pre = len(json.loads(res.content.decode('utf-8')))		# get all the guids
+	""" tests route /api/v2/*guid*/sequence"""
+	def runTest(self):
+		relpath = "/api/v2/guids"
+		res = do_GET(relpath)
+		print(res)
+		n_pre = len(json.loads(res.content.decode('utf-8')))		# get all the guids
 
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
-        with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
-                    seq2 = str(record.seq)
+		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+		with open(inputfile, 'rt') as f:
+			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+					seq2 = str(record.seq)
 
-        guid_to_insert1 = "guid_{0}".format(n_pre+1)
-        guid_to_insert2 = "guid_{0}".format(n_pre+2)
+		guid_to_insert1 = "guid_{0}".format(n_pre+1)
+		guid_to_insert2 = "guid_{0}".format(n_pre+2)
 
 
-        seq1 = 'N'*4411532
-        print("Adding TB reference sequence of {0} bytes with {1} Ns".format(len(seq1), seq1.count('N')))
-        self.assertEqual(len(seq1), 4411532)		# check it's the right sequence
+		seq1 = 'N'*4411532
+		print("Adding TB reference sequence of {0} bytes with {1} Ns".format(len(seq1), seq1.count('N')))
+		self.assertEqual(len(seq1), 4411532)		# check it's the right sequence
 
-        relpath = "/api/v2/insert"
-        res = do_POST(relpath, payload = {'guid':guid_to_insert1,'seq':seq1})
-        self.assertEqual(res.status_code, 200)
+		relpath = "/api/v2/insert"
+		res = do_POST(relpath, payload = {'guid':guid_to_insert1,'seq':seq1})
+		self.assertEqual(res.status_code, 200)
 
-        print("Adding TB reference sequence of {0} bytes with {1} Ns".format(len(seq2), seq2.count('N')))
-        self.assertEqual(len(seq2), 4411532)		# check it's the right sequence
+		print("Adding TB reference sequence of {0} bytes with {1} Ns".format(len(seq2), seq2.count('N')))
+		self.assertEqual(len(seq2), 4411532)		# check it's the right sequence
 
-        relpath = "/api/v2/insert"
-        res = do_POST(relpath, payload = {'guid':guid_to_insert2,'seq':seq2})
-        self.assertEqual(res.status_code, 200)
+		relpath = "/api/v2/insert"
+		res = do_POST(relpath, payload = {'guid':guid_to_insert2,'seq':seq2})
+		self.assertEqual(res.status_code, 200)
 		
-        relpath = "/api/v2/{0}/sequence".format(guid_to_insert1)
-        res = do_GET(relpath)
-        self.assertEqual(res.status_code, 200)
+		relpath = "/api/v2/{0}/sequence".format(guid_to_insert1)
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 200)
 
-        info = json.loads(res.content.decode('utf-8'))
-        self.assertEqual(info['guid'], guid_to_insert1)
-        self.assertEqual(info['invalid'], 1)
-        relpath = "/api/v2/{0}/sequence".format(guid_to_insert2)
-        res = do_GET(relpath)
-        self.assertEqual(res.status_code, 200)
+		info = json.loads(res.content.decode('utf-8'))
+		self.assertEqual(info['guid'], guid_to_insert1)
+		self.assertEqual(info['invalid'], 1)
+		relpath = "/api/v2/{0}/sequence".format(guid_to_insert2)
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 200)
 
-        info = json.loads(res.content.decode('utf-8'))
-        self.assertEqual(info['guid'], guid_to_insert2)
-        self.assertEqual(info['invalid'], 0)
+		info = json.loads(res.content.decode('utf-8'))
+		self.assertEqual(info['guid'], guid_to_insert2)
+		self.assertEqual(info['invalid'], 0)
 
 @app.route('/api/v2/nucleotides_excluded', methods=['GET'])
 def nucleotides_excluded():
@@ -2149,134 +2158,147 @@ def nucleotides_excluded():
 	return make_response(tojson(result))
 
 class test_nucleotides_excluded(unittest.TestCase):
-    """ tests route /api/v2/nucleotides_excluded"""
-    def runTest(self):
-        relpath = "api/v2/nucleotides_excluded"
-        res = do_GET(relpath)
-        resDict = json.loads(res.text)
-        self.assertTrue(isinstance(resDict, dict))
-        self.assertEqual(set(resDict.keys()), set(['exclusion_id', 'excluded_nt']))
-        self.assertEqual(res.status_code, 200)
+	""" tests route /api/v2/nucleotides_excluded"""
+	def runTest(self):
+		relpath = "api/v2/nucleotides_excluded"
+		res = do_GET(relpath)
+		resDict = json.loads(res.text)
+		self.assertTrue(isinstance(resDict, dict))
+		self.assertEqual(set(resDict.keys()), set(['exclusion_id', 'excluded_nt']))
+		self.assertEqual(res.status_code, 200)
  
 
 # startup
 if __name__ == '__main__':
 
-        # command line usage.  Pass the location of a config file as a single argument.
-        # an example config file is default_test_config.json
-               
-        ############################ LOAD CONFIG ######################################
-        print("findNeighbour3 server .. reading configuration file.")
+	# command line usage.  Pass the location of a config file as a single argument.
+	parser = argparse.ArgumentParser(description="""Runs findNeighbour3-server, a service for bacterial relatedness monitoring.
+Example usage:
+python findNeighbour3-server.py 	# run with debug settings; only do this for unit testing.
+python findNeighbour3-server.py ../config/myConfigFile.json		# run using settings in myConfigFile.json
+10 1000 3 50 1e-8 ../output/lss_tb
 
-        if len(sys.argv) == 2:
-                configFile = sys.argv[1]
-        else:
-                configFile = os.path.join('..','config','default_test_config.json')
-                warnings.warn("No config file name supplied ; using a configuration ('default_test_config.json') suitable only for testing, not for production. ")
-   
-        # open the config file
-        try:
-                with open(configFile,'r') as f:
-                         CONFIG=f.read()
+""")
+	parser.add_argument('path_to_config_file', type=str, action='store', nargs='?',
+						help='the path to the configuration file', default='')
+	parser.add_argument('--on_startup_recompress_memory_every', type=int, nargs=1, action='store', default=10000, 
+						help='when loading, recompress server memory every so many samples.  Set to zero for fast server load and higher memory requirements')
+	args = parser.parse_args()
+	
+	# an example config file is default_test_config.json
 
-        except FileNotFoundError:
-                raise FileNotFoundError("Passed one parameter, which should be a CONFIG file name; tried to open a config file at {0} but it does not exist ".format(sys.argv[1]))
+	############################ LOAD CONFIG ######################################
+	print("findNeighbour3 server .. reading configuration file.")
 
-        if isinstance(CONFIG, str):
-                CONFIG=json.loads(CONFIG)	# assume JSON string; convert.
+	if len(args.path_to_config_file)>0:
+			configFile = args.path_to_config_file
+	else:
+			configFile = os.path.join('..','config','default_test_config.json')
+			warnings.warn("No config file name supplied ; using a configuration ('default_test_config.json') suitable only for testing, not for production. ")
 
-        # check CONFIG is a dictionary	
-        if not isinstance(CONFIG, dict):
-                raise KeyError("CONFIG must be either a dictionary or a JSON string encoding a dictionary.  It is: {0}".format(CONFIG))
-        
-        # check that the keys of config are as expected.
-		
-        required_keys=set(['IP', 'REST_PORT', 'DEBUGMODE', 'LOGFILE', 'MAXN_PROP_DEFAULT'])
-        missing=required_keys-set(CONFIG.keys())
-        if not missing == set([]):
-                raise KeyError("Required keys were not found in CONFIG. Missing are {0}".format(missing))
+	# open the config file
+	try:
+			with open(configFile,'r') as f:
+					 CONFIG=f.read()
 
-        ########################### SET UP LOGGING #####################################  
-        # create a log file if it does not exist.
-        print("Starting logging")
-        logdir = os.path.dirname(CONFIG['LOGFILE'])
-        pathlib.Path(os.path.dirname(CONFIG['LOGFILE'])).mkdir(parents=True, exist_ok=True)
+	except FileNotFoundError:
+			raise FileNotFoundError("Passed a positional parameter, which should be a CONFIG file name; tried to open a config file at {0} but it does not exist ".format(sys.argv[1]))
 
-        # set up logger
-        loglevel=logging.INFO
-        if 'LOGLEVEL' in CONFIG.keys():
-                if CONFIG['LOGLEVEL']=='WARN':
-                        loglevel=logging.WARN
-                elif CONFIG['LOGLEVEL']=='DEBUG':
-                        loglevel=logging.DEBUG
+	if isinstance(CONFIG, str):
+			CONFIG=json.loads(CONFIG)	# assume JSON string; convert.
 
-        # configure logging object 
-        app.logger.setLevel(loglevel)       
-        file_handler = logging.FileHandler(CONFIG['LOGFILE'])
-        formatter = logging.Formatter( "%(asctime)s | %(pathname)s:%(lineno)d | %(funcName)s | %(levelname)s | %(message)s ")
-        file_handler.setFormatter(formatter)
-        app.logger.addHandler(file_handler)
- 
-        # log a test error on startup
-        # app.logger.error("Test error logged on startup, to check logger is working")
+	# check CONFIG is a dictionary	
+	if not isinstance(CONFIG, dict):
+			raise KeyError("CONFIG must be either a dictionary or a JSON string encoding a dictionary.  It is: {0}".format(CONFIG))
+	
+	# check that the keys of config are as expected.
+	
+	required_keys=set(['IP', 'REST_PORT', 'DEBUGMODE', 'LOGFILE', 'MAXN_PROP_DEFAULT'])
+	missing=required_keys-set(CONFIG.keys())
+	if not missing == set([]):
+			raise KeyError("Required keys were not found in CONFIG. Missing are {0}".format(missing))
 
-        # launch sentry if API key provided
-        if 'SENTRY_URL' in CONFIG.keys():
-                app.logger.info("Launching communication with Sentry bug-tracking service")
-                sentry_sdk.init(CONFIG['SENTRY_URL'], integrations=[FlaskIntegration()])
+	########################### SET UP LOGGING #####################################  
+	# create a log file if it does not exist.
+	print("Starting logging")
+	logdir = os.path.dirname(CONFIG['LOGFILE'])
+	pathlib.Path(os.path.dirname(CONFIG['LOGFILE'])).mkdir(parents=True, exist_ok=True)
 
-        ########################### prepare to launch server ###############################################################
-        # construct the required global variables
-        LISTEN_TO = '127.0.0.1'
-        if 'LISTEN_TO' in CONFIG.keys():
-            LISTEN_TO = CONFIG['LISTEN_TO']
+	# set up logger
+	loglevel=logging.INFO
+	if 'LOGLEVEL' in CONFIG.keys():
+			if CONFIG['LOGLEVEL']=='WARN':
+					loglevel=logging.WARN
+			elif CONFIG['LOGLEVEL']=='DEBUG':
+					loglevel=logging.DEBUG
 
-        RESTBASEURL = "http://{0}:{1}".format(CONFIG['IP'], CONFIG['REST_PORT'])
+	# configure logging object 
+	app.logger.setLevel(loglevel)       
+	file_handler = logging.FileHandler(CONFIG['LOGFILE'])
+	formatter = logging.Formatter( "%(asctime)s | %(pathname)s:%(lineno)d | %(funcName)s | %(levelname)s | %(message)s ")
+	file_handler.setFormatter(formatter)
+	app.logger.addHandler(file_handler)
 
-        #########################  CONFIGURE HELPER APPLICATIONS ######################
-        ## once the flask app is running, errors get logged to app.logger.  However, problems on start up do not.
-        ## configure mongodb persistence store
+	# log a test error on startup
+	# app.logger.error("Test error logged on startup, to check logger is working")
 
-        # plotting engine
-        matplotlib.use('agg')		#  prevent https://stackoverflow.com/questions/27147300/how-to-clean-images-in-python-django
+	# launch sentry if API key provided
+	if 'SENTRY_URL' in CONFIG.keys():
+			app.logger.info("Launching communication with Sentry bug-tracking service")
+			sentry_sdk.init(CONFIG['SENTRY_URL'], integrations=[FlaskIntegration()])
 
-        if 'SENTRY_URL' in CONFIG.keys():
-                app.logger.info("Launching communication with Sentry bug-tracking service")
-                sentry_sdk.init(CONFIG['SENTRY_URL'], integrations=[FlaskIntegration()])
+	########################### prepare to launch server ###############################################################
+	# construct the required global variables
+	LISTEN_TO = '127.0.0.1'
+	if 'LISTEN_TO' in CONFIG.keys():
+		LISTEN_TO = CONFIG['LISTEN_TO']
 
-        if not 'SERVER_MONITORING_MIN_INTERVAL_MSEC' in CONFIG.keys():
-               CONFIG['SERVER_MONITORING_MIN_INTERVAL_MSEC']=0
+	RESTBASEURL = "http://{0}:{1}".format(CONFIG['IP'], CONFIG['REST_PORT'])
 
-        print("Connecting to backend data store")
-        try:
-                PERSIST=fn3persistence(dbname = CONFIG['SERVERNAME'],
-									   connString=CONFIG['FNPERSISTENCE_CONNSTRING'],
-									   debug=CONFIG['DEBUGMODE'],
-									   server_monitoring_min_interval_msec = CONFIG['SERVER_MONITORING_MIN_INTERVAL_MSEC'])
-        except Exception as e:
-                app.logger.exception("Error raised on creating persistence object")
-                if e.__module__ == "pymongo.errors":
-                      app.logger.info("Error raised pertains to pyMongo connectivity")
-                raise
+	#########################  CONFIGURE HELPER APPLICATIONS ######################
+	## once the flask app is running, errors get logged to app.logger.  However, problems on start up do not.
+	## configure mongodb persistence store
 
-        # instantiate server class
-        print("Loading sequences into server, please wait ...")
-        try:
-        	fn3 = findNeighbour3(CONFIG, PERSIST)
-        except Exception as e:
-                app.logger.exception("Error raised on instantiating findNeighbour3 object")
-                raise
+	# plotting engine
+	matplotlib.use('agg')		#  prevent https://stackoverflow.com/questions/27147300/how-to-clean-images-in-python-django
+
+	if 'SENTRY_URL' in CONFIG.keys():
+			app.logger.info("Launching communication with Sentry bug-tracking service")
+			sentry_sdk.init(CONFIG['SENTRY_URL'], integrations=[FlaskIntegration()])
+
+	if not 'SERVER_MONITORING_MIN_INTERVAL_MSEC' in CONFIG.keys():
+		   CONFIG['SERVER_MONITORING_MIN_INTERVAL_MSEC']=0
+
+	print("Connecting to backend data store")
+	try:
+			PERSIST=fn3persistence(dbname = CONFIG['SERVERNAME'],
+								   connString=CONFIG['FNPERSISTENCE_CONNSTRING'],
+								   debug=CONFIG['DEBUGMODE'],
+								   server_monitoring_min_interval_msec = CONFIG['SERVER_MONITORING_MIN_INTERVAL_MSEC'])
+	except Exception as e:
+			app.logger.exception("Error raised on creating persistence object")
+			if e.__module__ == "pymongo.errors":
+				  app.logger.info("Error raised pertains to pyMongo connectivity")
+			raise
+
+	# instantiate server class
+	print("Loading sequences into server, please wait ...")
+	try:
+		fn3 = findNeighbour3(CONFIG, PERSIST, args.on_startup_recompress_memory_every)
+	except Exception as e:
+			app.logger.exception("Error raised on instantiating findNeighbour3 object")
+			raise
 
 
-        ########################  START THE SERVER ###################################
-        if CONFIG['DEBUGMODE']>0:
-                flask_debug = True
-                app.config['PROPAGATE_EXCEPTIONS'] = True
-        else:
-                flask_debug = False
+	########################  START THE SERVER ###################################
+	if CONFIG['DEBUGMODE']>0:
+			flask_debug = True
+			app.config['PROPAGATE_EXCEPTIONS'] = True
+	else:
+			flask_debug = False
 
-        app.logger.info("Launching server listening to IP {0}, debug = {1}, port = {2}".format(LISTEN_TO, flask_debug, CONFIG['REST_PORT']))
-        app.run(host=LISTEN_TO, debug=flask_debug, port = CONFIG['REST_PORT'])
+	app.logger.info("Launching server listening to IP {0}, debug = {1}, port = {2}".format(LISTEN_TO, flask_debug, CONFIG['REST_PORT']))
+	app.run(host=LISTEN_TO, debug=flask_debug, port = CONFIG['REST_PORT'])
 
 
 

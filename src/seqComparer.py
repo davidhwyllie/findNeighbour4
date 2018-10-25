@@ -103,6 +103,10 @@ class seqComparer():
         # prepare to load signatures into memory if directed to do so.
         self.seqProfile={}
         self.consensi = {}      # where consensus sequences are stored in ram
+        
+        # this version only uses one thread
+        self.cpuCount = 1
+ 
     def raise_error(self,token):
         """ raises a ZeroDivisionError, with token as the message.
             useful for unit tests of error logging """
