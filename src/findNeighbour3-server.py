@@ -298,7 +298,7 @@ class findNeighbour3():
 			self.sc.persist(obj, guid=guid)
 			
 			# recompression in ram is relatively slow.
-			# to keep the server load fast, and memory usage low, we recompress after every 2500th sequence;
+			# to keep the server load fast, and memory usage low, we recompress after every 10000th sequence;
 			# we identify samples clustered together using an in-ram graph and recompress those clustered with each other
 			# cluster by cluster.
 			
@@ -312,8 +312,8 @@ class findNeighbour3():
 					# and then add these links to our in-ram clustering graph.
 					snvc.add_sample(guid,linked_guids)
 					
-					# every 2500 samples, or when the load is over, get the clusters
-					if nLoaded % 2500 == 0 or nLoaded == len(guids):		# every 2500, or on completion
+					# every 10000 samples, or when the load is over, get the clusters
+					if nLoaded % 10000 == 0 or nLoaded == len(guids):		# every 2500, or on completion
 						print("Recompressing memory ..")
 						nRecompressed = 0 	
 						cl2g = snvc.clusters2guid()

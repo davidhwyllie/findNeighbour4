@@ -25,10 +25,11 @@ They are written to files by the script
 
 #### How to run the test
 Simulate the samples to be added:
-The above will create 50,000 samples; adjust parameters as needed to create more or fewer samples.
+The below will create 100,000 samples; adjust parameters as needed to create more or fewer samples.
 Parameter 1 is the number of ancestor sequences.
 Parameter 4 is the number of children of each ancestor.  Increasing this to 1000 will produce 1M samples.
-``` python make_large_sequence_set.py 1000 500 3 50 1e-8 ../demos/lss_tb/seqs```   
+Note that these samples are stored on disc.
+``` python make_large_sequence_set.py 1000 500 3 100 1e-8 ../demos/lss_tb/seqs```   
 
 To run the test, start up a server, e.g.
 ```python findNeighbour3-server.py ../demos/lss_tb/config/config.json```
@@ -140,13 +141,12 @@ if __name__ == '__main__':
                     # add
                     print("Inserting", guid, "(samples in this batch = ",nAdded_this_batch,"); will pause every ",pause_after)
                     stime1 = datetime.datetime.now()
-                    resp = fn3c.insert(guid=guid, seq=seq)
-                    print("Insert yielded status code {0}".format(resp.status_code))
-        
+                    resp = fn3c.insert(guid=guid, seq=seq)  
                    
                     etime1 = datetime.datetime.now()
                     delta1= etime1-stime1
-                   
+                    print("Insert yielded status code {0} after {1}".format(resp.status_code, delta1))
+    
                     # recover neighbours of guid
                     stime2 = datetime.datetime.now()
                     # check it exists
