@@ -63,7 +63,7 @@ import psutil
 # reference based compression, storage and clustering modules
 from NucleicAcid import NucleicAcid
 from mongoStore import fn3persistence
-from seqComparer_mt import seqComparer
+from seqComparer import seqComparer		# import from seqComparer_mt for multithreading
 from clustering import snv_clustering
 
 # only used for unit testing
@@ -2176,7 +2176,7 @@ if __name__ == '__main__':
 Example usage:
 python findNeighbour3-server.py 	# run with debug settings; only do this for unit testing.
 python findNeighbour3-server.py ../config/myConfigFile.json		# run using settings in myConfigFile.json
-10 1000 3 50 1e-8 ../output/lss_tb
+python findNeighbour3-server.py ../config/myConfigFile.json		--on_startup_recompress_every 2000  # run using settings in myConfigFile.json; recompress RAM every 2k samples (only helpful if memory is very tight).  Will slow up loading.
 
 """)
 	parser.add_argument('path_to_config_file', type=str, action='store', nargs='?',

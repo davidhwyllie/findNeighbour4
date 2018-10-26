@@ -35,7 +35,8 @@ class seqComparer():
                     snpCeiling,
                     debugMode=False,
                     excludePositions=set(),
-                    snpCompressionCeiling = 250
+                    snpCompressionCeiling = 250,
+                    cpuCount = 1
                 ):
 
         """ instantiates the sequence comparer, an object which manages in-memory reference compressed sequences.
@@ -60,6 +61,8 @@ class seqComparer():
         
         If snpCompressionCeiling is not None, then will consider samples up to snpCompressionCeiling
         when performing deltas compression relative to close neighbours.
+        
+        cpuCount is ignored in this version.
         
         David Wyllie, University of Oxford, June 2018
         
@@ -141,6 +144,32 @@ class seqComparer():
         self._seq2=None
         self.seq1md5=None
         self.seq2md5=None
+    
+    def mcompare(self, guid, guids=None):
+        """ performs comparison of one guid with 
+        all guids, which are also stored samples.
+        """
+
+        # if guids are not specified, we do all vs all
+        if guids is None:
+            guids = set(self.seqProfile.keys())
+        
+        if not guid in self.seqProfile.keys():
+            raise KeyError("Asked to compare {0}  but guid requested has not been stored.  call .persist() on the sample to be added before using mcompare.")
+        
+        guids = list(set(guids))       
+        sampleCount = len(guids)
+        neighbours = []
+        
+        for key2 in guids:
+            if not guid==key2:
+                (guid1,guid2,dist,n1,n2,nboth, N1pos, N2pos, Nbothpos)=self.countDifferences_byKey(keyPair=(guid,key2),
+                                                                                                      cutoff = self.snpCompressionCeiling)            
+                neighbours.append([guid1,guid2,dist,n1,n2,nboth,N1pos, N2pos, Nbothpos])
+
+       
+        return(neighbours)
+ 
         
     def summarise_stored_items(self):
         """ counts how many sequences exist of various types """

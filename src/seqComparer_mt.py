@@ -2331,3 +2331,33 @@ class test_seqComparer_mc2(unittest.TestCase):
             #print(key1,key2,n,n1,n2,n3,s1,s2,s3)
             self.assertEqual(expected_n, n)
         
+class test_seqComparer_mc_benchmark(unittest.TestCase):
+    """ not really a unit test; benchmarks the impact of multiple threads"""
+    def runTest(self):
+        
+        for this_cpuCount in range(1,8):
+            print("Cpus:", this_cpuCount)
+            
+            refSeq='GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG'
+            sc=seqComparer( maxNs = 1e8,
+                           reference=refSeq,
+                           snpCeiling =10,
+                           cpuCount = this_cpuCount)
+            
+            nAdded= 0
+            guids = []
+            c = sc.compress("".join("A"*len(refSeq)))
+            for i in range(100000):
+                nAdded +=1
+                sc.persist(c, guid=str(nAdded) )
+                guids.append(str(nAdded))
+            print("added ",nAdded)
+            
+            # test against selected guids
+            stime = datetime.datetime.now()
+            res = sc.mcompare('1', guids)
+            etime = datetime.datetime.now()
+            delta = etime - stime
+            print("compared with",this_cpuCount, delta)
+            
+        
