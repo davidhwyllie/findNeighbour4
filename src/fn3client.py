@@ -192,7 +192,7 @@ class fn3Client():
         """
 
     def __init__(self,
-                baseurl="http://127.0.0.1:5000",
+                baseurl="http://127.0.0.1:5020",
                 ):
 
         """ set up logging """
@@ -322,6 +322,14 @@ class fn3Client():
             return pd.DataFrame.from_records(res)
         else:
             raise TypeError("after must be None or an integer, not {0}".format(type(after_change_id)))
+    def clusters(self,  clustering_algorithm, timeout =None):
+        """ returns a cluster_ids for a given clustering_algorithm """
+        if not isinstance(clustering_algorithm, str):
+            raise TypeError("clustering_algorithm must be str not {0}".format(type(clustering_algorithm)))
+        
+        res = self._decode(self.getpost('/api/v2/clustering/{0}/clusters'.format(clustering_algorithm), timeout=timeout, method='GET')) 
+        return self._decode(res)
+
     def server_memory_usage(self,  nrows = 100, timeout =None):
         if not isinstance(nrows, int):
             raise TypeError("nrows must be integer not {0}".format(type(nrows)))      
@@ -414,7 +422,7 @@ class fn3Client():
 
 class test_fn3_client_init1(unittest.TestCase):
     def runTest(self):
-        """ initialise an fn3 object.  Will unittest against localhost mongodb server on 5000 """
+        """ initialise an fn3 object.  Will unittest against localhost mongodb server on 5020 """
         fn3c =fn3Client()         # expect success
 
 class test_fn3_client_init2(unittest.TestCase):

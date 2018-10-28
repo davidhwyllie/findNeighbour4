@@ -107,10 +107,10 @@ The client url needs to be be passed to the call instantiating the fn3Client().
 The below inserts until 500 samples are present in the server.
 The below inserts 100 samples, then pauses for 1 hour.  
 Set the third parameter to 0 to avoid pausing.
-```python demo_large_matrix.py 500 ../demos/large_matrix_1/output  100 3600```
+```python demo_large_matrix.py 500 ../demos/large_matrix_1/output  100 0```
 
 If we now do this, then 250 more will be added
-```python demo_large_matrix.py 750 ../demos/large_matrix_1/output  100 3600```
+```python demo_large_matrix.py 750 ../demos/large_matrix_1/output  100 0```
 
 * How the output is analysed  
 
@@ -118,6 +118,9 @@ This will analyse all output from the above:
 ```Rscript demo_depict_timings.R ../demos/large_matrix_1/output```
 
 ## Using real data
+Due to their size, the real data is not included in github.
+It can at present be downloaded [here](https://www.dropbox.com/sh/i9lfhdu5q08qzvg/AAArkPAuYwzFc443X8ZaT1Swa?dl=0)
+Download the zip files, unzip them, and place them in /demos.
 
 ### AC587  
 a collection of 43 mapped samples containing TB data, as well as 38 control TB samples.  The latter are added before the 43 related samples, as they are used by the server to estimate expected N frequencies in real data.

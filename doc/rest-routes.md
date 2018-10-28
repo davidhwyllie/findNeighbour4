@@ -31,6 +31,7 @@ Clustering
 [/api/v2/clustering](/api/v2/clustering) List the clustering settings operating  
 **/api/v2/clustering/*clustering_algorithm*/change_id**  Return the change_id, an incrementing integer which rises are changes are made to clusters  
 **/api/v2/clustering/*clustering_algorithm*/guids2clusters**  Return a guid -> cluster lookup  
+**/api/v2/clustering/*clustering_algorithm*/clusters**  Return unique cluster_ids for *clustering_algorithm*  
 **/api/v2/clustering/*clustering_algorithm*/guids2clusters/after_change_id/*change_id* ** Return a guid -> cluster lookup after some particular point in time.
 
 Insert into server   

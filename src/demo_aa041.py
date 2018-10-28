@@ -66,16 +66,4 @@ for i,fastafile in enumerate(sorted(glob.glob(os.path.join(fastadir, 'test', '*.
         result = 'exists, skipped re-insert'
     print("Test   ",datetime.datetime.now(), i, guid, result)
 
-    # find neighbours
-    #neighbour_set = ll2s(fn3c.guid2neighbours(guid, threshold=30))
-    #print("found {0} neighbours".format(len(neighbour_set)))
-    
-    # compute pairwise links with neighbours [slow - we'll run post hoc]
-    #print("Assessing mixtures")
-    #df = fn3c.assess_mixed(guid, neighbour_set)
-    #print("Mixture assessment over")
-    #if not df is None:
-    #    df['nneighbours']= len(neighbour_set)        
-    #    df.to_excel(os.path.join(outputdir,"{0}.xlsx".format(guid)))
-
 clustering_df.to_excel(os.path.join(outputdir, "clustering.xlsx"))

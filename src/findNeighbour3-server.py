@@ -1299,7 +1299,7 @@ def server_storage_status(absdelta, stats_type, nrows):
 	and these are stored. """
 	try:
 		result = fn3.server_memory_usage(max_reported = nrows)
-		df = pd.DataFrame.from_records(result, index='_id', coerce_float=True)
+		df = pd.DataFrame.from_records(result, index='_id')  #, coerce_float=True
 
 		# identify target columns
 		valid_starts = ['clusters',
@@ -1334,8 +1334,12 @@ def server_storage_status(absdelta, stats_type, nrows):
 		
 		# convert x-axis to datetime
 		for ix in df.index:
-			df.loc[ix,'time|time_now']= dateutil.parser.parse(df.loc[ix,'time|time_now'])
-		
+			try:
+				df.loc[ix,'time|time_now']= dateutil.parser.parse(df.loc[ix,'time|time_now'])
+			except TypeError:
+				app.logger.warning("Attempted date conversion on {0} with _id = {1}, but this failed".format(df.loc[ix,'time|time_now'], ix))
+				df.loc[ix,'time|time_now']=None
+	
 		# if values are not completed, then use the previous non-null version
 		# see https://stackoverflow.com/questions/14399689/matplotlib-drawing-lines-between-points-ignoring-missing-data
 		select_cols = target_columns.copy()
@@ -1616,7 +1620,7 @@ def g2c(clustering_algorithm):
 	return make_response(tojson(res))
 
 class test_g2c(unittest.TestCase):
-	"""  tests return of a change_id number """
+	"""  tests return of guid2clusters data structure """
 	def runTest(self):
 		relpath = "/api/v2/clustering/SNV12_ignore/guids2clusters"
 		res = do_GET(relpath)
@@ -1624,6 +1628,28 @@ class test_g2c(unittest.TestCase):
 		retVal = json.loads(str(res.text))
 		self.assertTrue(isinstance(retVal, list))
 
+@app.route('/api/v2/clustering/<string:clustering_algorithm>/clusters', methods=['GET'])
+def g2cl(clustering_algorithm):
+	"""  returns a guid -> clusterid dictionary for all guids """
+	try:
+		res = fn3.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)		
+	except KeyError:
+		# no clustering algorithm of this type
+		abort(404, "no clustering algorithm {0}".format(clustering_algorithm))
+	cluster_ids = set()
+	for item in res:
+		cluster_ids.add(item['cluster_id'])
+	retVal = sorted(list(cluster_ids))
+	return make_response(tojson(retVal))
+
+class test_g2cl(unittest.TestCase):
+	"""  tests return of a change_id number """
+	def runTest(self):
+		relpath = "/api/v2/clustering/SNV12_ignore/clusters"
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 200)
+		retVal = json.loads(str(res.text))
+		self.assertTrue(isinstance(retVal, list))
 @app.route('/api/v2/clustering/<string:clustering_algorithm>/guids2clusters/after_change_id/<int:change_id>', methods=['GET'])
 def g2ca(clustering_algorithm, change_id):
 	"""  returns a guid -> clusterid dictionary, with changes occurring after change_id, a counter which is incremented each time a change is made.
