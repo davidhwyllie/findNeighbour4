@@ -41,10 +41,12 @@ class snv_clustering():
             self.change_id = saved_result['change_id']
             self.cluster_id = saved_result['cluster_id']
             self.mixed_sample_management = saved_result['mixed_sample_management']
-            self.snv_threshold = snv_threshold
+            self.snv_threshold = saved_result['snv_threshold']
             
         elif saved_result is None:
             logging.info("Creating new snv_clustering object")
+            if snv_threshold is None:
+                raise ValueError("Creating clustering object; snv_threshold cannot be none.")
             self.G= nx.Graph()
             self.change_id =0
             self.cluster_id = 0
