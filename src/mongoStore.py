@@ -558,8 +558,7 @@ class fn3persistence():
                 # determine whether there are any rstat 'm' entries for this guid.
                 # these contain multiple cells on each row/column of the matrix.
                 m_ids = [x['_id'] for x in self.db.guid2neighbour.find({'guid':guid, 'rstat':'m'})]
-                
-                
+                                
                 # iterate over the s_ids
                 # setup
                 current_m_id= None
@@ -636,35 +635,34 @@ class fn3persistence():
                 for result in results:
                         for otherGuid in result['neighbours'].keys():
                                 if not otherGuid in reported_already:           # exclude duplicates
-                                        available_fields = result['neighbours'][otherGuid].keys()
-                                        reported_fields={}
-                                        for desired_field in desired_fields:
-                                                try:
-                                                        observed = result['neighbours'][otherGuid][desired_field]
-                                                except KeyError:                # doesn't exist
-                                                        observed = None
-                                                reported_fields[desired_field]=observed
-                                                 
-                                        if returned_format == 1:
-                                            returned_data=[otherGuid, reported_fields['dist']]
-                    
-                                        elif returned_format == 2:
-                                            returned_data=[otherGuid,
-                                                           reported_fields['dist'],
-                                                           reported_fields['N_just1'],
-                                                           reported_fields['N_just2'],
-                                                           reported_fields['N_either']
-                                                          ]
-                                        elif returned_format == 3:
-                                                returned_data = otherGuid
-                                        else:
-                                            raise ValueError("Unable to understand returned_format = {0}".format(returned_format))                          
-                                        
-                                        # only report if distance less than cutoff
-                                        if reported_fields['dist']<=cutoff:
+                                        if result['neighbours'][otherGuid]['dist']<=cutoff:        # if distance < cutoff
+                                                available_fields = result['neighbours'][otherGuid].keys()
+                                                reported_fields={}
+                                                for desired_field in desired_fields:
+                                                        try:
+                                                                observed = result['neighbours'][otherGuid][desired_field]
+                                                        except KeyError:                # doesn't exist
+                                                                observed = None
+                                                        reported_fields[desired_field]=observed
+                                                         
+                                                if returned_format == 1:
+                                                    returned_data=[otherGuid, reported_fields['dist']]
+                            
+                                                elif returned_format == 2:
+                                                    returned_data=[otherGuid,
+                                                                   reported_fields['dist'],
+                                                                   reported_fields['N_just1'],
+                                                                   reported_fields['N_just2'],
+                                                                   reported_fields['N_either']
+                                                                  ]
+                                                elif returned_format == 3:
+                                                        returned_data = otherGuid
+                                                else:
+                                                    raise ValueError("Unable to understand returned_format = {0}".format(returned_format))                          
+                                                
                                                 reported_already.add(otherGuid)
                                                 retVal.append(returned_data)
-                                
+                                        
                 # recover the guids          
                 return({'guid':guid, 'neighbours':retVal})
 
