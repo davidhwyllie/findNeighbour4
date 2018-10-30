@@ -29,10 +29,12 @@ Multiple sequence alignments
 Clustering
 ----------
 [/api/v2/clustering](/api/v2/clustering) List the clustering settings operating  
-**/api/v2/clustering/*clustering_algorithm*/change_id**  Return the change_id, an incrementing integer which rises are changes are made to clusters  
+**/api/v2/clustering/*clustering_algorithm*/change_id**  Return the change_id, an incrementing integer which rises as changes are made to clusters  
+**/api/v2/clustering/*clustering_algorithm*/clusters**  Lists clusters, and number of mixed and unmixed samples in each.   
 **/api/v2/clustering/*clustering_algorithm*/guids2clusters**  Return a guid -> cluster lookup  
-**/api/v2/clustering/*clustering_algorithm*/clusters**  Return unique cluster_ids for *clustering_algorithm*  
-**/api/v2/clustering/*clustering_algorithm*/guids2clusters/after_change_id/*change_id* ** Return a guid -> cluster lookup after some particular point in time.
+**/api/v2/clustering/*clustering_algorithm*/guids2clusters/after_change_id/*change_id* ** Return a guid -> cluster lookup after some particular point in time.  
+**/api/v2/clustering/*clustering_algorithm*/cluster_ids**  Return unique cluster_ids for *clustering_algorithm*  
+**/api/v2/clustering/*clustering_algorithm*/*cluster_id*/network** return a Cytoscape.js json string.  See ui/cytoscape_viewer1.html for example code consuming this.
 
 Insert into server   
 -------------------
