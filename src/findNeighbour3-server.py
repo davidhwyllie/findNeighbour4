@@ -53,6 +53,7 @@ from sentry_sdk.integrations.flask import FlaskIntegration
 # flask
 from flask import Flask, make_response, jsonify, Markup
 from flask import request, abort, send_file
+from flask_cors import CORS		# cross-origin requests are not permitted except for one resource, for testing
 
 # logging
 from logging.config import dictConfig
@@ -65,6 +66,9 @@ from NucleicAcid import NucleicAcid
 from mongoStore import fn3persistence
 from seqComparer import seqComparer		# import from seqComparer_mt for multithreading
 from clustering import snv_clustering
+
+# network visualisation
+from visualiseNetwork import snvNetwork
 
 # only used for unit testing
 from Bio import SeqIO
@@ -743,6 +747,7 @@ LISTEN_TO = '127.0.0.1'		# only local addresses
 
 # initialise Flask 
 app = Flask(__name__)
+# CORS(app)	# needed for debugging on localhost
 app.logger.setLevel(logging.DEBUG)
 
 			
@@ -930,7 +935,7 @@ class test_raise(unittest.TestCase):
 						self.fail("Error was not logged {0}".format(error_at))
 
 	
-		
+	
 def construct_msa(guids, output_format):
 	""" constructs multiple sequence alignment for guids
 		and returns in one of 'fasta' 'html' or 'json' format."""
@@ -991,6 +996,102 @@ class test_reset(unittest.TestCase):
 			
 		self.assertTrue(n_post>0)
 		self.assertTrue(n_post_reset==0)
+		
+@app.route('/api/v2/clustering/<string:clustering_algorithm>/<int:cluster_id>/network',methods=['GET'])
+def cl2network(clustering_algorithm, cluster_id):
+	""" produces a cytoscape.js compatible graph from a cluster 	
+	"""
+
+	# validate input
+	try:
+		res = fn3.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)		
+	except KeyError:
+		# no clustering algorithm of this type
+		return make_response(tojson("no clustering algorithm {0}".format(clustering_algorithm)), 404)
+		
+	# check guids
+	df = pd.DataFrame.from_records(res)
+
+	# check guids
+	df = pd.DataFrame.from_records(res)
+	df = df[df["cluster_id"]==cluster_id]
+	if len(df.index)==0:
+		return make_response(
+								tojson(
+									{'success':0, 'message':'No samples exist for that cluster'}
+								)
+							)
+	else:
+		missing_guids = []
+		guids = sorted(df['guid'].tolist())
+					
+		# data validation complete.  construct outputs
+		snv_threshold = fn3.clustering_settings[clustering_algorithm]['snv_threshold']
+		snvc = snvNetwork(snv_threshold=snv_threshold)
+		for guid in guids:
+			res = fn3.PERSIST.guid2neighbours(guid, cutoff=snv_threshold, returned_format=1)
+			is_mixed = int(fn3.clustering[clustering_algorithm].is_mixed(guid)==True)
+			snvc.add_sample(guid, res['neighbours'], is_mixed=is_mixed)
+	retVal = snvc.network2cytoscapejs()
+	retVal['success']=1
+	retVal['message']='{0} cluster #{1}.  Red nodes are mixed.'.format(clustering_algorithm,cluster_id)
+	return make_response(tojson(retVal))
+
+class test_cl2network(unittest.TestCase):
+	"""  tests return of a change_id number """
+	def runTest(self):
+		
+		# add four samples, two mixed
+		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+		with open(inputfile, 'rt') as f:
+			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+					originalseq = list(str(record.seq))
+		guids_inserted = list()
+		relpath = "/api/v2/guids"
+		res = do_GET(relpath)
+		n_pre = len(json.loads(str(res.text)))		# get all the guids
+
+		for i in range(1,4):
+			
+			seq = originalseq
+			if i % 2 ==0:
+				is_mixed = True
+				guid_to_insert = "mixed_{0}".format(n_pre+i)
+			else:
+				is_mixed = False
+				guid_to_insert = "nomix_{0}".format(n_pre+i)	
+			# make i mutations at position 500,000
+			
+			offset = 500000
+			for j in range(i):
+				mutbase = offset+j
+				ref = seq[mutbase]
+				if is_mixed == False:
+					if not ref == 'T':
+						seq[mutbase] = 'T'
+					if not ref == 'A':
+						seq[mutbase] = 'A'
+				if is_mixed == True:
+						seq[mutbase] = 'N'					
+			seq = ''.join(seq)
+			guids_inserted.append(guid_to_insert)			
+		
+			relpath = "/api/v2/insert"
+			res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
+			self.assertEqual(res.status_code, 200)
+
+		relpath = "/api/v2/clustering/SNV12_ignore/cluster_ids"
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 200)
+		retVal = json.loads(res.text)
+		# plot the cluster with the highest clusterid
+		relpath = '/api/v2/clustering/SNV12_ignore/{0}/network'.format(max(retVal))
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 200)
+		retVal = json.loads(str(res.text))
+		self.assertTrue(isinstance(retVal, dict))
+		self.assertTrue('elements' in retVal.keys())
+																	 
 @app.route('/api/v2/multiple_alignment/guids', methods=['POST'])
 def msa_guids():
 	""" performs a multiple sequence alignment on a series of POSTed guids,
@@ -1009,7 +1110,7 @@ def msa_guids():
 		guids = request_payload['guids'].split(';')		# coerce both guid and seq to strings
 		output_format= request_payload['output_format']
 		if not output_format in ['html','json','fasta']:
-			abort(501, 'output_format must be one of html, json, or fasta not {0}'.format(format))
+			abort(404, 'output_format must be one of html, json, or fasta not {0}'.format(format))
 	else:
 		abort(501, 'output_format and guids are not present in the POSTed data {0}'.format(data_keys))
 	
@@ -1127,7 +1228,6 @@ class test_msa_2(unittest.TestCase):
 		self.assertTrue(isjson(res.content))
 		self.assertEqual(res.status_code, 200)
 		d = json.loads(res.content.decode('utf-8'))
-
 		self.assertEqual(set(inserted_guids)-set(d.keys()),set([]))
 
 		relpath = "/api/v2/multiple_alignment_cluster/SNV12_ignore/{0}/fasta".format(cluster_id)
@@ -1629,6 +1729,33 @@ class test_g2c(unittest.TestCase):
 		self.assertTrue(isinstance(retVal, list))
 
 @app.route('/api/v2/clustering/<string:clustering_algorithm>/clusters', methods=['GET'])
+def cl2cnt(clustering_algorithm):
+	"""  returns a clusterid -> count dictionary for all cluster_ids """
+	try:
+		res = fn3.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)
+
+	except KeyError:
+		# no clustering algorithm of this type
+		abort(404, "no clustering algorithm {0}".format(clustering_algorithm))
+
+	d= pd.DataFrame.from_records(res)
+	
+	try:
+		retVal = pd.crosstab(d['cluster_id'], d['is_mixed']).to_dict()
+	except KeyError:
+		retVal={}		# no data
+	return make_response(tojson(retVal))
+
+class test_cl2cnt(unittest.TestCase):
+	"""  tests return of guid2clusters data structure """
+	def runTest(self):
+		relpath = "/api/v2/clustering/SNV12_ignore/clusters"
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 200)
+		retVal = json.loads(str(res.text))
+		self.assertTrue(isinstance(retVal,dict))
+
+@app.route('/api/v2/clustering/<string:clustering_algorithm>/cluster_ids', methods=['GET'])
 def g2cl(clustering_algorithm):
 	"""  returns a guid -> clusterid dictionary for all guids """
 	try:
@@ -1645,7 +1772,7 @@ def g2cl(clustering_algorithm):
 class test_g2cl(unittest.TestCase):
 	"""  tests return of a change_id number """
 	def runTest(self):
-		relpath = "/api/v2/clustering/SNV12_ignore/clusters"
+		relpath = "/api/v2/clustering/SNV12_ignore/cluster_ids"
 		res = do_GET(relpath)
 		self.assertEqual(res.status_code, 200)
 		retVal = json.loads(str(res.text))
