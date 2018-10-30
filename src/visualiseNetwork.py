@@ -48,21 +48,31 @@ class snvNetwork():
         # set is_mixed attribute
         self.G.node[guid]['is_mixed']=True
 
-    def add_sample(self, starting_guid, neighbours=[], **kwargs):
+    def add_sample(self, starting_guid, guids=None, neighbours=[], **kwargs):
         """ adds a sample, guid, linked to neighbours.
         - guid should be a string
+        - guids are all the samples which are in the cluster.  edges outside these will not be displayed
+        If None, then all edges will be displayed.
         - neighbours should be a list of tuples (guid, SNV)
-        - additional arguments are added as node properties (e.g. color = 'red')
+        - additional arguments are added as node properties (e.g. surname = 'Smith')
         """
 
         # create a list of guid - neighbour links,
         # suitable for importing into networkx,
-        # from the input data  
+        # from the input data
+
         self.G.add_node(starting_guid, **kwargs)
         for item in neighbours:
             if not len(item)==2:
                 raise TypeError("Neighbours must be a list of tuples (guid, snv) but it is {0}".format(item))
-            self.G.add_edge(starting_guid,item[0],weight=self.snv2weight(item[1]), snv=item[1])
+            add_edge = False
+            if guids is None:
+                add_edge = True
+            else:
+                if starting_guid in guids and item[0] in guids:
+                    add_edge = True
+            if add_edge is True:
+                self.G.add_edge(starting_guid,item[0],weight=self.snv2weight(item[1]), snv=item[1])
 
     def guids(self):
         """ returns a set of all guids in the graph """
@@ -76,19 +86,17 @@ class snvNetwork():
             'elements':{data usable by cytoscape.js as elements property on construction}}
             
             will not return any network with > max_edges"""
-            
-        # load all nodes into elements array
+        
+        # lookup snv
         w = nx.get_edge_attributes(self.G, 'weight')
         snv = nx.get_edge_attributes(self.G, 'snv')
-        node_atts = nx.get_node_attributes(self.G, 'is_mixed')
-
+        
+        # load all nodes into elements array
         elements = []
         nNodes = 0
-        for node in self.G.nodes():
-            try:
-                dat = {'id':node, 'is_mixed':node_atts[node]}
-            except KeyError:        # no is_mixed
-                dat = {'id':node}                
+        for node in self.G.nodes(data = True):
+            dat = {'id':node[0], **node[1]}
+      
             nNodes += 1
             elements.append( {
                   'group': 'nodes', 
@@ -169,7 +177,7 @@ class test_guids(unittest.TestCase):
     """ tests recovery of list of guids """
     def runTest(self):
         snvc = snvNetwork(snv_threshold=12)
-        self.assertEqual(snvc.guids(),set([]))
+        self.assertEqual(snvc.guids(), set([]))
             
         # add two samples
         snvc.add_sample('n1')      
@@ -196,7 +204,7 @@ class test_add_guids_2(unittest.TestCase):
         guid = "3a10b14a-218a-49f4-9397-c3dc7ef73818"
         neighbours = [["68f914ea-b2b0-493a-ba56-155235dcec30", 17], ["29a7737f-2298-4e57-bb0e-8678c84bedd8", 13], ["17922571-c82f-440f-bda4-3ebfb20fa554", 10]]
 
-        snvc.add_sample(guid, neighbours)      
+        snvc.add_sample(guid, neighbours = neighbours)      
         self.assertEqual(len(snvc.guids()),4)
 
 class test_network2cytoscapejs_1(unittest.TestCase):
@@ -207,7 +215,7 @@ class test_network2cytoscapejs_1(unittest.TestCase):
         guid = "3a10b14a-218a-49f4-9397-c3dc7ef73818"
         neighbours = [["68f914ea-b2b0-493a-ba56-155235dcec30", 17], ["29a7737f-2298-4e57-bb0e-8678c84bedd8", 13], ["17922571-c82f-440f-bda4-3ebfb20fa554", 10]]
 
-        snvc.add_sample(guid, neighbours)      
+        snvc.add_sample(guid, neighbours = neighbours)      
         res = snvc.network2cytoscapejs()
         self.assertEqual(set(res.keys()), set(['message','success','elements', 'nNodes','nEdges']))
         self.assertEqual(res['nNodes'],4)
@@ -217,11 +225,11 @@ class test_network2cytoscapejs_2(unittest.TestCase):
     """ tests addition of guids """
     def runTest(self):
         snvc = snvNetwork(snv_threshold=12)
-        self.assertEqual(snvc.guids(),set([]))
+        self.assertEqual(snvc.guids(), set([]))
         guid = "3a10b14a-218a-49f4-9397-c3dc7ef73818"
         neighbours = []
 
-        snvc.add_sample(guid, neighbours)      
+        snvc.add_sample(guid, neighbours = neighbours)      
         res = snvc.network2cytoscapejs()
         self.assertEqual(set(res.keys()), set(['message','success','elements', 'nNodes','nEdges']))
         self.assertEqual(res['nNodes'],1)
@@ -235,7 +243,7 @@ class test_network2cytoscapejs_3(unittest.TestCase):
         guid = "3a10b14a-218a-49f4-9397-c3dc7ef73818"
         neighbours = [["68f914ea-b2b0-493a-ba56-155235dcec30", 17], ["29a7737f-2298-4e57-bb0e-8678c84bedd8", 13], ["17922571-c82f-440f-bda4-3ebfb20fa554", 10]]
 
-        snvc.add_sample(guid, neighbours)      
+        snvc.add_sample(guid, neighbours = neighbours)      
         res = snvc.network2cytoscapejs()
         self.assertEqual(set(res.keys()), set(['message','success','elements', 'nNodes','nEdges']))
         self.assertEqual(res['nNodes'],4)
@@ -249,7 +257,7 @@ class test_network2cytoscapejs_4(unittest.TestCase):
         guid = "3a10b14a-218a-49f4-9397-c3dc7ef73818"
         neighbours = [["17922571-c82f-440f-bda4-3ebfb20fa554", 10]]
 
-        snvc.add_sample(guid, neighbours, color='red')      
+        snvc.add_sample(guid, neighbours = neighbours, surname='Smith')      
         res = snvc.network2cytoscapejs()
         self.assertEqual(set(res.keys()), set(['message','success','elements', 'nNodes','nEdges']))
         self.assertEqual(res['nNodes'],2)
@@ -257,7 +265,7 @@ class test_network2cytoscapejs_4(unittest.TestCase):
         for item in res['elements']:
             if item['group'] == 'nodes':
                 if item['data']['id']==guid:
-                    self.assertEqual(item['data']['color'], 'red')
+                    self.assertEqual(item['data']['surname'], 'Smith')
 class test_Raise_error(unittest.TestCase):
     """ tests raise_error"""
     def runTest(self):
