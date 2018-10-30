@@ -659,8 +659,11 @@ class fn3persistence():
                                                 returned_data = otherGuid
                                         else:
                                             raise ValueError("Unable to understand returned_format = {0}".format(returned_format))                          
-                                        reported_already.add(otherGuid)
-                                        retVal.append(returned_data)
+                                        
+                                        # only report if distance less than cutoff
+                                        if reported_fields['dist']<=cutoff:
+                                                reported_already.add(otherGuid)
+                                                retVal.append(returned_data)
                                 
                 # recover the guids          
                 return({'guid':guid, 'neighbours':retVal})
