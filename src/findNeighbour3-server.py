@@ -296,7 +296,7 @@ class findNeighbour3():
 		print("Loading {1} sequences from database .. excluding ({0})".format(self.sc.excluded_hash(),len(guids)))
 		nLoaded = 0
 		nRecompressed = 0
-		snvc = snv_clustering(snv_threshold=12, mixed_sample_management='ignore')
+		snvc = snv_clustering(snv_threshold=12, mixed_sample_management='ignore')		# compress highly similar sequences to a consensus
 	
 		for guid in guids:
 			nLoaded+=1
@@ -345,14 +345,14 @@ class findNeighbour3():
 		self.server_monitoring_store(message='Load from database complete.'.format(nLoaded))
 
 		# set up clustering
-		print("findNeighbour3 is updating clustering.")
+		print("findNeighbour3 is loading clustering data.")
 
 		self.clustering={}		# a dictionary of clustering objects, one per SNV cutoff/mixture management setting
 		for clustering_name in self.clustering_settings.keys():
 			self.server_monitoring_store(message='server | Loading clustering data into memory | {0}'.format(clustering_name))
 			json_repr = self.PERSIST.clusters_read(clustering_name)
 			self.clustering[clustering_name] = snv_clustering(saved_result =json_repr)
-		
+			app.logger.info("Loaded clustering {0} with SNV_threshold {1}".format(clustering_name, self.clustering[clustering_name].snv_threshold))
 		# ensure that clustering object is up to date.  clustering is an in-memory graph, which is periodically
 		# persisted to disc.  It is possible that, if the server crashes/does a disorderly shutdown,
 		# the clustering object which is persisted might not include all the guids in the reference compressed
@@ -423,7 +423,8 @@ class findNeighbour3():
 				raise KeyError("Got unexpected keys for clustering setting {0}: got {1}, expected {2}".format(clustering_name, observed, expected_clustering_config_keys))
 			self.clustering[clustering_name] = snv_clustering(snv_threshold=observed['snv_threshold'] , mixed_sample_management=observed['mixed_sample_management'])
 			self.PERSIST.clusters_store(clustering_name, self.clustering[clustering_name].to_dict())
-			
+			app.logger.info("First run: Configured clustering {0} with SNV_threshold {1}".format( clustering_name, observed['snv_threshold']))
+
 		# persist other config settings.
 		for item in self.CONFIG.keys():
 			if not item in do_not_persist_keys:
@@ -575,7 +576,7 @@ class findNeighbour3():
 			logging.info("Clustering graph {0} contains {2} guids out of {1}; updating.".format(clustering_name, len(guids), len(in_clustering_guids)))
 			while len(remaining_to_add_guids)>0:
 				to_add_guid = remaining_to_add_guids.pop()				# get the guid
-				links = self.PERSIST.guid2neighbours(to_add_guid, returned_format=3)['neighbours']	# and its links	
+				links = self.PERSIST.guid2neighbours(to_add_guid, cutoff = self.clustering[clustering_name].snv_threshold, returned_format=3)['neighbours']	# and its links	
 				self.clustering[clustering_name].add_sample(to_add_guid, links)		# add it to the clustering db
 				
 			# check any clusters to which to_add_guids have been added for mixtures.
@@ -747,7 +748,7 @@ LISTEN_TO = '127.0.0.1'		# only local addresses
 
 # initialise Flask 
 app = Flask(__name__)
-# CORS(app)	# needed for debugging on localhost
+#CORS(app)	# needed for debugging some javascript pages on localhost
 app.logger.setLevel(logging.DEBUG)
 
 			
@@ -1028,10 +1029,12 @@ def cl2network(clustering_algorithm, cluster_id):
 		# data validation complete.  construct outputs
 		snv_threshold = fn3.clustering_settings[clustering_algorithm]['snv_threshold']
 		snvc = snvNetwork(snv_threshold=snv_threshold)
+
 		for guid in guids:
 			res = fn3.PERSIST.guid2neighbours(guid, cutoff=snv_threshold, returned_format=1)
 			is_mixed = int(fn3.clustering[clustering_algorithm].is_mixed(guid)==True)
-			snvc.add_sample(guid, res['neighbours'], is_mixed=is_mixed)
+			snvc.add_sample(guid, guids=guids, neighbours = res['neighbours'], is_mixed=is_mixed)
+
 	retVal = snvc.network2cytoscapejs()
 	retVal['success']=1
 	retVal['message']='{0} cluster #{1}.  Red nodes are mixed.'.format(clustering_algorithm,cluster_id)
