@@ -4,6 +4,8 @@
     <title>test cytoscape code</title>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.2.18/cytoscape.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+ 
     <script>
         console.log("startup");
     </script>
@@ -15,147 +17,179 @@
         }
 
     </style>
-}
+
 </head>
 <body>
+ <div class="demo">
+ 
+
+    <label for="cpname">Select a clustering pipeline</label>
+    <select name="cpname" id="cpname">
+      <option>SNV12_exclude</option>
+      <option>SNV12_include</option>
+      <option selected="selected">SNV12_ignore</option>
+    </select>
+            <label for="cluster_id">Select a cluster identifier:</label>
+            <input id="cluster_id" type='number' name="value" value=0>
+
+      <script>
+        // define layout function
+
+    
+
+ 
+        $("#cluster_id").change( function() {
+            //alert("About to load"+ $("#cluster_id").val() );
+
+            $.getJSON("http://127.0.0.1:5020/api/v2/clustering/"+ $("#cpname").val() +"/"+ $("#cluster_id").val() +"/network", function (data) {
+                console.log(data);
+                var options = {
+                                name: 'cose',
+                              
+                                // Called on `layoutready`
+                                ready: function(){},
+                              
+                                // Called on `layoutstop`
+                                stop: function(){},
+                                
+                                // Whether to animate while running the layout
+                                // true : Animate continuously as the layout is running
+                                // false : Just show the end result
+                                // 'end' : Animate with the end result, from the initial positions to the end positions
+                                animate: true,
+                              
+                                // Easing of the animation for animate:'end'
+                                animationEasing: undefined,
+                              
+                                // The duration of the animation for animate:'end'
+                                animationDuration: undefined,
+                              
+                                // A function that determines whether the node should be animated
+                                // All nodes animated by default on animate enabled
+                                // Non-animated nodes are positioned immediately when the layout starts
+                                animateFilter: function ( node, i ){ return true; },
+                              
+                              
+                                // The layout animates only after this many milliseconds for animate:true
+                                // (prevents flashing on fast runs)
+                                animationThreshold: 250,
+                              
+                                // Number of iterations between consecutive screen positions update
+                                // (0 -> only updated on the end)
+                                refresh: 20,
+                              
+                                // Whether to fit the network view after when done
+                                fit: true,
+                              
+                                // Padding on fit
+                                padding: 30,
+                              
+                                // Constrain layout bounds; { x1, y1, x2, y2 } or { x1, y1, w, h }
+                                boundingBox: undefined,
+                              
+                                // Excludes the label when calculating node bounding boxes for the layout algorithm
+                                nodeDimensionsIncludeLabels: false,
+                              
+                                // Randomize the initial positions of the nodes (true) or use existing positions (false)
+                                randomize: false,
+                              
+                                // Extra spacing between components in non-compound graphs
+                                componentSpacing: 40,
+                              
+                                // Node repulsion (non overlapping) multiplier
+                                nodeRepulsion: function( node ){ return 2048; },
+                              
+                                // Node repulsion (overlapping) multiplier
+                                nodeOverlap: 4,
+                              
+                                // Ideal edge (non nested) length
+                                idealEdgeLength: function( edge ){ return 32; },
+                              
+                                // Divisor to compute edge forces
+                                edgeElasticity: function( edge ){ return 32; },
+                              
+                                // Nesting factor (multiplier) to compute ideal edge length for nested edges
+                                nestingFactor: 1.2,
+                              
+                                // Gravity force (constant)
+                                gravity: 1,
+                              
+                                // Maximum number of iterations to perform
+                                numIter: 1000,
+                              
+                                // Initial temperature (maximum node displacement)
+                                initialTemp: 1000,
+                              
+                                // Cooling factor (how the temperature is reduced between consecutive iterations
+                                coolingFactor: 0.99,
+                              
+                                // Lower temperature threshold (below this point the layout will end)
+                                minTemp: 1.0,
+                              
+                                // Pass a reference to weaver to use threads for calculations
+                                weaver: false
+                              };
+                document.getElementById('cy_title').innerHTML = data['message'];
+                if (data['success']==0) {
+                    document.getElementById('cy_title').innerHTML = "Could not render network: "+data['message'];
+                
+                } else {
+                    var cy = cytoscape({
+                        container: document.getElementById('cy'),
+                        elements: data['elements'],
+                        style: [
+                            {
+                              selector: 'node[is_mixed=0]',
+                              style: {
+                                'shape': 'square',
+                                'background-color': 'blue'
+                              }
+                            },
+                            {
+                              selector: 'node[is_mixed=1]',
+                              style: {
+                                'shape': 'square',
+                                'background-color': 'red'
+                              }
+                            },
+                            {
+                                selector: 'node',
+                                style: {
+                                    'width': '20px',
+                                    'height': '20px',
+                                    'background-fit': 'contain',
+                                    'background-clip': 'none'
+                                }
+                            }, {
+                                selector: 'edge',
+                                style: {
+                                   'text-background-color': 'yellow',
+                                    'text-background-opacity': 0.4,
+                                    'width': '4px',
+                                    'target-arrow-shape': 'triangle',
+                                    'control-point-step-size': '140px'
+                                }
+                            }
+                        ],
+                        layout: {
+                            name: 'cose'
+                        },
+                        options: {
+                            options
+                        }
+                    });
+                };
+            });
+        });
+
+   </script>
+
+        
+
+    <div id="cy_title"></div>
     <div id="cy"></div>
     <script>
-        $.getJSON("http://127.0.0.1:5020/api/v2/network_from_cluster/SNV12_ignore/17", function (data) {
-            console.log(data);
-            var options = {
-                            name: 'cose',
-                          
-                            // Called on `layoutready`
-                            ready: function(){},
-                          
-                            // Called on `layoutstop`
-                            stop: function(){},
-                            
-                            // Whether to animate while running the layout
-                            // true : Animate continuously as the layout is running
-                            // false : Just show the end result
-                            // 'end' : Animate with the end result, from the initial positions to the end positions
-                            animate: true,
-                          
-                            // Easing of the animation for animate:'end'
-                            animationEasing: undefined,
-                          
-                            // The duration of the animation for animate:'end'
-                            animationDuration: undefined,
-                          
-                            // A function that determines whether the node should be animated
-                            // All nodes animated by default on animate enabled
-                            // Non-animated nodes are positioned immediately when the layout starts
-                            animateFilter: function ( node, i ){ return true; },
-                          
-                          
-                            // The layout animates only after this many milliseconds for animate:true
-                            // (prevents flashing on fast runs)
-                            animationThreshold: 250,
-                          
-                            // Number of iterations between consecutive screen positions update
-                            // (0 -> only updated on the end)
-                            refresh: 20,
-                          
-                            // Whether to fit the network view after when done
-                            fit: true,
-                          
-                            // Padding on fit
-                            padding: 30,
-                          
-                            // Constrain layout bounds; { x1, y1, x2, y2 } or { x1, y1, w, h }
-                            boundingBox: undefined,
-                          
-                            // Excludes the label when calculating node bounding boxes for the layout algorithm
-                            nodeDimensionsIncludeLabels: false,
-                          
-                            // Randomize the initial positions of the nodes (true) or use existing positions (false)
-                            randomize: false,
-                          
-                            // Extra spacing between components in non-compound graphs
-                            componentSpacing: 40,
-                          
-                            // Node repulsion (non overlapping) multiplier
-                            nodeRepulsion: function( node ){ return 2048; },
-                          
-                            // Node repulsion (overlapping) multiplier
-                            nodeOverlap: 4,
-                          
-                            // Ideal edge (non nested) length
-                            idealEdgeLength: function( edge ){ return 32; },
-                          
-                            // Divisor to compute edge forces
-                            edgeElasticity: function( edge ){ return 32; },
-                          
-                            // Nesting factor (multiplier) to compute ideal edge length for nested edges
-                            nestingFactor: 1.2,
-                          
-                            // Gravity force (constant)
-                            gravity: 1,
-                          
-                            // Maximum number of iterations to perform
-                            numIter: 1000,
-                          
-                            // Initial temperature (maximum node displacement)
-                            initialTemp: 1000,
-                          
-                            // Cooling factor (how the temperature is reduced between consecutive iterations
-                            coolingFactor: 0.99,
-                          
-                            // Lower temperature threshold (below this point the layout will end)
-                            minTemp: 1.0,
-                          
-                            // Pass a reference to weaver to use threads for calculations
-                            weaver: false
-                          };
-            var cy = cytoscape({
-                container: document.getElementById('cy'),
-                elements: data['elements'],
-                style: [
-                    {
-                      selector: 'node[is_mixed=0]',
-                      style: {
-                        'shape': 'circle',
-                        'background-color': 'blue'
-                      }
-                    },
-                    {
-                      selector: 'node[is_mixed=1]',
-                      style: {
-                        'shape': 'circle',
-                        'background-color': 'red'
-                      }
-                    },
-                    {
-                        selector: 'node',
-                        style: {
-                            'label': 'data(label)',
-                            'width': '20px',
-                            'height': '20px',
-                            'color': 'blue',
-                            'background-fit': 'contain',
-                            'background-clip': 'none'
-                        }
-                    }, {
-                        selector: 'edge',
-                        style: {
-                           'text-background-color': 'yellow',
-                            'text-background-opacity': 0.4,
-                            'width': '1px',
-                            'target-arrow-shape': 'triangle',
-                            'control-point-step-size': '140px'
-                        }
-                    }
-                ],
-                layout: {
-                    name: 'cose'
-                },
-                options: {
-                    options
-                }
-            });
-        
-        });
+
     </script>
 </body>
 
