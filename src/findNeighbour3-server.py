@@ -92,7 +92,7 @@ class findNeighbour3():
 		- in particular, native python3 objects returned by this class are serialised by the Flask web server code.
 		"""
 		
-	def __init__(self,CONFIG, PERSIST, on_startup_repack_memory_every =None):
+	def __init__(self,CONFIG, PERSIST, on_startup_repack_memory_every = [None]):
 		""" Using values in CONFIG, starts a server with CONFIG['NAME'] on port CONFIG['PORT'].
 
 		CONFIG contains Configuration parameters relevant to the reference based compression system which lies
@@ -250,7 +250,10 @@ class findNeighbour3():
 			self.first_run(do_not_persist_keys)
 
 		# load global settings from those stored at the first run.
-		self.on_startup_repack_memory_every = on_startup_repack_memory_every
+		if on_startup_repack_memory_every[0] is None:
+			self.on_startup_repack_memory_every = 1e20		# not reachable
+		else:
+			self.on_startup_repack_memory_every = on_startup_repack_memory_every[0]
 		cfg = self.PERSIST.config_read('config')
 		
 		# set easy to read properties from the config
@@ -279,6 +282,22 @@ class findNeighbour3():
 	
 	def _load_in_memory_data(self):
 		""" loads in memory data into the seqComparer object from database storage """
+		
+		# set up clustering
+		clustering_name_for_recompression = None
+		app.logger.info("findNeighbour3 is loading clustering data.")
+		self.clustering={}		# a dictionary of clustering objects, one per SNV cutoff/mixture management setting
+		for clustering_name in self.clustering_settings.keys():
+			json_repr = self.PERSIST.clusters_read(clustering_name)
+			self.clustering[clustering_name] = snv_clustering(saved_result =json_repr)
+			clustering_name_for_recompression = clustering_name
+			app.logger.info("Loaded clustering {0} with SNV_threshold {1}".format(clustering_name, self.clustering[clustering_name].snv_threshold))
+		# ensure that clustering object is up to date.  clustering is an in-memory graph, which is periodically
+		# persisted to disc.  It is possible that, if the server crashes/does a disorderly shutdown,
+		# the clustering object which is persisted might not include all the guids in the reference compressed
+		# database.  This situation is OK, because the clustering object will bring itself up to date when
+		# the new guids and their links are loaded into it.
+
 		# initialise seqComparer, which manages in-memory reference compressed data
 		self.sc=seqComparer(reference=self.reference,
 							maxNs=self.maxNs,
@@ -286,14 +305,13 @@ class findNeighbour3():
 							debugMode=self.debugMode,
 							excludePositions=self.excludePositions,
 							snpCompressionCeiling = self.snpCompressionCeiling)
-		print("In-RAM data store set up; sequence comparison uses {0} threads".format(self.sc.cpuCount))
+		app.logger.info("In-RAM data store set up; sequence comparison uses {0} threads".format(self.sc.cpuCount))
 		
 		# determine how many guids there in the database
 		guids = self.PERSIST.refcompressedsequence_guids()
 	
 		self.server_monitoring_store(message='server | Starting load of sequences into memory from database')
 
-		print("Loading {1} sequences from database .. excluding ({0})".format(self.sc.excluded_hash(),len(guids)))
 		nLoaded = 0
 		nRecompressed = 0
 		snvc = snv_clustering(snv_threshold=12, mixed_sample_management='ignore')		# compress highly similar sequences to a consensus
@@ -304,59 +322,49 @@ class findNeighbour3():
 			self.sc.persist(obj, guid=guid)
 			
 			# recompression in ram is relatively slow.
-			# to keep the server load fast, and memory usage low, we recompress after every 10000th sequence;
-			# we identify samples clustered together using an in-ram graph and recompress those clustered with each other
-			# cluster by cluster.
+			# to keep the server load fast, and memory usage low, we recompress after every n th sequence;
+			# we use an existing clustering scheme (if present) in order to do this.
+			# due to speed constraints, we don't do recompression unless there is an existing clustering scheme.
 			
-			# if the server is configured to compress memory	
-			if self.recompress_frequency > 0:
-					# we find the neighbours of this guid within self.snpCompressionCeiling
-					linked_guids = []
-					links = self.PERSIST.guid2neighbours(guid, cutoff=self.snpCompressionCeiling)
-					for x in links['neighbours']:
-						linked_guids.append(x[0])
-					# and then add these links to our in-ram clustering graph.
-					snvc.add_sample(guid,linked_guids)
+			# if the server is configured to compress memory and there is a clustering object available	
+			if clustering_name_for_recompression is not None and self.recompress_frequency > 0:
+				# every self.on_startup_repack_memory_every samples, or when the load is over, get the clusters
+				if nLoaded % self.on_startup_repack_memory_every == 0 or nLoaded == len(guids):		# periodically recompress
+					app.logger.info("Recompressing memory .. {0}/{1} loaded".format(nLoaded, len(guids)))
+					nRecompressed = 0 	
+					cl2g = self.clustering[clustering_name].clusters2guid()
+					total_clusters = len(cl2g.keys())
+					nClusters = 0
+					for cl in cl2g.keys():
+						nClusters +=1
+						available_to_compress = []
+						for guid in cl2g[cl]:
+							if guid in self.sc.seqProfile.keys():		# it exists among records already loaded
+								available_to_compress.append(guid)
+						if len(available_to_compress)>3:
+							# find a single guid from this cluster
+							# and recompress relative to that.
+							to_recompress = available_to_compress[0]	# the last sequence
+							nRecompressed = nRecompressed + len(available_to_compress)
+							if nClusters % 25 == 0:
+								print("Recompressed {0}/{1} clusters, {2}/{3} sequences ...".format(nClusters, total_clusters, nRecompressed,nLoaded))
+							self.sc.compress_relative_to_consensus(to_recompress)
 					
-					# every self.on_startup_repack_memory_every samples, or when the load is over, get the clusters
-					if nLoaded % self.on_startup_repack_memory_every == 0 or nLoaded == len(guids):		# every 2500, or on completion
-						print("Recompressing memory ..")
-						nRecompressed = 0 	
-						cl2g = snvc.clusters2guid()
-						total_clusters = len(cl2g.keys())
-						nClusters = 0
-						for cl in cl2g.keys():
-							nClusters +=1
-							if len(cl2g[cl]) > 3:
-								# find a single guid from this cluster
-								# and recompress relative to that.
-								to_recompress = cl2g[cl][0]
-								nRecompressed = nRecompressed + len(cl2g[cl])
-								if nClusters % 25 == 0:
-									print("Recompressed {0}/{1} clusters, {2}/{3} sequences ...".format(nClusters, total_clusters, nRecompressed,nLoaded))
-								self.sc.compress_relative_to_consensus(to_recompress)
-				
 			if nLoaded % 500 ==0:
-				print("load in progress; {0} loaded and {1} have been recompressed in ram relative to local consensus.".format(nLoaded,nRecompressed))
-				self.server_monitoring_store(message='server | Loaded {0} from database; Recompressed {1} in ram relative to local consensus'.format(nLoaded,nRecompressed))
-
+				if clustering_name_for_recompression is not None:
+						app.logger.info("Loading {1} sequences from database .. ({0}).  Will repack memory every {2} sequences".format(self.sc.excluded_hash(),len(guids),self.on_startup_repack_memory_every))
+				else:
+						app.logger.info("Loading {1} sequences from database .. ({0}).".format(self.sc.excluded_hash(), len(guids)))
+			
 		print("findNeighbour3 has loaded {0} sequences from database; Recompressed {1}".format(len(guids),nRecompressed))
+		
+		app.logger.info("findNeighbour3 is checking clustering is up to date")
+		self.update_clustering()
+		
 		gc.collect()		# free up ram		
 		self.server_monitoring_store(message='Load from database complete.'.format(nLoaded))
 
-		# set up clustering
-		self.clustering={}		# a dictionary of clustering objects, one per SNV cutoff/mixture management setting
-		for clustering_name in self.clustering_settings.keys():
-			self.server_monitoring_store(message='server | Loading clustering data into memory | {0}'.format(clustering_name))
-			json_repr = self.PERSIST.clusters_read(clustering_name)
-			self.clustering[clustering_name] = snv_clustering(saved_result =json_repr)
-			app.logger.info("Loaded clustering {0} with SNV_threshold {1}".format(clustering_name, self.clustering[clustering_name].snv_threshold))
-		# ensure that clustering object is up to date.  clustering is an in-memory graph, which is periodically
-		# persisted to disc.  It is possible that, if the server crashes/does a disorderly shutdown,
-		# the clustering object which is persisted might not include all the guids in the reference compressed
-		# database.  This situation is OK, because the clustering object will bring itself up to date when
-		# the new guids and their links are loaded into it.
-		self.update_clustering()
+
 
 	def reset(self):
 		""" restarts the server, deleting any existing data """
@@ -412,7 +420,7 @@ class findNeighbour3():
 				config_settings['reference']=str(r.seq)
 
 		# create clusters objects
-		app.logger.info("Creating clustering objects..")
+		app.logger.info("Setting up in-ram clustering objects..")
 		self._create_empty_clustering_objects()
 		
 		# persist other config settings.
@@ -2340,7 +2348,7 @@ python findNeighbour3-server.py ../config/myConfigFile.json		--on_startup_recomp
 """)
 	parser.add_argument('path_to_config_file', type=str, action='store', nargs='?',
 						help='the path to the configuration file', default='')
-	parser.add_argument('--on_startup_recompress_memory_every', type=int, nargs=1, action='store', default=10000, 
+	parser.add_argument('--on_startup_recompress_memory_every', type=int, nargs=1, action='store', default=[None], 
 						help='when loading, recompress server memory every so many samples.  Set to zero for fast server load and higher memory requirements')
 	args = parser.parse_args()
 	
