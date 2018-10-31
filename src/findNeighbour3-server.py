@@ -345,8 +345,6 @@ class findNeighbour3():
 		self.server_monitoring_store(message='Load from database complete.'.format(nLoaded))
 
 		# set up clustering
-		print("findNeighbour3 is loading clustering data.")
-
 		self.clustering={}		# a dictionary of clustering objects, one per SNV cutoff/mixture management setting
 		for clustering_name in self.clustering_settings.keys():
 			self.server_monitoring_store(message='server | Loading clustering data into memory | {0}'.format(clustering_name))
@@ -367,8 +365,9 @@ class findNeighbour3():
 		else:
 			print("Deleting existing data and restarting")
 			self.PERSIST._delete_existing_data()
+			self._create_empty_clustering_objects()
 			self._load_in_memory_data()
-			
+
 	def server_monitoring_store(self, message="No message supplied"):
 		""" reports server memory information to store """
 		sc_summary = self.sc.summarise_stored_items()
@@ -414,7 +413,19 @@ class findNeighbour3():
 
 		# create clusters objects
 		app.logger.info("Creating clustering objects..")
+		self._create_empty_clustering_objects()
 		
+		# persist other config settings.
+		for item in self.CONFIG.keys():
+			if not item in do_not_persist_keys:
+				config_settings[item]=self.CONFIG[item]
+				
+		res = self.PERSIST.config_store('config',config_settings)
+		app.logger.info("First run actions complete.")
+	
+	
+	def _create_empty_clustering_objects(self):
+		""" create empty clustering objects """
 		self.clustering = {}
 		expected_clustering_config_keys = set(['snv_threshold',  'mixed_sample_management', 'cutoff', 'mixture_criterion'])
 		for clustering_name in self.clustering_settings.keys():
@@ -425,14 +436,6 @@ class findNeighbour3():
 			self.PERSIST.clusters_store(clustering_name, self.clustering[clustering_name].to_dict())
 			app.logger.info("First run: Configured clustering {0} with SNV_threshold {1}".format( clustering_name, observed['snv_threshold']))
 
-		# persist other config settings.
-		for item in self.CONFIG.keys():
-			if not item in do_not_persist_keys:
-				config_settings[item]=self.CONFIG[item]
-				
-		res = self.PERSIST.config_store('config',config_settings)
-		app.logger.info("First run actions complete.")
-		
 	def repack(self,guids=None):
 		""" generates a smaller and faster representation in the persistence store
 		for the guids in the list. optional"""
