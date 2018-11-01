@@ -148,6 +148,7 @@ class snv_clustering():
         for guid in guid2neighbours.keys():
             self._change_guid_attribute(guid, 'is_mixed', True)    ## use custom function tracking history
             mixed_guids.add(guid)
+            
         # now consider what to do next.
         if self.mixed_sample_management == 'ignore':
             # we change nothing
@@ -161,25 +162,48 @@ class snv_clustering():
             
             # note: we only have to visit the mixed guids, and any other guid once.
             cluster_contents = {}
-            visited_guids = set()
-            
+
             for guid in in_cluster_guids:   # traverse from each guid unless mixed
-                if not guid in visited_guids:       # if we've traversed via a non-mixed guid, we don't need to revisit this
-                    if not self.is_mixed(guid):
-                        cluster_content = frozenset(self._traverse_from(guid, how= self.mixed_sample_management))        
-                    else:
-                        # we return a set containing only the mixed sample.
+                if not self.is_mixed(guid):
+                    cluster_content = frozenset(self._traverse_from(guid, how= self.mixed_sample_management))        
+                else:
+                    # we return a set containing only the mixed sample, as it might not be reachable from elsewhere.
+                    if self.mixed_sample_management == 'exclude':
+                        # then we always leave the mixed samples as singletons
                         cluster_content = frozenset([guid])
-                        
-                    # keep track of the visited non-mixed guids
-                    for guid in cluster_content:
-                        if not guid in mixed_guids:
-                            visited_guids.add(guid)
-                    
-                    # store the cluster contents
+                    else:
+                        # if it's include, then we don't automatically add such
+                        # we only add such later if the sample isn't in other cluster(s)
+                        cluster_content = []
+                                
+                # store the cluster contents
+                if len(cluster_content)>0:  #there's something to store
                     cluster_contents[cluster_content] = 1   # store in a dictionary to deduplicate
-                                           
-            # now assign each new cluster a new number
+
+            if self.mixed_sample_management == 'include':
+                # work out how many clusters each guid belongs in 
+                # add singleton clusters for anythign which isn't covered.
+                guid2nclusters = {}
+                for guid in in_cluster_guids:
+                    
+                    if not guid in guid2nclusters.keys():
+                        guid2nclusters[guid]=set()
+                    for cl in cluster_contents.keys():
+                        
+                        for element in cl:
+                            if guid == element:
+                                if guid in guid2nclusters.keys():
+                                    guid2nclusters[guid].add(cl)
+                                else:
+                                    guid2nclusters[guid]=set(cl)
+                
+                for guid in guid2nclusters.keys():
+                    if len(guid2nclusters[guid])==0:     # it does not appear anywhere
+                        cluster_content=frozenset([guid])   # we add a singleton
+                        cluster_contents[cluster_content]=1
+            
+            # now all guids appear at least once.            
+            # now assign each new cluster a new number.
             guid2clid = {}
             for guid in in_cluster_guids:                           # assign empty list to each guid
                 self._change_guid_attribute(guid, 'cluster_id',[])  # empty list; one sequence can belong to multiple clusters
@@ -187,7 +211,6 @@ class snv_clustering():
             # assign new cluster identifiers  
             for i,cluster in enumerate(cluster_contents.keys()):
                 new_cluster_id = self._new_cluster_id()
-            
                 for guid in cluster:
                     new_clustering = self.G.node[guid]['cluster_id']+[new_cluster_id]  # append operation
                     self._change_guid_attribute(guid, 'cluster_id',new_clustering)
@@ -199,9 +222,13 @@ class snv_clustering():
         and guids 1,2, and 3 had a cluster_id of 1, while 4,5 had a cluster_id of 2,
         then all samples would be assigned a cluster_id of 1.
         
-        If some guids are identified as possibly mixed (is_mixed == True), and so can legitimately
-        belong to > 1 cluster, this function will operate  correctly.  However, in this case, it will only
-        analyse guids which are not mixed when determining the cluster_ids to update.  Because of this,
+        If two clusters are of the same size, picks the smaller one to update with.
+        
+        If some guids are identified as possibly mixed (is_mixed == True),
+        and so can legitimately belong to > 1 cluster, this function will operate  correctly.
+        
+        However, in this case, it will only analyse guids which are not mixed when
+        determining the cluster_ids to update.  Because of this,
         it's essential to call _update_cluster_id_to_largest_cluster BEFORE
         setting is_mixed==True.  The set_mixed() function does this automatically.
         """
@@ -211,27 +238,27 @@ class snv_clustering():
         guid2cl = nx.get_node_attributes(self.G,'cluster_id')        # links guid to cluster id for all nodes.
         cl2n = {}           # a dictionary linking cluster to number of guids within the cluster,
                             # as currently recorded in the graph.
-        # compute the number of guids per cluster, excluding any mixed samples;
-        for guid in in_cluster_guids:
-            if not self.is_mixed(guid):
-                try:
-                    this_cluster_id_list = self.G.node[guid]['cluster_id']
-                except KeyError:
-                    this_cluster_id_list = []       # nil entered
-                    
-                for this_cluster_id in this_cluster_id_list:
-                    if not this_cluster_id in cl2n.keys():
-                        cl2n[this_cluster_id]=0
-                    cl2n[this_cluster_id]+=1
-        
+        # compute the number of guids per cluster;
+        for guid in in_cluster_guids:       # for each cluster specified
+            #if not self.is_mixed(guid):
+            try:
+                this_cluster_id_list = self.G.node[guid]['cluster_id']
+            except KeyError:
+                this_cluster_id_list = []       # nil entered cluster_id
+                
+            for this_cluster_id in this_cluster_id_list:
+                if not this_cluster_id in cl2n.keys():
+                    cl2n[this_cluster_id]=0
+                cl2n[this_cluster_id]+=1
+    
         # find the cluster_id with the largest number of clusters;
         largest_cluster_size = max(cl2n.values())
         for new_cluster_id in sorted(cl2n.keys()):      # enforces deterministic behaviour
             if cl2n[new_cluster_id]== largest_cluster_size:
                 break
 
-        # do the update of the cluster identifiers#
-        # find the existing cluster designations which are not in mixed samples, and are
+        # do the update of the cluster identifiers
+        # find the existing cluster designations, and are
         # not the new cluster_id.  These are the ones we're going to update.
         existing_cluster_designations = set(cl2n.keys()) - set([new_cluster_id])
 
@@ -534,6 +561,22 @@ class test_snvc_update_clusterid_1(unittest.TestCase):
         
         self.assertEqual(cluster_ids, {'n1':[1],'n2':[1],'n3':[1],'n4':[3]})
 
+class test_snvc_update_clusterid_2(unittest.TestCase):
+    """ tests updating clusterid to that of the largest cluster"""
+    def runTest(self):
+               
+        snvc = snv_clustering(snv_threshold=12)
+
+        snvc.G.add_node('n1', cluster_id=[1])
+        snvc.G.add_node('n2', cluster_id=[1])
+        snvc.G.add_node('n3', cluster_id=[2])
+        snvc.G.add_node('n4', cluster_id=[2])
+        cluster_ids = nx.get_node_attributes(snvc.G, 'cluster_id')
+        snvc._update_clusterid_to_largest_cluster(['n1','n2','n3','n4'])
+        cluster_ids = nx.get_node_attributes(snvc.G, 'cluster_id')
+        
+        self.assertEqual(cluster_ids, {'n1':[1],'n2':[1],'n3':[1],'n4':[1]})
+
 class test_traverse_1(unittest.TestCase):
     """ tests updating clusterid to that of the largest cluster"""
     def runTest(self):
@@ -599,7 +642,74 @@ class test_traverse_4(unittest.TestCase):
         res = snvc._traverse_from('n5')
         self.assertEqual(set(['n5','n4']), res)
 
-       
+class test_traverse_5(unittest.TestCase):
+    """ tests splitting a cluster"""
+    def runTest(self):
+        # exclude; n3 mixed 
+        snvc = snv_clustering(snv_threshold=12, mixed_sample_management='exclude')
+
+        snvc.add_sample('n1', [])
+        snvc.add_sample('n2', ['n1'])
+        snvc.add_sample('n3', ['n2'])      # this is going to be mixed
+        snvc.add_sample('n4', ['n3'])
+        snvc.add_sample('n5', ['n4'])
+        cluster_ids = nx.get_node_attributes(snvc.G, 'cluster_id')
+        snvc.set_mixed({'n3':['n2','n4']})
+        cluster_ids = nx.get_node_attributes(snvc.G, 'cluster_id')
+   
+        self.assertEqual(cluster_ids['n1'], cluster_ids['n2'])
+        self.assertEqual(cluster_ids['n4'],cluster_ids['n5'])
+        self.assertFalse(cluster_ids['n1']==cluster_ids['n4'])
+        self.assertFalse(cluster_ids['n1']==cluster_ids['n3'])
+        self.assertFalse(cluster_ids['n4']==cluster_ids['n3'])
+        self.assertTrue(len(cluster_ids['n3'])==1)
+           
+class test_traverse_6(unittest.TestCase):
+    """ tests splitting a cluster"""
+    def runTest(self):
+        # exclude; n3 mixed 
+        snvc = snv_clustering(snv_threshold=12, mixed_sample_management='include')
+
+        snvc.add_sample('n1', [])
+        snvc.add_sample('n2', ['n1'])
+        snvc.add_sample('n3', ['n2'])      # this is going to be mixed
+        snvc.add_sample('n4', ['n3'])
+        snvc.add_sample('n5', ['n4'])
+        cluster_ids = nx.get_node_attributes(snvc.G, 'cluster_id')
+    
+        snvc.set_mixed({'n3':['n2','n4']})
+        cluster_ids = nx.get_node_attributes(snvc.G, 'cluster_id')
+
+        self.assertEqual(cluster_ids['n1'], cluster_ids['n2'])
+        self.assertEqual(cluster_ids['n4'],cluster_ids['n5'])
+        self.assertFalse(cluster_ids['n1']==cluster_ids['n4'])
+        self.assertFalse(cluster_ids['n1']==cluster_ids['n5'])
+        self.assertTrue(len(cluster_ids['n3'])==2)
+               
+class test_traverse_7(unittest.TestCase):
+    """ tests splitting a cluster with two mixed samples"""
+    def runTest(self):
+        # exclude; n3 mixed 
+        snvc = snv_clustering(snv_threshold=12, mixed_sample_management='include')
+
+        snvc.add_sample('n1', [])
+        snvc.add_sample('n2', ['n1'])
+        snvc.add_sample('n3', ['n2'])      # this is going to be mixed
+        snvc.add_sample('n4', ['n3'])
+        snvc.add_sample('n5', ['n4'])
+        snvc.add_sample('n6', ['n5'])
+        cluster_ids = nx.get_node_attributes(snvc.G, 'cluster_id')
+        
+        snvc.set_mixed({'n3':['n2','n4'], 'n5':['n4','n6']})
+        cluster_ids = nx.get_node_attributes(snvc.G, 'cluster_id')
+
+        self.assertEqual(cluster_ids['n1'], cluster_ids['n2'])
+        self.assertFalse(cluster_ids['n6']==cluster_ids['n5'])
+        self.assertFalse(cluster_ids['n1']==cluster_ids['n4'])
+        self.assertFalse(cluster_ids['n1']==cluster_ids['n5'])
+        self.assertTrue(len(cluster_ids['n5'])==2)
+                
+                 
 class test_add_sample_2(unittest.TestCase):
     """ tests insertion of new samples, where all form one cluster. """
     def runTest(self):
@@ -762,12 +872,13 @@ class test_add_sample_7(unittest.TestCase):
         snvc.add_sample('n2_2', ['n2_1'])
         snvc.add_sample('n2_3', ['n2_2'])
         cluster_ids = nx.get_node_attributes(snvc.G, 'cluster_id')
-         
+      
         self.assertEqual(cluster_ids, {'n1_1':[1],'n2_1':[1],'n2_2':[1],'n2_3':[1]})
   
-        # they are linked by a mixed sample
+        # they are all mixed.
         snvc.set_mixed({'n1_1':['n2_1'], 'n2_1':['n1_1','n2_2'],'n2_2':['n2_1','n2_3'], 'n2_3':['n2_2']})
         cluster_ids = nx.get_node_attributes(snvc.G, 'cluster_id')
+        # how many clusters
         clids = set()
         for clid_list in cluster_ids.values():
             for clid in clid_list:
@@ -844,9 +955,10 @@ class test_clusters2guidmeta(unittest.TestCase):
         
         res3 = snvc.clusters2guidmeta()
         df = pd.DataFrame.from_records(res3)
-        self.assertEqual(len(df.index), 5)
-        self.assertEqual(len(df.query('guid=="n2"').index),3)
-        self.assertEqual(df['change_id'].tolist(), [4,4,4,4,4])
+
+        self.assertEqual(len(df.index), 4)
+        self.assertEqual(len(df.query('guid=="n2"').index),2)
+        self.assertEqual(df['change_id'].tolist(), [4,4,4,4])
 
 class test_Raise_error(unittest.TestCase):
     """ tests raise_error"""
