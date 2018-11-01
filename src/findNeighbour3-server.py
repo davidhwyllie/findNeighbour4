@@ -79,6 +79,7 @@ import unittest
 from urllib.parse import urlparse as urlparser
 from urllib.parse import urljoin as urljoiner
 import uuid
+import time
 
 class findNeighbour3():
 	""" a server based application for maintaining a record of bacterial relatedness using SNP distances.
@@ -284,14 +285,26 @@ class findNeighbour3():
 		""" loads in memory data into the seqComparer object from database storage """
 		
 		# set up clustering
-		clustering_name_for_recompression = None
+		# while doing so, find a clustering strategy with the highest snv_threshold
+		# we will use this for in-memory recompression.
 		app.logger.info("findNeighbour3 is loading clustering data.")
+		
+		clustering_name_for_recompression = None
+		max_snv_cutoff = 0
 		self.clustering={}		# a dictionary of clustering objects, one per SNV cutoff/mixture management setting
 		for clustering_name in self.clustering_settings.keys():
 			json_repr = self.PERSIST.clusters_read(clustering_name)
 			self.clustering[clustering_name] = snv_clustering(saved_result =json_repr)
-			clustering_name_for_recompression = clustering_name
+			if self.clustering[clustering_name].snv_threshold > max_snv_cutoff:
+				clustering_name_for_recompression = clustering_name
+				max_snv_cutoff = self.clustering[clustering_name].snv_threshold
 			app.logger.info("Loaded clustering {0} with SNV_threshold {1}".format(clustering_name, self.clustering[clustering_name].snv_threshold))
+		
+		if clustering_name_for_recompression is not None:
+			app.logger.info("Will use clusters from pipeline {0} for in-memory recompression".format(clustering_name_for_recompression))
+		else:
+			app.logger.info("In memory recompression is not enabled as no clustering results found.")
+			
 		# ensure that clustering object is up to date.  clustering is an in-memory graph, which is periodically
 		# persisted to disc.  It is possible that, if the server crashes/does a disorderly shutdown,
 		# the clustering object which is persisted might not include all the guids in the reference compressed
@@ -373,6 +386,7 @@ class findNeighbour3():
 		else:
 			print("Deleting existing data and restarting")
 			self.PERSIST._delete_existing_data()
+			time.sleep(2) # let the database recover
 			self._create_empty_clustering_objects()
 			self._load_in_memory_data()
 
@@ -574,17 +588,24 @@ class findNeighbour3():
 		# update clustering and re-cluster
 		for clustering_name in self.clustering_settings.keys():
 			
-			# ensure that clustering object is up to date.  clustering is an in-memory graph, which is periodically
-			# persisted to disc.  It is possible that, if the server crashes/does a disorderly shutdown,
-			# the clustering object which is persisted might not include all the guids in the reference compressed
-			# database.  This situation is OK, because the clustering object will bring itself up to date when
+			# ensure that clustering object is up to date.
+			
+			# clustering is an in-memory graph, which is periodically
+			# persisted to disc.
+			
+			# It is possible that, if the server crashes/does a disorderly shutdown,
+			# the clustering object which is persisted might not include all the guids in the
+			# reference compressed database.
+			
+			# This situation is OK, because the clustering object will
+			# bring itself up to date when
 			# the new guids and their links are loaded into it.
 			
 			guids = self.PERSIST.refcompressedsequence_guids()			# all guids processed and refernece compressed
 			in_clustering_guids = self.clustering[clustering_name].guids()  # all clustered guids
 			to_add_guids = guids - in_clustering_guids					# what we need to add
 			remaining_to_add_guids = copy.copy(to_add_guids)				# we iterate until there's nothing left to add
-			logging.info("Clustering graph {0} contains {2} guids out of {1}; updating.".format(clustering_name, len(guids), len(in_clustering_guids)))
+			app.logger.info("Clustering graph {0} contains {2} guids out of {1}; updating.".format(clustering_name, len(guids), len(in_clustering_guids)))
 			while len(remaining_to_add_guids)>0:
 				to_add_guid = remaining_to_add_guids.pop()				# get the guid
 				links = self.PERSIST.guid2neighbours(to_add_guid, cutoff = self.clustering[clustering_name].snv_threshold, returned_format=3)['neighbours']	# and its links	
@@ -618,18 +639,22 @@ class findNeighbour3():
 					query_criterion = "{0} <= {1}".format(mixture_criterion,mixture_cutoff)
 					
 					msa_mixed = msa.query(query_criterion)
+					mixed2neighbours = {}
+					n_mixed = 0
 					for mixed_guid in msa_mixed.index:
-						if not self.clustering[clustering_name].is_mixed(mixed_guid):   # if it's not known to be mixed
-							# set it as mixed
-							links = self.PERSIST.guid2neighbours(mixed_guid, returned_format=3)['neighbours']
-							self.clustering[clustering_name].set_mixed(mixed_guid, neighbours = links)
+						mixed2neighbours[mixed_guid]= self.PERSIST.guid2neighbours(mixed_guid, cutoff=self.clustering[clustering_name].snv_threshold, returned_format=3)['neighbours']
+						if self.clustering[clustering_name].is_mixed(mixed_guid)==True:   # if it's not known to be mixed
+							n_mixed +=1
+							
+					if not n_mixed == len(msa_mixed.index):		# all relevant samples are marked as mixed
+						self.clustering[clustering_name].set_mixed(mixed2neighbours)
 						
 			in_clustering_guids = self.clustering[clustering_name].guids()
-			logging.info("Cluster {0} updated; now contains {1} guids. ".format(clustering_name, len(in_clustering_guids)))
+			app.logger.info("Cluster {0} updated; now contains {1} guids. ".format(clustering_name, len(in_clustering_guids)))
 			
 			if store==True:
 				self.PERSIST.clusters_store(clustering_name, self.clustering[clustering_name].to_dict())
-				logging.info("Cluster {0} persisted".format(clustering_name))
+				logging.debug("Cluster {0} persisted".format(clustering_name))
 			
 	def exist_sample(self,guid):
 		""" determine whether the sample exists in RAM"""
@@ -759,7 +784,7 @@ LISTEN_TO = '127.0.0.1'		# only local addresses
 
 # initialise Flask 
 app = Flask(__name__)
-#CORS(app)	# needed for debugging some javascript pages on localhost
+CORS(app)	# needed for debugging some javascript pages on localhost
 app.logger.setLevel(logging.DEBUG)
 
 			
@@ -877,7 +902,7 @@ def raise_error(component, token):
 
 	if not fn3.debugMode == 2:
 		# if we're not in debugMode==2, then this option is not allowed
-		abort(404, 'Calls to /reset are only allowed with debugMode == 2' )
+		abort(404, 'Calls to /raise_error are only allowed with debugMode == 2' )
 
 	if component == 'main':
 		raise ZeroDivisionError(token)
@@ -1167,7 +1192,7 @@ class test_msa_2(unittest.TestCase):
 		for k in range(0,1):
 			# form one clusters
 			for i in range(0,3):
-				guid_to_insert = "guid_{0}".format(n_pre+k*100+i)
+				guid_to_insert = "msa2_{1}_guid_{0}".format(n_pre+k*100+i,k)
 				inserted_guids.append(guid_to_insert)
 				muts = 0
 				seq = originalseq			
@@ -1305,14 +1330,14 @@ class test_msa_1(unittest.TestCase):
 		relpath = "/api/v2/guids"
 		res = do_GET(relpath)
 		n_pre = len(json.loads(str(res.text)))		# get all the guids
-
+		print("There are {0} existing samples".format(n_pre))
 		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
 		with open(inputfile, 'rt') as f:
 			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
 					originalseq = list(str(record.seq))
 		inserted_guids = []			
 		for i in range(0,3):
-			guid_to_insert = "guid_{0}".format(n_pre+i)
+			guid_to_insert = "msa1_guid_{0}".format(n_pre+i)
 			inserted_guids.append(guid_to_insert)
 			
 			seq = originalseq			
@@ -1924,6 +1949,7 @@ class test_insert_10(unittest.TestCase):
 			self.assertEqual(res.status_code, 200)
 			self.assertEqual(info, True)	
 
+#@unittest.skip("skipped; to investigate if this ceases timeout")		
 class test_insert_60(unittest.TestCase):
 	""" tests route /api/v2/insert, with additional samples.
 		Also provides a set of very similar samples, testing recompression code."""
@@ -2339,17 +2365,35 @@ class test_nucleotides_excluded(unittest.TestCase):
 if __name__ == '__main__':
 
 	# command line usage.  Pass the location of a config file as a single argument.
-	parser = argparse.ArgumentParser(description="""Runs findNeighbour3-server, a service for bacterial relatedness monitoring.
-Example usage:
-python findNeighbour3-server.py 	# run with debug settings; only do this for unit testing.
-python findNeighbour3-server.py ../config/myConfigFile.json		# run using settings in myConfigFile.json
-python findNeighbour3-server.py ../config/myConfigFile.json		--on_startup_recompress_every 2000  # run using settings in myConfigFile.json; recompress RAM every 2k samples (only helpful if memory is very tight).  Will slow up loading.
+	parser = argparse.ArgumentParser(
+		formatter_class= argparse.RawTextHelpFormatter,
+		description="""Runs findNeighbour3-server, a service for bacterial relatedness monitoring.
+									 
+
+Example usage: 
+============== 
+# show command line options 
+python findNeighbour3-server.py --help 	
+
+# run with debug settings; only do this for unit testing.
+python findNeighbour3-server.py 	
+
+# run using settings in myConfigFile.json 
+python findNeighbour3-server.py ../config/myConfigFile.json		
+
+# run using settings in myConfigFile.json; 
+# recompress RAM every 2000 samples loaded 
+# (only needed if RAM is in short supply and data close to limit) 
+# enabling this option will slow up loading 
+
+python findNeighbour3-server.py ../config/myConfigFile.json	\ 
+                        --on_startup_recompress-memory_every 2000 
 
 """)
 	parser.add_argument('path_to_config_file', type=str, action='store', nargs='?',
 						help='the path to the configuration file', default='')
 	parser.add_argument('--on_startup_recompress_memory_every', type=int, nargs=1, action='store', default=[None], 
-						help='when loading, recompress server memory every so many samples.  Set to zero for fast server load and higher memory requirements')
+						help='when loading, recompress server memory every so many samples.')
 	args = parser.parse_args()
 	
 	# an example config file is default_test_config.json
