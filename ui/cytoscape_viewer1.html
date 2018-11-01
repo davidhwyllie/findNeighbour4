@@ -40,7 +40,9 @@
  
         $("#cluster_id").change( function() {
             //alert("About to load"+ $("#cluster_id").val() );
-
+            document.getElementById('cy_title').innerHTML = "Loading network for "+$("#cpname").val() +"/"+ $("#cluster_id").val()+" from server.";
+            document.getElementById('cy').innerHTML = "-";
+            
             $.getJSON("http://127.0.0.1:5020/api/v2/clustering/"+ $("#cpname").val() +"/"+ $("#cluster_id").val() +"/network", function (data) {
                 console.log(data);
                 var options = {
