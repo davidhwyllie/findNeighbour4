@@ -360,7 +360,7 @@ class findNeighbour3():
 							to_recompress = available_to_compress[0]	# the last sequence
 							nRecompressed = nRecompressed + len(available_to_compress)
 							if nClusters % 25 == 0:
-								print("Recompressed {0}/{1} clusters, {2}/{3} sequences ...".format(nClusters, total_clusters, nRecompressed,nLoaded))
+								app.logger.info("Recompressed {0}/{1} clusters, {2}/{3} sequences ...".format(nClusters, total_clusters, nRecompressed,nLoaded))
 							self.sc.compress_relative_to_consensus(to_recompress)
 					
 			if nLoaded % 500 ==0:
@@ -610,7 +610,10 @@ class findNeighbour3():
 				to_add_guid = remaining_to_add_guids.pop()				# get the guid
 				links = self.PERSIST.guid2neighbours(to_add_guid, cutoff = self.clustering[clustering_name].snv_threshold, returned_format=3)['neighbours']	# and its links	
 				self.clustering[clustering_name].add_sample(to_add_guid, links)		# add it to the clustering db
-				
+			in_clustering_guids = self.clustering[clustering_name].guids()  # all clustered guids
+
+			app.logger.debug("Clustering graph {0} contains {2}/{1} guids ".format(clustering_name, len(guids), len(in_clustering_guids)))
+
 			# check any clusters to which to_add_guids have been added for mixtures.
 			nMixed = 0
 			guids_to_check = set()
@@ -624,9 +627,9 @@ class findNeighbour3():
 			cl2guids = 	self.clustering[clustering_name].clusters2guid()	# dictionary allowing cluster -> guid lookup
 			for cluster in clusters_to_check:
 				guids_for_msa = cl2guids[cluster]							# do msa on the cluster
-				logging.debug("** Checking cluster {0}; performing MSA on {1} samples".format(cluster,len(guids_for_msa)))
+				app.logger.debug("Checking cluster {0}; performing MSA on {1} samples".format(cluster,len(guids_for_msa)))
 				msa = self.sc.multi_sequence_alignment(guids_for_msa, output='df')		#  a pandas dataframe; p_value tests mixed
-				logging.debug("** Multi sequence alignment is complete")
+				app.logger.debug("Multi sequence alignment is complete")
 
 				if not msa is None:		# no alignment was made
 					mixture_criterion = self.clustering_settings[clustering_name]['mixture_criterion']
@@ -636,25 +639,33 @@ class findNeighbour3():
 					# to do so requires that you can edit either the CONFIG file (pre-startup) or the Mongodb in which
 					# the config is stored post first-run
 					##################################################################################################
-					query_criterion = "{0} <= {1}".format(mixture_criterion,mixture_cutoff)
-					
+					query_criterion = "{0} <= {1}".format(mixture_criterion,mixture_cutoff)					
 					msa_mixed = msa.query(query_criterion)
-					mixed2neighbours = {}
+					
+					# check the status of mixed samples in the cluster.
+					mixed_status = {}
 					n_mixed = 0
 					for mixed_guid in msa_mixed.index:
-						mixed2neighbours[mixed_guid]= self.PERSIST.guid2neighbours(mixed_guid, cutoff=self.clustering[clustering_name].snv_threshold, returned_format=3)['neighbours']
+						mixed_status[mixed_guid]=True
 						if self.clustering[clustering_name].is_mixed(mixed_guid)==True:   # if it's not known to be mixed
 							n_mixed +=1
-							
+
+					# if all the mixed samples are already assigned as such, we don't have to do anything.
+					# otherwise:
 					if not n_mixed == len(msa_mixed.index):		# all relevant samples are marked as mixed
-						self.clustering[clustering_name].set_mixed(mixed2neighbours)
+						# recover all links in the cluster.
+						guid2neighbours = {}
+						for guid in msa.index:
+							guid2neighbours[guid]= self.PERSIST.guid2neighbours(guid, cutoff=self.clustering[clustering_name].snv_threshold, returned_format=3)['neighbours']
+							
+						self.clustering[clustering_name].set_mixture_status(guid2similar_guids = guid2neighbours, change_guids = mixed_status)
 						
 			in_clustering_guids = self.clustering[clustering_name].guids()
 			app.logger.info("Cluster {0} updated; now contains {1} guids. ".format(clustering_name, len(in_clustering_guids)))
 			
 			if store==True:
 				self.PERSIST.clusters_store(clustering_name, self.clustering[clustering_name].to_dict())
-				logging.debug("Cluster {0} persisted".format(clustering_name))
+				app.logger.debug("Cluster {0} persisted".format(clustering_name))
 			
 	def exist_sample(self,guid):
 		""" determine whether the sample exists in RAM"""
