@@ -32,7 +32,7 @@ existing_guids = set(fn3c.guids())
 clustering_created = False
 print("There are {0} existing guids".format(len(existing_guids)))
 # add control fasta files.  The system evaluates the %N in terms of the population existing
-# we load 40 randomly selected guids as controls
+# we load 50 randomly selected guids as controls
 
 for i,fastafile in enumerate(glob.glob(os.path.join(fastadir, 'control','*.fasta'))):
     guid = "ctrl_"+os.path.basename(fastafile).replace('.fasta','')
@@ -43,7 +43,7 @@ for i,fastafile in enumerate(glob.glob(os.path.join(fastadir, 'control','*.fasta
     else:
         result = 'exists, skipped re-insert'
     print("Controls",datetime.datetime.now(), i, guid, result)
- 
+
 for i,fastafile in enumerate(sorted(glob.glob(os.path.join(fastadir, 'test', '*.fasta')))):
     
     guid = os.path.basename(fastafile).replace('.fasta','')

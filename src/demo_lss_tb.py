@@ -71,11 +71,11 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import generic_nucleotide
 from fn3client import fn3Client
-
+    
 if __name__ == '__main__':
     
     # maximum number to add
-    parser = argparse.ArgumentParser(description='Generate a large number of similar sequences')
+    parser = argparse.ArgumentParser(description='Generate and add to the server groups of sequences which have evolved from each other')
     parser.add_argument('max_sequences', type=int, nargs=1,
                         help='sequences will be added until max_sequences exist in the server.')
     parser.add_argument('inputdir', type=str, nargs=1,
@@ -94,10 +94,12 @@ if __name__ == '__main__':
     outputdir = os.path.abspath(args.outputdir[0])
     inputdir = os.path.abspath(args.inputdir[0])
 
-    # make the directory
+    # make the directories if they don't exist
     p = pathlib.Path(outputdir)
     p.mkdir(parents=True, exist_ok=True)
-    
+    p = pathlib.Path(inputdir)
+    p.mkdir(parents=True, exist_ok=True)
+        
     # determine input files
     inputfiles = glob.glob(os.path.join(inputdir,'*.fasta'))
     random.shuffle(inputfiles)      # read them in order

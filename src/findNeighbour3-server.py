@@ -608,29 +608,42 @@ class findNeighbour3():
 			app.logger.info("Clustering graph {0} contains {2} guids out of {1}; updating.".format(clustering_name, len(guids), len(in_clustering_guids)))
 			while len(remaining_to_add_guids)>0:
 				to_add_guid = remaining_to_add_guids.pop()				# get the guid
+				app.logger.debug("To {0} adding guid{1}".format(clustering_name, to_add_guid))
+
 				links = self.PERSIST.guid2neighbours(to_add_guid, cutoff = self.clustering[clustering_name].snv_threshold, returned_format=3)['neighbours']	# and its links	
+				app.logger.debug("To {0} links of guid {1} recovered {2}".format(clustering_name, to_add_guid, links))
+
 				self.clustering[clustering_name].add_sample(to_add_guid, links)		# add it to the clustering db
+				app.logger.debug("To {0} guid {1} has been added.".format(clustering_name, to_add_guid))
+
 			in_clustering_guids = self.clustering[clustering_name].guids()  # all clustered guids
 
-			app.logger.debug("Clustering graph {0} contains {2}/{1} guids ".format(clustering_name, len(guids), len(in_clustering_guids)))
+			app.logger.info("Clustering graph {0} contains {2}/{1} guids post update.".format(clustering_name, len(guids), len(in_clustering_guids)))
 
 			# check any clusters to which to_add_guids have been added for mixtures.
 			nMixed = 0
 			guids_to_check = set()
 			clusters_to_check = set()
 			
-			for guid in to_add_guids:
-				guids_to_check.add(guid)								# then we need to check it and
-				for cluster in self.clustering[clustering_name].guid2clusters(guid):
+			for to_add_guid in to_add_guids:
+				guids_to_check.add(to_add_guid)								# then we need to check it and
+				app.logger.debug("Clustering graph {0}; examining guid{1}".format(clustering_name, to_add_guid))
+
+				for cluster in self.clustering[clustering_name].guid2clusters(to_add_guid):
+					app.logger.debug("Clustering graph {0}; examining guid {1}, cluster is {2}".format(clustering_name, to_add_guid,cluster))
+
 					clusters_to_check.add(cluster)						# everything else in the same cluster as it
 			
 			cl2guids = 	self.clustering[clustering_name].clusters2guid()	# dictionary allowing cluster -> guid lookup
+			app.logger.debug("Clustering graph {0};  recovered cl2guids {1}".format(clustering_name, cl2guids))
+
 			for cluster in clusters_to_check:
 				guids_for_msa = cl2guids[cluster]							# do msa on the cluster
 				app.logger.debug("Checking cluster {0}; performing MSA on {1} samples".format(cluster,len(guids_for_msa)))
 				msa = self.sc.multi_sequence_alignment(guids_for_msa, output='df')		#  a pandas dataframe; p_value tests mixed
 				app.logger.debug("Multi sequence alignment is complete")
 
+				# gets to here
 				if not msa is None:		# no alignment was made
 					mixture_criterion = self.clustering_settings[clustering_name]['mixture_criterion']
 					mixture_cutoff = self.clustering_settings[clustering_name]['cutoff']
@@ -639,27 +652,44 @@ class findNeighbour3():
 					# to do so requires that you can edit either the CONFIG file (pre-startup) or the Mongodb in which
 					# the config is stored post first-run
 					##################################################################################################
+					app.logger.debug("selecting mixed from msa of length {0}..".format(len(msa.index)))
+
 					query_criterion = "{0} <= {1}".format(mixture_criterion,mixture_cutoff)					
 					msa_mixed = msa.query(query_criterion)
+					app.logger.debug("mixed samples selected from msa of length {0}..".format(len(msa_mixed.index)))
 					
 					# check the status of mixed samples in the cluster.
 					mixed_status = {}
 					n_mixed = 0
 					for mixed_guid in msa_mixed.index:
-						mixed_status[mixed_guid]=True
-						if self.clustering[clustering_name].is_mixed(mixed_guid)==True:   # if it's not known to be mixed
+						if self.clustering[clustering_name].is_mixed(mixed_guid)==True:   # if it's  known to be mixed
 							n_mixed +=1
+						else:
+							mixed_status[mixed_guid]=True		# otherwise we set it as mixed;
 
 					# if all the mixed samples are already assigned as such, we don't have to do anything.
 					# otherwise:
 					if not n_mixed == len(msa_mixed.index):		# all relevant samples are marked as mixed
 						# recover all links in the cluster.
+						app.logger.debug("There are mixed samples to update: currently vs required numbers {0} / {1}..".format(n_mixed, len(msa_mixed.index)))
+								
 						guid2neighbours = {}
 						for guid in msa.index:
+							app.logger.debug("Recovering links for guid {0}..".format(guid))
+
 							guid2neighbours[guid]= self.PERSIST.guid2neighbours(guid, cutoff=self.clustering[clustering_name].snv_threshold, returned_format=3)['neighbours']
+
+						app.logger.debug("Setting mixture status for {0}..".format(mixed_status))
 							
 						self.clustering[clustering_name].set_mixture_status(guid2similar_guids = guid2neighbours, change_guids = mixed_status)
-						
+						app.logger.debug("Setting mixture status complete..")
+					else:
+						pass
+						app.logger.debug("Nothing to update")
+				else:
+					pass
+					app.logger.debug("MSA was none")
+					
 			in_clustering_guids = self.clustering[clustering_name].guids()
 			app.logger.info("Cluster {0} updated; now contains {1} guids. ".format(clustering_name, len(in_clustering_guids)))
 			
@@ -2389,16 +2419,16 @@ python findNeighbour3-server.py --help
 # run with debug settings; only do this for unit testing.
 python findNeighbour3-server.py 	
 
-# run using settings in myConfigFile.json 
+# run using settings in myConfigFile.json.  Memory will be recompressed after loading. 
 python findNeighbour3-server.py ../config/myConfigFile.json		
 
 # run using settings in myConfigFile.json; 
-# recompress RAM every 2000 samples loaded 
+# recompress RAM every 20000 samples loaded 
 # (only needed if RAM is in short supply and data close to limit) 
 # enabling this option will slow up loading 
 
 python findNeighbour3-server.py ../config/myConfigFile.json	\ 
-                        --on_startup_recompress-memory_every 2000 
+                        --on_startup_recompress-memory_every 20000 
 
 """)
 	parser.add_argument('path_to_config_file', type=str, action='store', nargs='?',

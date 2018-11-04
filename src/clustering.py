@@ -459,22 +459,31 @@ class snv_clustering():
   
         #  if include, link guid to any similar clusters.                                            
         if self.mixed_sample_management == 'include':
-              for guid in change_guids.keys():
-                if self.is_mixed(guid):
-                    # identify any clusters which guids is linked to
-                    linked_to = set(self.guid2clusters(guid))
-                    for linked_guid in guid2similar_guids[guid]:
+              c2g = self.clusters2guid()
+              for source_guid in change_guids.keys():
+                if self.is_mixed(source_guid):
+                    # identify any clusters which guids are linked to
+                    linked_to = set(self.guid2clusters(source_guid))
+                    
+                    for linked_guid in guid2similar_guids[source_guid]:
                         cluster_ids = self.guid2clusters(linked_guid)     
                        
                         for cluster_id in cluster_ids:
-                            linked_to.add(cluster_id)
+                            # disbar clusterid if contents are all mixed
+                                                   
+                            n_not_mixed = 0
+                            for guid in c2g[cluster_id]:
+                                if not self.is_mixed(guid):
+                                    n_not_mixed +=1
+                            if n_not_mixed > 0:
+                                linked_to.add(cluster_id)
                            
                     # if we haven't found any linked clusters, then we do nothing, as it's in a cluster of its own already.
                    
                     if len(linked_to)==0:
                         pass
                     else:
-                        self._change_guid_attribute(guid, 'cluster_id', list(linked_to))
+                        self._change_guid_attribute(source_guid, 'cluster_id', list(linked_to))
                    
         # simplify the cluster, reducing the number of edges
         self._minimise_edges(required_guid2edge_guids)
