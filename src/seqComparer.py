@@ -170,6 +170,30 @@ class seqComparer():
        
         return(neighbours)
  
+    def distmat(self, half=True, diagonal=False):
+        """ returns a distance matrix.
+        parameters
+        If half=True, returns only half the matrix.
+        If diagonal=True, return the diagonal (all of which are zeros)
+        
+        could refactor to support multithreading.
+        
+        returns:
+        A generator yielding neighbours, in format [guid1,guid2,dist,n1,n2,nboth,N1pos, N2pos, Nbothpos]
+        """
+        
+        for guid1 in self.seqProfile.keys():
+            for guid2 in self.seqProfile.keys():
+                include = False
+                if not half and not guid1==guid2:
+                    include = True
+                if guid1==guid2 and diagonal:
+                    include = True
+                if guid1<guid2 and half:
+                    include = True
+
+                if include:
+                    yield self.countDifferences_byKey(keyPair=(guid1,guid2), cutoff = self.snpCompressionCeiling)            
         
     def summarise_stored_items(self):
         """ counts how many sequences exist of various types """
@@ -627,120 +651,6 @@ class seqComparer():
         else: 
             return None
     
-    def assess_mixed(self, this_guid, related_guids, max_sample_size=30):
-        """ estimates mixture for a single sample, this_guid, by sampling from similar sequences (related_guids)
-        in order to determine positions of recent variation.
-        
-        The strategy used is draw at most max_sample_size unique related_guids, and from them
-        analyse all (max_sample_size * (max_sample_size-1))/2 unique pairs.
-        For each pair, we determine where they differ, and then
-        estimate the proportion of mixed bases in those variant sites.
-        
-        Pairs of related_guids which do not differ are uninformative and are ignored.
-
-        The output is a pandas dataframe containing mixture estimates for this_guid for each of a series of pairs.
-
-        The p values reported are derived from exact, two-sided binomial tests as implemented in pythons scipy.stats.binom_test().
-        
-        TEST 1:
-        This tests the hypothesis that the number of Ns in the *alignment*
-        is GREATER than those expected from the expected_N in the population of whole sequences.
- 
-        Does so by comparing the observed number of Ns in the alignment (alignN),
-        given the alignment length (4 in the above case) and an expectation of the proportion of bases which will be N.
-        The expected number of Ns is estimated by
-        i) randomly sampling sample_size guids from those stored in the server and
-        observing the number of Ns per base across the genome.  The estimate_expected_N() function performs this.
-        ii) randomly sampling sample_size guids from those stored in the server and
-        observing the number of Ns per base across the relevant  genome.  The estimate_expected_N() function performs this.
-          
-        This approach determines the median number of Ns in valid sequences, which (if bad samples with large Ns are rare)
-        is a relatively unbiased estimate of the median number of Ns in the good quality samples.
-        
-        If there  are not enough samples in the server to obtain an estimate, p_value is not computed, being
-        reported as None.
-  
-        TEST 2:
-        This tests the hypothesis that the number of Ns in the *alignment*
-        is GREATER than those expected from the expected_N in the population of whole sequences
-        *at the bases examined in the alignment*.
-        This might be relevant if these particular bases are generally hard to call.
- 
-        Does so by comparing the observed number of Ns in the alignment (alignN),
-        given the alignment length (4 in the above case) and an expectation of the proportion of bases which will be N.
-        The expected number of Ns is estimated by randomly sampling sample_size guids from those stored in the server and
-        observing the number of Ns per base at the relevant sites.  The estimate_expected_N_sites() function performs this.
-   
-        This approach determines the median number of Ns in valid sequences, which (if bad samples with large Ns are rare)
-        is a relatively unbiased estimate of the median number of Ns in the good quality samples.
-        
-        If there  are not enough samples in the server to obtain an estimate, p_value is not computed, being
-        reported as None.
-      
-            
-        TEST 3: tests whether the proportion of Ns in the alignment is greater
-        than in the bases not in the alignment, for this sequence.
-        """
-        #print("**STARTING ASSESS_MIXED")
-        sample_size = 30        # number of stored sequences to sample in order to estimate the proportion of mixed bases in this population
-
-        # is this_guid mixed?
-        comparatorSeq = {}
-        try:
-            comparatorSeq[this_guid] = self._computeComparator(self.seqProfile[this_guid])
-        except ValueError:
-            raise ValueError("{0} is invalid".format(this_guid))
-
-        # Estimate expected N as median(observed Ns),
-        # which is a valid thing to do if the proportion of mixed samples is low.
-        expected_N1 = self.estimate_expected_N(sample_size=sample_size, exclude_guids= related_guids)
-        if expected_N1 is None:
-            expected_p1 = None
-        else:
-            expected_p1 = expected_N1 / len(self.reference)
-             
-        # step 0: find all valid guids in related_guids
-        valid_related_guids = []
-        invalid_related_guids = []
-        comparatorSeq = {}
-        for guid in related_guids:
-            try:
-                comparatorSeq[guid] = self._computeComparator(self.seqProfile[guid])
-                valid_related_guids.append(guid)
-            except ValueError:
-                invalid_related_guids.append(guid)
-                
-        # randomly sample valid_related_guids
-        if len(valid_related_guids)<= max_sample_size:
-            sample_valid_related_guids = valid_related_guids
-        else:
-            np.random.shuffle(valid_related_guids)
-            sample_valid_related_guids = valid_related_guids[0:max_sample_size]
- 
-        # are there any valid related guids?
-        if len(sample_valid_related_guids)<2:
-            return None     # can't produce any conclusions
-        
-        # compute pairs
-        npairs = 0
-        
-        for i in range(len(sample_valid_related_guids)):
-            for j in range(i):
-                #print("** CALLING MSA", i,j, sample_valid_related_guids[i], sample_valid_related_guids[j])
-                df = self._msa(valid_guids=[this_guid, sample_valid_related_guids[i], sample_valid_related_guids[j]],
-                                            invalid_guids=[],
-                                            expected_p1=expected_p1,
-                                            output= 'df',
-                                            sample_size=30)
-                df = df[df.index==this_guid]
-                npairs +=1
-                df['pairid'] = npairs
-                if npairs == 1:
-                    retVal = df
-                else: 
-                    retVal = retVal.append(df, ignore_index=True)
-        #print("**MSA: returning {0} rows".format(len(df.index)))
-        return(retVal)
     def multi_sequence_alignment(self, guids, output='dict', sample_size=30, expected_p1=None):
         """ computes a multiple sequence alignment containing only sites which vary between guids.
         
@@ -806,8 +716,7 @@ class seqComparer():
         
         If there  are not enough samples in the server to obtain an estimate, p_value is not computed, being
         reported as None.
-      
-            
+             
         TEST 3: tests whether the proportion of Ns in the alignment is greater
         than in the bases not in the alignment, for this sequence.
         
@@ -1438,7 +1347,8 @@ class test_seqComparer_45a(unittest.TestCase):
         df.columns=res['variant_positions']
         self.assertEqual(len(df.index), 7)
         self.assertEqual(res['variant_positions'],[0,1,2,3])
-
+        print(res)
+        print(df)
         
 class test_seqComparer_45b(unittest.TestCase):
     """ tests the generation of multiple alignments of variant sites."""
@@ -2055,3 +1965,42 @@ class test_seqComparer_47(unittest.TestCase):
                        snpCeiling =10)
         with self.assertRaises(ZeroDivisionError):
             sc.raise_error("token")
+
+class test_seqComparer_48(unittest.TestCase):
+    """ tests distmat, a function yielding a distance matrix."""
+    def runTest(self):
+        
+        # generate compressed sequences
+        refSeq='GGGGGGGGGGGG'
+        sc=seqComparer( maxNs = 1e8,
+                       reference=refSeq,
+                       snpCeiling =10)
+        
+        originals = [ 'AAACACTGACTG','CCCCACTGACTG','TTTCACTGACTG' ]
+        for original in originals:   
+            c = sc.compress(original)
+            sc.persist(c, guid=original )
+        
+        n = 0
+        for item in sc.distmat(half=False, diagonal=True):
+            n +=1
+        l = len(originals)
+        
+        self.assertEqual(n, l*l)
+
+        n = 0
+        for item in sc.distmat(half=False, diagonal=False):
+            n +=1
+            print(item)
+        l = len(originals)
+        
+        self.assertEqual(n, (l*l)-l)
+
+
+        n = 0
+        for item in sc.distmat(half=True, diagonal=False):
+            n +=1
+            print(item)
+        l = len(originals)
+        
+        self.assertEqual(n, (l*(l-1)/2))
