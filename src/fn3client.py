@@ -166,11 +166,7 @@ class fn3Client():
         * recover masked sequences for *guid*  
         /api/v2/*guid*/sequence
         
-        Mixtures
-        ----------------------------
-        * compare a given sequence with a set of neighbours, estimating mixtures of recent origin
-        /api/v2/assess_mixed (requires POST)  
-        
+  
         Multiple sequence alignments
         ----------------------------
         * return multiple sequence alignment for an arbitrary set of sequences, either in json or html format.
@@ -328,8 +324,24 @@ class fn3Client():
             raise TypeError("clustering_algorithm must be str not {0}".format(type(clustering_algorithm)))
         
         res = self._decode(self.getpost('/api/v2/clustering/{0}/clusters'.format(clustering_algorithm), timeout=timeout, method='GET')) 
-        return self._decode(res)
+        return(pd.DataFrame.from_records(res))
 
+    def cluster_ids(self,  clustering_algorithm, timeout =None):
+        """ returns a cluster_ids for a given clustering_algorithm """
+        if not isinstance(clustering_algorithm, str):
+            raise TypeError("clustering_algorithm must be str not {0}".format(type(clustering_algorithm)))
+        
+        res = self._decode(self.getpost('/api/v2/clustering/{0}/cluster_ids'.format(clustering_algorithm), timeout=timeout, method='GET')) 
+        return res
+    def network(self,  clustering_algorithm, cluster_id, timeout =None):
+        """ returns a cytoscape compatible network """
+        if not isinstance(clustering_algorithm, str):
+            raise TypeError("clustering_algorithm must be str not {0}".format(type(clustering_algorithm)))
+        if not isinstance(cluster_id, int):
+            raise TypeError("cluster_id must be int not {0}".format(type(cluster_id)))
+                
+        res = self._decode(self.getpost('/api/v2/clustering/{0}/{1}/network'.format(clustering_algorithm, cluster_id), timeout=timeout, method='GET')) 
+        return res
     def server_memory_usage(self,  nrows = 100, timeout =None):
         if not isinstance(nrows, int):
             raise TypeError("nrows must be integer not {0}".format(type(nrows)))      
@@ -351,7 +363,7 @@ class fn3Client():
             return self._decode(self.getpost('/api/v2/{0}/neighbours_within/{1}/with_quality_cutoff/{2}'.format(guid,threshold, quality_cutoff), timeout=timeout, method='GET')) 
         else:
             raise TypeError("quality_cutoff must be None or float, not {0}".format(type(quality_cutoff)))
-    def multiple_alignment_cluster(self, clustering_algorithm, cluster_id, output_format='json', timeout=None):
+    def msa_cluster(self, clustering_algorithm, cluster_id, output_format='json', timeout=None):
         """ does MSA on a cluster """
 
         res= self.getpost('/api/v2/multiple_alignment_cluster/{0}/{1}/{2}'.format(clustering_algorithm, cluster_id, output_format), timeout=timeout, method='GET') 
@@ -457,7 +469,7 @@ class test_fn3_client_clustering(unittest.TestCase):
         fn3c =fn3Client()         # expect failure as URL doesn't exist    
         retVal = fn3c.clustering()
         self.assertEqual(type(retVal),dict)
-        print(retVal)       
+      
 class test_fn3_client_server_memory_usage(unittest.TestCase):
     def runTest(self):
         """ tests guids"""
@@ -557,23 +569,6 @@ class test_fn3_client_change_id(unittest.TestCase):
         self.assertTrue(uuid2 in fn3c.guids())
 
         self.assertTrue(c1['change_id']<c2['change_id'])
-class test_fn3_client_assess_mixed(unittest.TestCase):
-    def runTest(self):
-        
-        fn3c =fn3Client()         # expect success
-        res = fn3c.read_fasta_file(fastafile = os.path.join("..","testdata", "fasta", "t1.fasta" ))
-        seq1 = res['seq']
-        res = fn3c.read_fasta_file(fastafile = os.path.join("..","testdata", "fasta", "t2.fasta" ))
-        seq2 = res['seq']
-
-        uuid1 = uuid.uuid1().hex
-        uuid2 = uuid.uuid1().hex
-        uuid3 = uuid.uuid1().hex
-        fn3c.insert(uuid1, seq1)
-        fn3c.insert(uuid2, seq2)
-        fn3c.insert(uuid3, seq1)
-        res = fn3c.assess_mixed(uuid1, [uuid2,uuid3])
-        self.assertTrue(isinstance(res, pd.DataFrame))
 class test_fn3_client_msa(unittest.TestCase):
     def runTest(self):
         
@@ -592,8 +587,9 @@ class test_fn3_client_msa(unittest.TestCase):
         res = fn3c.msa([uuid1,uuid2,uuid3])
         self.assertTrue(isinstance(res, pd.DataFrame))
   
-
 class test_fn3_client_guids2clusters(unittest.TestCase):
+    
+    """ tests various endpoints to do with clustering """
     def runTest(self):
         
         fn3c =fn3Client()         # expect success
@@ -626,11 +622,20 @@ class test_fn3_client_guids2clusters(unittest.TestCase):
 
         self.assertTrue(isinstance(res1, pd.DataFrame))
         self.assertTrue(isinstance(res2, pd.DataFrame))
+        
         # find clusters
         cluster_ids= set()
         for ix in res1.index:
             cluster_ids.add(res1.loc[ix, 'cluster_id'])
-           
+        
+        # check clusters endpoint
+        res3 = fn3c.clusters(clustering['algorithms'][0])
+        self.assertTrue(isinstance(res3, pd.DataFrame))
+        res3 = fn3c.cluster_ids(clustering['algorithms'][0])
+        self.assertTrue(isinstance(res3, list))
+        
+        self.assertTrue(set(res3)==cluster_ids)  # same results both ways
+        
         # recover neighbours
         res = fn3c.guid2neighbours(guid= uuid1, threshold = 250)
         self.assertTrue(isinstance(res, list))
@@ -638,8 +643,37 @@ class test_fn3_client_guids2clusters(unittest.TestCase):
         res = fn3c.guid2neighbours(guid= uuid1, threshold = 250, quality_cutoff = 0.7)
         self.assertTrue(isinstance(res, list))
 
-        # check multiple_alignment_cluster
-        msa = fn3c.multiple_alignment_cluster(clustering['algorithms'][0],min(cluster_ids),'json')
+        # check msa_cluster
+        msa = fn3c.msa_cluster(clustering['algorithms'][0],min(cluster_ids),'json')
 
         self.assertTrue(isinstance(msa, pd.DataFrame))
-        msa = fn3c.multiple_alignment_cluster(clustering['algorithms'][0],min(cluster_ids),'fasta')
+        msa = fn3c.msa_cluster(clustering['algorithms'][0],min(cluster_ids),'fasta')
+
+
+class test_fn3_client_network(unittest.TestCase):
+    """ tests network generation """
+    def runTest(self):
+        
+        fn3c =fn3Client()         # expect success
+        res = fn3c.read_fasta_file(fastafile = os.path.join("..","testdata", "fasta", "t1.fasta" ))
+        seq1 = res['seq']
+        res = fn3c.read_fasta_file(fastafile = os.path.join("..","testdata", "fasta", "t2.fasta" ))
+        seq2 = res['seq']
+
+        uuid1 = uuid.uuid1().hex
+        uuid2 = uuid.uuid1().hex
+        uuid3 = uuid.uuid1().hex
+        fn3c.insert(uuid1, seq1)
+        fn3c.insert(uuid2, seq2)
+        fn3c.insert(uuid3, seq2)
+
+        clustering = fn3c.clustering()
+        self.assertTrue('algorithms' in clustering.keys())
+        
+        for algorithm in clustering['algorithms']:
+            cluster_ids = fn3c.cluster_ids(algorithm)
+            for cluster_id in cluster_ids:
+                network = fn3c.network(algorithm, cluster_id)
+                print(network.keys())
+                print(algorithm, network['nNodes'], network['nEdges'])
+                print(network['elements'])
