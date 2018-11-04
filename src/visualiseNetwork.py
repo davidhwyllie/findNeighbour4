@@ -90,20 +90,17 @@ class snvNetwork():
         # lookup snv
         w = nx.get_edge_attributes(self.G, 'weight')
         snv = nx.get_edge_attributes(self.G, 'snv')
-        
         # load all nodes into elements array
         elements = []
-        nNodes = 0
         for node in self.G.nodes(data = True):
+           
             dat = {'id':node[0], **node[1]}
-      
-            nNodes += 1
             elements.append( {
                   'group': 'nodes', 
                   'data': dat
                 }
             )
-        
+        nNodes = len(elements)
         if nNodes == 0:
             return {'elements':elements, 'success':1, 'message':'No nodes found','nNodes':0, 'nEdges':0}
 
