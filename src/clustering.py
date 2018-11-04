@@ -6,7 +6,11 @@ import pandas as pd
 
 class snv_clustering():
     """ maintains clusters of samples """
-    def __init__(self, saved_result=None, snv_threshold=None,  mixed_sample_management='ignore'):
+    def __init__(self,
+                 saved_result=None,
+                 snv_threshold=None,
+                 mixed_sample_management='ignore',
+                 store_history=True):
         """ makes clusters of samples such that all samples can be
         reached from each other with <= snv_threshold SNV
         
@@ -24,21 +28,22 @@ class snv_clustering():
 
         mixed_sample_management: dictates how mixed samples are dealt with
         'ignore': the clustering ignores the 'is_mixed' property.  This is the behaviour of standard 'snp address' and related approaches.
-        'include': clusters include guids with the 'is_mixed' property,
-                    only if they can be reached from an unmixed guid.
-                    no further exploration from  is_mixed guids occurs.
-                    One guid can belong to more than one cluster.
-                    All guids in the initial set are assigned a cluster_id;
-                    if individual guids exist which are not reachable, they are added
-                    as individual single-element clusters.
-                    
+       
         'exclude':  the clusters do not include guids with 'is_mixed'=True properties.
                     mixed samples exist only as single-element clusters.
+        'include':  samples are included in clusters to which they are
+                    similar.
+                    One guid can belong to more than one cluster.
+                    
+             
         Note that in all the below documentation, 'guid' refers to a node identified by a guid,
         and 'guids' to multiple such nodes.
+        
+        store_history: whether to store a history if properties change.
         """
     
-        # if provided, reload the graph.        
+        # if provided, reload the graph.
+        self.store_history = store_history
         if isinstance(saved_result, dict):
             logging.info("Reloading saved clustering result")
 
@@ -93,13 +98,15 @@ class snv_clustering():
                 for this_cluster_id in this_cluster_id_list:
                     existing_cluster_ids.add(this_cluster_id)
         if len(existing_cluster_ids) == 0:
+            #print("NEW CLUSTER ID: first assigned",1)
             return 1        # the first cluster_id allocated.
         else:
             for i in range(1, 1+max(existing_cluster_ids)):
                 if not i in existing_cluster_ids:
+                    #print("NEW CLUSTER ID: assigning reused", i)
                     return i
-            return 1+ max(existing_cluster_ids)
-        
+            #print("NEW CLUSTER ID: assigning new",1+ max(existing_cluster_ids) )
+            return 1+ max(existing_cluster_ids)       
     def is_mixed(self,guid):
         """ determines whether a guid is mixed """
         try:
@@ -109,243 +116,78 @@ class snv_clustering():
             # there is no is_mixed attribute
             pass
         return False
-        
-    def set_mixed(self,guid2neighbours):
-        """ marks a set of guids as being mixed.
-        
-        When updating a cluster to indicate that a sample is mixed,
-        it is necessary to update *all* the mixed guids within the cluster in a
-        single call to this function; updating individual samples will not
-        neighbours are the current links of guid.
-        
-        """
-
-        # check whether the guids of the samples to set mixed,
-        # which are the keys of guid2neighbours,
-        # are already mixed in the datatable
-        n_guids = len(guid2neighbours.keys())
-        n_mixed = 0
-        for guid in guid2neighbours.keys():              
-            if self.is_mixed(guid):
-                n_mixed +=1
-        
-        # if all are already mixed, we need do nothing.       
-        if n_mixed == len(guid2neighbours.keys()):
-            #print("no updates needed")
-            return      # don't have to anything - all already designated as mixed
-
-        # otherwise, we need to make changes.
-        # increase the change counter
-        self.change_id += 1
-        
-        in_cluster_guids = set()
-        for guid in guid2neighbours.keys():              
-            linked_guids = self._traverse_from(guid, how='ignore')        # scan all linked clusters
-            #print("traversing from ", guid, "found", linked_guids)
-            for guid in linked_guids:
-                in_cluster_guids.add(guid)
-        #print("identified linked guids", in_cluster_guids)
-            #self._update_clusterid_to_largest_cluster(in_cluster_guids)
-            
-        # set the not mixed samples to mixed
-        for guid in guid2neighbours.keys():              
-            if not self.is_mixed(guid):
-                #print("SETTING AS MIXED",guid)
-                self._change_guid_attribute(guid, 'is_mixed', True)    ## use custom function tracking history
-        ## debug
-        #in_cluster_guids2 = set()
-        #for guid in guid2neighbours.keys():              
-        #    linked_guids = self._traverse_from(guid, how='ignore')        # scan all linked clusters
-        #    #print("traversing from ", guid, "found", linked_guids)
-        #    for guid in linked_guids:
-        #        in_cluster_guids2.add(guid)
-        ##print("identified linked guids post set mix", in_cluster_guids2)
-        ##print("same: ", in_cluster_guids == in_cluster_guids2)
-        ##print(in_cluster_guids, in_cluster_guids2)
-        ## end of debug
-         
-        if self.mixed_sample_management == 'ignore':
-            # then we don't need to change anything
-            #print("STOPPING AS TOLD TO IGNORE")
-            return
-            
-        # otherwise .. identify all guids which are reachable from the
-        # mixed samples
-        #print("Continuing analysis; mode = ",self.mixed_sample_management)
-        
-
-        # add all the edges of the mixed guids, having removed the links we've inserted before
-        # which connect the mixed members of a cluster to other guids;
-    
-        # remove all edges from the mixed guids
-        new_E = []
-        existing_E = []
-        for guid in guid2neighbours.keys():                      
-            for adjacent_node in list(self.G.adj[guid]):
-                existing_E.append([guid, adjacent_node])
-                #print("removing edge", guid, adjacent_node)
-        self.G.remove_edges_from(existing_E)
-
-        # make all links between mixed guids and existing guids, but
-        # do not make mix-mix links
-        # do not make such links if in 'exclude' mode
-        if not self.mixed_sample_management == 'exclude':
-            for guid in guid2neighbours.keys():
-                neighbours = guid2neighbours[guid]
-                for neighbour in neighbours:
-                    if not self.is_mixed(neighbour):        # don't link to other mixed samples
-                        #print("Adding edge",guid, neighbour)
-                        new_E.append((guid,neighbour))
-                self.G.add_edges_from(new_E)
-        else:
-            #print("not making links as in exclude mode")
-            pass
-        
-        #print("post rewire, graph edges", self.G.edges)       # the graph
-        #print("post rewire, graph nodes", self.G.nodes)       # the graph
-               
-        # define the cluster(s) which have been generated by this operation
-        # to do so we traverse from each guid
-        # and identify the unique sets of guids resulting.
-        # we have to do this because with some kinds of clustering,
-        # guids can be in multiple different clusters.
-        
-        # note: we only have to visit non-mixed guids once.
-        cluster_contents = {}
-        already_visited = set()
-        #print("scrutinising in_cluster_guids", in_cluster_guids)
-        for guid in in_cluster_guids:   # traverse from each guid 
-            #print("Examining", guid)
-            if not guid in already_visited:         # already visited nodes which are not mixed don't have to be revisited.
-                if not self.is_mixed(guid):
-                    #print("Traversing from ", guid, "having already visited ",already_visited)
-                    guids_reached = self._traverse_from(guid, how= self.mixed_sample_management)
-                    cluster_content = frozenset(guids_reached)
-
-                else:
-                    # we return a set containing only the mixed sample, as it might not be reachable from elsewhere.
-                    if self.mixed_sample_management == 'exclude':
-                        # then we always leave the mixed samples as singletons
-                        cluster_content = frozenset([guid])
-                    else:
-                        # if it's include, then we don't automatically add such
-                        # we only add such later if the sample isn't in other cluster(s)
-                        cluster_content = []
-                #print("identified cluster content", cluster_content)
-                                
-                # store the cluster contents
-                if len(cluster_content)>0:  #there's something to store
-                    cluster_contents[cluster_content] = 1   # store in a dictionary to deduplicate
-
-                # note non-mixed nodes visited; we don't need to traverse from them
-                for item in cluster_content:
-                    if not self.is_mixed(item):
-                        already_visited.add(item)
-            
-        #print("Identification of cluster contents complete:",cluster_contents)
-        
-        if self.mixed_sample_management == 'include':
-            # work out how many clusters each guid belongs in 
-            # add singleton clusters for anything which isn't covered.
-            guid2nclusters = {}
-            for guid in in_cluster_guids:
+    def guids(self):
+        """ returns a set of all guids in the graph """
+        return set(self.G.nodes)  
+    def guid2clusters(self,guid):
+        """ returns the cluster(s) a guid belongs to """
+        if not guid in self.G.nodes:
+            return None     # no guid
+        try:
+            return self.G.node[guid]['cluster_id']
+        except KeyError:
+            raise KeyError("Was asked to return the cluster_id of {0}; the guid exists, but does nto have a 'cluster_id' key (likely software error) {1}".format(guid, self.G.node.data()))
+    def clusters2guid(self):
+        """ returns a cluster -> guid mapping """
+        retVal = {}
+        for guid in sorted(self.G.nodes):
+            try:
+                for cluster_id in self.G.node[guid]['cluster_id']:
+                    if not cluster_id in retVal.keys():
+                        retVal[cluster_id] = []  
+                    retVal[cluster_id].append(guid)
+            except KeyError:
+                # no cluster_id
+                pass
+        return retVal        
+    def clusters2guidmeta(self, after_change_id=None):
+        """ returns a cluster -> guid mapping """
+        retVal = []
+        for guid in sorted(self.G.nodes):
+            for cluster_id in self.G.node[guid]['cluster_id']:
+                change_id = self.G.node[guid]['change_id']
+                is_mixed = self.is_mixed(guid)
+                if (after_change_id is None) or (change_id > after_change_id):
+                    retVal.append({'guid':guid, 'cluster_id':cluster_id,'change_id':change_id, 'is_mixed':is_mixed})
+        return retVal  
+    def guids_linked_to(self,guids_of_interest):
+        """ identifies all guids in the
+        same cluster(s) as guids_of_interest.
                 
-                if not guid in guid2nclusters.keys():
-                    guid2nclusters[guid]=set()
-                for cl in cluster_contents.keys():
-                    
-                    for element in cl:
-                        if guid == element:
-                            if guid in guid2nclusters.keys():
-                                guid2nclusters[guid].add(cl)
-                            else:
-                                guid2nclusters[guid]=set(cl)
-            
-            for guid in guid2nclusters.keys():
-                if len(guid2nclusters[guid])==0:     # it does not appear anywhere
-                    cluster_content=frozenset([guid])   # we add a singleton
-                    cluster_contents[cluster_content]=1
+        The background is that when updating the graph when samples
+        are detected to be mixed, then it is necessary to supply
+        *all* the edges between the samples which can be reached from the mixed_guids. 
         
-        # now all guids appear at least once.            
-        # now assign each new cluster a new number.
-        guid2clid = {}
-        for guid in in_cluster_guids:                           # assign empty list to each guid
-            self._change_guid_attribute(guid, 'cluster_id',[])  # empty list; one sequence can belong to multiple clusters
-
-        # assign new cluster identifiers  
-        for i,cluster in enumerate(cluster_contents.keys()):
-            new_cluster_id = self._new_cluster_id()
-            for guid in cluster:
-                new_clustering = self.G.node[guid]['cluster_id']+[new_cluster_id]  # append operation
-                self._change_guid_attribute(guid, 'cluster_id',new_clustering)
-       
-    def _update_clusterid_to_largest_cluster(self, in_cluster_guids):
-        """ set the cluster_ids of in_cluster_guids to that of
-        the largest existing group of samples within in_cluster_guids
-        for example, if we had five guids 1,2,3,4,5
-        and guids 1,2, and 3 had a cluster_id of 1, while 4,5 had a cluster_id of 2,
-        then all samples would be assigned a cluster_id of 1.
+        The clustering object does not store all the edges, because of size concerns,
+        but without all the edges it cannot accurately repartition the cluster
+        when mixed sample recognition means that the cluster needs to be rebuilt.
         
-        If two clusters are of the same size, picks the smaller one to update with.
+        inputs:
+            guids_of_interest: a list of guids which are recognised as mixed.
         
-        If some guids are identified as possibly mixed (self.is_mixed(guid) == True),
-        and so can legitimately belong to > 1 cluster, this function will operate  correctly.
-        
-        However, in this case, it will only analyse guids which are not mixed when
-        determining the cluster_ids to update.  Because of this,
-        it's essential to call _update_cluster_id_to_largest_cluster BEFORE
-        setting is_mixed==True.  The set_mixed() function does this automatically.
+        outputs:
+            a list of linked guids
         """
-              
-        # assess the largest cluster, as currently recorded, within the
-        # guids reachable from starting_guid.  These guids are in in_cluster_guids.
-        #print("UPDATE AS PART OF A CLUSTER:  IN CL GUIDS", in_cluster_guids)
-        guid2cl = nx.get_node_attributes(self.G,'cluster_id')        # links guid to cluster id for all nodes.
-        #print("GUID2cl", guid2cl)
-        cl2n = {}           # a dictionary linking cluster to number of guids within the cluster,
-                            # as currently recorded in the graph.
-        
-        # compute the number of guids per cluster;
-        for guid in in_cluster_guids:     # guid2cl has all of them;
-            for this_cluster_id in guid2cl[guid]:
-                if not this_cluster_id in cl2n.keys():
-                    cl2n[this_cluster_id]=0
-                cl2n[this_cluster_id]+=1
-        
-        # find the cluster_id with the largest number of clusters;
-        #print("CL2n",cl2n)
-        largest_cluster_size = max(cl2n.values())
-        for new_cluster_id in sorted(cl2n.keys()):      # enforces deterministic behaviour
-            if cl2n[new_cluster_id]== largest_cluster_size:
-                break
-        #print("New clusterid is ", new_cluster_id)
-        
-        # do the update of the cluster identifiers
-        # find the existing cluster designations, and are
-        # not the new cluster_id.  These are the ones we're going to update.
-        to_update = set(cl2n.keys()) - set([new_cluster_id])
-
-        #print("to_update",to_update)
-        # update the cluster designations                    
-        for guid in in_cluster_guids:
-            this_guid2cl = guid2cl[guid]        # get the current cluster
-            #print("guid", guid, "this_guid2cl", this_guid2cl)
-            made_update = False
-            for i in range(len(this_guid2cl)):
-                if this_guid2cl[i] in to_update:
-                    #print("doing update",this_guid2cl[i], new_cluster_id)
-                    this_guid2cl[i] = new_cluster_id
-                    made_update = True
-            if made_update:
-                this_guid2cl = set(this_guid2cl)      # ensure unique elements
-                self._change_guid_attribute(guid, 'cluster_id', sorted(list(this_guid2cl)))        ## keep deterministic; use custom function tracking history
-
-            
+   
+        linked_guids = set()
+        cluster_ids_of_interest = set()
+        for guid in guids_of_interest:
+            for cluster_id in self.guid2clusters(guid):
+                cluster_ids_of_interest.add(cluster_id)
+        for guid in self.guids():
+            if len(set(self.guid2clusters(guid)) & cluster_ids_of_interest)>0:
+                linked_guids.add(guid)
+        return(list(linked_guids))           
     def _change_guid_attribute(self,guid,attribute,value):
         """ updates a guid's attribute with a new value.
-        Keeps a track of what changed, and when """
+        Keeps a track of what changed, and when.
+        
+        If the function is instructed to change a value, but
+        it doesn't need to be changed (i.e. the current value is equal to value)
+        then no update is made."""
    
         # get a copy of the history of the object
+        #print("Instructed to update", guid, attribute, value)
         if not 'history' in self.G.node[guid].keys():
             h = [(self.change_id,"created change history post creation")]
         else:      
@@ -359,70 +201,25 @@ class snv_clustering():
             return 
         else:
             existing_value = self.G.node[guid][attribute]
-            if not existing_value == value:
-                h.append((self.change_id, "changed {0} from {1} to {2}".format(attribute,existing_value, value)))
-                self.G.node[guid][attribute]=value
-                self.G.node[guid]['history']=h
-                self.G.node[guid]['change_id']=self.change_id
-                  
-    def _traverse_from(self, starting_guid, how=None):
-        """ traverse the graph moving outward from a starting point, starting_guid.
-        self.mixed_sample_management describes the behaviour used.
-        Normally, we don't set how; it is by default set to self.mixed_sample_management.
-        A few operations (such as set_mixed()) set it as part of their operation.
-        
-        how = 'ignore': the traverse occurs irrespective of whether the 'is_mixed' property is 'True'
-        how = 'include': the traverse occurs until a guid with 'is_mixed' property is reached;
-                        no further guids are explored from this guid.  This guid is included in the cluster.
-        how = 'exclude':  the traverse does not return guids with 'is_mixed'=True properties.
-        
-        Note: an alternative, nx.connected_components() is built-in in networkx;
-        However, this doesn't allow custom traversal (i.e. only traversing under specific circumstances)
-        or starting from a single guid.
-        """
-        if how is None:
-            how = self.mixed_sample_management
-        else:
-            # validate how
-            if not how in ['exclude','include','ignore']:
-                raise ValueError("how must be one of exclude,include or ignore.")
-            #print("TRAVERSE: how = ", how)
-          
-        in_cluster_guids = set()
-        to_visit = set([starting_guid])
-        visited = set()
-        
-        while len(to_visit)>0:
-            current_guid = to_visit.pop()
-            
-            # include this guid in the cluster unless it's mixed, and we're told to exclude such
-            #print("TRAVERSE FROM:", current_guid)
-            if self.is_mixed(current_guid)==True and how=='exclude':
-                # we do not include it in the results of the traverse
-                pass
-                #print("EXCLUDED AS MIXED", self.is_mixed(current_guid), how)
+            is_same = False
+            if isinstance(existing_value, list):
+                # we don't enforce order of lists
+                if set(existing_value)==set(value):
+                    is_same = True
             else:
-                # it is not mixed, or it is mixed and we're not excluding it
-                in_cluster_guids.add(current_guid)
-                
-
-            # we traverse onwards in defined conditions.
-            # if we are ignoring the mixture status
-            # or if it not mixed
-            traverse_on = False
-            if self.is_mixed(current_guid)==False and how in ['include', 'exclude']:
-                traverse_on = True
-            if how == 'ignore':
-                traverse_on = True
-            #print("Traverse_on set",traverse_on)
-            if traverse_on:
-                #print("Adjacent nodes",self.G.adj[current_guid])
-                for adjacent_guid in self.G.adj[current_guid]:
-                    if not adjacent_guid in visited:       # if not already visited
-                        to_visit.add(adjacent_guid)
-            visited.add(current_guid)
-        return(in_cluster_guids)
-    
+                if existing_value == value:
+                    is_same==True
+            
+            if not is_same:
+                #print("UPDATING",attribute,existing_value,value)
+                self.G.node[guid][attribute]=value
+                self.G.node[guid]['change_id']=self.change_id
+                if self.store_history:
+                    h.append((self.change_id, "{0}:{1}->{2}".format(attribute,existing_value, value)))
+                    self.G.node[guid]['history']=h
+            else:
+                #print("NOT UPDATING", guid, attribute, existing_value, value)
+                pass
     def _minimise_edges(self, in_cluster_guids):
         """ rearrange the graph, ensuring that
          all the guids in in_cluster_guids are still reachable from each other,
@@ -444,79 +241,260 @@ class snv_clustering():
                 if not self.is_mixed(connected_guids[i]) and not self.is_mixed(adjacent_node):
                     existing_E.append([connected_guids[i], adjacent_node])
 
-        # remove any edges from these nodes
         self.G.remove_edges_from(existing_E)
-        # and replace them with a simplified version linking the same samples
         self.G.add_edges_from(new_E)
+    def _update_clusterid_to_largest_cluster(self, in_cluster_guids):
+        """ set the cluster_ids of in_cluster_guids to that of
+        the largest existing group of samples within in_cluster_guids
+        for example, if we had five guids 1,2,3,4,5
+        and guids 1,2, and 3 had a cluster_id of 1, while 4,5 had a cluster_id of 2,
+        then all samples would be assigned a cluster_id of 1.
         
+        If two clusters are of the same size, picks the smaller one to update with.
+        
+        If some guids are identified as possibly mixed (self.is_mixed(guid) == True),
+        and so can legitimately belong to > 1 cluster, this function will operate  correctly.
+        
+        However, in this case, it will only analyse guids which are not mixed when
+        determining the cluster_ids to update.  Because of this,
+        it's essential to call _update_cluster_id_to_largest_cluster BEFORE
+        setting is_mixed==True.  The set_mixture_status() function does this automatically.
+        
+        This function is one way of making the cluster numbers assigned relatively stable when
+        clusters merge.
+        """
+        #print("in_cluster_guids", in_cluster_guids)              
+        guid2cl = nx.get_node_attributes(self.G,'cluster_id')        # links guid to cluster id for all nodes.
+        #print("GUID2cl", guid2cl)
+        cl2n = {}           # a dictionary linking cluster to number of guids within the cluster,
+                            # as currently recorded in the graph.
+        
+        # compute the number of guids per cluster;
+        for guid in in_cluster_guids:     # guid2cl has all of them;
+            #print("COUNT GUID PER CL", guid, in_cluster_guids)
+            for this_cluster_id in guid2cl[guid]:
+                if not this_cluster_id in cl2n.keys():
+                    cl2n[this_cluster_id]=0
+                    #print("Set zero count for", this_cluster_id)
+                cl2n[this_cluster_id]+=1
+                #print("Incremented ", this_cluster_id)
+        
+        # find the cluster_id with the largest number of clusters;
+        #print("CL2n",cl2n)
+        largest_cluster_size = max(cl2n.values())
+        for new_cluster_id in sorted(cl2n.keys()):      # enforces deterministic behaviour
+            if cl2n[new_cluster_id]== largest_cluster_size:
+                break
+        
+        # do the update of the cluster identifiers
+        # find the existing cluster designations, and are
+        # not the new cluster_id.  These are the ones we're going to update.
+        to_update = set(cl2n.keys()) - set([new_cluster_id])
+
+        ###print("to_update",to_update)
+        # update the cluster designations                    
+        for guid in in_cluster_guids:
+            this_guid2cl = guid2cl[guid]        # get the current cluster
+            made_update = False
+            for i in range(len(this_guid2cl)):
+                if this_guid2cl[i] in to_update:
+                    ###print("doing update",this_guid2cl[i], new_cluster_id)
+                    this_guid2cl[i] = new_cluster_id
+                    made_update = True
+            if made_update:
+                this_guid2cl = set(this_guid2cl)      # ensure unique elements
+                self._change_guid_attribute(guid, 'cluster_id', sorted(list(this_guid2cl)))        ## keep deterministic; use custom function tracking history
     def add_sample(self, starting_guid, neighbours=[]):
         """ adds a sample, guid, linked to neighbours.
         - guid should be a string
         - neighbours should be a list
+        - ignores mixture status 
         """
+        
+        # if starting_guid exists in the network, we do not re-add it.
+        if starting_guid in self.G.nodes:
+            return
+        
         # a counter used to identify the order of changes
         self.change_id +=1
 
         # create a list of guid - neighbour links,
         # suitable for importing into networkx,
-        # from the input data  
+        # from the neighbours provided.  
         E = []
+        clids = set()
         for item in neighbours:
-            E.append([starting_guid,item])
-        clid = self._new_cluster_id()
+            # as long as it is not to a mixed sample, we add this link.
+            if not self.is_mixed(item):
+                E.append([starting_guid,item])
+                for cluster_id in self.guid2clusters(item):
+                    clids.add(cluster_id)
+                    
+        # if there's no cluster_ids linked
+        if len(clids)==0:
+            clid = self._new_cluster_id()
+        elif len(clids)>0:     # expected result
+            clid = clids.pop()
+
         #print("INSERT: ", starting_guid, "into cluster", clid)
         self.G.add_node(starting_guid, **{'change_id':self.change_id, 'cluster_id':[clid], 'history':[(self.change_id, 'added')]})      # in it's own, new cluster.
         self.G.add_edges_from(E)
       
-        # traverse, starting with guid, until we find the edge of the cluster      
-        in_cluster_guids = self._traverse_from(starting_guid)
-      
+        # find all guids in clids.  This will include any associated mixed samples.
+        in_cluster_guids = set([starting_guid])
+        lookup = self.clusters2guid()
+        for cluster_id in clids:
+            for guid in lookup[cluster_id]:
+                in_cluster_guids.add(guid)
+  
         # relabel clusters post addition
         self._update_clusterid_to_largest_cluster(in_cluster_guids)
         
-        # minimise the number of edges, to keep the graph small but everything connected.
-        self._minimise_edges(in_cluster_guids)
-    
-    def guids(self):
-        """ returns a set of all guids in the graph """
-        return set(self.G.nodes)
-    
-    def guid2clusters(self,guid):
-        """ returns the cluster(s) a guid belongs to """
-        if not guid in self.G.nodes:
-            return None     # no guid
-        try:
-            return self.G.node[guid]['cluster_id']
-        except KeyError:
-            raise KeyError("Was asked to return the cluster_id of {0}; the guid exists, but does nto have a 'cluster_id' key (likely software error) {1}".format(guid, self.G.node.data()))
+        # minimise the number of edges, to keep the graph small
+        # but everything within each cluster connected.
+        self._minimise_edges(in_cluster_guids)     
+    def set_mixture_status(self,guid2neighbours, change_guids):
+        """ marks a set of guids as being mixed
 
-    def clusters2guid(self):
-        """ returns a cluster -> guid mapping """
-        retVal = {}
-        for guid in sorted(self.G.nodes):
-            try:
-                for cluster_id in self.G.node[guid]['cluster_id']:
-                    if not cluster_id in retVal.keys():
-                        retVal[cluster_id] = []  
-                    retVal[cluster_id].append(guid)
-            except KeyError:
-                # no cluster_id
-                pass
-        return retVal        
+        When updating a cluster to indicate that a sample's mixture status
+        has changed, it is necessary to supply *all* the edges between the samples
+        to which the mixed_guids are related.  The guids_linked_to()
+        function will provide this list.  This is because the clustering object does
+        not store all the edges, but without all the edges it cannot accurately
+        repartition the cluster when mixed sample recognition means that the cluster
+        needs to be rebuilt.
+        
+        inputs:
+            guid2neighbours : a dictionary of guids -> their neighbours
+            change_guids: a dictionary of guids -> either True (set mixed) or False (set not mixed)
+        
+        """
 
-    def clusters2guidmeta(self, after_change_id=None):
-        """ returns a cluster -> guid mapping """
-        retVal = []
-        for guid in sorted(self.G.nodes):
-            for cluster_id in self.G.node[guid]['cluster_id']:
-                change_id = self.G.node[guid]['change_id']
-                is_mixed = self.is_mixed(guid)
-                if (after_change_id is None) or (change_id > after_change_id):
-                    retVal.append({'guid':guid, 'cluster_id':cluster_id,'change_id':change_id, 'is_mixed':is_mixed})
-        return retVal
+        # sanity checks.
+        # check what edge data is needed.
+        required_guid2edge_guids = set(self.guids_linked_to(list(change_guids.keys())))
+        
+        # do we have the required edge data?
+        if not required_guid2edge_guids - set(guid2neighbours.keys()) == set():
+            raise KeyError("Asked to set mixture status on {0}.  This requires edge data for {1} however edge data for {2} was supplied.".format(change_guids.keys(), set(required_guid2edge_guids), set(guid2neighbours.keys())))
     
+        # are the change_guids linked to a logical
+        for v in change_guids.values():
+            ##print("VALUE", v)
+            if not v in [True, False]:
+                raise TypeError("Change_guids must have true/false values not {0} (from : {1})".format(v, change_guids))    
+        
+        # are the keys of change_guids in required_guid2edge_guids
+        for guid in change_guids.keys():
+            if not guid in required_guid2edge_guids:
+                raise KeyError("Asked to change {0} but neighbour information is not supplied".format(guid))
+        # end of validations
+        
+        
+        # check whether the guids to change mixture status on,
+        # which are the keys of change_guids, are already set correctly. 
+        n_guids = len(change_guids.keys())
+        n_mixed = 0
+        #print("CHANGE GUIDS",change_guids)
+        for guid in change_guids.keys():
+            if change_guids[guid] == self.is_mixed(guid):
+                n_mixed +=1
+        
+        # if all are already set, we need do nothing.       
+        if n_mixed == len(change_guids.keys()):
+            #print("no updates needed")
+            return      # don't have to anything - all already designated as mixed
+
+        # otherwise, we need to make changes.
+        # increase the change counter
+        self.change_id += 1
+          
+        # set the relevant samples to mixed
+        for guid in change_guids.keys():              
+            if not change_guids[guid] == self.is_mixed(guid):
+                #print("SETTING AS MIXED",guid)
+                self._change_guid_attribute(guid, 'is_mixed', change_guids[guid])    ## use custom function tracking history
+
+        if self.mixed_sample_management == 'ignore':
+            # then we don't need to change anything
+            #print("STOPPING AS TOLD TO IGNORE")
+            return
+            
+        # otherwise .. rebuild clusters, ignoring any mixed samples.
+        #print("Continuing analysis; mode = ",self.mixed_sample_management)
+        
+        # unlink all members of the cluster
+ 
+        # remove all edges from the guids of interest.
+        new_E = []
+        existing_E = []
+        for guid in required_guid2edge_guids:                      
+            for adjacent_node in list(self.G.adj[guid]):
+                #print("REMOVING EDGE",guid, adjacent_node)
+                existing_E.append([guid, adjacent_node])
+        self.G.remove_edges_from(existing_E)
+    
+        # make all links between mixed guids and existing guids, but
+        # do not make links involving mixed samples.
+        for guid in required_guid2edge_guids:
+            neighbours = guid2neighbours[guid]
+            for neighbour in neighbours:
+                neither_mixed = (self.is_mixed(guid)==False and self.is_mixed(neighbour)==False)    
+                #print("CONSIDERING NEW EDGE", guid, neighbour, neither_mixed)
+                if neither_mixed==True:    # only if the are both not mixed
+                     #print("Adding edge",guid, neighbour)
+                     new_E.append((guid,neighbour))
+
+        self.G.add_edges_from(new_E)
+            
+        # define the cluster(s) which have been generated by this operation
+        # note that mixed samples have not yet been added to these.
+        n_clusters_found = 0
+        for cluster_content in nx.connected_components(self.G):
+            # note any clusters which contain any guids of interest.
+            if len(cluster_content.intersection(required_guid2edge_guids))>0:
+                n_clusters_found +=1
+                #print("found a cluster:", cluster_content)
+                # cluster_content is a new cluster.  the largest clusters are delivered first.
+                if n_clusters_found == 1:
+                    # cluster_content get named as the old cluster name.
+                    # no change is needed
+                    pass
+                else:
+                    new_cluster_id = self._new_cluster_id()
+                    #print("Obtaining new cluster_id", new_cluster_id)
+                    for guid in cluster_content:
+                        #print("ASSIGNING",guid,new_cluster_id)
+                        #print("Pre change, clusterids:",self.G.nodes.data('cluster_id'))
+                        self._change_guid_attribute(guid, 'cluster_id', [new_cluster_id])
+                        #print("Post change, clusterids:",self.G.nodes.data('cluster_id'))
+                                                       
+        if self.mixed_sample_management == 'include':
+              #print("REASSIGNING/include")
+              for guid in change_guids.keys():
+                if self.is_mixed(guid):
+                    # identify any clusters which guids is linked to
+                    linked_to = set(self.guid2clusters(guid))
+                    for linked_guid in guid2neighbours[guid]:
+                        cluster_ids = self.guid2clusters(linked_guid)     
+                        #print("Found linked cluster_ids", cluster_ids)
+                        for cluster_id in cluster_ids:
+                            linked_to.add(cluster_id)
+                            #print("INCLUDE: FINDING LINKED CLUSTER IDS: ",guid, cluster_id, linked_to)
+                    # if we haven't found any linked clusters, then we do nothing, as it's in a cluster of its own already.
+                    #print("Pre change, clusterids:",self.G.nodes.data('cluster_id'))
+                    if len(linked_to)==0:
+                        pass
+                    else:
+                        self._change_guid_attribute(guid, 'cluster_id', list(linked_to))
+                    #print("Post change, clusterids:",self.G.nodes.data('cluster_id'))
+        # simplify the cluster, reducing the number of edges
+        self._minimise_edges(required_guid2edge_guids)
+        
+    
+  
 # unittests
-class test_snvc_init(unittest.TestCase):
+class test_init(unittest.TestCase):
     """ tests init method of snv_clustering """
     def runTest(self):
         """ tests init """
@@ -550,7 +528,7 @@ class test_is_mixed(unittest.TestCase):
         self.assertTrue(snvc.is_mixed('a'))
                    
    
-class test_snvc_minimise_edges(unittest.TestCase):
+class test_minimise_edges(unittest.TestCase):
     """ tests edge minimisation """
     def runTest(self):
         # set up
@@ -582,7 +560,7 @@ class test_snvc_minimise_edges(unittest.TestCase):
         self.assertEqual(cc_post, cc_pre)      # still all connected
         self.assertTrue(neighbours_post < neighbours_pre)       # edges minimised
         
-class test_snvc_add_sample_0(unittest.TestCase):
+class test_add_sample_0(unittest.TestCase):
     """ tests allocation of new clusterids """
     def runTest(self):
                
@@ -603,7 +581,37 @@ class test_snvc_add_sample_0(unittest.TestCase):
         snvc.G.remove_node('n2')    # number 2 should become available.
         self.assertEqual(snvc._new_cluster_id(),2)
 
-class test_snvc_update_clusterid_1(unittest.TestCase):
+class test_add_sample_0b(unittest.TestCase):
+    """ tests that one guid can't be added multiple times."""
+    def runTest(self):
+               
+        snvc = snv_clustering(snv_threshold=12)
+        
+        snvc.G.add_node('n1')
+        snvc.G.add_node('n1', mixed=1)
+        
+        self.assertEqual(len(snvc.G.nodes),1)
+
+class test_guids_linked_to(unittest.TestCase):
+    """ tests guids_linked_to """
+    def runTest(self):
+        snvc = snv_clustering(snv_threshold=12)
+
+        snvc.G.add_node('n1', cluster_id=[1])
+        snvc.G.add_node('n2', cluster_id=[1])
+        snvc.G.add_node('n3', cluster_id=[2])
+        snvc.G.add_node('n4', cluster_id=[1,3])
+ 
+        res = snvc.guids_linked_to(['n1'])
+        self.assertEqual(set(['n1','n2','n4']),set(res)) 
+
+        res = snvc.guids_linked_to(['n3'])
+        self.assertEqual(set(['n3']),set(res)) 
+
+        res = snvc.guids_linked_to(['n4'])
+        self.assertEqual(set(['n1','n2','n4']),set(res)) 
+
+class test_update_clusterid_1(unittest.TestCase):
     """ tests updating clusterid to that of the largest cluster"""
     def runTest(self):
                
@@ -619,7 +627,7 @@ class test_snvc_update_clusterid_1(unittest.TestCase):
         
         self.assertEqual(cluster_ids, {'n1':[1],'n2':[1],'n3':[1],'n4':[3]})
 
-class test_snvc_update_clusterid_2(unittest.TestCase):
+class test_update_clusterid_2(unittest.TestCase):
     """ tests updating clusterid to that of the largest cluster"""
     def runTest(self):
                
@@ -634,226 +642,7 @@ class test_snvc_update_clusterid_2(unittest.TestCase):
         cluster_ids = nx.get_node_attributes(snvc.G, 'cluster_id')
         
         self.assertEqual(cluster_ids, {'n1':[1],'n2':[1],'n3':[1],'n4':[1]})
-
-class test_traverse_1(unittest.TestCase):
-    """ tests updating clusterid to that of the largest cluster"""
-    def runTest(self):
-        # ignore; nothing mixed      
-        snvc = snv_clustering(snv_threshold=12, mixed_sample_management='ignore')
-
-        snvc.add_sample('n1', [])
-        snvc.add_sample('n2', ['n1'])
-        snvc.add_sample('n3', ['n1','n2'])      # this is going to be mixed
-        snvc.add_sample('n4', ['n3'])
-        snvc.add_sample('n5', ['n4','n3'])
-    
-        res = snvc._traverse_from('n3')
-        self.assertEqual(set(['n1','n2','n3','n4','n5']), res)
-
-class test_traverse_1b(unittest.TestCase):
-    """ tests updating clusterid to that of the largest cluster"""
-    def runTest(self):
-        # ignore; nothing mixed      
-        snvc = snv_clustering(snv_threshold=12, mixed_sample_management='include')
-
-        snvc.add_sample('n1', [])
-        snvc.add_sample('n2', ['n1'])
-        snvc.add_sample('n3', ['n1','n2'])      # this is going to be mixed
-        snvc.add_sample('n4', ['n3'])
-        snvc.add_sample('n5', ['n4','n3'])
-    
-        res = snvc._traverse_from('n3', how='ignore')
-        #print("Traverse from n3", res)
-        self.assertEqual(set(['n1','n2','n3','n4','n5']), res)
-
-class test_traverse_1c(unittest.TestCase):
-    """ tests splitting a cluster"""
-    def runTest(self):
-        # exclude; n3 mixed 
-        snvc = snv_clustering(snv_threshold=12, mixed_sample_management='include')
-
-        snvc.add_sample('n1', [])
-        snvc.add_sample('n2', ['n1'])
-        snvc.add_sample('n3', ['n2'])      # this is going to be mixed
-        snvc.add_sample('n4', ['n3'])
-        snvc.add_sample('n5', ['n4'])
-        
-        res = snvc._traverse_from('n3', how='ignore')
-        #print("Traverse from n3", res)
-        self.assertEqual(set(['n1','n2','n3','n4','n5']), res)
-
-        cluster_ids = nx.get_node_attributes(snvc.G, 'cluster_id')
-        #print("setting n3 mixed; clusterids pre", cluster_ids)
-        
-        snvc.set_mixed({'n3':['n2','n4']})
-        #print("set mixtures complete")
-        #print("TRAVERSE FROM n3", snvc._traverse_from('n3', how='ignore'))
-       
-
-class test_traverse_1d(unittest.TestCase):
-    """ tests traversal"""
-    def runTest(self):
-        # exclude; n3 mixed 
-        snvc = snv_clustering(snv_threshold=12, mixed_sample_management='include')
-
-        snvc.add_sample('n1', [])
-        snvc.add_sample('n2', ['n1'])
-        snvc.add_sample('n3', ['n2'])      # this is going to be mixed
-        snvc.add_sample('n4', ['n3'])
-        snvc.add_sample('n5', ['n4'])
-        
-        res1 = snvc._traverse_from('n3', how='ignore')
-        #print("Traverse from n3", res1)
-        self.assertEqual(set(['n1','n2','n3','n4','n5']), res1)
-
-        #print("SETTING AS MIXED n3 on ", snvc.G.edges)
-        snvc._change_guid_attribute('n3', 'is_mixed', True)    ## use custom function tracking history
-       
-        res2 = snvc._traverse_from('n3', how='ignore')
-        #print("TRAVERSE FROM n3 via edges ", snvc.G.edges)
-        #print("result ",res2)
-        
-        #print(res1, res2)
-        self.assertEqual(res1,res2)
-class test_traverse_2(unittest.TestCase):
-    """ tests traversal"""
-    def runTest(self):
-        # ignore; n3 mixed 
-        snvc = snv_clustering(snv_threshold=12, mixed_sample_management='ignore')
-
-        snvc.add_sample('n1', [])
-        snvc.add_sample('n2', ['n1'])
-        snvc.add_sample('n3', ['n1','n2'])      # this is going to be mixed
-        snvc.add_sample('n4', ['n3'])
-        snvc.add_sample('n5', ['n4','n3'])
-        res = snvc._traverse_from('n1')
-        self.assertEqual(set(['n1','n2','n3','n4','n5']), res)
-
-        snvc.set_mixed({'n3': ['n1','n2','n4','n5']})
-        self.assertTrue(snvc.is_mixed('n3'))
-        res = snvc._traverse_from('n1')
-        #print(res)
-        self.assertEqual(set(['n1','n2','n3','n4','n5']), res)
-
-class test_traverse_3(unittest.TestCase):
-    """ tests traversal"""
-    def runTest(self):
-        # include; n3 mixed 
-        snvc = snv_clustering(snv_threshold=12, mixed_sample_management='include')
-
-        snvc.add_sample('n1', [])
-        snvc.add_sample('n2', ['n1'])
-        snvc.add_sample('n3', ['n1','n2'])      # this is going to be mixed
-        snvc.add_sample('n4', ['n3'])
-        snvc.add_sample('n5', ['n4','n3'])
-        self.assertFalse(snvc.is_mixed('n3'))
-        snvc.set_mixed({'n3':['n1','n2','n4','n5']})
-        self.assertTrue(snvc.is_mixed('n3'))
-
-        res = snvc._traverse_from('n1')
-        #print("post",res)
-        self.assertEqual(set(['n1','n2','n3']), res)
-        res = snvc._traverse_from('n5')
-        self.assertEqual(set(['n5','n4','n3']), res)
-
-class test_traverse_4(unittest.TestCase):
-    """ tests traversal"""
-    def runTest(self):
-        # exclude; n3 mixed 
-        snvc = snv_clustering(snv_threshold=12, mixed_sample_management='exclude')
-
-        snvc.add_sample('n1', [])
-        snvc.add_sample('n2', ['n1'])
-        snvc.add_sample('n3', ['n1','n2'])      # this is going to be mixed
-        snvc.add_sample('n4', ['n3'])
-        snvc.add_sample('n5', ['n4','n3'])
-        snvc.set_mixed({'n3':['n1','n2','n4','n5']})
-        self.assertTrue(snvc.is_mixed('n3'))
-
-        res = snvc._traverse_from('n1')
-        #print("travers from n1",res)
-        self.assertEqual(set(['n1','n2']), res)
-
-        res = snvc._traverse_from('n5')
-        self.assertEqual(set(['n5','n4']), res)
-
-class test_traverse_5(unittest.TestCase):
-    """ tests applying mixtures with EXCLUDE"""
-    def runTest(self):
-        # exclude; n3 mixed 
-        snvc = snv_clustering(snv_threshold=12, mixed_sample_management='exclude')
-
-        snvc.add_sample('n1', [])
-        snvc.add_sample('n2', ['n1'])
-        snvc.add_sample('n3', ['n2'])      # this is going to be mixed
-        snvc.add_sample('n4', ['n3'])
-        snvc.add_sample('n5', ['n4'])
-        cluster_ids = nx.get_node_attributes(snvc.G, 'cluster_id')
-        #print(cluster_ids)
-        
-        snvc.set_mixed({'n3':['n2','n4']})
-        #print("Graph post set mixed",snvc.G.edges())
-        #print("TRAVERSE FROM n3", snvc._traverse_from('n3', how='ignore'))
-        
-        cluster_ids = nx.get_node_attributes(snvc.G, 'cluster_id')
-        #print("POST",cluster_ids)
-        self.assertEqual(cluster_ids['n1'], cluster_ids['n2'])
-        self.assertEqual(cluster_ids['n4'], cluster_ids['n5'])
-        self.assertFalse(cluster_ids['n1']==cluster_ids['n4'])
-        self.assertFalse(cluster_ids['n1']==cluster_ids['n3'])
-        self.assertFalse(cluster_ids['n4']==cluster_ids['n3'])
-        self.assertTrue(len(cluster_ids['n3'])==1)
-           
-class test_traverse_6(unittest.TestCase):
-    """ tests splitting a cluster"""
-    def runTest(self):
-        # exclude; n3 mixed 
-        snvc = snv_clustering(snv_threshold=12, mixed_sample_management='include')
-
-        snvc.add_sample('n1', [])
-        snvc.add_sample('n2', ['n1'])
-        snvc.add_sample('n3', ['n2'])      # this is going to be mixed
-        snvc.add_sample('n4', ['n3'])
-        snvc.add_sample('n5', ['n4'])
-        cluster_ids = nx.get_node_attributes(snvc.G, 'cluster_id')
-        #print("setting n3 mixed")
-        snvc.set_mixed({'n3':['n2','n4']})
-        #print("set mixtures complete")
-        #print("TRAVERSE FROM n3", snvc._traverse_from('n3', how='ignore'))
-        
-        cluster_ids = nx.get_node_attributes(snvc.G, 'cluster_id')
-        #print("POST",cluster_ids)
-        
-        self.assertEqual(cluster_ids['n1'], cluster_ids['n2'])
-        self.assertEqual(cluster_ids['n4'],cluster_ids['n5'])
-        self.assertFalse(cluster_ids['n1']==cluster_ids['n4'])
-        self.assertFalse(cluster_ids['n1']==cluster_ids['n5'])
-        self.assertTrue(len(cluster_ids['n3'])==2)
-               
-class test_traverse_7(unittest.TestCase):
-    """ tests splitting a cluster with two mixed samples"""
-    def runTest(self):
-        # exclude; n3 mixed 
-        snvc = snv_clustering(snv_threshold=12, mixed_sample_management='include')
-
-        snvc.add_sample('n1', [])
-        snvc.add_sample('n2', ['n1'])
-        snvc.add_sample('n3', ['n2'])      # this is going to be mixed
-        snvc.add_sample('n4', ['n3'])
-        snvc.add_sample('n5', ['n4'])
-        snvc.add_sample('n6', ['n5'])
-        cluster_ids = nx.get_node_attributes(snvc.G, 'cluster_id')
-        
-        snvc.set_mixed({'n3':['n2','n4'], 'n5':['n4','n6']})
-        cluster_ids = nx.get_node_attributes(snvc.G, 'cluster_id')
-
-        self.assertEqual(cluster_ids['n1'], cluster_ids['n2'])
-        self.assertFalse(cluster_ids['n6']==cluster_ids['n5'])
-        self.assertFalse(cluster_ids['n1']==cluster_ids['n4'])
-        self.assertFalse(cluster_ids['n1']==cluster_ids['n5'])
-        self.assertTrue(len(cluster_ids['n5'])==2)
                 
-                 
 class test_add_sample_2(unittest.TestCase):
     """ tests insertion of new samples, where all form one cluster. """
     def runTest(self):
@@ -921,7 +710,7 @@ class test_add_sample_4(unittest.TestCase):
         self.assertEqual(cluster_ids, {'n1_1':[1],'n2_1':[2],'n2_2':[2],'n2_3':[2]})
   
         # they are linked by a mixed sample
-        snvc.set_mixed({'n2_2':['n2_1','n2_3']})
+        snvc.set_mixture_status({'n1_1':[], 'n2_1':['n2_2'],'n2_2':['n2_1','n2_3'], 'n2_3':['n2_2']}, {'n2_2':True})
         cluster_ids = nx.get_node_attributes(snvc.G, 'cluster_id')
 
         self.assertFalse(cluster_ids['n1_1']==cluster_ids['n2_1'])
@@ -955,10 +744,14 @@ class test_add_sample_5(unittest.TestCase):
         snvc.add_sample('n2_3', ['n2_2'])
         cluster_ids = nx.get_node_attributes(snvc.G, 'cluster_id')
         self.assertEqual(cluster_ids, {'n1_1':[1],'n2_1':[2],'n2_2':[2],'n2_3':[2]})
-  
+
+        #print("PRE:",cluster_ids)
+        
         # they are linked by a mixed sample
-        snvc.set_mixed({'n2_2':['n2_1','n2_3']})
+        snvc.set_mixture_status({'n1_1':[], 'n2_1':['n2_2'],'n2_2':['n2_1','n2_3'], 'n2_3':['n2_2']}, {'n2_2':True})
+   
         cluster_ids = nx.get_node_attributes(snvc.G, 'cluster_id')
+        #print("POST:",cluster_ids)
         self.assertFalse(cluster_ids['n1_1']==cluster_ids['n2_1'])
         self.assertTrue(cluster_ids['n2_1']==cluster_ids['n2_3'])
         self.assertTrue(cluster_ids['n2_2']==cluster_ids['n2_3'])
@@ -967,13 +760,16 @@ class test_add_sample_5(unittest.TestCase):
         cluster_ids = nx.get_node_attributes(snvc.G, 'cluster_id')
         self.assertFalse(cluster_ids['n1_1']==cluster_ids['n2_1'])
         self.assertTrue(cluster_ids['n2_1']==cluster_ids['n2_3'])
-
+        cluster_ids = nx.get_node_attributes(snvc.G, 'cluster_id')
+        #print("POST N3:",cluster_ids)
+        
         snvc.add_sample('n4', ['n1_1','n2_1'])
         cluster_ids = nx.get_node_attributes(snvc.G, 'cluster_id')
-        self.assertEqual(cluster_ids['n1_1'], cluster_ids['n2_1'])
-        self.assertEqual(cluster_ids['n1_1'], cluster_ids['n4'])
+        #print("POST N4:",cluster_ids)
+        self.assertFalse(cluster_ids['n1_1']==cluster_ids['n2_1'])
+        self.assertFalse(cluster_ids['n1_1']==cluster_ids['n4'])
         self.assertTrue(cluster_ids['n2_1']==cluster_ids['n2_3'])
-        self.assertTrue(cluster_ids['n1_1']==cluster_ids['n4'])
+        self.assertFalse(cluster_ids['n1_1']==cluster_ids['n4'])
         self.assertEqual(len(set(cluster_ids['n2_2']+cluster_ids['n2_1']+cluster_ids['n2_3'])),1) # all in same clusters
 
 class test_add_sample_6(unittest.TestCase):
@@ -994,7 +790,8 @@ class test_add_sample_6(unittest.TestCase):
         self.assertEqual(cluster_ids, {'n1_1':[1],'n2_1':[2],'n2_2':[2],'n2_3':[2]})
   
         # they are linked by a mixed sample
-        snvc.set_mixed({'n2_2':['n2_1','n2_3']})
+        snvc.set_mixture_status({'n1_1':[], 'n2_1':['n2_2'],'n2_2':['n2_1','n2_3'], 'n2_3':['n2_2']}, {'n2_2':True})
+   
         cluster_ids = nx.get_node_attributes(snvc.G, 'cluster_id')
         
         self.assertFalse(cluster_ids['n1_1']==cluster_ids['n2_1'])
@@ -1020,14 +817,44 @@ class test_add_sample_7(unittest.TestCase):
         self.assertEqual(cluster_ids, {'n1_1':[1],'n2_1':[1],'n2_2':[1],'n2_3':[1]})
   
         # they are all mixed.
-        snvc.set_mixed({'n1_1':['n2_1'], 'n2_1':['n1_1','n2_2'],'n2_2':['n2_1','n2_3'], 'n2_3':['n2_2']})
+        snvc.set_mixture_status({'n1_1':['n2_1'], 'n2_1':['n1_1','n2_2'],'n2_2':['n2_1','n2_3'], 'n2_3':['n2_2']}, {'n1_1':True,'n2_1':True, 'n2_2':True, 'n2_3':True})
         cluster_ids = nx.get_node_attributes(snvc.G, 'cluster_id')
+        #print(cluster_ids,'POST')
         # how many clusters
         clids = set()
         for clid_list in cluster_ids.values():
             for clid in clid_list:
                 clids.add(clid)
         self.assertEqual(len(clids),4)
+
+
+class test_add_sample_8(unittest.TestCase):
+    """ tests combining clusters, one of which is mixed.  using exclude (the mixed sample).
+    What should happen is that we should get sets [1-1] [2_1] [2_2] [2_3]"""
+    def runTest(self):
+               
+        snvc = snv_clustering(snv_threshold=12, mixed_sample_management='exclude')
+        
+        # add two clusters
+        snvc.add_sample('n1_1')      # cluster 1, member 1
+
+        snvc.add_sample('n2_1')     # cluster 2, members 1-3
+        snvc.add_sample('n2_2', ['n2_1'])
+        snvc.add_sample('n2_3', ['n2_2'])
+        cluster_ids = nx.get_node_attributes(snvc.G, 'cluster_id')
+         
+        self.assertEqual(cluster_ids, {'n1_1':[1],'n2_1':[2],'n2_2':[2],'n2_3':[2]})
+  
+        # they are linked by a mixed sample
+        snvc.set_mixture_status({'n1_1':[], 'n2_1':['n2_2'],'n2_2':['n2_1','n2_3'], 'n2_3':['n2_2']}, {'n2_2':True})
+        cluster_ids = nx.get_node_attributes(snvc.G, 'cluster_id')
+        ###print(cluster_ids)
+        self.assertFalse(cluster_ids['n1_1']==cluster_ids['n2_1'])
+        self.assertFalse(cluster_ids['n2_1']==cluster_ids['n2_3'])
+        self.assertFalse(cluster_ids['n2_3']==cluster_ids['n2_2'])
+        self.assertFalse(cluster_ids['n2_1']==cluster_ids['n2_2'])
+ 
+
 
 class test_guids(unittest.TestCase):
     """ tests recovery of list of guids """
@@ -1041,7 +868,7 @@ class test_guids(unittest.TestCase):
         snvc.add_sample('n3')      
         self.assertEqual(snvc.guids(),set(['n1','n2','n3']))
 
-class test_guid2clusters(unittest.TestCase):
+class test_guid2clusters_1(unittest.TestCase):
     """ tests recovery of list of guids """
     def runTest(self):
         snvc = snv_clustering(snv_threshold=12, mixed_sample_management='include')
@@ -1055,7 +882,7 @@ class test_guid2clusters(unittest.TestCase):
 
         self.assertEqual(snvc.guid2clusters('n1'), [1])
 
-class test_guid2clusters(unittest.TestCase):
+class test_guid2clusters_2(unittest.TestCase):
     """ tests recovery of list of guids """
     def runTest(self):
         snvc = snv_clustering(snv_threshold=12, mixed_sample_management='include')
@@ -1090,19 +917,15 @@ class test_clusters2guidmeta(unittest.TestCase):
                          {'guid': 'n3', 'cluster_id': 1, 'change_id': 3, 'is_mixed': False}]
                         )
 
-        res2 = snvc.clusters2guidmeta(after_change_id = 2)     
-        self.assertEqual(res2,
-                        [{'guid': 'n3', 'cluster_id': 1, 'change_id': 3, 'is_mixed': False}]
-                        )
-        
-        snvc.set_mixed({'n2':['n1','n3']})
-        
+      
+        snvc.set_mixture_status({'n1':['n2'], 'n2':['n1','n2','n3'],'n3':['n2']}, {'n2':True})
+       
         res3 = snvc.clusters2guidmeta()
         df = pd.DataFrame.from_records(res3)
-
-        self.assertEqual(len(df.index), 4)
-        self.assertEqual(len(df.query('guid=="n2"').index),2)
-        self.assertEqual(df['change_id'].tolist(), [4,4,4,4])
+        #print(df)
+        self.assertEqual(len(df.index), 5)
+        self.assertEqual(len(df.query('guid=="n2"').index),3)
+        self.assertEqual(df['change_id'].tolist(), [1,4,4,4,4])
 
 class test_Raise_error(unittest.TestCase):
     """ tests raise_error"""
@@ -1112,13 +935,25 @@ class test_Raise_error(unittest.TestCase):
         with self.assertRaises(ZeroDivisionError):
             snvc.raise_error("token")
         
-class test_set_mixed(unittest.TestCase):
+class test_set_mixed_1(unittest.TestCase):
     """ tests _set_mixed function """
     def runTest(self):
         # set up
         snvc = snv_clustering(snv_threshold=12)
         snvc.add_sample('c',[])
         self.assertFalse(snvc.is_mixed('c'))
-        snvc.set_mixed({'c': []})
+        snvc.set_mixture_status({'c': []},{'c':True})
         self.assertTrue(snvc.is_mixed('c'))
-      
+
+class test_set_mixed_2(unittest.TestCase):
+    """ tests set_mixed function """
+    def runTest(self):
+        # set up
+        snvc = snv_clustering(snv_threshold=12)
+        snvc.add_sample('c',[])
+        self.assertFalse(snvc.is_mixed('c'))
+        snvc.set_mixture_status({'c': []},{'c':True})
+        self.assertTrue(snvc.is_mixed('c'))
+        snvc.set_mixture_status({'c': []},{'c':False})
+        self.assertFalse(snvc.is_mixed('c'))
+                
