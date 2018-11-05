@@ -31,12 +31,19 @@
     </select>
             <label for="cluster_id">Select a cluster identifier:</label>
             <input id="cluster_id" type='number' name="value" value=0>
-
+			<button id="downloadPng" >Download PNG</button>
+			<button id="downloadJson" >Download JSON</button>
       <script>
         // define layout function
-
+		var cy;
     
-
+		$("#downloadPng").click(function(){
+			alert("Downloading PNG: " + cy);
+		});
+		
+		$("#downloadJson").click(function(){
+			alert("Downloading JSON: " + cy);
+		});
  
         $("#cluster_id").change( function() {
             //alert("About to load"+ $("#cluster_id").val() );
@@ -136,7 +143,7 @@
                     document.getElementById('cy_title').innerHTML = "Could not render network: "+data['message'];
                 
                 } else {
-                    var cy = cytoscape({
+                    cy = cytoscape({
                         container: document.getElementById('cy'),
                         elements: data['elements'],
                         style: [
