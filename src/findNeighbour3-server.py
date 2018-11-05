@@ -343,7 +343,7 @@ class findNeighbour3():
 			if clustering_name_for_recompression is not None and self.recompress_frequency > 0:
 				# every self.on_startup_repack_memory_every samples, or when the load is over, get the clusters
 				if nLoaded % self.on_startup_repack_memory_every == 0 or nLoaded == len(guids):		# periodically recompress
-					app.logger.info("Recompressing memory .. {0}/{1} loaded".format(nLoaded, len(guids)))
+					app.logger.info("Recompressing memory based on {2}.. {0}/{1} loaded".format(nLoaded, len(guids), clustering_name_for_recompression))
 					nRecompressed = 0 	
 					cl2g = self.clustering[clustering_name].clusters2guid()
 					total_clusters = len(cl2g.keys())
