@@ -47,20 +47,26 @@ for i,fastafile in enumerate(glob.glob(os.path.join(fastadir, 'control','*.fasta
 for i,fastafile in enumerate(sorted(glob.glob(os.path.join(fastadir, 'test', '*.fasta')))):
     
     guid = os.path.basename(fastafile).replace('.fasta','')
-    seq = fn3c.read_fasta_file(fastafile)['seq']
-    if not guid in existing_guids:
-        fn3c.insert(guid=guid,seq=seq)
-        result= 'inserted'
-        for clustering_algorithm in clusters['algorithms']:
-        
-            df = fn3c.guids2clusters(clustering_algorithm)
-            df['step'] = i
-            df['clustering_algorithm']=clustering_algorithm
-            if not clustering_created:
-                clustering_df = df
-                clustering_created = True
-            else:
-                clustering_df = pd.concat([clustering_df,df], ignore_index=True, sort=False)
+    read_failed = False
+    try:
+        seq = fn3c.read_fasta_file(fastafile)['seq']
+    except IOError:
+        read_failed = True
+    
+    if not read_failed:    
+        if not guid in existing_guids:
+            fn3c.insert(guid=guid,seq=seq)
+            result= 'inserted'
+            for clustering_algorithm in clusters['algorithms']:
+            
+                df = fn3c.guids2clusters(clustering_algorithm)
+                df['step'] = i
+                df['clustering_algorithm']=clustering_algorithm
+                if not clustering_created:
+                    clustering_df = df
+                    clustering_created = True
+                else:
+                    clustering_df = pd.concat([clustering_df,df], ignore_index=True, sort=False)
 
     else:
         result = 'exists, skipped re-insert'
