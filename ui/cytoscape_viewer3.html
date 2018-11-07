@@ -1,7 +1,7 @@
 <html>
 
 <head>
-    <title>test cytoscape code</title>
+    <title>Cluster visualisation</title>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.2.18/cytoscape.min.js"></script>
     <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
@@ -22,36 +22,24 @@
 <body>
  <div class="demo">
  
- 
+
          <p><label for="cpname">For</label> <select name="cpname" id="cpname">
-            <option>
-                SNV12_exclude
-            </option>
-
-            <option>
-                SNV12_include
-            </option>
-
-            <option selected="selected">
-                SNV12_ignore
-            </option>
+            
         </select>
         <label for="cluster_id">show cluster</label> <input id="cluster_id" type='number' name="value" value="1">
         <button id="doDepiction" >Show network</button></p>
         <p>
          <button id="addLabels" name="addLabels">Add cluster identifiers from clustering strategy</button> 
        <label for="annotname"></label> <select name="annotname" id="annotname">
-            <option>SNV12_exclude</option>
-            <option>SNV12_include</option>
-            <option>SNV12_ignore</option>
             </p>
          </select>
         <p>
-       <span id="usingFontSize">Adjust font size</span> 
-        <div class="slidecontainer">
-         <input type="range" min="1" max="10" value="2" class="slider" id="csFontSize">
-</div></p>
-        </p>
+       <span id="usingFontSize">Adjust label size</span> 
+                 <input type="range" min="1" max="10" value="2" class="slider" id="csFontSize">
+
+       <span id="usingNodeSize">node size</span> 
+                 <input type="range" min="1" max="10" value="2" class="slider" id="csNodeSize">
+</p>
         <p>    <div id="cy_title"></div>
     <div id="cy"></div>
     
@@ -60,245 +48,292 @@
         </p>
         
 
-    <script>
-      // layout options
+<script>
+// layout options
 var baseurl = "http://127.0.0.1:5020/api/v2/";
 var options = {
-        name: 'cose',
-      
-        // Called on `layoutready`
-        ready: function(){},
-      
-        // Called on `layoutstop`
-        stop: function(){},
+    name: 'cose',
+
+    // Called on `layoutready`
+    ready: function() {},
+
+    // Called on `layoutstop`
+    stop: function() {},
+
+    // Whether to animate while running the layout
+    // true : Animate continuously as the layout is running
+    // false : Just show the end result
+    // 'end' : Animate with the end result, from the initial positions to the end positions
+    animate: true,
+
+    // Easing of the animation for animate:'end'
+    animationEasing: undefined,
+
+    // The duration of the animation for animate:'end'
+    animationDuration: undefined,
+
+    // A function that determines whether the node should be animated
+    // All nodes animated by default on animate enabled
+    // Non-animated nodes are positioned immediately when the layout starts
+    animateFilter: function(node, i) {
+        return true;
+    },
+
+
+    // The layout animates only after this many milliseconds for animate:true
+    // (prevents flashing on fast runs)
+    animationThreshold: 250,
+
+    // Number of iterations between consecutive screen positions update
+    // (0 -> only updated on the end)
+    refresh: 20,
+
+    // Whether to fit the network view after when done
+    fit: true,
+
+    // Padding on fit
+    padding: 30,
+
+    // Constrain layout bounds; { x1, y1, x2, y2 } or { x1, y1, w, h }
+    boundingBox: undefined,
+
+    // Excludes the label when calculating node bounding boxes for the layout algorithm
+    nodeDimensionsIncludeLabels: false,
+
+    // Randomize the initial positions of the nodes (true) or use existing positions (false)
+    randomize: false,
+
+    // Extra spacing between components in non-compound graphs
+    componentSpacing: 40,
+
+    // Node repulsion (non overlapping) multiplier
+    nodeRepulsion: function(node) {
+        return 2048;
+    },
+
+    // Node repulsion (overlapping) multiplier
+    nodeOverlap: 4,
+
+    // Ideal edge (non nested) length
+    idealEdgeLength: function(edge) {
+        return 32;
+    },
+
+    // Divisor to compute edge forces
+    edgeElasticity: function(edge) {
+        return 32;
+    },
+
+    // Nesting factor (multiplier) to compute ideal edge length for nested edges
+    nestingFactor: 1.2,
+
+    // Gravity force (constant)
+    gravity: 1,
+
+    // Maximum number of iterations to perform
+    numIter: 1000,
+
+    // Initial temperature (maximum node displacement)
+    initialTemp: 1000,
+
+    // Cooling factor (how the temperature is reduced between consecutive iterations
+    coolingFactor: 0.99,
+
+    // Lower temperature threshold (below this point the layout will end)
+    minTemp: 1.0,
+
+    // Pass a reference to weaver to use threads for calculations
+    weaver: false
+};
+
+function getPipelines() {
+    $.ajax({
+        type: "GET",
+        url: baseurl + "clustering",
+        success: function(data) {
+            buildDropdown(JSON.parse(data), $('#annotname'));
+            buildDropdown(JSON.parse(data), $('#cpname'));
+        }
+    });
+}
+
+function buildDropdown(result, dropdown) {
+    // builds a dropdown from the 'algorithms' (a list) property of 'result'
+    // Remove current options
+    dropdown.html('');
+    if (result != '') {
+        // Loop through each of the results and append the option to the dropdown
+        console.log(result);
+        for (i = 0; i < result.algorithms.length; i++) {
+            dropdown.append('<option value="' + result.algorithms[i] + '">' + result.algorithms[i] + '</option>');
+        }
+    }
+}
+
+function depict_network() {
+    var network_name = $("#cpname").val() + "/" + $("#cluster_id").val();
+    document.getElementById('cy_title').innerHTML = network_name;
+    document.getElementById('cy').innerHTML = "-- data for " + network_name + " is loading --";
+
+    var url1 = baseurl + "clustering/" + network_name + "/network";
+
+    $.getJSON(url1, {}, function(data) {
+        document.getElementById('cy').innerHTML = "";
+        console.log(url1);
+        generate_cytoscape_object(
+            container = document.getElementById('cy'),
+            data = data);
         
-        // Whether to animate while running the layout
-        // true : Animate continuously as the layout is running
-        // false : Just show the end result
-        // 'end' : Animate with the end result, from the initial positions to the end positions
-        animate: true,
-      
-        // Easing of the animation for animate:'end'
-        animationEasing: undefined,
-      
-        // The duration of the animation for animate:'end'
-        animationDuration: undefined,
-      
-        // A function that determines whether the node should be animated
-        // All nodes animated by default on animate enabled
-        // Non-animated nodes are positioned immediately when the layout starts
-        animateFilter: function ( node, i ){ return true; },
-      
-      
-        // The layout animates only after this many milliseconds for animate:true
-        // (prevents flashing on fast runs)
-        animationThreshold: 250,
-      
-        // Number of iterations between consecutive screen positions update
-        // (0 -> only updated on the end)
-        refresh: 20,
-      
-        // Whether to fit the network view after when done
-        fit: true,
-      
-        // Padding on fit
-        padding: 30,
-      
-        // Constrain layout bounds; { x1, y1, x2, y2 } or { x1, y1, w, h }
-        boundingBox: undefined,
-      
-        // Excludes the label when calculating node bounding boxes for the layout algorithm
-        nodeDimensionsIncludeLabels: false,
-      
-        // Randomize the initial positions of the nodes (true) or use existing positions (false)
-        randomize: false,
-      
-        // Extra spacing between components in non-compound graphs
-        componentSpacing: 40,
-      
-        // Node repulsion (non overlapping) multiplier
-        nodeRepulsion: function( node ){ return 2048; },
-      
-        // Node repulsion (overlapping) multiplier
-        nodeOverlap: 4,
-      
-        // Ideal edge (non nested) length
-        idealEdgeLength: function( edge ){ return 32; },
-      
-        // Divisor to compute edge forces
-        edgeElasticity: function( edge ){ return 32; },
-      
-        // Nesting factor (multiplier) to compute ideal edge length for nested edges
-        nestingFactor: 1.2,
-      
-        // Gravity force (constant)
-        gravity: 1,
-      
-        // Maximum number of iterations to perform
-        numIter: 1000,
-      
-        // Initial temperature (maximum node displacement)
-        initialTemp: 1000,
-      
-        // Cooling factor (how the temperature is reduced between consecutive iterations
-        coolingFactor: 0.99,
-      
-        // Lower temperature threshold (below this point the layout will end)
-        minTemp: 1.0,
-      
-        // Pass a reference to weaver to use threads for calculations
-        weaver: false
-      };
-      function depict_network() {
-               document.getElementById('cy_title').innerHTML = "Network for "+$("#cpname").val() +"/"+ $("#cluster_id").val()+".";
-               document.getElementById('cy').innerHTML = "-- data loading --";
+        // now there is a network in place, we can do things with it;
+        $("#downloadPng").show();
+        $("#downloadJson").show();
+        $("#addLabels").show();
+        $("#annotname").show();
+        $("#csFontSize").show();
+        $("#csNodeSize").show();
+        $("#usingNodeSize").show();
+        $("#usingFontSize").show();
+    });
 
-               var url1 = baseurl + "clustering/" + $("#cpname").val() +"/"+ $("#cluster_id").val() +"/network";
+}
 
-               $.getJSON(url1, {}, function(data) {
-                 document.getElementById('cy').innerHTML = "";
-                 console.log(url1);
-                 console.log("pre:", Object.keys(data));
-                 console.log("post:", Object.keys(data));                     
-                    generate_cytoscape_object(
-                    container =  document.getElementById('cy'),
-                    data = data);
-   
-                 $("#downloadPng").show();
-                 $("#downloadJson").show();
-                 $("#addLabels").show();
-                 $("#annotname").show();
-                 $("#csFontSize").show();
-                 $("#usingFontSize").show();
-                                                          
-              return 0;
-                                            });
+function add_labels() {
+    // display node labels
+    var chosenFontSize = $("#csFontSize").val();
+    console.log(chosenFontSize);
+    var url2 = baseurl + "clustering/" + $("#annotname").val() + "/guids2clusters";
+    var g2c = $.getJSON(url2, {}, function(g2c_list) {
+        console.log(url2);
+        // update node properties
+        l = g2c_list.length;
+        for (var i = 0; i < l; i++) {
+            var item = g2c_list[i];
+            cy.$("#" + item.guid).css({
+                "font-size": chosenFontSize,
+                "content": item.cluster_id
+            });
+        }
+    });
+}
 
-      }
-      function add_labels() {
-       cy.on('click', 'node', function(evt){
-            var node = evt.target;
-            console.log( 'tapped ' + node.id() );
-          });
-        var chosenFontSize = $("#csFontSize").val()
-        console.log(chosenFontSize)
-        var url2 = baseurl + "clustering/" + $("#annotname").val() +"/guids2clusters";               
-        var g2c = $.getJSON(url2, {}, function(g2c_list) {
-                         console.log(url2);
-                       // reformat dictionary into guid -> clusterid
-                       // update node properties
-                       l = g2c_list.length;
-                        for (var i = 0; i < l; i++) {
-                                var item = g2c_list[i];
-                                cy.$("#"+item.guid).css({"font-size": chosenFontSize, "content": item.cluster_id});
-                             };
-                       });
-             };
-      
-      function generate_cytoscape_object(container, data) {
-            
-             
-             custom_style = [
-                      {
-                        selector: 'node[is_mixed=0]',
-                        style: {
-                          'shape': 'square',
-                          'background-color': 'blue'
-                        }
-                      },
-                      {
-                        selector: 'node[is_mixed=1]',
-                        style: {
-                          'shape': 'square',
-                          'background-color': 'red'
-                        }
-                      },
-                      {
-                          selector: 'node',
-                          style: {
-                              'width': '5px',
-                              'height': '5px',
-                              'background-fit': 'contain',
-                              'background-clip': 'none'
-                          }
-                      }, {
-                          selector: 'edge',
-                          style: {
-                             'text-background-color': 'yellow',
-                              'text-background-opacity': 0.4,
-                              'width': '0.5px',
-                              'target-arrow-shape': 'triangle',
-                              'control-point-step-size': '140px'
-                          }
-                      }
-                  ];
+function resize_nodes() {
+    // resize nodes
+    var chosenNodeSize = $("#csNodeSize").val();
+    console.log(chosenNodeSize);
+    cy.$("node").css({
+        "width": chosenNodeSize + "px",
+        "height": chosenNodeSize + "px"
+    });
+
+}
+
+function generate_cytoscape_object(container, data) {
 
 
-             cy = cytoscape({
-                   container: container,
-                   elements: data['elements'],
-                   style: custom_style ,
-                  layout: {
-                      name: 'cose'
-                  },
-                  options: {
-                      options
-                  }
-              });
-             
-
-           return;
-          }
-       function download(filename, payload) {
-          var element = document.createElement('a');
-          element.setAttribute('href', 'data:'+payload);
-          element.setAttribute('download', filename);
-          element.style.display = 'none';
-          document.body.appendChild(element);
-          element.click();
-          document.body.removeChild(element);
-        }  
-      $("#downloadPng").click(function(){
-       filestem = $("#cpname").val() +"_"+ $("#cluster_id").val();
-       payload = cy.png();
-       download(filestem+".png",payload);
-  
-      });
-      
-      $("#downloadJson").click(function(){
-       filestem = $("#cpname").val() +"_"+ $("#cluster_id").val();
-       payload = "application/json;charset=utf-8," + encodeURIComponent(JSON.stringify(cy.json()));
-       download(filestem+".json",payload);
-       });
-     
-      $("#cluster_id").change( function() {
-          depict_network()            
-          });
-      $("#doDepiction").click( function() {
-          depict_network()            
-          });
-      $("#addLabels").click( function() {
-          add_labels()            
-          });         
-      $("#csFontSize").change( function() {
-          add_labels()            
-          });  
-
-   </script>
+    custom_style = [{
+            selector: 'node[is_mixed=0]',
+            style: {
+                'shape': 'square',
+                'background-color': 'blue'
+            }
+        }, {
+            selector: 'node[is_mixed=1]',
+            style: {
+                'shape': 'square',
+                'background-color': 'red'
+            }
+        }, {
+            selector: 'node',
+            style: {
+                'width': '5px',
+                'height': '5px',
+                'background-fit': 'contain',
+                'background-clip': 'none'
+            }
+        }, {
+            selector: 'edge',
+            style: {
+                'text-background-color': 'yellow',
+                'text-background-opacity': 0.4,
+                'width': '0.5px',
+                'target-arrow-shape': 'triangle',
+                'control-point-step-size': '140px'
+            }
+        }
+    ];
 
 
+    cy = cytoscape({
+        container: container,
+        elements: data.elements,
+        style: custom_style,
+        layout: {
+            name: 'cose'
+        },
+        options: {
+            options
+        }
+    });
 
-    
-    <script>
-    // any extra code here
+
+    return;
+}
+
+function download(filename, payload) {
+    var element = document.createElement('a');
+    element.setAttribute('href', 'data:' + payload);
+    element.setAttribute('download', filename);
+    element.style.display = 'none';
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+}
+$("#downloadPng").click(function() {
+    filestem = $("#cpname").val() + "_" + $("#cluster_id").val();
+    payload = cy.png();
+    download(filestem + ".png", payload);
+
+});
+
+$("#downloadJson").click(function() {
+    filestem = $("#cpname").val() + "_" + $("#cluster_id").val();
+    payload = "application/json;charset=utf-8," + encodeURIComponent(JSON.stringify(cy.json()));
+    download(filestem + ".json", payload);
+});
+
+$("#cluster_id").change(function() {
+    depict_network();
+});
+$("#doDepiction").click(function() {
+    depict_network();
+});
+$("#addLabels").click(function() {
+    add_labels();
+});
+$("#csFontSize").change(function() {
+    add_labels();
+});
+$("#csNodeSize").change(function() {
+    resize_nodes();
+});
+$("#annotname").change(function() {
+    add_labels();
+});
+
+// any extra code here
+$(document).ready(function(e) {
+    getPipelines();
     // hide buttons which aren't relevant until network loads
-               $("#downloadPng").hide();
-               $("#downloadJson").hide();
-               $("#addLabels").hide();
-               $("#annotname").hide();
-               $("#csFontSize").hide();
-               $("#usingFontSize").hide();
-    </script>
+    $("#downloadPng").hide();
+    $("#downloadJson").hide();
+    $("#addLabels").hide();
+    $("#annotname").hide();
+    $("#csFontSize").hide();
+    $("#csNodeSize").hide();
+    $("#usingNodeSize").hide();
+    $("#usingFontSize").hide();
+});
+</script>
 </body>
 
 </html>
