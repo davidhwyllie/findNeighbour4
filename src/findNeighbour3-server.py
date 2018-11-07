@@ -340,29 +340,30 @@ class findNeighbour3():
 			# due to speed constraints, we don't do recompression unless there is an existing clustering scheme.
 			
 			# if the server is configured to compress memory and there is a clustering object available	
-			if clustering_name_for_recompression is not None and self.recompress_frequency > 0:
-				# every self.on_startup_repack_memory_every samples, or when the load is over, get the clusters
-				if nLoaded % self.on_startup_repack_memory_every == 0 or nLoaded == len(guids):		# periodically recompress
-					app.logger.info("Recompressing memory based on {2}.. {0}/{1} loaded".format(nLoaded, len(guids), clustering_name_for_recompression))
-					nRecompressed = 0 	
-					cl2g = self.clustering[clustering_name].clusters2guid()
-					total_clusters = len(cl2g.keys())
-					nClusters = 0
-					for cl in cl2g.keys():
-						nClusters +=1
-						available_to_compress = []
-						for guid in cl2g[cl]:
-							if guid in self.sc.seqProfile.keys():		# it exists among records already loaded
-								available_to_compress.append(guid)
-						if len(available_to_compress)>3:
-							# find a single guid from this cluster
-							# and recompress relative to that.
-							to_recompress = available_to_compress[0]	# the last sequence
-							nRecompressed = nRecompressed + len(available_to_compress)
-							if nClusters % 25 == 0:
-								app.logger.info("Recompressed {0}/{1} clusters, {2}/{3} sequences ...".format(nClusters, total_clusters, nRecompressed,nLoaded))
-							self.sc.compress_relative_to_consensus(to_recompress)
-					
+			if False:		# in ram recompression on reload is disabled until a storage solution is available
+				if clustering_name_for_recompression is not None and self.recompress_frequency > 0:
+					# every self.on_startup_repack_memory_every samples, or when the load is over, get the clusters
+					if nLoaded % self.on_startup_repack_memory_every == 0 or nLoaded == len(guids):		# periodically recompress
+						app.logger.info("Recompressing memory based on {2}.. {0}/{1} loaded".format(nLoaded, len(guids), clustering_name_for_recompression))
+						nRecompressed = 0 	
+						cl2g = self.clustering[clustering_name].clusters2guid()
+						total_clusters = len(cl2g.keys())
+						nClusters = 0
+						for cl in cl2g.keys():
+							nClusters +=1
+							available_to_compress = []
+							for guid in cl2g[cl]:
+								if guid in self.sc.seqProfile.keys():		# it exists among records already loaded
+									available_to_compress.append(guid)
+							if len(available_to_compress)>3:
+								# find a single guid from this cluster
+								# and recompress relative to that.
+								to_recompress = available_to_compress[0]	# the last sequence
+								nRecompressed = nRecompressed + len(available_to_compress)
+								if nClusters % 25 == 0:
+									app.logger.info("Recompressed {0}/{1} clusters, {2}/{3} sequences ...".format(nClusters, total_clusters, nRecompressed,nLoaded))
+								self.sc.compress_relative_to_consensus(to_recompress)
+						
 			if nLoaded % 500 ==0:
 				if clustering_name_for_recompression is not None:
 						app.logger.info("Loading {1} sequences from database .. ({0}).  Will repack memory every {2} sequences".format(self.sc.excluded_hash(),len(guids),self.on_startup_repack_memory_every))
