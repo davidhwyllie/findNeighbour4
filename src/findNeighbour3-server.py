@@ -1822,7 +1822,7 @@ def cl2cnt(clustering_algorithm):
 	d= pd.DataFrame.from_records(res)
 	
 	try:
-		retVal = pd.crosstab(d['cluster_id'], d['is_mixed']).to_dict()
+		retVal = pd.crosstab(d['is_mixed'],d['cluster_id']).to_dict()
 	except KeyError:
 		retVal={}		# no data
 	return make_response(tojson(retVal))
