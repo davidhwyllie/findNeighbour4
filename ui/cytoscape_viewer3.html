@@ -11,8 +11,8 @@
     </script>
     <style>
         #cy {
-            width: 500px;
-            height: 500px;
+            width: 1000px;
+            height: 800px;
             display: block;
         }
 
@@ -26,14 +26,17 @@
          <p><label for="cpname">For</label> <select name="cpname" id="cpname">
             
         </select>
-        <label for="cluster_id">show cluster</label> <input id="cluster_id" type='number' name="value" value="1">
+        <label for="cluster_lbl">show cluster</label> <input id="cluster_id" type='number' name="value" value="1">
         <button id="doDepiction" >Show network</button></p>
         <p>
          <button id="addLabels" name="addLabels">Add cluster identifiers from clustering strategy</button> 
        <label for="annotname"></label> <select name="annotname" id="annotname">
             </p>
+        
          </select>
         <p>
+                  <button id="removeLabels" name="removeLabels">Remove cluster identifiers</button> 
+        </p><p>
        <span id="usingFontSize">Adjust label size</span> 
                  <input type="range" min="1" max="10" value="2" class="slider" id="csFontSize">
 
@@ -41,7 +44,8 @@
                  <input type="range" min="1" max="10" value="2" class="slider" id="csNodeSize">
 </p>
         <p>    <div id="cy_title"></div>
-    <div id="cy"></div>
+        <div id="mousePsn"><span id="recentNode">-</span></div>
+        <div id="cy"></div>
     
         <button id="downloadJson" >Download JSON</button>
         <button id="downloadPng" >Download PNG</button>
@@ -145,7 +149,17 @@ var options = {
     // Pass a reference to weaver to use threads for calculations
     weaver: false
 };
-
+function offerReloadPage(msg){
+     var btn = document.createElement("BUTTON");        // Create a <button> element
+     var t = document.createTextNode("Click to reload page");
+     btn.appendChild(t);
+     btn.onclick = function(){
+       location.reload();
+     };
+     
+     document.getElementById('cy_title').innerHTML = msg;
+     document.getElementById('cy_title').appendChild(btn);
+}
 function getPipelines() {
     $.ajax({
         type: "GET",
@@ -153,6 +167,20 @@ function getPipelines() {
         success: function(data) {
             buildDropdown(JSON.parse(data), $('#annotname'));
             buildDropdown(JSON.parse(data), $('#cpname'));
+
+            $("#cpname").show();
+
+            $("#cluster_id").show();
+            $("#cluster_lbl").show();
+            $("#doDepiction").show();
+        },
+        fail: function(xmlHttpRequest, textStatus) {
+             alert(textStatus);
+        },
+        error:function ( xmlHttpRequest, textStatus, errorThrown) {
+
+             var msg = "Failed to connect to findNeighbour3 server on "+baseurl+"("+textStatus+"-"+ errorThrown+").  Check the server is operational.";
+             offerReloadPage(msg);
         }
     });
 }
@@ -188,19 +216,29 @@ function depict_network() {
         $("#downloadPng").show();
         $("#downloadJson").show();
         $("#addLabels").show();
+        $("#removeLabels").show();
         $("#annotname").show();
+        set_visibility_size_control_elements('show');
+    });
+
+}
+function set_visibility_size_control_elements(action) {
+      if (action == 'show'){
         $("#csFontSize").show();
         $("#csNodeSize").show();
         $("#usingNodeSize").show();
         $("#usingFontSize").show();
-    });
-
+      } else {
+        $("#csFontSize").hide();
+        $("#csNodeSize").hide();
+        $("#usingNodeSize").hide();
+        $("#usingFontSize").hide();      
+       
+      }
 }
-
 function add_labels() {
     // display node labels
     var chosenFontSize = $("#csFontSize").val();
-    console.log(chosenFontSize);
     var url2 = baseurl + "clustering/" + $("#annotname").val() + "/guids2clusters";
     var g2c = $.getJSON(url2, {}, function(g2c_list) {
         console.log(url2);
@@ -216,15 +254,29 @@ function add_labels() {
     });
 }
 
+function remove_labels() {
+    // display node labels
+        cy.$("node").css({
+        "content":""
+        });
+      }
+
 function resize_nodes() {
     // resize nodes
     var chosenNodeSize = $("#csNodeSize").val();
-    console.log(chosenNodeSize);
     cy.$("node").css({
         "width": chosenNodeSize + "px",
         "height": chosenNodeSize + "px"
     });
 
+}
+function resize_labels() {
+    // resize nodes
+    var chosenFontSize = $("#csFontSize").val();
+
+    cy.$("node").css({
+        "font-size": chosenFontSize,
+    });
 }
 
 function generate_cytoscape_object(container, data) {
@@ -233,24 +285,33 @@ function generate_cytoscape_object(container, data) {
     custom_style = [{
             selector: 'node[is_mixed=0]',
             style: {
-                'shape': 'square',
                 'background-color': 'blue'
             }
         }, {
             selector: 'node[is_mixed=1]',
             style: {
-                'shape': 'square',
+
                 'background-color': 'red'
             }
         }, {
-            selector: 'node',
+            selector: 'node[picked=1]',
             style: {
                 'width': '5px',
                 'height': '5px',
                 'background-fit': 'contain',
                 'background-clip': 'none'
-            }
+            },
+                   
         }, {
+            selector: 'node[picked=0]',
+            style: {
+                'shape': 'diamond',
+                'width': '5px',
+                'height': '5px',
+                'background-fit': 'contain',
+                'background-clip': 'none'
+            },         
+        },{
             selector: 'edge',
             style: {
                 'text-background-color': 'yellow',
@@ -274,10 +335,38 @@ function generate_cytoscape_object(container, data) {
             options
         }
     });
+    cy.$("node").data("picked",0);  // nothing selected
+    cy.on('mouseover', 'node', function(event) {
+        document.getElementById('recentNode').innerHTML = event.target.id();
+    });
+        cy.on('mouseout', 'node', function(event) {
+        document.getElementById('recentNode').innerHTML = '-';
+    });
+    cy.on('mouseover', 'edge', function(event) {
+        // var node = event.cyTarget;
+        console.log(event.target.id());
+        var id = event.target.id();
+        var edata = cy.$("#"+id).data();
+        var edescr = edata.snv+' snv ['+edata.source+'-----'+edata.target+']';
+        document.getElementById('recentNode').innerHTML = edescr;
+    });
+        cy.on('mouseout', 'edge', function(event) {
+        document.getElementById('recentNode').innerHTML = '-';
+    });
+    cy.on('click', 'node', function(event) {
+        // var node = event.cyTarget;
+        var id = event.target.id();
+        if (cy.$("#"+id).data("picked")==0) {
+        cy.$("#"+id).data("picked",1);
+        document.getElementById('recentNode').innerHTML = event.target.id()+" Selected";
+        } else {
+        cy.$("#"+id).data("picked",0);        
+        document.getElementById('recentNode').innerHTML = event.target.id()+" Deselected";
+        }
 
-
-    return;
+    });
 }
+
 
 function download(filename, payload) {
     var element = document.createElement('a');
@@ -301,37 +390,40 @@ $("#downloadJson").click(function() {
     download(filestem + ".json", payload);
 });
 
-$("#cluster_id").change(function() {
-    depict_network();
-});
 $("#doDepiction").click(function() {
     depict_network();
 });
 $("#addLabels").click(function() {
     add_labels();
 });
+$("#removeLabels").click(function() {
+    remove_labels();
+});
 $("#csFontSize").change(function() {
-    add_labels();
+    resize_labels();
 });
 $("#csNodeSize").change(function() {
     resize_nodes();
 });
-$("#annotname").change(function() {
-    add_labels();
-});
+
 
 // any extra code here
 $(document).ready(function(e) {
     getPipelines();
     // hide buttons which aren't relevant until network loads
+    $("#cpname").hide();
+    $("#doDepiction").hide();
     $("#downloadPng").hide();
     $("#downloadJson").hide();
     $("#addLabels").hide();
+    $("#removeLabels").hide();
     $("#annotname").hide();
     $("#csFontSize").hide();
     $("#csNodeSize").hide();
     $("#usingNodeSize").hide();
     $("#usingFontSize").hide();
+    $("#cluster_id").hide();
+    $("#cluster_lbl").hide();
 });
 </script>
 </body>
