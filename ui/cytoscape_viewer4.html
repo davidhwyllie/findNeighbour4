@@ -1,0 +1,342 @@
+<html>
+
+<head>
+    <title>Cluster visualisation</title>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.2.18/cytoscape.min.js"></script>
+    <script src="https://unpkg.com/webcola/WebCola/cola.min.js"></script>
+
+    <script src="node_modules/cytoscape-cola/cytoscape-cola.js"></script>
+
+    <style>
+        #cy {
+            width: 1000px;
+            height: 800px;
+            display: block;
+        }
+
+    </style>
+
+</head>
+<body>
+ <div class="demo">
+ 
+
+         <p><label for="cpname">For</label> <select name="cpname" id="cpname">
+            
+        </select>
+        <label for="cluster_lbl">show cluster</label> <input id="cluster_id" type='number' name="value" value="1">
+        <button id="doDepiction" >Show network</button></p>
+        <p>
+         <button id="addLabels" name="addLabels">Add cluster identifiers from clustering strategy</button> 
+       <label for="annotname"></label> <select name="annotname" id="annotname">
+            </p>
+        
+         </select>
+        <p>
+                  <button id="removeLabels" name="removeLabels">Remove cluster identifiers</button> 
+        </p><p>
+       <span id="usingFontSize">Adjust label size</span> 
+                 <input type="range" min="1" max="10" value="2" class="slider" id="csFontSize">
+
+       <span id="usingNodeSize">node size</span> 
+                 <input type="range" min="1" max="10" value="2" class="slider" id="csNodeSize">
+</p>
+        <p>    <div id="cy_title"></div>
+        <div id="mousePsn"><span id="recentNode">-</span></div>
+        <div id="cy"></div>
+    
+        <button id="downloadJson" >Download JSON</button>
+        <button id="downloadPng" >Download PNG</button>
+        </p>
+        
+
+<script>
+alert("Script loading");
+console.log("startup");
+ 
+var baseurl = "http://127.0.0.1:5020/api/v2/";
+
+var options = {
+    name: 'cola',
+    ready:function(){},
+    edgeSymDiffLength:function(edge){
+     console.log("EDGELENGTH", 0.5+edge.data().snv);
+     return 0.5+edge.data().snv;
+     },
+  };
+function offerReloadPage(msg){
+     var btn = document.createElement("BUTTON");        // Create a <button> element
+     var t = document.createTextNode("Click to reload page");
+     btn.appendChild(t);
+     btn.onclick = function(){
+       location.reload();
+     };
+     
+     document.getElementById('cy_title').innerHTML = msg;
+     document.getElementById('cy_title').appendChild(btn);
+}
+function getPipelines() {
+    $.ajax({
+        type: "GET",
+        url: baseurl + "clustering",
+        success: function(data) {
+            buildDropdown(JSON.parse(data), $('#annotname'));
+            buildDropdown(JSON.parse(data), $('#cpname'));
+
+            $("#cpname").show();
+            $("#cluster_id").show();
+            $("#cluster_lbl").show();
+            $("#doDepiction").show();
+        },
+        fail: function(xmlHttpRequest, textStatus) {
+             alert(textStatus);
+        },
+        error:function ( xmlHttpRequest, textStatus, errorThrown) {
+
+             var msg = "Failed to connect to findNeighbour3 server on "+baseurl+"("+textStatus+"-"+ errorThrown+").  Check the server is operational.";
+             offerReloadPage(msg);
+        }
+    });
+}
+
+function buildDropdown(result, dropdown) {
+    // builds a dropdown from the 'algorithms' (a list) property of 'result'
+    // Remove current options
+    dropdown.html('');
+    if (result != '') {
+        // Loop through each of the results and append the option to the dropdown
+        console.log(result);
+        for (i = 0; i < result.algorithms.length; i++) {
+            dropdown.append('<option value="' + result.algorithms[i] + '">' + result.algorithms[i] + '</option>');
+        }
+    }
+}
+
+function depict_network() {
+    var network_name = $("#cpname").val() + "/" + $("#cluster_id").val();
+    document.getElementById('cy_title').innerHTML = network_name;
+    document.getElementById('cy').innerHTML = "-- data for " + network_name + " is loading --";
+
+    var url1 = baseurl + "clustering/" + network_name + "/network";
+
+    $.getJSON(url1, {}, function(data) {
+        document.getElementById('cy').innerHTML = "";
+        console.log(url1);
+        generate_cytoscape_object(
+            container = document.getElementById('cy'),
+            data = data);
+        
+        // now there is a network in place, we can do things with it;
+        $("#downloadPng").show();
+        $("#downloadJson").show();
+        $("#addLabels").show();
+        $("#removeLabels").show();
+        $("#annotname").show();
+        set_visibility_size_control_elements('show');
+    });
+
+}
+function set_visibility_size_control_elements(action) {
+      if (action == 'show'){
+        $("#csFontSize").show();
+        $("#csNodeSize").show();
+        $("#usingNodeSize").show();
+        $("#usingFontSize").show();
+      } else {
+        $("#csFontSize").hide();
+        $("#csNodeSize").hide();
+        $("#usingNodeSize").hide();
+        $("#usingFontSize").hide();      
+       
+      }
+}
+function add_labels() {
+    // display node labels
+    var chosenFontSize = $("#csFontSize").val();
+    var url2 = baseurl + "clustering/" + $("#annotname").val() + "/guids2clusters";
+    var g2c = $.getJSON(url2, {}, function(g2c_list) {
+
+        // update node properties
+        l = g2c_list.length;
+        for (var i = 0; i < l; i++) {
+            var item = g2c_list[i];
+            cy.$("#" + item.guid).css({
+                "font-size": chosenFontSize,
+                "content": item.cluster_id
+            });
+        }
+    });
+}
+
+function remove_labels() {
+    // display node labels
+        cy.$("node").css({
+        "content":""
+        });
+      }
+
+function resize_nodes() {
+    // resize nodes
+    var chosenNodeSize = $("#csNodeSize").val();
+    cy.$("node").css({
+        "width": chosenNodeSize + "px",
+        "height": chosenNodeSize + "px"
+    });
+
+}
+function resize_labels() {
+    // resize nodes
+    var chosenFontSize = $("#csFontSize").val();
+
+    cy.$("node").css({
+        "font-size": chosenFontSize,
+    });
+}
+
+function generate_cytoscape_object(container, data) {
+
+    custom_style = [{
+            selector: 'node[is_mixed=0]',
+            style: {
+                'background-color': 'blue'
+            }
+        }, {
+            selector: 'node[is_mixed=1]',
+            style: {
+
+                'background-color': 'red'
+            }
+        }, {
+            selector: 'node[picked=1]',
+            style: {
+                'width': '5px',
+                'height': '5px',
+                'background-fit': 'contain',
+                'background-clip': 'none'
+            },
+                   
+        }, {
+            selector: 'node[picked=0]',
+            style: {
+                'shape': 'diamond',
+                'width': '5px',
+                'height': '5px',
+                'background-fit': 'contain',
+                'background-clip': 'none'
+            },         
+        },{
+            selector: 'edge',
+            style: {
+                'text-background-color': 'yellow',
+                'text-background-opacity': 0.4,
+                'width': '0.5px',
+                'target-arrow-shape': 'triangle',
+                'control-point-step-size': '140px'
+            }
+        }
+    ];
+
+    console.log(options);
+
+    cy = cytoscape({
+        container: container,
+        elements: data.elements,
+        style: custom_style,
+        layout:  options        
+    });
+
+    cy.$("node").data("picked",0);  // nothing selected
+    cy.on('mouseover', 'node', function(event) {
+        document.getElementById('recentNode').innerHTML = event.target.id();
+    });
+        cy.on('mouseout', 'node', function(event) {
+        document.getElementById('recentNode').innerHTML = '-';
+    });
+    cy.on('mouseover', 'edge', function(event) {
+        // var node = event.cyTarget;
+
+        var id = event.target.id();
+        var edata = cy.$("#"+id).data();
+        var edescr = edata.snv+' snv ['+edata.source+'-----'+edata.target+']';
+        document.getElementById('recentNode').innerHTML = edescr;
+    });
+        cy.on('mouseout', 'edge', function(event) {
+        document.getElementById('recentNode').innerHTML = '-';
+    });
+    cy.on('click', 'node', function(event) {
+        // var node = event.cyTarget;
+        var id = event.target.id();
+        if (cy.$("#"+id).data("picked")==0) {
+        cy.$("#"+id).data("picked",1);
+        document.getElementById('recentNode').innerHTML = event.target.id()+" Selected";
+        } else {
+        cy.$("#"+id).data("picked",0);        
+        document.getElementById('recentNode').innerHTML = event.target.id()+" Deselected";
+        }
+
+    });
+}
+
+
+function download(filename, payload) {
+    var element = document.createElement('a');
+    element.setAttribute('href', 'data:' + payload);
+    element.setAttribute('download', filename);
+    element.style.display = 'none';
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+}
+$("#downloadPng").click(function() {
+    filestem = $("#cpname").val() + "_" + $("#cluster_id").val();
+    payload = cy.png();
+    download(filestem + ".png", payload);
+
+});
+
+$("#downloadJson").click(function() {
+    filestem = $("#cpname").val() + "_" + $("#cluster_id").val();
+    payload = "application/json;charset=utf-8," + encodeURIComponent(JSON.stringify(cy.json()));
+    download(filestem + ".json", payload);
+});
+
+$("#doDepiction").click(function() {
+    depict_network();
+});
+$("#addLabels").click(function() {
+    add_labels();
+});
+$("#removeLabels").click(function() {
+    remove_labels();
+});
+$("#csFontSize").change(function() {
+    resize_labels();
+});
+$("#csNodeSize").change(function() {
+    resize_nodes();
+});
+
+
+// any extra code here
+$(document).ready(function(e) {
+    getPipelines();
+    // hide buttons which aren't relevant until network loads
+    $("#cpname").hide();
+    $("#doDepiction").hide();
+    $("#downloadPng").hide();
+    $("#downloadJson").hide();
+    $("#addLabels").hide();
+    $("#removeLabels").hide();
+    $("#annotname").hide();
+    $("#csFontSize").hide();
+    $("#csNodeSize").hide();
+    $("#usingNodeSize").hide();
+    $("#usingFontSize").hide();
+    $("#cluster_id").hide();
+    $("#cluster_lbl").hide();
+});
+</script>
+</body>
+
+</html>
