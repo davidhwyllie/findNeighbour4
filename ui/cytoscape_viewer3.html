@@ -26,35 +26,39 @@
          <p><label for="cpname">For</label> <select name="cpname" id="cpname">
             
         </select>
-        <label for="cluster_lbl">show cluster</label> <input id="cluster_id" type='number' name="value" value="1">
-        <button id="doDepiction" >Show network</button></p>
+        <label for="cluster_lbl">and cluster</label> <input id="cluster_id" type='number' name="value" value="1">
+        <button id="doDepictionNetwork" >Show Network</button>
+        <button id="doDepictionMST" >Show Min.Spanning Tree</button>
+        <button id="doDepictionMSA" >Show Multi sequence alignment</button></p>
         <p>
-         <button id="addLabels" name="addLabels">Add cluster identifiers from clustering strategy</button> 
-       <label for="annotname"></label> <select name="annotname" id="annotname">
-            </p>
+        <button id="addLabels" name="addLabels">Add cluster identifiers from clustering strategy</button> 
+        <label for="annotname"></label> <select name="annotname" id="annotname">
+        </p>
         
-         </select>
+        </select>
         <p>
-                  <button id="removeLabels" name="removeLabels">Remove cluster identifiers</button> 
-        </p><p>
-       <span id="usingFontSize">Adjust label size</span> 
-                 <input type="range" min="1" max="10" value="2" class="slider" id="csFontSize">
-
-       <span id="usingNodeSize">node size</span> 
-                 <input type="range" min="1" max="10" value="2" class="slider" id="csNodeSize">
-</p>
-        <p>    <div id="cy_title"></div>
-        <div id="mousePsn"><span id="recentNode">-</span></div>
-        <div id="cy"></div>
-    
+        <button id="removeLabels" name="removeLabels">Remove cluster identifiers</button> 
+        </p>
+        <p> 
         <button id="downloadJson" >Download JSON</button>
         <button id="downloadPng" >Download PNG</button>
         </p>
+        <span id="usingFontSize">Adjust label size</span> 
+                 <input type="range" min="1" max="10" value="2" class="slider" id="csFontSize">
+
+        <span id="usingNodeSize">node size</span> 
+                 <input type="range" min="1" max="10" value="2" class="slider" id="csNodeSize">
+        </p>
+        <p>    <div id="cy_title"></div>
+        <div id="mousePsn"><span id="recentNode">-</span></div>
+        <div id="cy"></div>
+
         
 
 <script>
 // layout options
 var baseurl = "http://127.0.0.1:5020/api/v2/";
+
 var options = {
     name: 'cose',
 
@@ -120,12 +124,13 @@ var options = {
 
     // Ideal edge (non nested) length
     idealEdgeLength: function(edge) {
-        return 32;
+        return edge.data().snv+0.5;
     },
 
     // Divisor to compute edge forces
     edgeElasticity: function(edge) {
-        return 32;
+        return 10;
+        //return Math.sqrt(edge.data().snv+1);
     },
 
     // Nesting factor (multiplier) to compute ideal edge length for nested edges
@@ -169,10 +174,11 @@ function getPipelines() {
             buildDropdown(JSON.parse(data), $('#cpname'));
 
             $("#cpname").show();
-
             $("#cluster_id").show();
             $("#cluster_lbl").show();
-            $("#doDepiction").show();
+            $("#doDepictionNetwork").show();
+            $("#doDepictionMST").show();
+            $("#doDepictionMSA").show();
         },
         fail: function(xmlHttpRequest, textStatus) {
              alert(textStatus);
@@ -197,30 +203,53 @@ function buildDropdown(result, dropdown) {
         }
     }
 }
+function depict_msa() {
+    var network_name = $("#cpname").val() + "/" + $("#cluster_id").val();
+    document.getElementById('cy_title').innerHTML = network_name;
+    document.getElementById('cy').innerHTML = "-- data for MSA of " + network_name + " is loading --";
 
-function depict_network() {
+    var url1 = baseurl + "multiple_alignment_cluster/" + network_name + "/html";
+    // check validity of network_type
+    $.get(url1, {}, function(data) {
+          document.getElementById('cy').innerHTML = "";
+          console.log(url1);
+          document.getElementById('cy').innerHTML = data;
+          $("#downloadPng").hide();
+          $("#downloadJson").hide();
+          $("#addLabels").hide();
+          $("#removeLabels").hide();
+          $("#annotname").hide();
+          set_visibility_size_control_elements('hide');
+      });
+}
+
+function depict_network(network_type) {
     var network_name = $("#cpname").val() + "/" + $("#cluster_id").val();
     document.getElementById('cy_title').innerHTML = network_name;
     document.getElementById('cy').innerHTML = "-- data for " + network_name + " is loading --";
 
-    var url1 = baseurl + "clustering/" + network_name + "/network";
-
-    $.getJSON(url1, {}, function(data) {
-        document.getElementById('cy').innerHTML = "";
-        console.log(url1);
-        generate_cytoscape_object(
-            container = document.getElementById('cy'),
-            data = data);
-        
-        // now there is a network in place, we can do things with it;
-        $("#downloadPng").show();
-        $("#downloadJson").show();
-        $("#addLabels").show();
-        $("#removeLabels").show();
-        $("#annotname").show();
-        set_visibility_size_control_elements('show');
-    });
-
+    var url1 = baseurl + "clustering/" + network_name + "/" + network_type;
+    // check validity of network_type
+    if (['network','minimum_spanning_tree'].indexOf(network_type)>=0){
+      $.getJSON(url1, {}, function(data) {
+          document.getElementById('cy').innerHTML = "";
+          console.log(url1);
+          generate_cytoscape_object(
+              container = document.getElementById('cy'),
+              data = data);
+          
+          // now there is a network in place, we can do things with it;
+          document.getElementById('cy_title').innerHTML = data.message;
+          $("#downloadPng").show();
+          $("#downloadJson").show();
+          $("#addLabels").show();
+          $("#removeLabels").show();
+          $("#annotname").show();
+          set_visibility_size_control_elements('show');
+      });
+    } else {
+          document.getElementById('cy_title').innerHTML = "Invalid request for a "+network_type;
+    }
 }
 function set_visibility_size_control_elements(action) {
       if (action == 'show'){
@@ -241,7 +270,7 @@ function add_labels() {
     var chosenFontSize = $("#csFontSize").val();
     var url2 = baseurl + "clustering/" + $("#annotname").val() + "/guids2clusters";
     var g2c = $.getJSON(url2, {}, function(g2c_list) {
-        console.log(url2);
+
         // update node properties
         l = g2c_list.length;
         for (var i = 0; i < l; i++) {
@@ -280,7 +309,6 @@ function resize_labels() {
 }
 
 function generate_cytoscape_object(container, data) {
-
 
     custom_style = [{
             selector: 'node[is_mixed=0]',
@@ -328,13 +356,9 @@ function generate_cytoscape_object(container, data) {
         container: container,
         elements: data.elements,
         style: custom_style,
-        layout: {
-            name: 'cose'
-        },
-        options: {
-            options
-        }
+        layout:  options        
     });
+
     cy.$("node").data("picked",0);  // nothing selected
     cy.on('mouseover', 'node', function(event) {
         document.getElementById('recentNode').innerHTML = event.target.id();
@@ -344,7 +368,7 @@ function generate_cytoscape_object(container, data) {
     });
     cy.on('mouseover', 'edge', function(event) {
         // var node = event.cyTarget;
-        console.log(event.target.id());
+
         var id = event.target.id();
         var edata = cy.$("#"+id).data();
         var edescr = edata.snv+' snv ['+edata.source+'-----'+edata.target+']';
@@ -390,8 +414,14 @@ $("#downloadJson").click(function() {
     download(filestem + ".json", payload);
 });
 
-$("#doDepiction").click(function() {
-    depict_network();
+$("#doDepictionNetwork").click(function() {
+    depict_network('network');
+});
+$("#doDepictionMST").click(function() {
+    depict_network('minimum_spanning_tree');
+});
+$("#doDepictionMSA").click(function() {
+    depict_msa();
 });
 $("#addLabels").click(function() {
     add_labels();
@@ -412,7 +442,9 @@ $(document).ready(function(e) {
     getPipelines();
     // hide buttons which aren't relevant until network loads
     $("#cpname").hide();
-    $("#doDepiction").hide();
+    $("#doDepictionMST").hide();
+    $("#doDepictionMSA").hide();
+    $("#doDepictionNetwork").hide();
     $("#downloadPng").hide();
     $("#downloadJson").hide();
     $("#addLabels").hide();

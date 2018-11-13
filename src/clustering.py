@@ -66,6 +66,10 @@ class snv_clustering():
                 raise ValueError("On startup, mixed_sample_management must be one of all, include, exclude")
         else:
             raise TypeError("Do not know how to reload a clustering result from an object of class {0}; a dict is expected".format(saved_result))
+
+        # keep track of networks loaded, as a cached value
+        self.stored_clusters2guidmeta = None        # nothing loaded
+        
     def raise_error(self,token):
         """ raises a ZeroDivisionError, with token as the message.
         useful for unit tests of error logging """
@@ -139,6 +143,7 @@ class snv_clustering():
         return retVal        
     def clusters2guidmeta(self, after_change_id=None):
         """ returns a cluster -> guid mapping """
+        
         retVal = []
         for guid in sorted(self.G.nodes):
             for cluster_id in self.G.node[guid]['cluster_id']:
@@ -273,11 +278,10 @@ class snv_clustering():
                 cl2n[this_cluster_id]+=1
        
         # find the cluster_id with the largest number of clusters;
-
         largest_cluster_size = max(cl2n.values())
         for new_cluster_id in sorted(cl2n.keys()):      # enforces deterministic behaviour
             if cl2n[new_cluster_id]== largest_cluster_size:
-                break
+                break       # returns the smaller numeric cluster number of the largest size
         
         # do the update of the cluster identifiers
         # find the existing cluster designations, and are
@@ -410,13 +414,13 @@ class snv_clustering():
         # increase the change counter
         self.change_id += 1
           
-        # set the relevant samples to mixed
+        # set the relevant samples to mixed or unmixed as required.
         for guid in change_guids.keys():              
             if not change_guids[guid] == self.is_mixed(guid):
                self._change_guid_attribute(guid, 'is_mixed', change_guids[guid])    ## use custom function tracking history
 
         if self.mixed_sample_management == 'ignore':
-           # then we don't need to change anything
+           # then we don't need to change anything else
            return
             
         # otherwise .. rebuild clusters, ignoring any mixed samples.
@@ -436,7 +440,7 @@ class snv_clustering():
             for neighbour in neighbours:
                 neither_mixed = (self.is_mixed(guid)==False and self.is_mixed(neighbour)==False)    
                 if neither_mixed==True:    # only if the are both not mixed
-                     new_E.append((guid,neighbour))
+                     new_E.append((guid,neighbour))  # do we add an edge
 
         self.G.add_edges_from(new_E)
             
@@ -928,6 +932,10 @@ class test_clusters2guidmeta(unittest.TestCase):
         self.assertEqual(len(df.query('guid=="n2"').index),3)
         self.assertEqual(df['change_id'].tolist(), [1,4,4,4,4])
 
+        # load from cache
+        res4 = snvc.clusters2guidmeta()
+        df2 = pd.DataFrame.from_records(res4)
+        self.assertTrue(df2.equals(df))
 class test_Raise_error(unittest.TestCase):
     """ tests raise_error"""
     def runTest(self):

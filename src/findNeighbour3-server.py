@@ -47,6 +47,7 @@ import sentry_sdk
 import matplotlib
 import dateutil.parser
 import argparse
+import networkx as nx
 from sentry_sdk import capture_message, capture_exception
 from sentry_sdk.integrations.flask import FlaskIntegration
 
@@ -1077,10 +1078,13 @@ class test_reset(unittest.TestCase):
 		self.assertTrue(n_post_reset==0)
 		
 @app.route('/api/v2/clustering/<string:clustering_algorithm>/<int:cluster_id>/network',methods=['GET'])
+@app.route('/api/v2/clustering/<string:clustering_algorithm>/<int:cluster_id>/minimum_spanning_tree',methods=['GET'])
 def cl2network(clustering_algorithm, cluster_id):
-	""" produces a cytoscape.js compatible graph from a cluster 	
+	""" produces a cytoscape.js compatible graph from a cluster ,
+	either from the network (comprising all edges < snp cutoff)
+	or as a minimal spanning tree.
 	"""
-
+	print("*** cl2network ***", request.base_url)
 	# validate input
 	try:
 		res = fn3.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)		
@@ -1106,17 +1110,27 @@ def cl2network(clustering_algorithm, cluster_id):
 					
 		# data validation complete.  construct outputs
 		snv_threshold = fn3.clustering_settings[clustering_algorithm]['snv_threshold']
-		snvc = snvNetwork(snv_threshold=snv_threshold)
-
+		snvn = snvNetwork(snv_threshold = snv_threshold)
+		E=[]
+		for guid in guids:
+			is_mixed = int(fn3.clustering[clustering_algorithm].is_mixed(guid))
+			snvn.G.add_node(guid, is_mixed=is_mixed)     
 		for guid in guids:
 			res = fn3.PERSIST.guid2neighbours(guid, cutoff=snv_threshold, returned_format=1)
-			is_mixed = int(fn3.clustering[clustering_algorithm].is_mixed(guid)==True)
-			snvc.add_sample(guid, guids=guids, neighbours = res['neighbours'], is_mixed=is_mixed)
-
-	retVal = snvc.network2cytoscapejs()
-	retVal['success']=1
-	retVal['message']='{0} cluster #{1}.  Red nodes are mixed.'.format(clustering_algorithm,cluster_id)
-	return make_response(tojson(retVal))
+			for (guid2, snv) in res['neighbours']:
+				if guid2 in guids:		# don't link outside the cluster
+					E.append((guid,guid2))
+					snvn.G.add_edge(guid, guid2, weight=snv, snv=snv)
+				
+		if request.base_url.endswith('/minimum_spanning_tree'):
+			snvn.G = nx.minimum_spanning_tree(snvn.G)
+			retVal =snvn.network2cytoscapejs()
+			retVal['message']='{0} cluster #{1}. Minimum spanning tree is shown.  Red nodes are mixed.'.format(clustering_algorithm,cluster_id)
+		else:
+			retVal = snvn.network2cytoscapejs()
+			retVal['message']='{0} cluster #{1}. Network of all edges < cutoff shown.  Red nodes are mixed.'.format(clustering_algorithm,cluster_id)
+		retVal['success']=1
+		return make_response(tojson(retVal))
 
 class test_cl2network(unittest.TestCase):
 	"""  tests return of a change_id number """
@@ -1169,10 +1183,20 @@ class test_cl2network(unittest.TestCase):
 		relpath = '/api/v2/clustering/SNV12_ignore/{0}/network'.format(max(retVal))
 		res = do_GET(relpath)
 		self.assertEqual(res.status_code, 200)
-		retVal = json.loads(str(res.text))
-		self.assertTrue(isinstance(retVal, dict))
-		self.assertTrue('elements' in retVal.keys())
-																	 
+		jsonresp = json.loads(str(res.text))
+		self.assertTrue(isinstance(jsonresp, dict))
+		self.assertTrue('elements' in jsonresp.keys())
+
+		# plot the cluster with the highest clusterid
+		res = None
+		relpath = '/api/v2/clustering/SNV12_ignore/{0}/minimum_spanning_tree'.format(max(retVal))
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 200)
+		jsonresp = json.loads(str(res.text))
+		self.assertTrue(isinstance(jsonresp, dict))
+		self.assertTrue('elements' in jsonresp.keys())
+		for item in jsonresp['elements']:
+			print(item)
 @app.route('/api/v2/multiple_alignment/guids', methods=['POST'])
 def msa_guids():
 	""" performs a multiple sequence alignment on a series of POSTed guids,
