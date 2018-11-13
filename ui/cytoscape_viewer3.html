@@ -442,7 +442,7 @@ $("#downloadJson").click(function() {
 });
 $("#downloadMSA").click(function() {
     filestem = $("#cpname").val() + "_" + $("#cluster_id").val();
-    payload = "text/html;charset=utf-8," + encodeURIComponent(cy.value);
+    payload = "text/html;charset=utf-8," + $("#cy").html();
     download(filestem + ".html", payload);
 });
 $("#downloadFasta").click(function() {
