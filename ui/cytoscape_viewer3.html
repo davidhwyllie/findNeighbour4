@@ -29,7 +29,9 @@
         <label for="cluster_lbl">and cluster</label> <input id="cluster_id" type='number' name="value" value="1">
         <button id="doDepictionNetwork" >Show Network</button>
         <button id="doDepictionMST" >Show Min.Spanning Tree</button>
-        <button id="doDepictionMSA" >Show Multi sequence alignment</button></p>
+        <button id="doDepictionMSA" >Show Multi sequence alignment</button>
+        <button id="doDepictionFasta" >Show Multi sequence fasta</button>
+         </p>
         <p>
         <button id="addLabels" name="addLabels">Add cluster identifiers from clustering strategy</button> 
         <label for="annotname"></label> <select name="annotname" id="annotname">
@@ -42,6 +44,8 @@
         <p> 
         <button id="downloadJson" >Download JSON</button>
         <button id="downloadPng" >Download PNG</button>
+        <button id="downloadMSA" >Download MSA</button>
+        <button id="downloadFasta" >Download Fasta</button>
         </p>
         <span id="usingFontSize">Adjust label size</span> 
                  <input type="range" min="1" max="10" value="2" class="slider" id="csFontSize">
@@ -179,6 +183,7 @@ function getPipelines() {
             $("#doDepictionNetwork").show();
             $("#doDepictionMST").show();
             $("#doDepictionMSA").show();
+            $("#doDepictionFasta").show();
         },
         fail: function(xmlHttpRequest, textStatus) {
              alert(textStatus);
@@ -203,24 +208,44 @@ function buildDropdown(result, dropdown) {
         }
     }
 }
-function depict_msa() {
+function depict_msa(msa_format) {
     var network_name = $("#cpname").val() + "/" + $("#cluster_id").val();
-    document.getElementById('cy_title').innerHTML = network_name;
-    document.getElementById('cy').innerHTML = "-- data for MSA of " + network_name + " is loading --";
-
-    var url1 = baseurl + "multiple_alignment_cluster/" + network_name + "/html";
-    // check validity of network_type
-    $.get(url1, {}, function(data) {
-          document.getElementById('cy').innerHTML = "";
-          console.log(url1);
-          document.getElementById('cy').innerHTML = data;
-          $("#downloadPng").hide();
-          $("#downloadJson").hide();
-          $("#addLabels").hide();
-          $("#removeLabels").hide();
-          $("#annotname").hide();
-          set_visibility_size_control_elements('hide');
-      });
+    
+    if (['html','fasta'].indexOf(msa_format)>=0){
+     document.getElementById('cy_title').innerHTML = network_name;
+     document.getElementById('cy').innerHTML = "-- data for MSA of " + network_name + " is loading --";
+ 
+     var url1 = baseurl + "multiple_alignment_cluster/" + network_name + "/" + msa_format;
+     
+     // check validity of network_type
+     $.get(url1, {}, function(data) {
+           document.getElementById('cy').innerHTML = "";
+           console.log(url1);
+           if (msa_format=='html'){
+               document.getElementById('cy').innerHTML = data;
+               $("#downloadMSA").show();
+               $("#downloadFasta").hide();
+           } else {
+            var fasta = document.createElement('TEXTAREA');
+            fasta.setAttribute('id', 'fasta');
+            fasta.setAttribute('name', 'fasta');
+            fasta.setAttribute('cols',200);
+            fasta.setAttribute('rows', 40);
+            fasta.value = data;
+            document.getElementById('cy').appendChild(fasta);
+            $("#downloadFasta").show();
+            $("#downloadMSA").hide();
+           }
+           $("#downloadPng").hide();
+           $("#downloadJson").hide();
+           $("#addLabels").hide();
+           $("#removeLabels").hide();
+           $("#annotname").hide();
+           set_visibility_size_control_elements('hide');
+       });
+    } else {
+          document.getElementById('cy_title').innerHTML = "Invalid request for a "+msa_format;     
+    }
 }
 
 function depict_network(network_type) {
@@ -242,6 +267,8 @@ function depict_network(network_type) {
           document.getElementById('cy_title').innerHTML = data.message;
           $("#downloadPng").show();
           $("#downloadJson").show();
+          $("#downloadFasta").hide();
+          $("#downloadMSA").hide();
           $("#addLabels").show();
           $("#removeLabels").show();
           $("#annotname").show();
@@ -413,7 +440,16 @@ $("#downloadJson").click(function() {
     payload = "application/json;charset=utf-8," + encodeURIComponent(JSON.stringify(cy.json()));
     download(filestem + ".json", payload);
 });
-
+$("#downloadMSA").click(function() {
+    filestem = $("#cpname").val() + "_" + $("#cluster_id").val();
+    payload = "text/html;charset=utf-8," + encodeURIComponent(cy.value);
+    download(filestem + ".html", payload);
+});
+$("#downloadFasta").click(function() {
+    filestem = $("#cpname").val() + "_" + $("#cluster_id").val();
+    payload = "text/plain;charset=utf-8," + encodeURIComponent($('#fasta').val());
+    download(filestem + ".fasta", payload);
+});
 $("#doDepictionNetwork").click(function() {
     depict_network('network');
 });
@@ -421,7 +457,10 @@ $("#doDepictionMST").click(function() {
     depict_network('minimum_spanning_tree');
 });
 $("#doDepictionMSA").click(function() {
-    depict_msa();
+    depict_msa('html');
+});
+$("#doDepictionFasta").click(function() {
+    depict_msa('fasta');
 });
 $("#addLabels").click(function() {
     add_labels();
@@ -444,9 +483,12 @@ $(document).ready(function(e) {
     $("#cpname").hide();
     $("#doDepictionMST").hide();
     $("#doDepictionMSA").hide();
+    $("#doDepictionFasta").hide();
     $("#doDepictionNetwork").hide();
     $("#downloadPng").hide();
     $("#downloadJson").hide();
+    $("#downloadFasta").hide();
+    $("#downloadMSA").hide();
     $("#addLabels").hide();
     $("#removeLabels").hide();
     $("#annotname").hide();
