@@ -64,7 +64,7 @@ class seqComparer():
         
         cpuCount is ignored in this version.
         
-        David Wyllie, University of Oxford, June 2018
+        David Wyllie, Public Health England, June 2018
         
         - to run unit tests, do
         python3 -m unittest seqComparer
@@ -934,6 +934,7 @@ class seqComparer():
             df1.columns=['aligned_seq']
             df2 = pd.DataFrame.from_dict(guid2allNs, orient='index')
             df2.columns=['allN']
+            df2['aligned_seq_len']= len(ordered_variant_positions)
             df3 = pd.DataFrame.from_dict(guid2alignN, orient='index')
             df3.columns=['alignN']
             df4 = pd.DataFrame.from_dict(guid2pvalue1, orient='index')
@@ -986,89 +987,6 @@ class seqComparer():
             return(df.to_dict(orient='index'))
         else:
             raise ValueError("Don't know how to format {0}.  Valid options are {'df','dict'}".format(output))
-
-class test_seqComparer_51(unittest.TestCase):
-    """ tests assess_mixed when there is no difference between samples analysed """
-    def runTest(self):
-        # generate compressed sequences
-        refSeq='GGGGGG'
-    
-        sc=seqComparer( maxNs = 1e8,
-                       reference=refSeq,
-                       snpCeiling =10)
-        # need > 30 sequences
-        originals = ['AAACGN','AAACGN','AAACGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
-                     'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
-                     'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN']
-        guid_names = []
-        n=0
-        for original in originals:
-            n+=1
-            c = sc.compress(original)
-            this_guid = "{0}-{1}".format(original,n )
-            sc.persist(c, guid=this_guid)
-            guid_names.append(this_guid)
-
-        res = sc.assess_mixed(this_guid='AAACGN-1', related_guids=['AAACGN-2','AAACGN-3'],max_sample_size=5)
-        self.assertEqual(len(res.index), 1)
-
-
-class test_seqComparer_50b(unittest.TestCase):
-    """ tests assess_mixed """
-    def runTest(self):
-        # generate compressed sequences
-        refSeq='GGGGGG'
-    
-        sc=seqComparer( maxNs = 1e8,
-                       reference=refSeq,
-                       snpCeiling =10)
-        # need > 30 sequences
-        originals = ['AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
-                     'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
-                     'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN']
-        guid_names = []
-        n=0
-        for original in originals:
-            n+=1
-            c = sc.compress(original)
-            this_guid = "{0}-{1}".format(original,n )
-            sc.persist(c, guid=this_guid)
-            guid_names.append(this_guid)
-
-        res = sc.assess_mixed(this_guid='AAACGN-1', related_guids=[],max_sample_size=5)
-        self.assertEqual(res, None)
-
-
-class test_seqComparer_50a(unittest.TestCase):
-    """ tests assess_mixed """
-    def runTest(self):
-        # generate compressed sequences
-        refSeq='GGGGGG'
-    
-        sc=seqComparer( maxNs = 1e8,
-                       reference=refSeq,
-                       snpCeiling =10)
-        # need > 30 sequences
-        originals = ['AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
-                     'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
-                     'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN']
-        guid_names = []
-        n=0
-        for original in originals:
-            n+=1
-            c = sc.compress(original)
-            this_guid = "{0}-{1}".format(original,n )
-            sc.persist(c, guid=this_guid)
-            guid_names.append(this_guid)
-
-        res = sc.assess_mixed(this_guid='AAACGN-1', related_guids=['CCCCGN-2','TTTCGN-3','GGGGGN-4','NNNCGN-5','ACTCGN-6', 'TCTNGN-7'],max_sample_size=5)
-        self.assertEqual(res.columns.tolist(),['aligned_seq', 'allN', 'alignN', 'p_value1', 'p_value2', 'p_value3', 'observed_proportion',
-                                               'expected_proportion1', 'expected_proportion2', 'expected_proportion3', 'pairid'])
-        for ix in res.index:
-            self.assertEqual(res.loc[ix,'p_value1'],1)
-            self.assertEqual(res.loc[ix,'p_value2'],1)
-            self.assertEqual(res.loc[ix,'p_value3'],1)
-        self.assertEqual(len(res.index), 10)
 
 class test_seqComparer_49(unittest.TestCase):
     """ tests reporting on stored contents """
@@ -1144,12 +1062,12 @@ class test_seqComparer_47c(unittest.TestCase):
         # there's variation at positions 0,1,2,3
         self.assertTrue(isinstance(df, pd.DataFrame))
 
-        self.assertEqual(set(df.columns.values),set(['aligned_seq','allN','alignN','p_value1','p_value2','p_value3', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3']))
+        self.assertEqual(set(df.columns.values),set(['aligned_seq','aligned_seq_len','aligned_seq_len','allN','alignN','p_value1','p_value2','p_value3', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3']))
         self.assertEqual(len(df.index),7)
         res= sc.multi_sequence_alignment(guid_names[0:8], output='df_dict', expected_p1=0.995)
         df = pd.DataFrame.from_dict(res,orient='index')
 
-        self.assertEqual(set(df.columns.values),set(['aligned_seq', 'allN', 'alignN', 'p_value1', 'p_value2', 'p_value3', 'observed_proportion',
+        self.assertEqual(set(df.columns.values),set(['aligned_seq','aligned_seq_len', 'allN', 'alignN', 'p_value1', 'p_value2', 'p_value3', 'observed_proportion',
                                                'expected_proportion1', 'expected_proportion2', 'expected_proportion3']))
     
         self.assertEqual(set(df.index.tolist()), set(['AAACGN-1','CCCCGN-2','TTTCGN-3','GGGGGN-4','ACTCGN-6', 'TCTNGN-7','AAACGN-8']))
@@ -1189,7 +1107,7 @@ class test_seqComparer_47b(unittest.TestCase):
         
         # there's variation at positions 0,1,2,3
         self.assertTrue(isinstance(df, pd.DataFrame))
-        self.assertEqual(set(df.columns.values),set(['aligned_seq','allN','alignN','p_value1','p_value2','p_value3', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3']))
+        self.assertEqual(set(df.columns.values),set(['aligned_seq','aligned_seq_len','allN','alignN','p_value1','p_value2','p_value3', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3']))
         self.assertEqual(len(df.index),7)
         res= sc.multi_sequence_alignment(guid_names[0:8], output='df_dict')
         df = pd.DataFrame.from_dict(res,orient='index')
@@ -1226,7 +1144,7 @@ class test_seqComparer_47a(unittest.TestCase):
         df= sc.multi_sequence_alignment(guid_names[0:8], output='df')
         # there's variation at positions 0,1,2,3
         self.assertTrue(isinstance(df, pd.DataFrame))
-        self.assertEqual(set(df.columns.values),set(['aligned_seq','allN','alignN','p_value1','p_value2','p_value3', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3']))
+        self.assertEqual(set(df.columns.values),set(['aligned_seq','aligned_seq_len','allN','alignN','p_value1','p_value2','p_value3', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3']))
         self.assertEqual(len(df.index),8)
         res= sc.multi_sequence_alignment(guid_names[0:8], output='df_dict')
         df = pd.DataFrame.from_dict(res,orient='index')
