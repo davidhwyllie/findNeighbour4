@@ -183,6 +183,7 @@ class findNeighbour3():
 		EXCLUDEFILE
 		INPUTREF
 		CLUSTERING
+		
 		These settings cannot be changed because they alter the way that the data is stored; if you want to change
 		the settings, the data will have to be re-loaded. 
 		
@@ -243,7 +244,7 @@ class findNeighbour3():
 		# the following keys are not stored in any database backend, as a server could be moved, i.e.
 		# running on the same data but with different IP etc
 		
-		do_not_persist_keys=set(['IP','SERVERNAME','FNPERSISTENCE_CONNSTRING',
+		do_not_persist_keys=set(['IP',"SERVERNAME",'FNPERSISTENCE_CONNSTRING',
 								 'LOGFILE','LOGLEVEL','REST_PORT',
 								 'GC_ON_RECOMPRESS','RECOMPRESS_FREQUENCY', 'REPACK_FREQUENCY', 'SENTRY_URL', 'SERVER_MONITORING_MIN_INTERVAL_MSEC'])
 				
@@ -707,7 +708,7 @@ class findNeighbour3():
 
 	def server_time(self):
 		""" returns the current server time """
-		return {"server_time":datetime.datetime.now().isoformat()}
+		return {"server_name":self.CONFIG['SERVERNAME'], "server_time":datetime.datetime.now().isoformat()}
 
 	def server_config(self):
 		""" returns the config file with which the server was launched
@@ -827,11 +828,10 @@ LISTEN_TO = '127.0.0.1'		# only local addresses
 
 # initialise Flask 
 app = Flask(__name__)
-CORS(app)	# needed for debugging some javascript pages on localhost
+CORS(app)	# needed for loading from javascript pages on localhost
 app.logger.setLevel(logging.DEBUG)
 
 			
-
 def isjson(content):
 		""" returns true if content parses as json, otherwise false. used by unit testing. """
 		try:
@@ -1084,7 +1084,6 @@ def cl2network(clustering_algorithm, cluster_id):
 	either from the network (comprising all edges < snp cutoff)
 	or as a minimal spanning tree.
 	"""
-	print("*** cl2network ***", request.base_url)
 	# validate input
 	try:
 		res = fn3.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)		
@@ -1097,7 +1096,7 @@ def cl2network(clustering_algorithm, cluster_id):
 
 	# check guids
 	df = pd.DataFrame.from_records(res)
-	df = df[df["cluster_id"]==cluster_id]
+	
 	if len(df.index)==0:
 		return make_response(
 								tojson(
@@ -1105,6 +1104,7 @@ def cl2network(clustering_algorithm, cluster_id):
 								)
 							)
 	else:
+		df = df[df["cluster_id"]==cluster_id]		# only if there are records
 		missing_guids = []
 		guids = sorted(df['guid'].tolist())
 					
@@ -1361,7 +1361,7 @@ def msa_guids_by_cluster(clustering_algorithm, cluster_id, output_format):
 
 	# check guids
 	df = pd.DataFrame.from_records(res)
-	df = df[df["cluster_id"]==cluster_id]
+
 	if len(df.index)==0:
 		return make_response(
 								json.dumps(
@@ -1369,6 +1369,7 @@ def msa_guids_by_cluster(clustering_algorithm, cluster_id, output_format):
 								)
 							)
 	else:
+		df = df[df["cluster_id"]==cluster_id]
 		missing_guids = []
 		guids = []
 		for guid in sorted(df['guid'].tolist()):
@@ -1476,7 +1477,7 @@ class test_server_config(unittest.TestCase):
 		self.assertTrue(isjson(content = res.content))
 
 		config_dict = json.loads(res.content.decode('utf-8'))
-	   
+
 		self.assertTrue('GC_ON_RECOMPRESS' in config_dict.keys())
 		self.assertEqual(res.status_code, 200)
 
@@ -1587,7 +1588,7 @@ def server_time():
 	""" returns server time """
 	try:
 		result = fn3.server_time()
-		
+
 	except Exception as e:
 		capture_exception(e)
 		abort(500, e)
@@ -1598,9 +1599,12 @@ class test_server_time(unittest.TestCase):
 	def runTest(self):
 		relpath = "/api/v2/server_time"
 		res = do_GET(relpath)
+		print(res)
 		self.assertTrue(isjson(content = res.content))
 		config_dict = json.loads(res.content.decode('utf-8'))
 		self.assertTrue('server_time' in config_dict.keys())
+		self.assertTrue('server_name' in config_dict.keys())
+
 		self.assertEqual(res.status_code, 200)
 
 	
@@ -1870,7 +1874,11 @@ def g2cl(clustering_algorithm):
 		abort(404, "no clustering algorithm {0}".format(clustering_algorithm))
 	cluster_ids = set()
 	for item in res:
-		cluster_ids.add(item['cluster_id'])
+		try:
+			cluster_ids.add(item['cluster_id'])
+		except KeyError:
+			# there's no cluster_id
+			pass
 	retVal = sorted(list(cluster_ids))
 	return make_response(tojson(retVal))
 

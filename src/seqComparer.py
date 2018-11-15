@@ -986,7 +986,7 @@ class seqComparer():
         elif output=='df_dict':
             return(df.to_dict(orient='index'))
         else:
-            raise ValueError("Don't know how to format {0}.  Valid options are {'df','dict'}".format(output))
+            raise ValueError("Don't know how to format {0}.  Valid options are {'df','df_dict', 'dict'}".format(output))
 
 class test_seqComparer_49(unittest.TestCase):
     """ tests reporting on stored contents """
