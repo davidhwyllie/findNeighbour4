@@ -20,10 +20,10 @@
 
 </head>
 <body>
- <div class="demo">
+ <div class="cluster_visualisation">
  
-
-         <p><label for="cpname">For</label> <select name="cpname" id="cpname">
+         <p><label id="connectedTo"></label> </p>
+         <p><label for="cpname" id='for'>For</label> <select name="cpname" id="cpname">
             
         </select>
         <label for="cluster_lbl">and cluster</label> <input id="cluster_id" type='number' name="value" value="1">
@@ -176,7 +176,7 @@ function getPipelines() {
         success: function(data) {
             buildDropdown(JSON.parse(data), $('#annotname'));
             buildDropdown(JSON.parse(data), $('#cpname'));
-
+            getServer();
             $("#cpname").show();
             $("#cluster_id").show();
             $("#cluster_lbl").show();
@@ -196,6 +196,24 @@ function getPipelines() {
     });
 }
 
+function getServer() {
+    $.ajax({
+        type: "GET",
+        url: baseurl + "server_time",
+        success: function(data) {
+           console.log(data);
+              document.getElementById("connectedTo").innerHTML = "Connected to server: "+JSON.parse(data).server_name;
+                    },
+        fail: function(xmlHttpRequest, textStatus) {
+             alert(textStatus);
+        },
+        error:function ( xmlHttpRequest, textStatus, errorThrown) {
+
+             var msg = "Failed to connect to findNeighbour3 server on "+baseurl+"("+textStatus+"-"+ errorThrown+").  Check the server is operational.";
+             offerReloadPage(msg);
+        }
+    });
+}
 function buildDropdown(result, dropdown) {
     // builds a dropdown from the 'algorithms' (a list) property of 'result'
     // Remove current options
@@ -498,6 +516,7 @@ $(document).ready(function(e) {
     $("#usingFontSize").hide();
     $("#cluster_id").hide();
     $("#cluster_lbl").hide();
+    getServer();
 });
 </script>
 </body>
