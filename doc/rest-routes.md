@@ -24,7 +24,7 @@ Recover masked sequences
 Multiple sequence alignments
 ----------------------------
 **/api/v2/multiple_alignment/guids**   requires POST; see docs for details.  return multiple sequence alignment for an arbitrary set of sequences, either in json or html format.  
-**/api/v2/multiple_alignment_cluster/*clustering_algorithm*/*cluster_id*/*output_format* ** return multiple sequence alignments of members of cluster cluster_id; output_format can be json, html or fasta
+**/api/v2/multiple_alignment_cluster/*clustering_algorithm*/*cluster_id*/*output_format* ** return multiple sequence alignments of members of cluster cluster_id; output_format can be json, json-records, html or fasta
 
 Clustering
 ----------

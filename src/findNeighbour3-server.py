@@ -1018,7 +1018,7 @@ class test_raise(unittest.TestCase):
 	
 def construct_msa(guids, output_format):
 	""" constructs multiple sequence alignment for guids
-		and returns in one of 'fasta' 'html' or 'json' format."""
+		and returns in one of 'fasta' 'html' or 'json' or 'json-record' format."""
 	res = fn3.sc.multi_sequence_alignment(guids, output='df_dict')
 	df = pd.DataFrame.from_dict(res,orient='index')
 	html = df.to_html()
@@ -1032,7 +1032,9 @@ def construct_msa(guids, output_format):
 		return make_response(html)
 	elif output_format == 'json':
 		return make_response(json.dumps(res))
-
+	elif output_format == 'json-records':
+		return make_response(df.to_json(orient='records'))
+	
 @app.route('/api/v2/reset', methods=['POST'])
 def reset():
 	""" deletes any existing data from the server """
@@ -1197,6 +1199,7 @@ class test_cl2network(unittest.TestCase):
 		self.assertTrue('elements' in jsonresp.keys())
 		for item in jsonresp['elements']:
 			print(item)
+			
 @app.route('/api/v2/multiple_alignment/guids', methods=['POST'])
 def msa_guids():
 	""" performs a multiple sequence alignment on a series of POSTed guids,
@@ -1206,6 +1209,7 @@ def msa_guids():
 	
 	Valid values for format are:
 	json
+	json-records
 	html
 	"""
 
@@ -1214,7 +1218,7 @@ def msa_guids():
 	if 'output_format' in request_payload.keys() and 'guids' in request_payload.keys():
 		guids = request_payload['guids'].split(';')		# coerce both guid and seq to strings
 		output_format= request_payload['output_format']
-		if not output_format in ['html','json','fasta']:
+		if not output_format in ['html','json','fasta', 'json-records']:
 			abort(404, 'output_format must be one of html, json, or fasta not {0}'.format(format))
 	else:
 		abort(501, 'output_format and guids are not present in the POSTed data {0}'.format(data_keys))
@@ -1310,6 +1314,13 @@ class test_msa_2(unittest.TestCase):
 		not_present = set(inserted_guids) - set(d.keys())
 		self.assertEqual(not_present, set())
 
+		payload = {'guids':';'.join(inserted_guids),'output_format':'json-records'}
+		res = do_POST(relpath, payload=payload)
+		self.assertTrue(isjson(res.content))
+		self.assertEqual(res.status_code, 200)
+		self.assertFalse(b"</table>" in res.content)
+		d = json.loads(res.content.decode('utf-8'))
+		
 		payload = {'guids':';'.join(inserted_guids),'output_format':'fasta'}
 		res = do_POST(relpath, payload=payload)
 		self.assertFalse(isjson(res.content))
@@ -1356,8 +1367,8 @@ def msa_guids_by_cluster(clustering_algorithm, cluster_id, output_format):
 		# no clustering algorithm of this type
 		return make_response(tojson("no clustering algorithm {0}".format(clustering_algorithm)), 404)
 		
-	if not output_format in ['html','json','fasta']:
-		abort(501, 'output_format must be one of html, json, or fasta not {0}'.format(format))
+	if not output_format in ['html','json','json-records','fasta']:
+		abort(501, 'output_format must be one of html, json, json-records or fasta not {0}'.format(format))
 
 	# check guids
 	df = pd.DataFrame.from_records(res)
