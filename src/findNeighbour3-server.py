@@ -1033,6 +1033,8 @@ def construct_msa(guids, output_format):
 	elif output_format == 'json':
 		return make_response(json.dumps(res))
 	elif output_format == 'json-records':
+		if len(df.index)>0:
+			df['guid'] = df.index
 		return make_response(df.to_json(orient='records'))
 	
 @app.route('/api/v2/reset', methods=['POST'])
