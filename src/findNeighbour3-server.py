@@ -828,7 +828,7 @@ LISTEN_TO = '127.0.0.1'		# only local addresses
 
 # initialise Flask 
 app = Flask(__name__)
-CORS(app)	# needed for loading from javascript pages on localhost
+CORS(app)	# allow CORS
 app.logger.setLevel(logging.DEBUG)
 
 			
@@ -1013,8 +1013,6 @@ class test_raise(unittest.TestCase):
 					if not token in txt:
 						print("NOT LOGGED: ***** {0} <<<<<<".format(txt[-200:]))
 						self.fail("Error was not logged {0}".format(error_at))
-
-	
 	
 def construct_msa(guids, output_format):
 	""" constructs multiple sequence alignment for guids
@@ -1221,7 +1219,7 @@ def msa_guids():
 		guids = request_payload['guids'].split(';')		# coerce both guid and seq to strings
 		output_format= request_payload['output_format']
 		if not output_format in ['html','json','fasta', 'json-records']:
-			abort(404, 'output_format must be one of html, json, or fasta not {0}'.format(format))
+			abort(404, 'output_format must be one of html, json, json-records or fasta not {0}'.format(format))
 	else:
 		abort(501, 'output_format and guids are not present in the POSTed data {0}'.format(data_keys))
 	
@@ -1863,10 +1861,13 @@ def cl2cnt(clustering_algorithm):
 	d= pd.DataFrame.from_records(res)
 	
 	try:
-		retVal = pd.crosstab(d['is_mixed'],d['cluster_id']).to_dict()
+		df = pd.crosstab(d['cluster_id'],d['is_mixed'])
+		df = df.add_prefix('is_mixed_')
+		df['cluster_id']=df.index
+		retVal = df.to_json(orient='records')
 	except KeyError:
-		retVal={}		# no data
-	return make_response(tojson(retVal))
+		retVal=tojson({})		# no data
+	return make_response(retVal)
 
 class test_cl2cnt(unittest.TestCase):
 	"""  tests return of guid2clusters data structure """
@@ -1875,7 +1876,7 @@ class test_cl2cnt(unittest.TestCase):
 		res = do_GET(relpath)
 		self.assertEqual(res.status_code, 200)
 		retVal = json.loads(str(res.text))
-		self.assertTrue(isinstance(retVal,dict))
+		self.assertTrue(isinstance(retVal,list))
 
 @app.route('/api/v2/clustering/<string:clustering_algorithm>/cluster_ids', methods=['GET'])
 def g2cl(clustering_algorithm):
