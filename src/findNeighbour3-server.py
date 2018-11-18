@@ -1,9 +1,14 @@
- #!/usr/bin/env python
+#!/usr/bin/env python
 """ 
 A server providing relatedness information for bacterial genomes via a Restful API.
 
 Implemented in pure Python3 3, it uses in-memory data storage backed by MongoDb.
 It loads configuration from a config file, which must be set in production.
+
+If no config file is provided, it will run in  'testing' mode with the  parameters
+in default_test_config.json.  This expects a mongodb database to be running on
+the default port on local host.  As a rough guide to the amount of space required in mongodb,
+about 0.5MB of database is used per sequence, or about 2,000 sequences per GB.
 
 If no config file is provided, it will run in  'testing' mode with the  parameters
 in default_test_config.json.  This expects a mongodb database to be running on
@@ -67,6 +72,7 @@ from NucleicAcid import NucleicAcid
 from mongoStore import fn3persistence
 from seqComparer import seqComparer		# import from seqComparer_mt for multithreading
 from clustering import snv_clustering
+from guidLookup import guidSearcher  # fast lookup of first part of guids
 
 # network visualisation
 from visualiseNetwork import snvNetwork
@@ -279,6 +285,7 @@ class findNeighbour3():
 		self.objExaminer=NucleicAcid()
 		
 		# load in-memory sequences
+		self.gs = guidSearcher()
 		self._load_in_memory_data()
 		
 		print("findNeighbour3 is ready.")
@@ -333,6 +340,7 @@ class findNeighbour3():
 	
 		for guid in guids:
 			nLoaded+=1
+			self.gs.add(guid)
 			obj = self.PERSIST.refcompressedsequence_read(guid)
 			self.sc.persist(obj, guid=guid)
 			
@@ -489,6 +497,7 @@ class findNeighbour3():
 			cleaned_dna=self.objExaminer.nucleicAcidString.decode()
 			refcompressedsequence =self.sc.compress(cleaned_dna)          # compress it and store it in RAM
 			self.sc.persist(refcompressedsequence, guid)			    # insert the DNA sequence into ram.
+			self.gs.add(guid)
 			self.server_monitoring_store(message='server | Inserted one into RAM'.format(guid))
 						
 			# construct links with everything existing existing at the time the semaphore was acquired.
@@ -1621,7 +1630,7 @@ class test_server_time(unittest.TestCase):
 	
 @app.route('/api/v2/guids', methods=['GET'])
 def get_all_guids(**debug):
-	""" returns all guids.  reference, if included, is ignored."""
+	""" returns all guids.  other params, if included, is ignored."""
 	try:
 		result = list(fn3.get_all_guids())
 	except Exception as e:
@@ -1711,6 +1720,52 @@ class test_get_all_guids_examination_time_1(unittest.TestCase):
 		relpath = "/api/v2/guids_and_examination_times"
 		res = do_GET(relpath)
 		et= len(json.loads(res.content.decode('utf-8')))
+
+@app.route('/api/v2/guids_beginning_with/<string:startstr>', methods=['GET'])
+def get_matching_guids(startstr, max_returned=30):
+	""" returns all guids matching startstr.
+	A maximum of max_returned matches is returned.
+	If > max_returned records match, then an empty list is returned.
+	"""
+	try:
+		result = fn3.gs.search(search_string= startstr, max_returned=max_returned)
+	except Exception as e:
+		capture_exception(e)
+		abort(500, e)
+	return(make_response(tojson(result)))
+
+
+
+class test_get_matching_guids_1(unittest.TestCase):
+	""" tests route /api/v2/guids_beginning_with"""
+	def runTest(self):
+		#  get existing guids
+		relpath = "/api/v2/guids"
+		res = do_GET(relpath)
+		n_pre = len(json.loads(str(res.text)))		# get all the guids
+
+		guid_to_insert = "guid_{0}".format(n_pre+1)
+
+		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+		with open(inputfile, 'rt') as f:
+			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+					seq = str(record.seq)
+
+		print("Adding TB reference sequence of {0} bytes".format(len(seq)))
+		self.assertEqual(len(seq), 4411532)		# check it's the right sequence
+
+		relpath = "/api/v2/insert"
+		res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
+		self.assertEqual(res.status_code, 200)
+
+		self.assertTrue(isjson(content = res.content))
+		info = json.loads(res.content.decode('utf-8'))
+		self.assertEqual(info, 'Guid {0} inserted.'.format(guid_to_insert))
+
+		relpath = "/api/v2/guids_beginning_with/{0}".format(guid_to_insert)
+		res = do_GET(relpath)
+		print(res)
+		self.assertEqual(json.loads(res.content.decode('utf-8')), [guid_to_insert])
 
 
 @app.route('/api/v2/annotations', methods=['GET'])
@@ -1866,7 +1921,7 @@ def cl2cnt(clustering_algorithm):
 		df['cluster_id']=df.index
 		retVal = df.to_json(orient='records')
 	except KeyError:
-		retVal=tojson({})		# no data
+		retVal=tojson([])		# no data
 	return make_response(retVal)
 
 class test_cl2cnt(unittest.TestCase):

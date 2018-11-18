@@ -5,7 +5,8 @@ Frontend
 
 Search/describe sequences in the server
 -----------------------------------------------------------------------
-[/api/v2/guids](/api/v2/guids)  list all guids (sequence identifiers) in the server    
+[/api/v2/guids](/api/v2/guids)  list all guids (sequence identifiers) in the server  
+**/api/v2/guids_beginning_with/*startstr* **  list all guids starting with *startstr*.  Very fast algorithm, suitable for on-keypress prediction of matching guids.  Only up to 30 results are returned.  If more than 30 records match, an empty list is returned.  
 **/api/v2/guids_with_quality_over/*cutoff* ** list all guids with quality (proportion of Ns in the sequence) over *cutoff*    
 [/api/v2/guids_and_examination_times](/api/v2/guids_and_examination_times) list all guids and their examination (i.e. insertion) time   
 [/api/v2/annotations](/api/v2/annotations) describe annotations (e.g. quality) for all sequences   

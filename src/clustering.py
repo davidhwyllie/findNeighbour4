@@ -1,3 +1,8 @@
+#!/usr/bin/env python
+""" 
+module to perform clustering of samples
+"""
+
 import networkx as nx
 import datetime
 import unittest
