@@ -760,10 +760,6 @@ class findNeighbour3():
 		idList=list()
 
 		# gets the similar sequences from the database;
-		# wrapper round ewc.neighboursOf()
-		# returned value reVal is {'guid':guid, 'neighbours':[ *, *, * ...] }
-		# where * is one of the two formats shown in the docstring above.
-		
 		retVal = self.PERSIST.guid2neighbours(guid=guid, cutoff=snpDistance, returned_format=returned_format)
 		
 		# run a quality check on the things our sample is like.
@@ -812,9 +808,13 @@ class findNeighbour3():
 		for key in retDict:
 			retDict[key]=retDict[key].isoformat()
 		return(retDict)
+	
 	def get_all_annotations(self):
 		return self.PERSIST.guid_annotations()
-	
+
+	def get_one_annotation(self, guid):
+		return self.PERSIST.guid_annotation(guid)
+		
 	def query_get_detail(self, sname1, sname2):
 		""" gets detail on the comparison of a pair of samples.  Computes this on the fly """
 		ret = self.sc.query_get_detail(sname1,sname2)
@@ -1603,6 +1603,29 @@ class test_server_memory_usage(unittest.TestCase):
 		res = json.loads(res.content.decode('utf-8'))
 		self.assertTrue(isinstance(res,list))
 
+
+@app.route('/api/v2/snpceiling', methods=['GET'])
+def snpceiling():
+	""" returns largest snp distance stored by the server """
+	try:
+		result = {"snpceiling":fn3.snpCeiling}
+		
+	except Exception as e:
+		capture_exception(e)
+		abort(500, e)
+	return make_response(tojson(result))
+
+class test_snpceiling(unittest.TestCase):
+	""" tests route /api/v2/snpceiling"""
+	def runTest(self):
+		relpath = "/api/v2/snpceiling"
+		res = do_GET(relpath)
+		print(res)
+		self.assertTrue(isjson(content = res.content))
+		config_dict = json.loads(res.content.decode('utf-8'))
+		self.assertTrue('snpceiling' in config_dict.keys())
+		self.assertEqual(res.status_code, 200)
+
 @app.route('/api/v2/server_time', methods=['GET'])
 def server_time():
 	""" returns server time """
@@ -1623,8 +1646,6 @@ class test_server_time(unittest.TestCase):
 		self.assertTrue(isjson(content = res.content))
 		config_dict = json.loads(res.content.decode('utf-8'))
 		self.assertTrue('server_time' in config_dict.keys())
-		self.assertTrue('server_name' in config_dict.keys())
-
 		self.assertEqual(res.status_code, 200)
 
 	
@@ -1820,6 +1841,33 @@ class test_exist_sample(unittest.TestCase):
 		self.assertEqual(type(info), bool)
 		self.assertEqual(info, False)
 
+@app.route('/api/v2/<string:guid>/annotation', methods=['GET'])
+def annotations_sample(guid):
+	""" returns annotations of one sample """
+	
+	try:
+		result = fn3.PERSIST.guid_annotation(guid)
+	
+	except Exception as e:
+		capture_exception(e)
+		abort(500, e)
+	
+	if len(result.keys())==0:
+		abort(404, "guid does not exist {0}".format(guid))
+	retVal = result[guid]
+	retVal['guid'] = guid
+	return make_response(tojson(retVal))
+
+class test_annotation_sample(unittest.TestCase):
+	""" tests route /api/v2/guid/annotation """
+	def runTest(self):
+		relpath = "/api/v2/non_existent_guid/annotation"
+		res = do_GET(relpath)
+		print(res)
+		self.assertEqual(res.status_code, 404)
+		self.assertTrue(isjson(content = res.content))
+		info = json.loads(res.content.decode('utf-8'))
+		self.assertEqual(type(info), dict)
 
 @app.route('/api/v2/insert', methods=['POST'])
 def insert():

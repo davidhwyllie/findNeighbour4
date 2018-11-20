@@ -488,7 +488,11 @@ class fn3persistence():
             """ return all annotations of all guids """
             #self.connect()
             return self.guid2items(None,None)           # no restriction by namespace or by guid.
-        
+        def guid_annotation(self, guid):
+            """ return all annotations of one guid """
+            #self.connect()
+            return self.guid2items([guid],None)           # restriction by guid.
+                
         def guid2neighbour_add_links(self,guid, targetguids):
                 """ adds links between guid and targetguids
                 
@@ -1118,6 +1122,14 @@ class Test_SeqMeta_allAnnotations(Test_SeqMeta_Base1):
         def runTest(self):
                 df = self.t.guid_annotations()     
                 self.assertEqual(len(df.keys()),4)
+
+class Test_SeqMeta_oneAnnotation(Test_SeqMeta_Base1):
+        """ tests recovery of one annotations """
+        def runTest(self):
+                df = self.t.guid_annotation('guid3')     
+                self.assertEqual(len(df.keys()),1)
+                df = self.t.guid_annotation('missing')     
+                self.assertEqual(len(df.keys()),0)
 
 class Test_Clusters(unittest.TestCase):
         """ tests saving and recovery of dictionaries to Clusters"""

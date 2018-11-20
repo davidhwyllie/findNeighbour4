@@ -14,6 +14,7 @@ Search/describe sequences in the server
 Describe properties/neighbours of a single sequence, identified by a guid
 -------------------------------------------------------------------------
 **/api/v2/*guid*/exists**  test whether it exists  
+**/api/v2/*guid*/annotation**  return metadata for the guid  
 **/api/v2/*guid*/neighbours_within/*threshold* ** specifies threshold, uses default quality cutoff and output format   
 **/api/v2/*guid*/neighbours_within/*threshold*/with_quality_cutoff/*cutoff* ** specify quality cutoff; uses default output format   
 **/api/v2/*guid*/neighbours_within/*threshold*/in_format/*returned_format* **  specify quality cutoff and output format    
@@ -48,6 +49,7 @@ Server config & testing
 [/api/v2/server_memory_usage](/api/v2/server_memory_usage) Return the server's log of internal memory and disc usage     
 **/api/v2/server_memory_usage/*nrows* ** Return the [last *nrows* of the] server's log of internal memory and disc usage   
 [/api/v2/server_time](/api/v2/server_time) Return server time   
+[/api/v2/snpceiling](/api/v2/snpceiling) Return maximum snv stored by the server  
 [/api/v2/nucleotides_excluded](/api/v2/nucleotides_excluded) List nucleotides masked (ignored) by the server in distance computations  
 **/api/v2/mirror**  (requires POST)  returns the dictionary posted to the server. Can be used for testing network connectivity.    
 **/api/v2/raise_error/*component*/*token*/** raises an error internally.  Can be used to test error logging.  Disabled unless in debug mode.
