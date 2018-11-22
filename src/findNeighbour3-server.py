@@ -647,7 +647,7 @@ class findNeighbour3():
 					clusters_to_check.add(cluster)						# everything else in the same cluster as it
 			
 			cl2guids = 	self.clustering[clustering_name].clusters2guid()	# dictionary allowing cluster -> guid lookup
-			app.logger.debug("Clustering graph {0};  recovered cl2guids {1}".format(clustering_name, cl2guids))
+			#app.logger.debug("Clustering graph {0};  recovered cl2guids {1}".format(clustering_name, cl2guids))
 
 			for cluster in clusters_to_check:
 				guids_for_msa = cl2guids[cluster]							# do msa on the cluster
@@ -1750,6 +1750,7 @@ def get_matching_guids(startstr, max_returned=30):
 	"""
 	try:
 		result = fn3.gs.search(search_string= startstr, max_returned=max_returned)
+		app.logger.debug(result)
 	except Exception as e:
 		capture_exception(e)
 		abort(500, e)
@@ -1785,7 +1786,6 @@ class test_get_matching_guids_1(unittest.TestCase):
 
 		relpath = "/api/v2/guids_beginning_with/{0}".format(guid_to_insert)
 		res = do_GET(relpath)
-		print(res)
 		self.assertEqual(json.loads(res.content.decode('utf-8')), [guid_to_insert])
 
 

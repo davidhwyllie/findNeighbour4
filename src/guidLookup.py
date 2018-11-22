@@ -55,7 +55,6 @@ class guidSearcher():
         max_returned   the maximum number of matches returned
         return_subset  whether to return max_returned records if more than max_returned records are found.
         """
-        
         search_start = bisect.bisect_left(self.guids, search_string)
         retVal = []
         
@@ -64,9 +63,8 @@ class guidSearcher():
             if search_point > len(self.guids)-1:      # got to the end
                 break
             else:
-                if self.guids[i].startswith(search_string):
-                    retVal.append(self.guids[i])
-            
+                if self.guids[search_point].startswith(search_string):
+                    retVal.append(self.guids[search_point])
         if len(retVal) == max_returned and return_subset == False:
             # don't return partial lists of matches
             return []
