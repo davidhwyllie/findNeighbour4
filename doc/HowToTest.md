@@ -73,6 +73,8 @@ After this, please follow the below steps.
 Start the server  
 -----------------
 
+Note that all commands should be run with the findNeighbour3 *src* folder as the current working directory.  
+
 To start the server, go to the findNeighbour3 *src* folder and run the command:  
 ```python3 findNeighbour3-server.py```  
 
@@ -98,10 +100,9 @@ A warning is emitted if the server is running with this default configuration.
 Start the database manager   
 ---------------------------
 In production, it is normally a good idea to run the database manager application.  
-This is separate from the server, and [works in the background](repack.md) to minimise the database size.  
-This application is started exactly the same way as the server, and uses the same configuration file.  
+This is separate from the server, and [works in the background](repack.md) to minimise the database size and maintain a read-optimised database state.  This application is started exactly the same way as the server, and uses the same configuration file.  
 
-The more general form for starting the server is:  
+The general form for starting the database manager is:  
 ```
 nohup python3 findNeighbour3-dbmanager.py {configfile.json} &  
 ```
@@ -116,12 +117,19 @@ python3 -m unittest  NucleicAcid
 python3 -m unittest  seqComparer  
 python3 -m unittest  clustering  
 python3 -m unittest  mongoStore     # requires mongodb server on localhost
+python3 -m unittest  visualiseNetwork
+python3 -m unittest  guidLookup
 
-More complex testing requires a findNeighbour3 server running.
-Unit tests don't start the server. You will need to do.  After this, you can run unit tests.  
+More complex testing on the server itself requires a findNeighbour3 server running.
+Unit tests don't start the server. You will need to do.  After this, you can run unit tests against the functional server.  
 
-# starting a test RESTFUL server
+# starting a test server
+# linux specific
 nohup python3 findNeighbour3-server.py &
+
+# windows - in a new terminal
+python3 findNeighbour3-server.py 
+
 
 # And then (e.g. in a different terminal, in windows) launching unit tests as below.
 #
@@ -302,8 +310,8 @@ Services available
 These are listed [here](rest-routes.md).
 
 
-Ensuring the services restart with the server
-=============================================
+Ensuring the services restart if a linux server restarts
+========================================================
 (thanks to Hemanth M for this)
 
 * create a file “start_fn3” in /etc/init.d which runs a shell script as below, 
