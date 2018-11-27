@@ -26,7 +26,7 @@ Example usage:
 
 # first, a server must be running
 python findNeighbour3-server.py ../demos/simulation/config/config.json
-# then
+# then simulations must be generated (e.g. with run_simulation)
 python run_simulation.py  ../output/simulation_set_1""")
     parser.add_argument('inputdir', type=str, nargs=1, help='data will be read from the inputdir')    
     args = parser.parse_args()
@@ -34,7 +34,7 @@ python run_simulation.py  ../output/simulation_set_1""")
     
     
     # connect to server
-    fn3c = fn3Client()
+    fn3c = fn3Client("localhost:5020")
     
     # iterate over simulated data
     for inputdir in glob.glob(os.path.join(basedir,'*')):

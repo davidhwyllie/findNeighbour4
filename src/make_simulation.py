@@ -437,11 +437,11 @@ python make_simulation.py 50 10000 0.02 0.01 0.05 0.1 20 1 ../output/simulation_
                 ns = list(observed_sequences[key]).count('N')
                 subtree.add_face(ete3.TextFace(ns, ftype='Courier New', fsize=6), column=0, position='aligned')
                 if key == mixed:
-                    subtree.add_face(ete3.TextFace('c. {0}'.format(mixed_with), ftype='Courier New', fsize=6), column=2, position='aligned')
+                    subtree.add_face(ete3.TextFace('Y c. {0}'.format(mixed_with), ftype='Courier New', fsize=6), column=2, position='aligned')
                     risk_factor = np.random.binomial(1, prop_risk_mixed)
                     f.write("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}\n".format(key, ns, key==mixed, mixed_with, common_ancestor, dist,risk_factor,observed_sequences[key], cl_number_1, cl_number_2))
                 else:
-                    subtree.add_face(ete3.TextFace('No',ftype='Courier New', fsize=6), column=1, position='aligned')
+                    subtree.add_face(ete3.TextFace('N',ftype='Courier New', fsize=6), column=1, position='aligned')
                     risk_factor = np.random.binomial(1, prop_risk_not_mixed)
                     f.write("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}\n".format(key, ns, key==mixed, '', '', 0,risk_factor, observed_sequences[key], cl_number_1, cl_number_2))
     
