@@ -518,6 +518,7 @@ class seqComparer():
           
         retVal = {'add':add_positions, 'subtract':subtract_positions}
         return(retVal)
+    
     def apply_patch(self, patch, consensus):
         """ generates a compressed_sequence from a patch and a consensus.
         """
@@ -539,7 +540,8 @@ class seqComparer():
                 subtract_these = set()
                 
             compressed_sequence[item]=  (consensus[item]|add_these)-subtract_these
-        return(compressed_sequence)   
+        return(compressed_sequence)
+    
     def compressed_sequence_hash(self, compressed_sequence):
         """ returns a string containing a hash of a compressed object.
         Used for identifying compressed objects, including consensus sequences.
@@ -556,6 +558,7 @@ class seqComparer():
         h.update(serialised_compressed_sequence.encode('utf-8'))
         md5 = h.hexdigest()
         return(md5)
+    
     def remove_unused_consensi(self):
         """ identifies and removes any consensi which are not used """
         
@@ -605,6 +608,22 @@ class seqComparer():
         
         # return visited_guids
         return(visited_guids)
+    
+    def estimate_expected_proportion(self, seqs):
+        """ computes the median Ns for seqs, a list.
+        Returns None if
+        * the length of the sequences in seqs are 0, or
+        * there are <= 3 seqs
+        """
+        if len(seqs) < 3:
+            return None
+        if len(seqs[0]) == 0:
+            return None
+        Ns = []
+        for seq in seqs:
+            Ns.append(seq.count('N'))
+        return np.median(Ns)/len(seqs[0])
+    
     def estimate_expected_N(self, sample_size=30, exclude_guids=set()):
         """ computes the median allN for sample_size guids, randomly selected from all guids except for exclude_guids.
         Used to estimate the expected number of Ns in an alignment """
@@ -680,7 +699,7 @@ class seqComparer():
         res= sc.multi_sequence_alignment(guid_names[0:8], output='df_dict')     # make the dictionary, see unit test _47
         df = pd.DataFrame.from_dict(res,orient='index')                         # turn it back.
         
-        The p values reported are derived from exact, two-sided binomial tests as implemented in pythons scipy.stats.binom_test().
+        The p values reported are derived from exact, one-sided binomial tests as implemented in python's scipy.stats.binom_test().
 
         TEST 1:
         This tests the hypothesis that the number of Ns in the *alignment*
@@ -720,6 +739,14 @@ class seqComparer():
         TEST 3: tests whether the proportion of Ns in the alignment is greater
         than in the bases not in the alignment, for this sequence.
         
+        ## TEST 4:  
+        tests whether the proportion of Ns in the alignment  for this sequence
+        is greater than the median proportion of Ns in the alignment for all other sequences.
+        This is a sensible option if the test is performed per-cluster, and the proportion of Ns in the
+        aligned sequences differs markedly by cluster.
+        
+        This test is computed if there are four or more samples in the cluster, and if the alignment length is non-zero.
+
         """
         
         # -1 validate input
@@ -780,7 +807,7 @@ class seqComparer():
         res= sc.multi_sequence_alignment(guid_names[0:8], output='df_dict')     # make the dictionary, see unit test _47
         df = pd.DataFrame.from_dict(res,orient='index')                         # turn it back.
         
-        The p values reported are derived from exact, two-sided binomial tests as implemented in pythons scipy.stats.binom_test().
+        The p values reported are derived from exact, one-sided binomial tests as implemented in pythons scipy.stats.binom_test().
         
         TEST 1:
         This tests the hypothesis that the number of Ns in the *alignment*
@@ -816,10 +843,16 @@ class seqComparer():
         
         If there  are not enough samples in the server to obtain an estimate, p_value is not computed, being
         reported as None.
-      
-            
+                  
         TEST 3: tests whether the proportion of Ns in the alignment is greater
         than in the bases not in the alignment, for this sequence.
+        
+        TEST 4: tests whether the proportion of Ns in the alignment  for this sequence
+        is greater than the median proportion of Ns in the alignment for all other sequences.
+        This is a sensible option if the test is performed per-cluster, and the proportion of Ns in the
+        aligned sequences differs markedly by cluster.
+        
+        This test is computed if there are two or more samples in the cluster.
 
         """
         
@@ -883,11 +916,13 @@ class seqComparer():
             guid2pvalue1 = {}
             guid2pvalue2 = {}
             guid2pvalue3 = {}
+            guid2pvalue4 = {}
             guid2alignN = {}
             guid2observed_p = {}
             guid2expected_p1 = {}
             guid2expected_p2 = {}
             guid2expected_p3 = {}
+            guid2expected_p4 = {}
             for guid in valid_guids:
                 
                 # compute p value 1.  This tests the hypothesis that the number of Ns in the *alignment*
@@ -920,7 +955,7 @@ class seqComparer():
                 guid2expected_p2[guid]=expected_p2
                 
                                 
-                 # compute p value 3.  This tests the hypothesis that the number of Ns in the alignment of THIS SEQUENCE
+                # compute p value 3.  This tests the hypothesis that the number of Ns in the alignment of THIS SEQUENCE
                 # is GREATER than the number of Ns not in the alignment  IN THIS SEQUENCE
                 # based on sequences not in the alignment
 
@@ -928,6 +963,27 @@ class seqComparer():
                 p_value = binom_test(guid2alignN[guid],len(guid2msa_seq[guid]), expected_p3, alternative='greater')
                 guid2pvalue3[guid]=p_value
                 guid2expected_p3[guid]=expected_p3
+                
+                # compute p value 4.
+                # tests whether the proportion of Ns in the alignment  for this sequence
+                # is greater than the median proportion of Ns in the alignment for all other sequences.
+                # This is a sensible option if the test is performed per-cluster, and the proportion of Ns in the
+                # aligned sequences differs markedly by cluster.
+                # This test is computed if there are two or more samples in the cluster.
+               
+                # get the sequences which are not guid;
+                other_seqs = []
+                for this_guid in guid2msa_seq.keys():
+                    if not guid == this_guid:
+                        other_seqs.append(guid2msa_seq[this_guid])
+                expected_p4 = self.estimate_expected_proportion(other_seqs)
+                if expected_p4 is None:
+                    p_value = None
+                else:
+                    p_value = binom_test(guid2alignN[guid],len(guid2msa_seq[guid]), expected_p4, alternative='greater')
+                guid2pvalue4[guid]=p_value
+                guid2expected_p4[guid]=expected_p4
+                 
                 
             # assemble dataframe
             df1 = pd.DataFrame.from_dict(guid2msa_seq, orient='index')
@@ -941,17 +997,21 @@ class seqComparer():
             df4.columns=['p_value1']
             df5 = pd.DataFrame.from_dict(guid2pvalue2, orient='index')
             df5.columns=['p_value2']
-            df6 = pd.DataFrame.from_dict(guid2pvalue2, orient='index')
+            df6 = pd.DataFrame.from_dict(guid2pvalue3, orient='index')
             df6.columns=['p_value3']
-            df7 = pd.DataFrame.from_dict(guid2observed_p, orient='index')
-            df7.columns=['observed_proportion']
-            df8 = pd.DataFrame.from_dict(guid2expected_p1, orient='index')
-            df8.columns=['expected_proportion1']
-            df9 = pd.DataFrame.from_dict(guid2expected_p3, orient='index')
-            df9.columns=['expected_proportion2']
+            df7 = pd.DataFrame.from_dict(guid2pvalue4, orient='index')
+            df7.columns=['p_value4']
+            df8 = pd.DataFrame.from_dict(guid2observed_p, orient='index')
+            df8.columns=['observed_proportion']
+            df9 = pd.DataFrame.from_dict(guid2expected_p1, orient='index')
+            df9.columns=['expected_proportion1']
             df10 = pd.DataFrame.from_dict(guid2expected_p3, orient='index')
-            df10.columns=['expected_proportion3']
-            
+            df10.columns=['expected_proportion2']
+            df11 = pd.DataFrame.from_dict(guid2expected_p3, orient='index')
+            df11.columns=['expected_proportion3']
+            df12 = pd.DataFrame.from_dict(guid2expected_p4, orient='index')
+            df12.columns=['expected_proportion4']
+                        
             df = df1.merge(df2, left_index=True, right_index=True)
             df = df.merge(df3, left_index=True, right_index=True)
             df = df.merge(df4, left_index=True, right_index=True)
@@ -961,6 +1021,8 @@ class seqComparer():
             df = df.merge(df8, left_index=True, right_index=True)
             df = df.merge(df9, left_index=True, right_index=True)         
             df = df.merge(df10, left_index=True, right_index=True)
+            df = df.merge(df11, left_index=True, right_index=True)
+            df = df.merge(df12, left_index=True, right_index=True)
                   
             retDict = {'variant_positions':ordered_variant_positions,
                     'invalid_guids': invalid_guids,
@@ -971,9 +1033,11 @@ class seqComparer():
                     'guid2expected_p1':guid2expected_p1,
                     'guid2expected_p2':guid2expected_p2,
                     'guid2expected_p3':guid2expected_p3,
+                    'guid2expected_p4':guid2expected_p4,
                     'guid2pvalue1':guid2pvalue1,
                     'guid2pvalue2':guid2pvalue2,
                     'guid2pvalue3':guid2pvalue3,
+                    'guid2pvalue4':guid2pvalue4,
                     'guid2alignN':guid2alignN}
         
         else:
@@ -1061,14 +1125,13 @@ class test_seqComparer_47c(unittest.TestCase):
         df= sc.multi_sequence_alignment(guid_names[0:8], output='df', expected_p1=0.995)      
         # there's variation at positions 0,1,2,3
         self.assertTrue(isinstance(df, pd.DataFrame))
-
-        self.assertEqual(set(df.columns.values),set(['aligned_seq','aligned_seq_len','aligned_seq_len','allN','alignN','p_value1','p_value2','p_value3', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3']))
+        expected_cols = set(['aligned_seq','aligned_seq_len','aligned_seq_len','allN','alignN','p_value1','p_value2','p_value3', 'p_value4', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3','expected_proportion4'])
+        self.assertEqual(set(df.columns.values),expected_cols)
         self.assertEqual(len(df.index),7)
         res= sc.multi_sequence_alignment(guid_names[0:8], output='df_dict', expected_p1=0.995)
         df = pd.DataFrame.from_dict(res,orient='index')
 
-        self.assertEqual(set(df.columns.values),set(['aligned_seq','aligned_seq_len', 'allN', 'alignN', 'p_value1', 'p_value2', 'p_value3', 'observed_proportion',
-                                               'expected_proportion1', 'expected_proportion2', 'expected_proportion3']))
+        self.assertEqual(set(df.columns.values),expected_cols)
     
         self.assertEqual(set(df.index.tolist()), set(['AAACGN-1','CCCCGN-2','TTTCGN-3','GGGGGN-4','ACTCGN-6', 'TCTNGN-7','AAACGN-8']))
         self.assertTrue(df.loc['AAACGN-1','expected_proportion1'] is not None)        # check it computed a value
@@ -1107,7 +1170,9 @@ class test_seqComparer_47b(unittest.TestCase):
         
         # there's variation at positions 0,1,2,3
         self.assertTrue(isinstance(df, pd.DataFrame))
-        self.assertEqual(set(df.columns.values),set(['aligned_seq','aligned_seq_len','allN','alignN','p_value1','p_value2','p_value3', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3']))
+        expected_cols = set(['aligned_seq','aligned_seq_len','aligned_seq_len','allN','alignN','p_value1','p_value2','p_value3', 'p_value4', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3','expected_proportion4'])
+    
+        self.assertEqual(set(df.columns.values),expected_cols)
         self.assertEqual(len(df.index),7)
         res= sc.multi_sequence_alignment(guid_names[0:8], output='df_dict')
         df = pd.DataFrame.from_dict(res,orient='index')
@@ -1144,7 +1209,9 @@ class test_seqComparer_47a(unittest.TestCase):
         df= sc.multi_sequence_alignment(guid_names[0:8], output='df')
         # there's variation at positions 0,1,2,3
         self.assertTrue(isinstance(df, pd.DataFrame))
-        self.assertEqual(set(df.columns.values),set(['aligned_seq','aligned_seq_len','allN','alignN','p_value1','p_value2','p_value3', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3']))
+        expected_cols = set(['aligned_seq','aligned_seq_len','aligned_seq_len','allN','alignN','p_value1','p_value2','p_value3', 'p_value4', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3','expected_proportion4'])
+  
+        self.assertEqual(set(df.columns.values),expected_cols)
         self.assertEqual(len(df.index),8)
         res= sc.multi_sequence_alignment(guid_names[0:8], output='df_dict')
         df = pd.DataFrame.from_dict(res,orient='index')
@@ -1265,9 +1332,7 @@ class test_seqComparer_45a(unittest.TestCase):
         df.columns=res['variant_positions']
         self.assertEqual(len(df.index), 7)
         self.assertEqual(res['variant_positions'],[0,1,2,3])
-        print(res)
-        print(df)
-        
+
 class test_seqComparer_45b(unittest.TestCase):
     """ tests the generation of multiple alignments of variant sites."""
     def runTest(self):
@@ -1823,10 +1888,11 @@ class test_seqComparer_45(unittest.TestCase):
                 
             guids_inserted.append(guid_to_insert)			
             if not is_mixed:
-                    print("Adding TB sequence {2} of {0} bytes with {1} Ns and {3} variants relative to ref.".format(len(seq), seq.count('N'), guid_to_insert, nVariants))
+                    #print("Adding TB sequence {2} of {0} bytes with {1} Ns and {3} variants relative to ref.".format(len(seq), seq.count('N'), guid_to_insert, nVariants))
+                    pass
             else:
-                    print("Adding mixed TB sequence {2} of {0} bytes with {1} Ns relative to ref.".format(len(seq), seq.count('N'), guid_to_insert))
-                         
+                    #print("Adding mixed TB sequence {2} of {0} bytes with {1} Ns relative to ref.".format(len(seq), seq.count('N'), guid_to_insert))
+                    pass    
             self.assertEqual(len(seq), 4411532)		# check it's the right sequence
     
             c = sc.compress(seq)
@@ -1909,7 +1975,7 @@ class test_seqComparer_48(unittest.TestCase):
         n = 0
         for item in sc.distmat(half=False, diagonal=False):
             n +=1
-            print(item)
+
         l = len(originals)
         
         self.assertEqual(n, (l*l)-l)
@@ -1918,7 +1984,31 @@ class test_seqComparer_48(unittest.TestCase):
         n = 0
         for item in sc.distmat(half=True, diagonal=False):
             n +=1
-            print(item)
+
         l = len(originals)
         
         self.assertEqual(n, (l*(l-1)/2))
+        
+class test_seqComparer_50(unittest.TestCase):
+    """ tests estimate_expected_proportion, a function computing the proportion of Ns expected based on the median
+    Ns in a list of sequences"""
+    def runTest(self):
+        refSeq='GGGGGGGGGGGG'
+        sc=seqComparer( maxNs = 1e8,
+                       reference=refSeq,
+                       snpCeiling =10)
+  
+        res = sc.estimate_expected_proportion([])
+        self.assertTrue(res is None)
+
+        res = sc.estimate_expected_proportion(['AA','AA'])
+        self.assertTrue(res is None)
+        
+        res = sc.estimate_expected_proportion(['AA','AA', 'AA'])
+        self.assertTrue(res is not None)
+        self.assertTrue(res == 0)
+        
+        res = sc.estimate_expected_proportion(['AAN','AAN', 'AAN'])
+        self.assertTrue(res is not None)
+        self.assertAlmostEqual(res, 1/3)
+        

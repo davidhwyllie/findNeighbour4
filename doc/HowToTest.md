@@ -214,14 +214,17 @@ CLUSTERING:     a dictionary of parameters used for clustering.  In the below ex
                     'ignore', one cluster {A,B,M} is returned
                     'include', two clusters {A,M} and {B,M}
                     'exclude', three clusters are returns {A},{B},{C}
-                mixture_criterion: sensible values include 'p_value1','p_value2','p_value3' but other output from  seqComparer._msa() is also possible.
-                     these p-values arise from three different tests for mixtures.  Please see seqComparer._msa() for details.
+                mixture_criterion: sensible values include 'p_value1','p_value2','p_value3', 'p_value4' but other output from  seqComparer._msa() is also possible.
+                these p-values arise from three different tests for mixtures. 
+                
                 cutoff: samples are regarded as mixed if the mixture_criterion is less than or equal to this value.
 SENTRY_URL:     optional.  If you wish to use the Sentry service to log any errors, provision of a sentry URL will effect this.  This URL will
                 look something like https://c*********************@sentry.io/12xxxxxx
 LISTEN_TO:      optional.  If missing, will bind to localhost (only) on 127.0.0.1.  If present, will listen to requests from the IP stated.  if '0.0.0.0', the server will respond to all external requests.
 ```
 	
+Mixture detection, and the nature of the *mixture_criterion* in the CLUSTERING specification, is described in more detail [here](mixtureTesting.md).
+
 An example CONFIG is below:
 
 ```
