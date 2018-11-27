@@ -1965,34 +1965,80 @@ class test_g2c(unittest.TestCase):
 		self.assertTrue(isinstance(retVal, list))
 
 @app.route('/api/v2/clustering/<string:clustering_algorithm>/clusters', methods=['GET'])
-def cl2cnt(clustering_algorithm):
+@app.route('/api/v2/clustering/<string:clustering_algorithm>/<int:cluster_id>', methods=['GET'])
+def clusters2cnt(clustering_algorithm, cluster_id = None):
 	"""  returns a clusterid -> count dictionary for all cluster_ids """
 	try:
-		res = fn3.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)
+		all_res = fn3.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)
 
 	except KeyError:
 		# no clustering algorithm of this type
 		abort(404, "no clustering algorithm {0}".format(clustering_algorithm))
-
+	print("cluster_id", cluster_id)
+	if cluster_id is None:
+		res = all_res
+	else:
+		
+		res = []
+		for item in all_res:
+			
+			if item['cluster_id'] == cluster_id:
+				res.append(item)
+		if len(res) == 0:
+			# no cluster exists of that name
+			abort(404, "no cluster {1} exists for algorithm {0}".format(clustering_algorithm, cluster_id))
+			
 	d= pd.DataFrame.from_records(res)
 	
 	try:
 		df = pd.crosstab(d['cluster_id'],d['is_mixed'])
 		df = df.add_prefix('is_mixed_')
 		df['cluster_id']=df.index
-		retVal = df.to_json(orient='records')
+		summary = json.loads(df.to_json(orient='records'))
+		detail  = json.loads(d.to_json(orient='records'))
+		retVal = {"summary":summary, "members":detail}
 	except KeyError:
-		retVal=tojson([])		# no data
-	return make_response(retVal)
+		retVal = {"summary":[], "members":[]}		# no data
+	return make_response(tojson(retVal))
 
-class test_cl2cnt(unittest.TestCase):
+class test_clusters2cnt(unittest.TestCase):
 	"""  tests return of guid2clusters data structure """
 	def runTest(self):
 		relpath = "/api/v2/clustering/SNV12_ignore/clusters"
 		res = do_GET(relpath)
 		self.assertEqual(res.status_code, 200)
 		retVal = json.loads(str(res.text))
-		self.assertTrue(isinstance(retVal,list))
+		self.assertTrue(isinstance(retVal,dict))
+		self.assertEqual(set(retVal.keys()), set(['summary','members']))
+		
+class test_cluster2cnt1(unittest.TestCase):
+	"""  tests return of guid2clusters data structure """
+	def runTest(self):
+		relpath = "/api/v2/clustering/SNV12_ignore/0"		# doesn't exist
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 404)
+
+		# get existing clusterids
+		relpath = "/api/v2/clustering/SNV12_ignore/clusters"
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 200)
+		retVal = json.loads(str(res.text))
+		self.assertTrue(isinstance(retVal,dict))
+		valid_cluster_ids = set()
+		for item in retVal['members']:
+			valid_cluster_ids.add(item['cluster_id'])
+			
+		for this_cluster_id in valid_cluster_ids:
+			relpath = "/api/v2/clustering/SNV12_ignore/{0}".format(this_cluster_id)		# may exist
+			res = do_GET(relpath)
+			self.assertEqual(res.status_code, 200)
+			
+			retVal = json.loads(str(res.text))
+			self.assertTrue(isinstance(retVal,dict))
+			self.assertTrue(len(retVal['summary'])==1)
+			self.assertTrue(len(retVal['members'])>0)
+			self.assertEqual(set(retVal.keys()), set(['summary','members']))
+			break
 
 @app.route('/api/v2/clustering/<string:clustering_algorithm>/cluster_ids', methods=['GET'])
 def g2cl(clustering_algorithm):
@@ -2318,7 +2364,7 @@ class test_neighbours_within_3(unittest.TestCase):
 	def runTest(self):
 		relpath = "/api/v2/non_existent_guid/neighbours_within/12/with_quality_cutoff/0.5/in_format/1"
 		res = do_GET(relpath)
-		print(res)
+
 		self.assertTrue(isjson(content = res.content))
 		info = json.loads(res.content.decode('utf-8'))
 		self.assertEqual(type(info), dict)
@@ -2329,7 +2375,7 @@ class test_neighbours_within_4(unittest.TestCase):
 	def runTest(self):
 		relpath = "/api/v2/non_existent_guid/neighbours_within/12/with_quality_cutoff/0.5/in_format/2"
 		res = do_GET(relpath)
-		print(res)
+
 		self.assertTrue(isjson(content = res.content))
 		info = json.loads(res.content.decode('utf-8'))
 		self.assertEqual(type(info), dict)
