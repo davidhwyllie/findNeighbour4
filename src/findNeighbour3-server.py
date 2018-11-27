@@ -1025,7 +1025,7 @@ class test_raise(unittest.TestCase):
 	
 def construct_msa(guids, output_format):
 	""" constructs multiple sequence alignment for guids
-		and returns in one of 'fasta' 'html' or 'json' or 'json-record' format."""
+		and returns in one of 'fasta' 'json-fasta', 'html', 'json' or 'json-records' format."""
 	res = fn3.sc.multi_sequence_alignment(guids, output='df_dict')
 	df = pd.DataFrame.from_dict(res,orient='index')
 	html = df.to_html()
@@ -1035,6 +1035,8 @@ def construct_msa(guids, output_format):
 		
 	if output_format == 'fasta':
 		return make_response(fasta)
+	elif output_format == 'json-fasta':
+		return make_response(json.dumps({'fasta':fasta}))
 	elif output_format == 'html':
 		return make_response(html)
 	elif output_format == 'json':
@@ -1220,6 +1222,8 @@ def msa_guids():
 	json
 	json-records
 	html
+	json-fasta
+	fasta
 	"""
 
 	# validate input
@@ -1227,7 +1231,7 @@ def msa_guids():
 	if 'output_format' in request_payload.keys() and 'guids' in request_payload.keys():
 		guids = request_payload['guids'].split(';')		# coerce both guid and seq to strings
 		output_format= request_payload['output_format']
-		if not output_format in ['html','json','fasta', 'json-records']:
+		if not output_format in ['html','json','fasta', 'json-fasta', 'json-records']:
 			abort(404, 'output_format must be one of html, json, json-records or fasta not {0}'.format(format))
 	else:
 		abort(501, 'output_format and guids are not present in the POSTed data {0}'.format(data_keys))
@@ -1334,7 +1338,16 @@ class test_msa_2(unittest.TestCase):
 		res = do_POST(relpath, payload=payload)
 		self.assertFalse(isjson(res.content))
 		self.assertEqual(res.status_code, 200)
-	
+
+		payload = {'guids':';'.join(inserted_guids),'output_format':'json-fasta'}
+		res = do_POST(relpath, payload=payload)
+		self.assertTrue(isjson(res.content))
+		self.assertEqual(res.status_code, 200)
+		retVal = json.loads(res.content.decode('utf_8'))
+		self.assertTrue(isinstance(retVal, dict))
+		self.assertEqual(set(retVal.keys()), set(['fasta']))
+
+				
 		relpath = "/api/v2/clustering/SNV12_ignore/guids2clusters"
 		res = do_GET(relpath)
 		self.assertEqual(res.status_code, 200)
