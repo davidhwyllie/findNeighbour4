@@ -744,9 +744,13 @@ class findNeighbour3():
 	def neighbours_within_filter(self, guid, snpDistance, cutoff=0.85, returned_format=1):
 		""" returns a list of guids, and their distances, by a sample quality cutoff	
 			returns links either as
-			format 1 [otherGuid, distance]
+			format 1 [[otherGuid, distance]]
 			or as
-			format 2 [otherGuid, distance, N_just1, N_just2, N_either]
+			format 2 [[otherGuid, distance, N_just1, N_just2, N_either]]
+			or as
+			format 3 [otherGuid, otherGuid2, otherGuid3]
+			or as
+			format 4 [{'guid':otherGuid, 'snv':distance}, {'guid':otherGuid2, 'snv':distance2}]
 		"""
 
 		# check the query is of good quality
@@ -763,12 +767,19 @@ class findNeighbour3():
 		retVal = self.PERSIST.guid2neighbours(guid=guid, cutoff=snpDistance, returned_format=returned_format)
 		
 		# run a quality check on the things our sample is like.
+		# extract the matching guids, independent of the format requested.
 		sampleList=retVal['neighbours']
 		idList=[]
 		for sa in sampleList:
-			idList.append(sa[0])		# add the guid
+			if isinstance(sa, list):
+				idList.append(sa[0])		# add the guid
+			elif isinstance(sa, str):
+				idList.append(sa)
+			elif isinstance(sa, dict):
+				idList.append(sa['guid'])
+			else:
+				raise TypeError("Unknown format returned {0} {1}".format(type(sa),sampleList))
 		
-		# get the sample qualities from the database
 		guid2qual=self.PERSIST.guid2quality(idList)
 					  
 		# Filter to get good matching guids
@@ -782,12 +793,16 @@ class findNeighbour3():
 		
 		# assemble output by filtering sampleList
 		finalOutput = list()
-		for item in sampleList:
-			if returned_format == 1:
-				item=[item[0],item[1]]		# just the guid and the distance;
-			# otherwise return the whole of item	
-			if item[0] in goodGuids:
-				finalOutput.append(item)
+		for sa in sampleList:
+			if isinstance(sa, list):
+				guid = sa[0]
+			elif isinstance(sa, str):
+				guid = sa
+			elif isinstance(sa, dict):
+				guid = sa['guid']
+		
+			if guid in goodGuids:
+				finalOutput.append(sa)
 				
 		return finalOutput
 	
@@ -2317,14 +2332,17 @@ def neighbours_within(guid, threshold, **kwargs):
 	else:
 		cutoff = kwargs['cutoff']
 		
+		
 	if not 'returned_format' in kwargs.keys():
+		app.logger.debug("SET RETURNED FORMAT TO DEFAULT 1")
 		returned_format = 1
 	else:
 		returned_format = kwargs['returned_format']
+		app.logger.debug("SET RETURNED FORMAT = "+str( returned_format))
 	
 	# validate input
-	if not returned_format in set([1,2,]):
-		abort(500, "Invalid format requested, must be 1 or 2")
+	if not returned_format in set([1,2,3,4]):
+		abort(500, "Invalid format requested, must be 1, 2, 3 or 4.")
 	if not ( 0 <= cutoff  and cutoff <= 1):
 		abort(500, "Invalid cutoff requested, must be between 0 and 1")
 		
@@ -2442,23 +2460,35 @@ class test_neighbours_within_6(unittest.TestCase):
 		
 		search_paths = ["/api/v2/{0}/neighbours_within/1",
 						"/api/v2/{0}/neighbours_within/1/with_quality_cutoff/0.5",
-						"/api/v2/{0}/neighbours_within/1/with_quality_cutoff/0.5/in_format/1"
-						"/api/v2/{0}/neighbours_within/1/with_quality_cutoff/0.5/in_format/2"
-						"/api/v2/{0}/neighbours_within/1/in_format/1"
-						"/api/v2/{0}/neighbours_within/1/in_format/2"
+						"/api/v2/{0}/neighbours_within/1/with_quality_cutoff/0.5/in_format/1",
+						"/api/v2/{0}/neighbours_within/1/with_quality_cutoff/0.5/in_format/2",
+						"/api/v2/{0}/neighbours_within/1/with_quality_cutoff/0.5/in_format/3",
+						"/api/v2/{0}/neighbours_within/1/with_quality_cutoff/0.5/in_format/4",
+						"/api/v2/{0}/neighbours_within/1/in_format/1",
+						"/api/v2/{0}/neighbours_within/1/in_format/2",
+						"/api/v2/{0}/neighbours_within/1/in_format/3",
+						"/api/v2/{0}/neighbours_within/1/in_format/4"
 						]
 		
 		for search_path in search_paths:
+
 				url = search_path.format(test_guid)
-				res = do_GET(relpath)
+				res = do_GET(url)
 				self.assertTrue(isjson(content = res.content))
 				info = json.loads(res.content.decode('utf-8'))
 				self.assertEqual(type(info), list)
 				guids_found = set()
 				for item in info:
+					if isinstance(item,list):
+						guids_found.add(item[0])
+					elif isinstance(item,dict):
+						guids_found.add(item['guid'])
+					elif isinstance(item,str):
 						guids_found.add(item)
+					else:
+						self.fail("Unknown class returned {0}".format(type(item)))
 				recovered = guids_found.intersection(variants.keys())
-				self.assertEqual(len(recovered),4)
+				self.assertEqual(len(recovered),3)
 				self.assertEqual(res.status_code, 200)
 
 @app.route('/api/v2/<string:guid>/sequence', methods=['GET'])

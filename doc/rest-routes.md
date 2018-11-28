@@ -15,9 +15,9 @@ Describe properties/neighbours of a single sequence, identified by a guid
 -------------------------------------------------------------------------
 **/api/v2/*guid*/exists**  test whether it exists  
 **/api/v2/*guid*/annotation**  return metadata for the guid  
-**/api/v2/*guid*/neighbours_within/*threshold* ** specifies threshold, uses default quality cutoff and output format   
+**/api/v2/*guid*/neighbours_within/*threshold* ** specifies threshold, uses default quality cutoff and output format.   Formats 1,2,3,4 are options.  See docs for details.    
 **/api/v2/*guid*/neighbours_within/*threshold*/with_quality_cutoff/*cutoff* ** specify quality cutoff; uses default output format   
-**/api/v2/*guid*/neighbours_within/*threshold*/in_format/*returned_format* **  specify quality cutoff and output format    
+**/api/v2/*guid*/neighbours_within/*threshold*/in_format/*returned_format* **  specify quality cutoff and output format.  
 
 Recover masked sequences
 ------------------------

@@ -620,11 +620,13 @@ class fn3persistence():
                     format 2 [[otherGuid, distance, N_just1, N_just2, N_either],[],...]
                     or as
                     format 3 [otherGuid1, otherGuid2, otherGuid3]
+                    or as
+                    format 4 [{'guid':otherguid, 'snv':distance}]
                         
                         Internally, the documents in guid2neighbour are of the form
                         {'guid':'guid1', 'rstat':'s', 'neighbours':{'guid2':{'dist':12, ...}}} OR
                         {'guid':'guid1', 'rstat':'m', 'neighbours':{'guid2':{'dist':12, ...}, 'guid3':{'dist':5, ...}} OR
-                        {'guid':'guid1', 'rstat':'f', 'neighbours':{S'guid2':{'dist':12, ...}, 'guid3':{'dist':5, ...}} 
+                        {'guid':'guid1', 'rstat':'f', 'neighbours':{'guid2':{'dist':12, ...}, 'guid3':{'dist':5, ...}} 
                           
                         However, irrespective of their internal representation, this function always returns
                         exactly one item for each link of 'guid'; duplicates are not possible.
@@ -632,7 +634,7 @@ class fn3persistence():
                         """                
                 #self.connect()
                 retVal=[]
-                formatting = {1:['dist'], 2:['dist','N_just1','N_just2','N_either'],3:[]}
+                formatting = {1:['dist'], 2:['dist','N_just1','N_just2','N_either'],3:[], 4:['dist']}
                 desired_fields = formatting[returned_format]
                 results=  self.db.guid2neighbour.find({'guid':guid})
                 reported_already = set()
@@ -661,6 +663,10 @@ class fn3persistence():
                                                                   ]
                                                 elif returned_format == 3:
                                                         returned_data = otherGuid
+                                                
+                                                elif returned_format == 4:
+                                                    returned_data={'guid':otherGuid, 'snv':reported_fields['dist']}
+                            
                                                 else:
                                                     raise ValueError("Unable to understand returned_format = {0}".format(returned_format))                          
                                                 
@@ -750,7 +756,9 @@ class Test_SeqMeta_guid2neighbour_8(unittest.TestCase):
                 self.assertEqual(5, len(res2['neighbours']))
                 res3 = p.guid2neighbours('srcguid',returned_format=3)
                 self.assertEqual(5, len(res3['neighbours']))
-
+                res4 = p.guid2neighbours('srcguid',returned_format=4)
+                self.assertEqual(5, len(res4['neighbours']))
+                
 class Test_SeqMeta_guid2neighbour_7(unittest.TestCase):
         """ tests guid2neighboursOf"""
         def runTest(self):
