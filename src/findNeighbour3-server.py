@@ -1404,8 +1404,8 @@ def msa_guids_by_cluster(clustering_algorithm, cluster_id, output_format):
 		# no clustering algorithm of this type
 		return make_response(tojson("no clustering algorithm {0}".format(clustering_algorithm)), 404)
 		
-	if not output_format in ['html','json','json-records','fasta']:
-		abort(501, 'output_format must be one of html, json, json-records or fasta not {0}'.format(format))
+	if not output_format in ['html','json','json-records','fasta','json-fasta']:
+		abort(501, 'output_format must be one of html, json, json-records fasta or json-fasta not {0}'.format(format))
 
 	# check guids
 	df = pd.DataFrame.from_records(res)
