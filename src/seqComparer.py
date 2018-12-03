@@ -64,7 +64,7 @@ class seqComparer():
         
         cpuCount is ignored in this version.
         
-        David Wyllie, Public Health England, June 2018
+        David Wyllie, Nov 2018
         
         - to run unit tests, do
         python3 -m unittest seqComparer
