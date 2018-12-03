@@ -1869,6 +1869,71 @@ class test_exist_sample(unittest.TestCase):
 		self.assertEqual(type(info), bool)
 		self.assertEqual(info, False)
 
+@app.route('/api/v2/<string:guid>/clusters', methods=['GET'])
+def clusters_sample(guid):
+	""" returns clusters in which a sample resides """
+	
+	clustering_algorithms = sorted(fn3.clustering.keys())
+	retVal=[]
+	for clustering_algorithm in clustering_algorithms:
+
+		res = fn3.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)		
+		for item in res:
+			if item['guid']==guid:
+				item['clustering_algorithm']=clustering_algorithm
+				retVal.append(item)
+	if len(retVal)==0:
+		abort(404, "No clustering information for guid {0}".format(guid))
+	else:
+		return make_response(tojson(retVal))
+
+class test_clusters_sample(unittest.TestCase):
+	""" tests route /api/v2/guid/clusters """
+	def runTest(self):
+		# what happens if there is nothing there
+		relpath = "/api/v2/non_existent_guid/clusters"
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 404)
+		self.assertTrue(isjson(content = res.content))
+		info = json.loads(res.content.decode('utf-8'))
+		self.assertEqual(type(info), dict)
+		
+		# add one
+		relpath = "/api/v2/guids"
+		res = do_GET(relpath)
+		n_pre = len(json.loads(str(res.text)))		# get all the guids
+
+		guid_to_insert = "guid_{0}".format(n_pre+1)
+
+		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+		with open(inputfile, 'rt') as f:
+			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+					seq = str(record.seq)
+
+		print("Adding TB reference sequence of {0} bytes".format(len(seq)))
+		self.assertEqual(len(seq), 4411532)		# check it's the right sequence
+
+		relpath = "/api/v2/insert"
+		res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
+		self.assertEqual(res.status_code, 200)
+		self.assertTrue(isjson(content = res.content))
+		info = json.loads(res.content.decode('utf-8'))
+		self.assertEqual(info, 'Guid {0} inserted.'.format(guid_to_insert))
+
+		relpath = "/api/v2/guids"
+		res = do_GET(relpath)
+		n_post = len(json.loads(res.content.decode('utf-8')))
+		self.assertEqual(n_pre+1, n_post)
+		
+		relpath = "/api/v2/{0}/clusters".format(guid_to_insert)
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 200)
+		self.assertTrue(isjson(content = res.content))
+		info = json.loads(res.content.decode('utf-8'))
+		self.assertEqual(len(info),2)
+		
+
+
 @app.route('/api/v2/<string:guid>/annotation', methods=['GET'])
 def annotations_sample(guid):
 	""" returns annotations of one sample """

@@ -219,7 +219,8 @@ CLUSTERING:     a dictionary of parameters used for clustering.  In the below ex
                 
                 cutoff: samples are regarded as mixed if the mixture_criterion is less than or equal to this value.
 SENTRY_URL:     optional.  If you wish to use the Sentry service to log any errors, provision of a sentry URL will effect this.  This URL will
-                look something like https://c*********************@sentry.io/12xxxxxx
+                look something like https://d*********************@sentry.io/12xxxxxx.
+                Note that any urls in the code are examples only, and are not operational.
 LISTEN_TO:      optional.  If missing, will bind to localhost (only) on 127.0.0.1.  If present, will listen to requests from the IP stated.  if '0.0.0.0', the server will respond to all external requests.
 ```
 	
