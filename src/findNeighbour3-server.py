@@ -2045,16 +2045,27 @@ class test_g2c(unittest.TestCase):
 		self.assertTrue(isinstance(retVal, list))
 
 @app.route('/api/v2/clustering/<string:clustering_algorithm>/clusters', methods=['GET'])
+@app.route('/api/v2/clustering/<string:clustering_algorithm>/members', methods=['GET'])
+@app.route('/api/v2/clustering/<string:clustering_algorithm>/summary', methods=['GET'])
 @app.route('/api/v2/clustering/<string:clustering_algorithm>/<int:cluster_id>', methods=['GET'])
 def clusters2cnt(clustering_algorithm, cluster_id = None):
-	"""  returns a clusterid -> count dictionary for all cluster_ids """
+	"""  returns a dictionary containing
+		 'summary':a clusterid -> count dictionary for all cluster_ids for clustering_algorithm,
+		 'members':a list of all guids and clusterids for clustering algorithm
+		 
+		 * If cluster_id is specified, only returns details for one cluster_id.
+		 * If /clusters is requested, returns a dictionary with both 'summary' and 'members' keys.
+		 * If /members is requested, returns a dictionary with only 'members' key
+		 * If /summary is requested, returns a dictionary with only 'summary' key"""
+
 	try:
 		all_res = fn3.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)
 
 	except KeyError:
 		# no clustering algorithm of this type
 		abort(404, "no clustering algorithm {0}".format(clustering_algorithm))
-	print("cluster_id", cluster_id)
+
+	# if no cluster_id is specified, then we return all data.
 	if cluster_id is None:
 		res = all_res
 	else:
@@ -2076,9 +2087,29 @@ def clusters2cnt(clustering_algorithm, cluster_id = None):
 		df['cluster_id']=df.index
 		summary = json.loads(df.to_json(orient='records'))
 		detail  = json.loads(d.to_json(orient='records'))
-		retVal = {"summary":summary, "members":detail}
-	except KeyError:
-		retVal = {"summary":[], "members":[]}		# no data
+		print(request.url, request.url.endswith('summary'), request.url.endswith('members'))
+		if cluster_id is not None:
+			retVal = {"summary":summary, "members":detail}
+		elif request.url.endswith('clusters'):
+			retVal = {"summary":summary, "members":detail}			
+		elif request.url.endswith('summary'):
+			retVal = {"summary":summary}
+		elif request.url.endswith('members'):
+			retVal = {"members":members}
+		else:
+			abort(404, "url not recognised: "+request.url)
+	except KeyError:  # no data
+		if cluster_id is not None:
+			retVal = {"summary":[], "members":[]}
+		elif request.url.endswith('clusters'):
+			retVal = {"summary":[], "members":[]}			
+		elif request.url.endswith('summary'):
+			retVal = {"summary":[]}
+		elif request.url.endswith('members'):
+			retVal = {"members":[]}
+		else:
+			abort(404, "url not recognised: "+request.url)
+
 	return make_response(tojson(retVal))
 
 class test_clusters2cnt(unittest.TestCase):
@@ -2090,7 +2121,21 @@ class test_clusters2cnt(unittest.TestCase):
 		retVal = json.loads(str(res.text))
 		self.assertTrue(isinstance(retVal,dict))
 		self.assertEqual(set(retVal.keys()), set(['summary','members']))
+
+		relpath = "/api/v2/clustering/SNV12_ignore/members"
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 200)
+		retVal = json.loads(str(res.text))
+		self.assertTrue(isinstance(retVal,dict))
+		self.assertEqual(set(retVal.keys()), set(['members']))
 		
+		relpath = "/api/v2/clustering/SNV12_ignore/summary"
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 200)
+		retVal = json.loads(str(res.text))
+		self.assertTrue(isinstance(retVal,dict))
+		self.assertEqual(set(retVal.keys()), set(['summary']))
+				
 class test_cluster2cnt1(unittest.TestCase):
 	"""  tests return of guid2clusters data structure """
 	def runTest(self):
@@ -2399,12 +2444,10 @@ def neighbours_within(guid, threshold, **kwargs):
 		
 		
 	if not 'returned_format' in kwargs.keys():
-		app.logger.debug("SET RETURNED FORMAT TO DEFAULT 1")
 		returned_format = 1
 	else:
 		returned_format = kwargs['returned_format']
-		app.logger.debug("SET RETURNED FORMAT = "+str( returned_format))
-	
+		
 	# validate input
 	if not returned_format in set([1,2,3,4]):
 		abort(500, "Invalid format requested, must be 1, 2, 3 or 4.")

@@ -34,6 +34,9 @@ Clustering
 [/api/v2/clustering](/api/v2/clustering) List the clustering settings operating  
 **/api/v2/clustering/*clustering_algorithm*/change_id**  Return the change_id, an incrementing integer which rises as changes are made to clusters  
 **/api/v2/clustering/*clustering_algorithm*/clusters**  Returns cluster summary and detail.  The former lists clusters, and number of mixed and unmixed samples in each.   
+**/api/v2/clustering/*clustering_algorithm*/summary**  Returns cluster summary: how many mixed & unmixed guids belong in each cluster.  
+**/api/v2/clustering/*clustering_algorithm*/members**  Returns cluster detail: which guids belong in which clusters   
+
 **/api/v2/clustering/*clustering_algorithm*/*cluster_id* **  Returns cluster summary and detail for cluster_id.  The format is the same as for /clusters, but only details for cluster_id are returned.   
 
 **/api/v2/clustering/*clustering_algorithm*/guids2clusters**  Return a guid -> cluster lookup  

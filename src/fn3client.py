@@ -1,83 +1,15 @@
 #!/usr/bin/env python3
 """ A python3 client for findNeighbour3-server.
 
-Provides a class which allows access to the following routes:
+Provides a class which allows access to all routes described in:
+../doc/rest-routes.md for a list.
+  
+Unit testing:
+* launch a test server
+python findNeighbour3-server.py
 
-Testing the server
-------------------
-* returns the dictionary posted to the server. Can be used for testing network connectivity.   
-/api/v2/mirror  (requires POST)
-
-Describing server configuration
----------------------------------
-* Describe server config.  Disabled if not in debug mode.  
-/api/v2/server_config
-* Return the [last *nrows* of the] server's log of internal memory usage  
-/api/v2/server_memory_usage  
-/api/v2/server_memory_usage/*nrows*
-* Return server time  
-/api/v2/server_time
-* List nucleotides masked ( ignored) by the server in distance computations  
-/api/v2/nucleotides_excluded  
-
-Insert into server   
--------------------
-/api/v2/insert requires POST; see docs for details  
-
-Search/describe all sequences in the server, each identified by a guid
------------------------------------------------------------------------
-* list all guids (sequence identifiers) in the server  
-/api/v2/guids
-* list all guids with quality (proportion of Ns in the sequence) over *cutoff*  
-/api/v2/guids_with_quality_over/*cutoff*
-* list all guids and their examination (i.e. insertion) time  
-/api/v2/guids_and_examination_times
-* describe annotations (e.g. quality) for all sequences  
-/api/v2/annotations
-
-Describe properties/neighbours of a single sequence, identified by a guid
--------------------------------------------------------------------------
-* test whether it exists  
-/api/v2/*guid*/exists
-
-* specifies threshold, uses default quality cutoff and output format  
-/api/v2/*guid*/neighbours_within/*threshold*
-
-* specifying quality cutoff  
-uses default output format, as specified in MAXN_PROP_DEFAULT in config file  
-/api/v2/*guid*/neighbours_within/*threshold*/with_quality_cutoff/*cutoff*
-
-* specify quality cutoff and output format  
-/api/v2/*guid*/neighbours_within/*threshold*/in_format/*returned_format*
-
-Recover masked sequences
-------------------------
-* recover masked sequences for *guid*  
-/api/v2/*guid*/sequence
-
-Mixtures
-----------------------------
-* compare a given sequence with a set of neighbours, estimating mixtures of recent origin
-/api/v2/assess_mixed (requires POST)  
-
-Multiple sequence alignments
-----------------------------
-* return multiple sequence alignment for an arbitrary set of sequences, either in json or html format.
-/api/v2/multiple_alignment/guids   requires POST; see docs for details
-
-* return multiple sequence alignments of members of cluster  
-/api/v2/multiple_alignment/*clustering_algorithm*/*cluster_id*/*output_format*
-
-Clustering
-----------
-* List the clustering settings operating  
-/api/v2/clustering  
-* Return the change_id, an incrementing integer which rises are changes are made to clusters  
-/api/v2/clustering/*clustering_algorithm*/change_id  
-* Return a guid -> cluster lookup
-/api/v2/clustering/*clustering_algorithm*/guids2clusters
-/api/v2/clustering/*clustering_algorithm*/guids2clusters/after_change_id/*change_id*
-
+* run fn3Client unit tests
+python -m unittest fn3client
 """
 
 import glob
@@ -112,79 +44,9 @@ import uuid
 class fn3Client():
     """ python3 API to the findNeighbour3-server REST endpoint.
     
-        All endpoints are supported:
-        
-        Testing the server
-        ------------------
-        * returns the dictionary posted to the server. Can be used for testing network connectivity.   
-        /api/v2/mirror  (requires POST)
-        
-        Describing server configuration
-        ---------------------------------
-        * Describe server config.  Disabled if not in debug mode.  
-        /api/v2/server_config
-        * Return the [last *nrows* of the] server's log of internal memory usage  
-        /api/v2/server_memory_usage  
-        /api/v2/server_memory_usage/*nrows*
-        * Return server time  
-        /api/v2/server_time
-        * List nucleotides masked (ignored) by the server in distance computations  
-        /api/v2/nucleotides_excluded  
-        
-        Insert into server   
-        -------------------
-        /api/v2/insert requires POST; see docs for details  
-        
-        Search/describe all sequences in the server, each identified by a guid
-        -----------------------------------------------------------------------
-        * list all guids (sequence identifiers) in the server  
-        /api/v2/guids
-        * list all guids with quality (proportion of Ns in the sequence) over *cutoff*  
-        /api/v2/guids_with_quality_over/*cutoff*
-        * list all guids and their examination (i.e. insertion) time  
-        /api/v2/guids_and_examination_times
-        * describe annotations (e.g. quality) for all sequences  
-        /api/v2/annotations
-        
-        Describe properties/neighbours of a single sequence, identified by a guid
-        -------------------------------------------------------------------------
-        * test whether it exists  
-        /api/v2/*guid*/exists
-        
-        * specifies threshold, uses default quality cutoff and output format  
-        /api/v2/*guid*/neighbours_within/*threshold*
-        
-        * specifying quality cutoff  
-        uses default output format, as specified in MAXN_PROP_DEFAULT in config file  
-        /api/v2/*guid*/neighbours_within/*threshold*/with_quality_cutoff/*cutoff*
-        
-        * specify quality cutoff and output format  
-        /api/v2/*guid*/neighbours_within/*threshold*/in_format/*returned_format*
-        
-        Recover masked sequences
-        ------------------------
-        * recover masked sequences for *guid*  
-        /api/v2/*guid*/sequence
-        
-  
-        Multiple sequence alignments
-        ----------------------------
-        * return multiple sequence alignment for an arbitrary set of sequences, either in json or html format.
-        /api/v2/multiple_alignment/guids   requires POST; see docs for details
-        
-        * return multiple sequence alignments of members of cluster  
-        /api/v2/multiple_alignment/*clustering_algorithm*/*cluster_id*/*output_format*
-        
-        Clustering
-        ----------
-        * List the clustering settings operating  
-        /api/v2/clustering  
-        * Return the change_id, an incrementing integer which rises are changes are made to clusters  
-        /api/v2/clustering/*clustering_algorithm*/change_id  
-        * Return a guid -> cluster lookup
-        /api/v2/clustering/*clustering_algorithm*/guids2clusters
-        /api/v2/clustering/*clustering_algorithm*/guids2clusters/after_change_id/*change_id*
-                   
+        All endpoints are supported.
+        See ../doc/rest-routes.md for a list.
+                      
         """
 
     def __init__(self,
@@ -198,7 +60,7 @@ class fn3Client():
         self.baseurl = baseurl
         
         # run connection check
-        res =  self._decode(self.getpost('/api/v2/server_time', method='GET'))
+        res =  self.server_time()
         logging.info("Connection established at server time", res['server_time'])
 
     def _decode(self, response):
@@ -319,13 +181,23 @@ class fn3Client():
         else:
             raise TypeError("after must be None or an integer, not {0}".format(type(after_change_id)))
     def clusters(self,  clustering_algorithm, timeout =None):
-        """ returns a cluster_ids for a given clustering_algorithm """
+        """ returns a clusters for a given clustering_algorithm """
         if not isinstance(clustering_algorithm, str):
             raise TypeError("clustering_algorithm must be str not {0}".format(type(clustering_algorithm)))
         
         res = self._decode(self.getpost('/api/v2/clustering/{0}/clusters'.format(clustering_algorithm), timeout=timeout, method='GET')) 
-        return(pd.DataFrame.from_records(res))
-
+        return(pd.DataFrame.from_records(res['members']))
+    def cluster_members(self,  clustering_algorithm, timeout =None):
+        """ synonym for clusters """
+        return self.clusters(clustering_algorithm, timeout=timeout)
+    def cluster_summary(self,  clustering_algorithm, timeout =None):
+        """ returns a clusters and counts in each cluster for a given clustering_algorithm """
+        if not isinstance(clustering_algorithm, str):
+            raise TypeError("clustering_algorithm must be str not {0}".format(type(clustering_algorithm)))
+        
+        res = self._decode(self.getpost('/api/v2/clustering/{0}/summary'.format(clustering_algorithm), timeout=timeout, method='GET')) 
+        return(pd.DataFrame.from_records(res['summary']))
+    
     def cluster_ids(self,  clustering_algorithm, timeout =None):
         """ returns a cluster_ids for a given clustering_algorithm """
         if not isinstance(clustering_algorithm, str):
@@ -631,10 +503,13 @@ class test_fn3_client_guids2clusters(unittest.TestCase):
         # check clusters endpoint
         res3 = fn3c.clusters(clustering['algorithms'][0])
         self.assertTrue(isinstance(res3, pd.DataFrame))
-        res3 = fn3c.cluster_ids(clustering['algorithms'][0])
-        self.assertTrue(isinstance(res3, list))
-        
-        self.assertTrue(set(res3)==cluster_ids)  # same results both ways
+        res4 = fn3c.cluster_members(clustering['algorithms'][0])
+        self.assertTrue(isinstance(res4, pd.DataFrame))
+        res5 = fn3c.cluster_summary(clustering['algorithms'][0])
+        self.assertTrue(isinstance(res5, pd.DataFrame))
+        res6 = fn3c.cluster_ids(clustering['algorithms'][0])
+        self.assertTrue(isinstance(res6, list))
+        self.assertTrue(set(res6)==cluster_ids)  # same results both ways
         
         # recover neighbours
         res = fn3c.guid2neighbours(guid= uuid1, threshold = 250)
@@ -674,6 +549,6 @@ class test_fn3_client_network(unittest.TestCase):
             cluster_ids = fn3c.cluster_ids(algorithm)
             for cluster_id in cluster_ids:
                 network = fn3c.network(algorithm, cluster_id)
-                print(network.keys())
-                print(algorithm, network['nNodes'], network['nEdges'])
-                print(network['elements'])
+                #print(network.keys())
+                #print(algorithm, network['nNodes'], network['nEdges'])
+                #print(network['elements'])
