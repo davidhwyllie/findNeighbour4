@@ -2,6 +2,13 @@
 """ enters sequences produced by make_simulation.py into a findNeighbour3 server,
     and reports on the results.
     
+Loads data produced by make_simulation.py into a running findNeighbour3 server.
+Example usage:
+
+# first, a server must be running
+python findNeighbour3-server.py ../demos/simulation/config/config.json
+# then simulations must be generated (e.g. with run_simulation)
+python run_simulation.py  ../output/simulation_set_1
 """
 
 import pandas as pd
@@ -28,13 +35,15 @@ Example usage:
 python findNeighbour3-server.py ../demos/simulation/config/config.json
 # then simulations must be generated (e.g. with run_simulation)
 python run_simulation.py  ../output/simulation_set_1""")
+    
+    
     parser.add_argument('inputdir', type=str, nargs=1, help='data will be read from the inputdir')    
     args = parser.parse_args()
     basedir = os.path.abspath(args.inputdir[0])
     
     
     # connect to server
-    fn3c = fn3Client("localhost:5020")
+    fn3c = fn3Client("http://localhost:5020")
     
     # iterate over simulated data
     for inputdir in glob.glob(os.path.join(basedir,'*')):
@@ -87,7 +96,7 @@ python run_simulation.py  ../output/simulation_set_1""")
             #print("Loaded ",guid)
             inserted.append(guid)
             if not len(inserted) == len(fn3c.guids()):
-                raise KeyError("Guids were not inserted correctly")
+                raise KeyError("Guids were not inserted correctly, {0} {1}".format(inserted, fn3c.guids()))
 
         # examine all samples.  are they mixed?
         print("Conducting per-sample analysis")
@@ -149,13 +158,16 @@ python run_simulation.py  ../output/simulation_set_1""")
         # are the samples detected as mixed?
         # report proportion detected in the simulations
         
-        # find the neighbours of the mixed sample, possibly with downsampling
+        # find the neighbours of the mixed sample
         for snv_cutoff in [5]:
             neighbours = fn3c.guid2neighbours(guid=params['observed_sequence_mixed'], threshold = snv_cutoff)
             nneighbours = len(neighbours)
             neighbouring_guids = []
             print("The mixed sample {0} has {1} neighbours at {2} snp; resampling".format(params['observed_sequence_mixed'], nneighbours, snv_cutoff))
             
+            # the acid test from a clustering perspective
+            # is whether the falsely low relationship between two unmixed neighbours of mixed (M) (A,B)
+            # is avoided by mixture detection
             for item in neighbours:
                 neighbouring_guids.append(item[0])
             if nneighbours >= 2:
@@ -183,8 +195,9 @@ python run_simulation.py  ../output/simulation_set_1""")
                         sampled.append(sampling_result)
                         #exit()
             
-        outfile = os.path.join(inputdir,'resampling.xlsx')
-        if len(sampled)>0:
-            sampled_df = pd.DataFrame.from_records(sampled)
-            sampled_df.to_excel(outfile)
-            
+                outfile = os.path.join(inputdir,'resampling.xlsx')
+                if len(sampled)>0:
+                    sampled_df = pd.DataFrame.from_records(sampled)
+                    sampled_df.to_excel(outfile)
+                    print(sampled_df)
+                    

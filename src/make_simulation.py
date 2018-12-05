@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """ produces simulated sequences, storing output to disc.
 
-simulates phylogenetic trees,
-sequences reflecting the members of the phylogeny,
-sequences with Ns added randomly derived from the phylogeny,
-and mixtures of sequences from within the phylogeny.
+simulates
+* phylogenetic trees, based on a birth death process
+* true sequences reflecting the members of the phylogeny,
+* sequences with Ns added randomly derived from true sequences (i.e. missing at random, missing data)
+* sequences representing mixtures of true sequences.
+
 Also:
 * simulates the presence of a risk factor in mixed and unmixed sequences.
-* performs clustering based on observed SNV with and without the mixed sample.
+* performs single-linkage type clustering based on observed SNV with and without the mixed sample.
 
 """
 
@@ -193,12 +195,18 @@ def snv_distance(seq1, seq2):
         
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser(description="""Produce simulated data for testing software.  Produces simulated sequences, storing output to disc.
-simulates phylogenetic trees,
-sequences reflecting the members of the phylogeny,
-sequences with Ns added randomly derived from the phylogeny,
-and mixtures of sequences from within the phylogeny.
-Also simulates the presence of a risk factor in mixed and unmixed sequences.
+    parser = argparse.ArgumentParser(description="""Produce simulated data for testing software.
+                                     Produces simulated sequences, storing output to disc.
+simulates
+* phylogenetic trees, based on a birth death process
+* true sequences reflecting the members of the phylogeny,
+* sequences with Ns added randomly derived from true sequences (i.e. missing at random, missing data)
+* sequences representing mixtures of true sequences.
+
+Also:
+* simulates the presence of a risk factor in mixed and unmixed sequences.
+* performs single-linkage type clustering based on observed SNV with and without the mixed sample.
+
 Example usage:
 
 python make_simulation.py 50 10000 0.02 0.01 0.05 0.1 20 1 ../output/simulation_set_1
@@ -207,9 +215,9 @@ python make_simulation.py 50 10000 0.02 0.01 0.05 0.1 20 1 ../output/simulation_
     parser.add_argument('n_sequences', type=int, nargs=1,
                         help='number of sequences to simulate. Suitable value = 10')
     parser.add_argument('len_simulated_alignment', type=int, nargs=1, 
-                        help='length of the simulated sequences to generate. Suitable value = 15')
+                        help='length of the simulated sequences to generate. Suitable value = 10000')
     parser.add_argument('prop_bases_mutated', type=float, nargs=1,
-                        help='proportion of nucleotides which are mutated.  Must be low to be relevant to TB.  Suitable value = 0.01')
+                        help='proportion of nucleotides which are mutated within the phylogeny.  Must be low to be relevant to TB.  Suitable value = 0.01')
     parser.add_argument('prop_random_N', type=float, nargs=1,
                         help='proportion of nucleotides which are called N by chance.  Suitable value = 0.01')
     parser.add_argument('prop_risk_not_mixed', type=float, nargs=1,
