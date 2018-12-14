@@ -1542,8 +1542,42 @@ def server_memory_usage(nrows):
 	except Exception as e:
 		capture_exception(e)
 		abort(500, e)
-		
-	return make_response(tojson(result))
+	
+	# reformat this into a long, human readable format.
+	
+	resl = pd.melt(pd.DataFrame.from_records(result), id_vars = ['_id','time|time_boot','time|time_now', 'info|message']).dropna()       # drop any na values
+	resl.columns = ['_id','boot_time','event_time','info_message','event_description','value']
+	
+	descriptors = pd.DataFrame({'event_description': resl.event_description.unique()})
+	
+	# make it human readable
+	# find the statistics about the server
+	server_stats_ix = descriptors.index[descriptors.event_description.str.startswith('mstat') | descriptors.event_description.str.startswith('scstat')]
+	database_stats_ix = descriptors.index[descriptors.event_description.str.startswith('dstats')]
+	mstat_stats_ix = descriptors.index[descriptors.event_description.str.startswith('mstat')]
+	scstat_stats_ix = descriptors.index[descriptors.event_description.str.startswith('scstat')]
+	
+	descriptor_parts = descriptors.event_description.str.split('|', expand=True)
+	descriptor_parts.columns = ['descriptor1','descriptor2','descriptor3']
+	descriptor_parts.loc[server_stats_ix,'descriptor3']=descriptor_parts.loc[server_stats_ix,'descriptor2']
+	descriptor_parts.loc[server_stats_ix,'descriptor2']=descriptor_parts.loc[server_stats_ix,'descriptor1']
+	descriptor_parts.loc[server_stats_ix,'descriptor1']="Server"
+	descriptor_parts.loc[database_stats_ix,'descriptor1']="Database"
+	descriptor_parts.loc[mstat_stats_ix,'descriptor2']="Memory usage"
+	descriptor_parts.loc[scstat_stats_ix,'descriptor2']="In-memory sequences"
+	
+	descriptor_parts.loc[database_stats_ix,'descriptor2']="Collection "+descriptor_parts.loc[database_stats_ix,'descriptor2'].astype(str)
+	descriptors = pd.concat([descriptors.reset_index(drop=True), descriptor_parts.reset_index(drop=True)], axis=1)
+	
+	descriptor3_lookup = pd.DataFrame({'descriptor3':['avgObjSize','count','storageSize','totalIndexSize','available','free','percent','total','used','nCompressed','nConsensi','nInvalid','nRecompressed','nSeqs'],
+									  'detail':['Average object size (bytes)','Number of objects','Storage size used (bytes)','Total index size','Available RAM (bytes)','Free RAM (bytes)','Percent RAM Free','Total system RAM','Used RAM','Number of single compressed sequences',\
+												'Number of consensus sequences','Number of invalid (high N) sequences','Number of doubly compressed Sequences','Total number of Sequences']  
+	})
+	descriptors = descriptors.merge(descriptor3_lookup, left_on='descriptor3', right_on = 'descriptor3')
+	resl = resl.merge(descriptors, left_on = 'event_description', right_on = 'event_description')
+	resl = resl.drop(['boot_time','event_description','descriptor3'], axis =1)
+
+	return make_response(resl.to_json(orient='records'))
 
 @app.route('/ui/server_status', defaults={'absdelta':'absolute', 'stats_type':'mstat', 'nrows':1}, methods=['GET'])
 @app.route('/ui/server_status/<string:absdelta>/<string:stats_type>/<int:nrows>', methods=['GET'])
@@ -2095,7 +2129,7 @@ def clusters2cnt(clustering_algorithm, cluster_id = None):
 		elif request.url.endswith('summary'):
 			retVal = {"summary":summary}
 		elif request.url.endswith('members'):
-			retVal = {"members":members}
+			retVal = {"members":detail}
 		else:
 			abort(404, "url not recognised: "+request.url)
 	except KeyError:  # no data
