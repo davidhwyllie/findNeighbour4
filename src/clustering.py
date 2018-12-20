@@ -15,6 +15,7 @@ class snv_clustering():
                  saved_result=None,
                  snv_threshold=None,
                  mixed_sample_management='ignore',
+                 uncertain_base_type='N',
                  store_history=True):
         """ makes clusters of samples such that all samples can be
         reached from each other with <= snv_threshold SNV
@@ -40,6 +41,11 @@ class snv_clustering():
                     similar.
                     One guid can belong to more than one cluster.
                     
+        'uncertain_base_type': dictates which bases are considered in computations about mixtures;
+                    only relevant for mixed_sample_management = 'ignore' or 'exclude'.
+                    valid values are 'N' 'M' 'N_or_M'.
+                    Is not used by clustering, but may be accessed by external objects
+                    
              
         Note that in all the below documentation, 'guid' refers to a node identified by a guid,
         and 'guids' to multiple such nodes.
@@ -57,7 +63,8 @@ class snv_clustering():
             self.cluster_id = saved_result['cluster_id']
             self.mixed_sample_management = saved_result['mixed_sample_management']
             self.snv_threshold = saved_result['snv_threshold']
-            
+            self.uncertain_base_type = saved_result['uncertain_base_type']
+             
         elif saved_result is None:
             logging.info("Setting up a new in-ram snv_clustering object")
             if snv_threshold is None:
@@ -67,8 +74,11 @@ class snv_clustering():
             self.cluster_id = 0
             self.mixed_sample_management = mixed_sample_management
             self.snv_threshold = snv_threshold
+            self.uncertain_base_type = uncertain_base_type
             if not mixed_sample_management in ['ignore','include','exclude']:
                 raise ValueError("On startup, mixed_sample_management must be one of all, include, exclude")
+            if not uncertain_base_type in ['N','M','N_or_M']:
+                raise ValueError("On startup, uncertain_base_type must be one of N, M, N_or_M.")
         else:
             raise TypeError("Do not know how to reload a clustering result from an object of class {0}; a dict is expected".format(saved_result))
 
@@ -87,6 +97,7 @@ class snv_clustering():
         retVal['cluster_id']=self.cluster_id
         retVal['mixed_sample_management'] = self.mixed_sample_management
         retVal['snv_threshold'] = self.snv_threshold
+        retVal['uncertain_base_type'] = self.uncertain_base_type
         return retVal
     def _new_cluster_id(self):
         """ provides unused integer numbers for assignation to new clusters.
@@ -865,7 +876,29 @@ class test_add_sample_8(unittest.TestCase):
         snvc.set_mixture_status({'n1_1':[], 'n2_1':['n2_2'],'n2_2':['n2_1','n2_3'], 'n2_3':['n2_2'],'n4_1':[]}, {'n2_2':True, 'n4_1':True})
         cluster_ids = nx.get_node_attributes(snvc.G, 'cluster_id')
 
-        
+
+class test_uncertain_base(unittest.TestCase):
+    """ tests initialisation and storage of uncertain_base_type """
+    def runTest(self):
+        snvc = snv_clustering(snv_threshold=12, mixed_sample_management='include')
+        self.assertEqual(snvc.uncertain_base_type,'N')
+        snvc = snv_clustering(snv_threshold=12, mixed_sample_management='include', uncertain_base_type='N')
+        self.assertEqual(snvc.uncertain_base_type,'N')
+        snvc = snv_clustering(snv_threshold=12, mixed_sample_management='include', uncertain_base_type='M')
+        self.assertEqual(snvc.uncertain_base_type,'M')
+        snvc = snv_clustering(snv_threshold=12, mixed_sample_management='include', uncertain_base_type='N_or_M')
+        self.assertEqual(snvc.uncertain_base_type,'N_or_M')
+        # add two samples
+        snvc.add_sample('n1')      
+        snvc.add_sample('n2')      
+        snvc.add_sample('n3')      
+        self.assertEqual(snvc.guids(),set(['n1','n2','n3']))
+  
+        self.assertEqual(snvc.to_dict()['uncertain_base_type'], 'N_or_M')
+        with self.assertRaises(ValueError):
+            snvc = snv_clustering(snv_threshold=12, mixed_sample_management='include', uncertain_base_type='X')
+                
+      
 class test_guids(unittest.TestCase):
     """ tests recovery of list of guids """
     def runTest(self):
