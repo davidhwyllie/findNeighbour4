@@ -4,7 +4,7 @@
 "INPUTREF":"../reference/TB-ref.fasta",
 "EXCLUDEFILE":"../reference/TB-exclude-adaptive.txt",
 "DEBUGMODE":0,
-"SERVERNAME":"fn3_aa041",      
+"SERVERNAME":"fn3_aa041_v2",      
 "FNPERSISTENCE_CONNSTRING":"mongodb://localhost",
 "MAXN_STORAGE":130000,
 "RECOMPRESS_FREQUENCY":5,
