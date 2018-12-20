@@ -460,7 +460,7 @@ class findNeighbour3():
 	def _create_empty_clustering_objects(self):
 		""" create empty clustering objects """
 		self.clustering = {}
-		expected_clustering_config_keys = set(['snv_threshold',  'mixed_sample_management', 'cutoff', 'mixture_criterion'])
+		expected_clustering_config_keys = set(['snv_threshold',  'uncertain_base_type', 'mixed_sample_management', 'cutoff', 'mixture_criterion'])
 		for clustering_name in self.clustering_settings.keys():
 			observed = self.clustering_settings[clustering_name] 
 			if not observed.keys() == expected_clustering_config_keys:
@@ -652,10 +652,9 @@ class findNeighbour3():
 			for cluster in clusters_to_check:
 				guids_for_msa = cl2guids[cluster]							# do msa on the cluster
 				app.logger.debug("Checking cluster {0}; performing MSA on {1} samples".format(cluster,len(guids_for_msa)))
-				msa = self.sc.multi_sequence_alignment(guids_for_msa, output='df')		#  a pandas dataframe; p_value tests mixed
+				msa = self.sc.multi_sequence_alignment(guids_for_msa, output='df',uncertain_base_type=self.clustering[clustering_name].uncertain_base_type)		#  a pandas dataframe; p_value tests mixed
 				app.logger.debug("Multi sequence alignment is complete")
 
-				# gets to here
 				if not msa is None:		# no alignment was made
 					mixture_criterion = self.clustering_settings[clustering_name]['mixture_criterion']
 					mixture_cutoff = self.clustering_settings[clustering_name]['cutoff']
@@ -1038,10 +1037,15 @@ class test_raise(unittest.TestCase):
 						print("NOT LOGGED: ***** {0} <<<<<<".format(txt[-200:]))
 						self.fail("Error was not logged {0}".format(error_at))
 	
-def construct_msa(guids, output_format):
+def construct_msa(guids, output_format, what):
+	
 	""" constructs multiple sequence alignment for guids
-		and returns in one of 'fasta' 'json-fasta', 'html', 'json' or 'json-records' format."""
-	res = fn3.sc.multi_sequence_alignment(guids, output='df_dict')
+		and returns in one of 'fasta' 'json-fasta', 'html', 'json' or 'json-records' format.
+		
+		what is one of 'N','M','N_or_M'
+	
+	"""
+	res = fn3.sc.multi_sequence_alignment(guids, output='df_dict', uncertain_base_type=what)
 	df = pd.DataFrame.from_dict(res,orient='index')
 	html = df.to_html()
 	fasta= ""
@@ -1225,7 +1229,7 @@ class test_cl2network(unittest.TestCase):
 		self.assertTrue('elements' in jsonresp.keys())
 		for item in jsonresp['elements']:
 			print(item)
-			
+	
 @app.route('/api/v2/multiple_alignment/guids', methods=['POST'])
 def msa_guids():
 	""" performs a multiple sequence alignment on a series of POSTed guids,
@@ -1233,7 +1237,7 @@ def msa_guids():
 	{'guids':'guid1;guid2;guid3',
 	'output_format':'json'}
 	
-	Valid values for format are:
+	Valid values for output_format are:
 	json
 	json-records
 	html
@@ -1246,8 +1250,14 @@ def msa_guids():
 	if 'output_format' in request_payload.keys() and 'guids' in request_payload.keys():
 		guids = request_payload['guids'].split(';')		# coerce both guid and seq to strings
 		output_format= request_payload['output_format']
+		if 'what' in request_payload.keys():
+			what = request_payload['what']
+		else:
+			what = 'N'		# default to N
+		if not what in ['N','M','N_or_M']:
+			abort(404, 'what must be one of N M N_or_M, not {0}'.format(what))
 		if not output_format in ['html','json','fasta', 'json-fasta', 'json-records']:
-			abort(404, 'output_format must be one of html, json, json-records or fasta not {0}'.format(format))
+			abort(404, 'output_format must be one of html, json, json-records or fasta not {0}'.format(output_format))
 	else:
 		abort(501, 'output_format and guids are not present in the POSTed data {0}'.format(data_keys))
 	
@@ -1267,7 +1277,8 @@ def msa_guids():
 		abort(501, "asked to perform multiple sequence alignment with the following missing guids: {0}".format(missing_guids))
 	
 	# data validation complete.  construct outputs
-	return construct_msa(guids, output_format)
+	print("** CALLED CONSTRUCT_MSA WITH", what)
+	return construct_msa(guids, output_format, what)
 
 
 class test_msa_2(unittest.TestCase):
@@ -1362,6 +1373,62 @@ class test_msa_2(unittest.TestCase):
 		self.assertTrue(isinstance(retVal, dict))
 		self.assertEqual(set(retVal.keys()), set(['fasta']))
 
+		relpath = "/api/v2/multiple_alignment/guids"
+		payload = {'guids':';'.join(inserted_guids),'output_format':'html', 'what':'N'}
+		res = do_POST(relpath, payload=payload)
+		self.assertFalse(isjson(res.content))
+		self.assertEqual(res.status_code, 200)
+		self.assertTrue(b"</table>" in res.content)
+
+		relpath = "/api/v2/multiple_alignment/guids"
+		payload = {'guids':';'.join(inserted_guids),'output_format':'html', 'what':'M'}
+		res = do_POST(relpath, payload=payload)
+		self.assertFalse(isjson(res.content))
+		self.assertEqual(res.status_code, 200)
+		self.assertTrue(b"</table>" in res.content)
+
+		relpath = "/api/v2/multiple_alignment/guids"
+		payload = {'guids':';'.join(inserted_guids),'output_format':'html', 'what':'N_or_M'}
+		res = do_POST(relpath, payload=payload)
+		self.assertFalse(isjson(res.content))
+		self.assertEqual(res.status_code, 200)
+		self.assertTrue(b"</table>" in res.content)
+
+		relpath = "/api/v2/multiple_alignment/guids"
+		payload = {'guids':';'.join(inserted_guids),'output_format':'json-records', 'what':'N'}
+		res = do_POST(relpath, payload=payload)
+		self.assertEqual(res.status_code, 200)
+		self.assertTrue(isjson(res.content))
+		d = json.loads(res.content.decode('utf-8'))
+		df = pd.DataFrame.from_records(d)
+		print(df)
+		self.assertEqual(df.loc[df.index[0],'what_tested'],'N')
+		
+		relpath = "/api/v2/multiple_alignment/guids"
+		payload = {'guids':';'.join(inserted_guids),'output_format':'json-records', 'what':'M'}
+		res = do_POST(relpath, payload=payload)
+		self.assertEqual(res.status_code, 200)
+		self.assertTrue(isjson(res.content))
+		d = json.loads(res.content.decode('utf-8'))
+		df = pd.DataFrame.from_records(d)
+		print(df)		
+		self.assertEqual(df.loc[df.index[0],'what_tested'],'M')
+
+		relpath = "/api/v2/multiple_alignment/guids"
+		payload = {'guids':';'.join(inserted_guids),'output_format':'json-records', 'what':'N_or_M'}
+		res = do_POST(relpath, payload=payload)
+		self.assertEqual(res.status_code, 200)
+		self.assertTrue(isjson(res.content))
+		d = json.loads(res.content.decode('utf-8'))
+		df = pd.DataFrame.from_records(d)
+		print(df)		
+		self.assertEqual(df.loc[df.index[0],'what_tested'],'N_or_M')
+						 
+		relpath = "/api/v2/multiple_alignment/guids"
+		payload = {'guids':';'.join(inserted_guids),'output_format':'html', 'what':'X'}
+		res = do_POST(relpath, payload=payload)
+		self.assertEqual(res.status_code, 404)
+
 				
 		relpath = "/api/v2/clustering/SNV12_ignore/guids2clusters"
 		res = do_GET(relpath)
@@ -1397,6 +1464,7 @@ def msa_guids_by_cluster(clustering_algorithm, cluster_id, output_format):
 	fasta
 	html
 	"""
+	
 	# validate input
 	try:
 		res = fn3.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)		
@@ -1405,7 +1473,7 @@ def msa_guids_by_cluster(clustering_algorithm, cluster_id, output_format):
 		return make_response(tojson("no clustering algorithm {0}".format(clustering_algorithm)), 404)
 		
 	if not output_format in ['html','json','json-records','fasta','json-fasta']:
-		abort(501, 'output_format must be one of html, json, json-records fasta or json-fasta not {0}'.format(format))
+		abort(501, 'output_format must be one of html, json, json-records fasta or json-fasta not {0}'.format(output_format))
 
 	# check guids
 	df = pd.DataFrame.from_records(res)
@@ -1435,7 +1503,8 @@ def msa_guids_by_cluster(clustering_algorithm, cluster_id, output_format):
 			abort(501, "asked to perform multiple sequence alignment with the following missing guids: {0}".format(missing_guids))
 			
 		# data validation complete.  construct outputs
-		return construct_msa(guids, output_format)
+		## TODO: extract what from cluster definition
+		return construct_msa(guids, output_format, what='N')
 
 
 class test_msa_1(unittest.TestCase):
@@ -2358,6 +2427,57 @@ class test_insert_10(unittest.TestCase):
 			self.assertEqual(res.status_code, 200)
 			self.assertEqual(info, True)	
 
+class test_insert_10a(unittest.TestCase):
+	""" tests route /api/v2/insert, with additional samples.
+		Also provides a set of very similar samples, testing mixture addition."""
+	def runTest(self):
+		relpath = "/api/v2/guids"
+		res = do_GET(relpath)
+		n_pre = len(json.loads(str(res.text)))		# get all the guids
+
+		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+		with open(inputfile, 'rt') as f:
+			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+					originalseq = list(str(record.seq))
+					
+		for i in range(1,10):
+			guid_to_insert = "guid_{0}".format(n_pre+i)
+
+			seq = originalseq			
+			# make i mutations at position 500,000
+			offset = 500000
+			for j in range(i):
+				mutbase = offset+j
+				ref = seq[mutbase]
+				if not ref == 'T':
+					seq[mutbase] = 'T'
+				if not ref == 'A':
+					seq[mutbase] = 'M'
+			seq = ''.join(seq)
+						
+			print("Adding TB sequence {2} of {0} bytes with {1} mutations relative to ref.".format(len(seq), i, guid_to_insert))
+			self.assertEqual(len(seq), 4411532)		# check it's the right sequence
+	
+			relpath = "/api/v2/insert"
+			res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
+			self.assertTrue(isjson(content = res.content))
+			info = json.loads(res.content.decode('utf-8'))
+			self.assertEqual(info, 'Guid {0} inserted.'.format(guid_to_insert))
+	
+			relpath = "/api/v2/guids"
+			res = do_GET(relpath)
+			n_post = len(json.loads(res.content.decode('utf-8')))
+			self.assertEqual(n_pre+i, n_post)
+					
+			# check if it exists
+			relpath = "/api/v2/{0}/exists".format(guid_to_insert)
+			res = do_GET(relpath)
+			self.assertTrue(isjson(content = res.content))
+			info = json.loads(res.content.decode('utf-8'))
+			self.assertEqual(type(info), bool)
+			self.assertEqual(res.status_code, 200)
+			self.assertEqual(info, True)	
+
 #@unittest.skip("skipped; to investigate if this ceases timeout")		
 class test_insert_60(unittest.TestCase):
 	""" tests route /api/v2/insert, with additional samples.
@@ -2443,12 +2563,22 @@ class test_insert_60(unittest.TestCase):
 		retVal = json.loads(str(res.text))
 		self.assertTrue(isinstance(retVal, list))
 		
+		# generate MSA
+		relpath = "/api/v2/multiple_alignment/guids"
+		payload = {'guids':';'.join(guids_inserted),'output_format':'json-records'}
+		res = do_POST(relpath, payload=payload)
+		self.assertEqual(res.status_code, 200)
+		self.assertTrue(isjson(res.content))
+		d = json.loads(res.content.decode('utf-8'))
+		df = pd.DataFrame.from_records(d)
+		print(df)
+
 		print("running mixed checks:")
 		for item in retVal:
 			if 'mixed_' in item['guid']:
-				self.assertTrue(item['is_mixed'])
 				print(item['guid'], item['is_mixed'])
-		
+				#self.assertTrue(item['is_mixed'])
+	
 class test_mirror(unittest.TestCase):
 	""" tests route /api/v2/mirror """
 	def runTest(self):
@@ -2729,6 +2859,53 @@ class test_sequence_4(unittest.TestCase):
 
 		seq1 = 'N'*4411532
 		print("Adding TB reference sequence of {0} bytes with {1} Ns".format(len(seq1), seq1.count('N')))
+		self.assertEqual(len(seq1), 4411532)		# check it's the right sequence
+
+		relpath = "/api/v2/insert"
+		res = do_POST(relpath, payload = {'guid':guid_to_insert1,'seq':seq1})
+		self.assertEqual(res.status_code, 200)
+
+		print("Adding TB reference sequence of {0} bytes with {1} Ns".format(len(seq2), seq2.count('N')))
+		self.assertEqual(len(seq2), 4411532)		# check it's the right sequence
+
+		relpath = "/api/v2/insert"
+		res = do_POST(relpath, payload = {'guid':guid_to_insert2,'seq':seq2})
+		self.assertEqual(res.status_code, 200)
+		
+		relpath = "/api/v2/{0}/sequence".format(guid_to_insert1)
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 200)
+
+		info = json.loads(res.content.decode('utf-8'))
+		self.assertEqual(info['guid'], guid_to_insert1)
+		self.assertEqual(info['invalid'], 1)
+		relpath = "/api/v2/{0}/sequence".format(guid_to_insert2)
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 200)
+
+		info = json.loads(res.content.decode('utf-8'))
+		self.assertEqual(info['guid'], guid_to_insert2)
+		self.assertEqual(info['invalid'], 0)
+
+class test_sequence_5(unittest.TestCase):
+	""" tests route /api/v2/*guid*/sequence"""
+	def runTest(self):
+		relpath = "/api/v2/guids"
+		res = do_GET(relpath)
+		print(res)
+		n_pre = len(json.loads(res.content.decode('utf-8')))		# get all the guids
+
+		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+		with open(inputfile, 'rt') as f:
+			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+					seq2 = str(record.seq)
+
+		guid_to_insert1 = "guid_{0}".format(n_pre+1)
+		guid_to_insert2 = "guid_{0}".format(n_pre+2)
+
+
+		seq1 = 'R'*4411532
+		print("Adding TB reference sequence of {0} bytes with {1} Rs".format(len(seq1), seq1.count('R')))
 		self.assertEqual(len(seq1), 4411532)		# check it's the right sequence
 
 		relpath = "/api/v2/insert"

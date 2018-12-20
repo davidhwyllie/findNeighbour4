@@ -47,13 +47,18 @@ class NucleicAcid():
              
                 # define valid characters
                 totalValid=0
-                validChars=['A','C','G','T','N','-']
+                iupac = ['R','r','Y','y','S','s','W','w','K','k','M','m']       # dinucleotide codes
+                validChars=['A','C','G','T','N','-']+iupac
+                nMixed = 0
                 for thisChar in validChars:
                         self.composition[thisChar]=self.nucleicAcidString.count(bytes(thisChar.encode(encoding='utf-8')))
                         totalValid=totalValid+self.composition[thisChar]
+                        if thisChar in iupac:
+                            nMixed = nMixed + self.composition[thisChar]
                 self.composition['invalid']=self.nchars-totalValid
                 self.composition['length']=self.nchars
                 self.composition['ACTG']=self.composition['A']+self.composition['C']+self.composition['G']+self.composition['T']
+                self.composition['mixed']=nMixed
                 self.composition['propACTG']=float(self.composition['ACTG'])/float(self.composition['length'])
                 if self.composition['invalid']==0:       # all characters are permitted
                         self.isValid=True
@@ -114,3 +119,10 @@ class Test_NucleicAcid_8(Test_NucleicAcid_Base1):
         na=NucleicAcid()
         na.examine('AAAN')
         self.assertEqual(na.composition['propACTG'],0.75 )  
+class Test_NucleicAcid_9(Test_NucleicAcid_Base1):
+    """ checks number of nucleic acids """
+    def runTest(self):
+        na=NucleicAcid()
+        na.examine('AAAR')
+        self.assertEqual(na.composition['mixed'],1 )  
+        self.assertEqual(na.composition['R'],1 )  
