@@ -245,11 +245,16 @@ class fn3Client():
         else:            
             return res.content
         
-    def msa(self, guids, output_format = 'json', timeout=None):
+    def msa(self, guids, output_format = 'json', what='N', timeout=None):
         """ performs msa
+        
+        valid values for 'what', which determines how the p-values are computed, are
+        M
+        N
+        N_or_M
         """
         guidstring = ';'.join(guids)
-        payload = {'guids':guidstring,'output_format':output_format}
+        payload = {'guids':guidstring,'output_format':output_format, 'what':what}
         res = self.post('/api/v2/multiple_alignment/guids', payload = payload, timeout= timeout)
         if output_format=='json':
             retDict = self._decode(res)

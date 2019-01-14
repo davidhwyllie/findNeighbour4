@@ -1243,6 +1243,11 @@ def msa_guids():
 	html
 	json-fasta
 	fasta
+	
+	Valid values for what are
+	N
+	M
+	N_or_M
 	"""
 
 	# validate input
