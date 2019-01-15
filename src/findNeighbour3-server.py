@@ -1282,7 +1282,6 @@ def msa_guids():
 		abort(501, "asked to perform multiple sequence alignment with the following missing guids: {0}".format(missing_guids))
 	
 	# data validation complete.  construct outputs
-	print("** CALLED CONSTRUCT_MSA WITH", what)
 	return construct_msa(guids, output_format, what)
 
 
@@ -1509,7 +1508,7 @@ def msa_guids_by_cluster(clustering_algorithm, cluster_id, output_format):
 			
 		# data validation complete.  construct outputs
 		## TODO: extract what from cluster definition
-		return construct_msa(guids, output_format, what='N')
+		return construct_msa(guids, output_format, what=fn3.clustering[clustering_algorithm].uncertain_base_type)
 
 
 class test_msa_1(unittest.TestCase):
