@@ -336,6 +336,7 @@ class findNeighbour3():
 
 		nLoaded = 0
 		nRecompressed = 0
+		# this object is just used for compression
 		snvc = snv_clustering(snv_threshold=12, mixed_sample_management='ignore')		# compress highly similar sequences to a consensus
 	
 		for guid in guids:
@@ -465,7 +466,9 @@ class findNeighbour3():
 			observed = self.clustering_settings[clustering_name] 
 			if not observed.keys() == expected_clustering_config_keys:
 				raise KeyError("Got unexpected keys for clustering setting {0}: got {1}, expected {2}".format(clustering_name, observed, expected_clustering_config_keys))
-			self.clustering[clustering_name] = snv_clustering(snv_threshold=observed['snv_threshold'] , mixed_sample_management=observed['mixed_sample_management'])
+			self.clustering[clustering_name] = snv_clustering(snv_threshold=observed['snv_threshold'] ,
+															  mixed_sample_management=observed['mixed_sample_management'],
+															  uncertain_base_type=observed['uncertain_base_type'])
 			self.PERSIST.clusters_store(clustering_name, self.clustering[clustering_name].to_dict())
 			app.logger.info("First run: Configured clustering {0} with SNV_threshold {1}".format( clustering_name, observed['snv_threshold']))
 
@@ -718,6 +721,11 @@ class findNeighbour3():
 		""" returns the current server time """
 		return {"server_name":self.CONFIG['SERVERNAME'], "server_time":datetime.datetime.now().isoformat()}
 
+	def server_name(self):
+		""" returns information about the server """
+		return {"server_name":self.CONFIG['SERVERNAME'],
+				"server_description":self.CONFIG['DESCRIPTION']
+				}
 	def server_config(self):
 		""" returns the config file with which the server was launched
 		
@@ -1405,7 +1413,6 @@ class test_msa_2(unittest.TestCase):
 		self.assertTrue(isjson(res.content))
 		d = json.loads(res.content.decode('utf-8'))
 		df = pd.DataFrame.from_records(d)
-		print(df)
 		self.assertEqual(df.loc[df.index[0],'what_tested'],'N')
 		
 		relpath = "/api/v2/multiple_alignment/guids"
@@ -1415,7 +1422,6 @@ class test_msa_2(unittest.TestCase):
 		self.assertTrue(isjson(res.content))
 		d = json.loads(res.content.decode('utf-8'))
 		df = pd.DataFrame.from_records(d)
-		print(df)		
 		self.assertEqual(df.loc[df.index[0],'what_tested'],'M')
 
 		relpath = "/api/v2/multiple_alignment/guids"
@@ -1424,10 +1430,18 @@ class test_msa_2(unittest.TestCase):
 		self.assertEqual(res.status_code, 200)
 		self.assertTrue(isjson(res.content))
 		d = json.loads(res.content.decode('utf-8'))
-		df = pd.DataFrame.from_records(d)
-		print(df)		
+		df = pd.DataFrame.from_records(d)		
 		self.assertEqual(df.loc[df.index[0],'what_tested'],'N_or_M')
-						 
+
+		relpath = "/api/v2/multiple_alignment/guids"
+		payload = {'guids':';'.join(inserted_guids),'output_format':'json-records', 'what':'N'}
+		res = do_POST(relpath, payload=payload)
+		self.assertEqual(res.status_code, 200)
+		self.assertTrue(isjson(res.content))
+		d = json.loads(res.content.decode('utf-8'))
+		df = pd.DataFrame.from_records(d)		
+		self.assertEqual(df.loc[df.index[0],'what_tested'],'N')
+								 
 		relpath = "/api/v2/multiple_alignment/guids"
 		payload = {'guids':';'.join(inserted_guids),'output_format':'html', 'what':'X'}
 		res = do_POST(relpath, payload=payload)
@@ -1447,13 +1461,23 @@ class test_msa_2(unittest.TestCase):
 				cluster_id = item['cluster_id']
 		#print("Am examining cluster_id",cluster_id)
 		self.assertTrue(cluster_id is not None)
-		relpath = "/api/v2/multiple_alignment_cluster/SNV12_ignore/{0}/json".format(cluster_id)
+		relpath = "/api/v2/multiple_alignment_cluster/SNV12_ignore/{0}/json-records".format(cluster_id)
 		res = do_GET(relpath)
-		self.assertTrue(isjson(res.content))
 		self.assertEqual(res.status_code, 200)
+		self.assertTrue(isjson(res.content))
 		d = json.loads(res.content.decode('utf-8'))
-		self.assertEqual(set(inserted_guids)-set(d.keys()),set([]))
+		df = pd.DataFrame.from_records(d)		
+		self.assertEqual(df.loc[df.index[0],'what_tested'],'N')
 
+		relpath = "/api/v2/multiple_alignment_cluster/SNV12_include_M/{0}/json-records".format(cluster_id)
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 200)
+		self.assertTrue(isjson(res.content))
+		d = json.loads(res.content.decode('utf-8'))
+		df = pd.DataFrame.from_records(d)		
+		self.assertEqual(df.loc[df.index[0],'what_tested'],'M')
+	
+		
 		relpath = "/api/v2/multiple_alignment_cluster/SNV12_ignore/{0}/fasta".format(cluster_id)
 		res = do_GET(relpath)
 		self.assertFalse(isjson(res.content))
@@ -1465,6 +1489,7 @@ def msa_guids_by_cluster(clustering_algorithm, cluster_id, output_format):
 	
 	Valid values for format are:
 	json
+	json-records
 	fasta
 	html
 	"""
@@ -1508,6 +1533,7 @@ def msa_guids_by_cluster(clustering_algorithm, cluster_id, output_format):
 			
 		# data validation complete.  construct outputs
 		## TODO: extract what from cluster definition
+		print("*** WHAT ",clustering_algorithm, fn3.clustering[clustering_algorithm].uncertain_base_type)
 		return construct_msa(guids, output_format, what=fn3.clustering[clustering_algorithm].uncertain_base_type)
 
 
@@ -1772,6 +1798,17 @@ def server_time():
 		abort(500, e)
 	return make_response(tojson(result))
 
+@app.route('/api/v2/server_name', methods=['GET'])
+def server_name():
+	""" returns server name """
+	try:
+		result = fn3.server_name()
+
+	except Exception as e:
+		capture_exception(e)
+		abort(500, e)
+	return make_response(tojson(result))
+
 class test_server_time(unittest.TestCase):
 	""" tests route /api/v2/server_time"""
 	def runTest(self):
@@ -1783,6 +1820,16 @@ class test_server_time(unittest.TestCase):
 		self.assertTrue('server_time' in config_dict.keys())
 		self.assertEqual(res.status_code, 200)
 
+class test_server_name(unittest.TestCase):
+	""" tests route /api/v2/server_name"""
+	def runTest(self):
+		relpath = "/api/v2/server_name"
+		res = do_GET(relpath)
+		print(res)
+		self.assertTrue(isjson(content = res.content))
+		config_dict = json.loads(res.content.decode('utf-8'))
+		self.assertTrue('server_name' in config_dict.keys())
+		self.assertEqual(res.status_code, 200)
 	
 @app.route('/api/v2/guids', methods=['GET'])
 def get_all_guids(**debug):
@@ -2037,7 +2084,19 @@ class test_clusters_sample(unittest.TestCase):
 		self.assertEqual(res.status_code, 200)
 		self.assertTrue(isjson(content = res.content))
 		info = json.loads(res.content.decode('utf-8'))
-		self.assertEqual(len(info),2)
+		self.assertEqual(len(info),3)
+
+class test_clusters_what(unittest.TestCase):
+	""" tests implementation of 'what' value, stored in clustering object"""
+	def runTest(self):
+		# what happens if there is nothing there
+		relpath = "/api/v2/non_existent_guid/clusters"
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 404)
+		self.assertTrue(isjson(content = res.content))
+		info = json.loads(res.content.decode('utf-8'))
+		self.assertEqual(type(info), dict)
+		
 		
 
 
@@ -2116,7 +2175,36 @@ class test_algorithms(unittest.TestCase):
 		res = do_GET(relpath)
 		self.assertEqual(res.status_code, 200)
 		retDict = json.loads(str(res.text))
-		self.assertEqual(retDict, {'algorithms': ['SNV12_ignore', 'SNV12_include']})
+		self.assertEqual(retDict, {'algorithms': ['SNV12_ignore', 'SNV12_include','SNV12_include_M']})
+
+
+@app.route('/api/v2/clustering/<string:clustering_algorithm>/what_tested', methods=['GET'])
+def what_tested(clustering_algorithm):
+	"""  returns what is tested (N, M, N_or_M) for clustering_algorithm.
+		 Useful for producing reports of what clustering algorithms are doing
+	"""
+	try:
+		res = fn3.clustering[clustering_algorithm].uncertain_base_type
+	except KeyError:
+		# no clustering algorithm of this type
+		abort(404, "no clustering algorithm {0}".format(clustering_algorithm))
+		
+	return make_response(tojson({'what_tested': res, 'clustering_algorithm':clustering_algorithm}))
+
+class test_what_tested(unittest.TestCase):
+	"""  tests return of what is tested """
+	def runTest(self):
+		relpath = "/api/v2/clustering/SNV12_include/what_tested"
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 200)
+		retDict = json.loads(str(res.text))
+		self.assertEqual(retDict, {'clustering_algorithm': 'SNV12_include', 'what_tested':'N'})
+		relpath = "/api/v2/clustering/SNV12_include_M/what_tested"
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 200)
+		retDict = json.loads(str(res.text))
+		self.assertEqual(retDict, {'clustering_algorithm': 'SNV12_include_M', 'what_tested':'M'})
+
 
 
 @app.route('/api/v2/clustering/<string:clustering_algorithm>/change_id', methods=['GET'])
