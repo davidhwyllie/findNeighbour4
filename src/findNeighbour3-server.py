@@ -542,7 +542,6 @@ class findNeighbour3():
 
 				# addition of neighbours may cause neighbours to be entered more than once if database connectivity failed during previous inserts.
 				# because of the way that extraction of links works, this does not matter, and duplicates will not be reported.
-
 				self.PERSIST.guid2neighbour_add_links(guid=guid, targetguids=links)
 
 			except Exception as e:
