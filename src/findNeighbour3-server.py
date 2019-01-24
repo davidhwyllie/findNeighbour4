@@ -1673,7 +1673,7 @@ def server_memory_usage(nrows):
 	
 	# reformat this into a long, human readable format.
 	
-	resl = pd.melt(pd.DataFrame.from_records(result), id_vars = ['_id','time|time_boot','time|time_now', 'info|message']).dropna()       # drop any na values
+	resl = pd.melt(pd.DataFrame.from_records(result), id_vars = ['_id','context|time|time_boot','context|time|time_now', 'context|info|message']).dropna()       # drop any na values
 	resl.columns = ['_id','boot_time','event_time','info_message','event_description','value']
 	
 	descriptors = pd.DataFrame({'event_description': resl.event_description.unique()})
