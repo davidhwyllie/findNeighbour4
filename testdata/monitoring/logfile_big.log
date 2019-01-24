@@ -1,0 +1,928 @@
+2018-10-30 12:01:04,153 | findNeighbour3-server.py:2432 | <module> | ERROR | Error raised on creating persistence object 
+Traceback (most recent call last):
+  File "findNeighbour3-server.py", line 2430, in <module>
+    server_monitoring_min_interval_msec = CONFIG['SERVER_MONITORING_MIN_INTERVAL_MSEC'])
+  File "E:\dwyllie\GitHub\findneighbour3\src\mongoStore.py", line 111, in __init__
+    self.db['guid2neighbour'].create_indexes([ix1, ix2])
+  File "C:\Users\dwyllie.JenLap-12M5TY1\AppData\Local\Programs\Python\Python37\lib\site-packages\pymongo\collection.py", line 1807, in create_indexes
+    with self._socket_for_writes() as sock_info:
+  File "C:\Users\dwyllie.JenLap-12M5TY1\AppData\Local\Programs\Python\Python37\lib\site-packages\pymongo\collection.py", line 196, in _socket_for_writes
+    return self.__database.client._socket_for_writes()
+  File "C:\Users\dwyllie.JenLap-12M5TY1\AppData\Local\Programs\Python\Python37\lib\site-packages\pymongo\mongo_client.py", line 1085, in _socket_for_writes
+    server = self._get_topology().select_server(writable_server_selector)
+  File "C:\Users\dwyllie.JenLap-12M5TY1\AppData\Local\Programs\Python\Python37\lib\site-packages\pymongo\topology.py", line 224, in select_server
+    address))
+  File "C:\Users\dwyllie.JenLap-12M5TY1\AppData\Local\Programs\Python\Python37\lib\site-packages\pymongo\topology.py", line 183, in select_servers
+    selector, server_timeout, address)
+  File "C:\Users\dwyllie.JenLap-12M5TY1\AppData\Local\Programs\Python\Python37\lib\site-packages\pymongo\topology.py", line 199, in _select_servers_loop
+    self._error_message(selector))
+pymongo.errors.ServerSelectionTimeoutError: localhost:27017: [WinError 10061] No connection could be made because the target machine actively refused it
+2018-10-30 12:01:04,217 | findNeighbour3-server.py:2434 | <module> | INFO | Error raised pertains to pyMongo connectivity 
+2018-10-30 12:02:09,964 | findNeighbour3-server.py:2442 | <module> | ERROR | Error raised on instantiating findNeighbour3 object 
+Traceback (most recent call last):
+  File "findNeighbour3-server.py", line 2440, in <module>
+    fn3 = findNeighbour3(CONFIG, PERSIST, args.on_startup_recompress_memory_every)
+  File "findNeighbour3-server.py", line 239, in __init__
+    raise KeyError("Required keys were not found in CONFIG. Missing are {0}".format(missing))
+KeyError: "Required keys were not found in CONFIG. Missing are {'REPACK_FREQUENCY'}"
+2018-10-30 12:09:04,418 | findNeighbour3-server.py:2453 | <module> | INFO | Launching server listening to IP 127.0.0.1, debug = False, port = 5020 
+2018-10-30 12:13:05,695 | findNeighbour3-server.py:2453 | <module> | INFO | Launching server listening to IP 127.0.0.1, debug = False, port = 5020 
+2018-11-02 10:13:25,406 | findNeighbour3-server.py:405 | first_run | INFO | First run situation: parsing inputs, storing to database.  
+2018-11-02 10:13:25,928 | findNeighbour3-server.py:428 | first_run | INFO | Noted 557291 positions to exclude. 
+2018-11-02 10:13:26,131 | findNeighbour3-server.py:437 | first_run | INFO | Setting up in-ram clustering objects.. 
+2018-11-02 10:13:27,081 | findNeighbour3-server.py:459 | _create_empty_clustering_objects | INFO | First run: Configured clustering SNV12_include with SNV_threshold 12 
+2018-11-02 10:13:30,104 | findNeighbour3-server.py:446 | first_run | INFO | First run actions complete. 
+2018-11-02 10:13:30,357 | findNeighbour3-server.py:290 | _load_in_memory_data | INFO | findNeighbour3 is loading clustering data. 
+2018-11-02 10:13:30,365 | findNeighbour3-server.py:301 | _load_in_memory_data | INFO | Loaded clustering SNV12_include with SNV_threshold 12 
+2018-11-02 10:13:30,366 | findNeighbour3-server.py:304 | _load_in_memory_data | INFO | Will use clusters from pipeline SNV12_include for in-memory recompression 
+2018-11-02 10:13:31,324 | findNeighbour3-server.py:321 | _load_in_memory_data | INFO | In-RAM data store set up; sequence comparison uses 1 threads 
+2018-11-02 10:13:31,799 | findNeighbour3-server.py:374 | _load_in_memory_data | INFO | findNeighbour3 is checking clustering is up to date 
+2018-11-02 10:13:31,801 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 0 guids out of 0; updating. 
+2018-11-02 10:13:31,802 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 0 guids.  
+2018-11-02 10:13:31,950 | findNeighbour3-server.py:2511 | <module> | INFO | Launching server listening to IP 127.0.0.1, debug = False, port = 5020 
+2018-11-02 10:14:14,851 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_015fd748-2e21-44e7-9937-fd9363e04bc1 
+2018-11-02 10:14:15,456 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_015fd748-2e21-44e7-9937-fd9363e04bc1 
+2018-11-02 10:14:15,457 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_015fd748-2e21-44e7-9937-fd9363e04bc1 
+2018-11-02 10:14:16,879 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_015fd748-2e21-44e7-9937-fd9363e04bc1 
+2018-11-02 10:14:16,880 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_015fd748-2e21-44e7-9937-fd9363e04bc1 
+2018-11-02 10:14:16,881 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_015fd748-2e21-44e7-9937-fd9363e04bc1 
+2018-11-02 10:14:16,884 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 0 guids out of 1; updating. 
+2018-11-02 10:14:16,921 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 1 guids.  
+2018-11-02 10:14:17,299 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_0c3c27e0-7b99-407b-8807-6b6da170a75c 
+2018-11-02 10:14:17,940 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_0c3c27e0-7b99-407b-8807-6b6da170a75c 
+2018-11-02 10:14:17,946 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_0c3c27e0-7b99-407b-8807-6b6da170a75c 
+2018-11-02 10:14:18,069 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_0c3c27e0-7b99-407b-8807-6b6da170a75c 
+2018-11-02 10:14:18,070 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_0c3c27e0-7b99-407b-8807-6b6da170a75c 
+2018-11-02 10:14:18,072 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_0c3c27e0-7b99-407b-8807-6b6da170a75c 
+2018-11-02 10:14:18,074 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 1 guids out of 2; updating. 
+2018-11-02 10:14:18,094 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 2 guids.  
+2018-11-02 10:14:18,343 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_11db0d12-ad46-4ffe-94b4-06e1629a3f24 
+2018-11-02 10:14:18,971 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_11db0d12-ad46-4ffe-94b4-06e1629a3f24 
+2018-11-02 10:14:18,976 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_11db0d12-ad46-4ffe-94b4-06e1629a3f24 
+2018-11-02 10:14:19,105 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_11db0d12-ad46-4ffe-94b4-06e1629a3f24 
+2018-11-02 10:14:19,106 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_11db0d12-ad46-4ffe-94b4-06e1629a3f24 
+2018-11-02 10:14:19,107 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_11db0d12-ad46-4ffe-94b4-06e1629a3f24 
+2018-11-02 10:14:19,110 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 2 guids out of 3; updating. 
+2018-11-02 10:14:19,130 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 3 guids.  
+2018-11-02 10:14:19,686 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_17922571-c82f-440f-bda4-3ebfb20fa554 
+2018-11-02 10:14:20,337 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_17922571-c82f-440f-bda4-3ebfb20fa554 
+2018-11-02 10:14:20,348 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_17922571-c82f-440f-bda4-3ebfb20fa554 
+2018-11-02 10:14:20,474 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_17922571-c82f-440f-bda4-3ebfb20fa554 
+2018-11-02 10:14:20,475 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_17922571-c82f-440f-bda4-3ebfb20fa554 
+2018-11-02 10:14:20,476 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_17922571-c82f-440f-bda4-3ebfb20fa554 
+2018-11-02 10:14:20,478 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 3 guids out of 4; updating. 
+2018-11-02 10:14:20,502 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 4 guids.  
+2018-11-02 10:14:20,990 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_184f0906-39e2-471e-9998-de951266b4da 
+2018-11-02 10:14:21,622 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_184f0906-39e2-471e-9998-de951266b4da 
+2018-11-02 10:14:21,633 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_184f0906-39e2-471e-9998-de951266b4da 
+2018-11-02 10:14:21,766 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_184f0906-39e2-471e-9998-de951266b4da 
+2018-11-02 10:14:21,767 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_184f0906-39e2-471e-9998-de951266b4da 
+2018-11-02 10:14:21,769 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_184f0906-39e2-471e-9998-de951266b4da 
+2018-11-02 10:14:21,771 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 4 guids out of 5; updating. 
+2018-11-02 10:14:21,793 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 5 guids.  
+2018-11-02 10:14:22,057 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_19a21c0f-971e-4ce7-861d-023f610e9626 
+2018-11-02 10:14:22,698 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_19a21c0f-971e-4ce7-861d-023f610e9626 
+2018-11-02 10:14:22,718 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_19a21c0f-971e-4ce7-861d-023f610e9626 
+2018-11-02 10:14:22,860 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_19a21c0f-971e-4ce7-861d-023f610e9626 
+2018-11-02 10:14:22,861 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_19a21c0f-971e-4ce7-861d-023f610e9626 
+2018-11-02 10:14:22,863 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_19a21c0f-971e-4ce7-861d-023f610e9626 
+2018-11-02 10:14:22,865 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 5 guids out of 6; updating. 
+2018-11-02 10:14:22,889 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 6 guids.  
+2018-11-02 10:14:23,794 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_1bc8b293-b1b5-422b-99a0-a84317611743 
+2018-11-02 10:14:24,420 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_1bc8b293-b1b5-422b-99a0-a84317611743 
+2018-11-02 10:14:24,444 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_1bc8b293-b1b5-422b-99a0-a84317611743 
+2018-11-02 10:14:25,811 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_1bc8b293-b1b5-422b-99a0-a84317611743 
+2018-11-02 10:14:25,812 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_1bc8b293-b1b5-422b-99a0-a84317611743 
+2018-11-02 10:14:25,813 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_1bc8b293-b1b5-422b-99a0-a84317611743 
+2018-11-02 10:14:25,816 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 6 guids out of 7; updating. 
+2018-11-02 10:14:25,840 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 7 guids.  
+2018-11-02 10:14:26,125 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_2031e0ab-fea3-4ccc-9045-72dbb2236655 
+2018-11-02 10:14:26,746 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_2031e0ab-fea3-4ccc-9045-72dbb2236655 
+2018-11-02 10:14:26,782 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_2031e0ab-fea3-4ccc-9045-72dbb2236655 
+2018-11-02 10:14:26,925 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_2031e0ab-fea3-4ccc-9045-72dbb2236655 
+2018-11-02 10:14:26,926 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_2031e0ab-fea3-4ccc-9045-72dbb2236655 
+2018-11-02 10:14:26,927 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_2031e0ab-fea3-4ccc-9045-72dbb2236655 
+2018-11-02 10:14:26,929 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 7 guids out of 8; updating. 
+2018-11-02 10:14:26,956 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 8 guids.  
+2018-11-02 10:14:27,211 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_29a7737f-2298-4e57-bb0e-8678c84bedd8 
+2018-11-02 10:14:27,837 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_29a7737f-2298-4e57-bb0e-8678c84bedd8 
+2018-11-02 10:14:27,852 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_29a7737f-2298-4e57-bb0e-8678c84bedd8 
+2018-11-02 10:14:27,996 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_29a7737f-2298-4e57-bb0e-8678c84bedd8 
+2018-11-02 10:14:27,996 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_29a7737f-2298-4e57-bb0e-8678c84bedd8 
+2018-11-02 10:14:27,997 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_29a7737f-2298-4e57-bb0e-8678c84bedd8 
+2018-11-02 10:14:27,999 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 8 guids out of 9; updating. 
+2018-11-02 10:14:28,024 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 9 guids.  
+2018-11-02 10:14:28,296 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_2d71e116-1b1d-46e6-86d7-6c82ac3dced8 
+2018-11-02 10:14:28,936 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_2d71e116-1b1d-46e6-86d7-6c82ac3dced8 
+2018-11-02 10:14:28,961 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_2d71e116-1b1d-46e6-86d7-6c82ac3dced8 
+2018-11-02 10:14:29,103 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_2d71e116-1b1d-46e6-86d7-6c82ac3dced8 
+2018-11-02 10:14:29,104 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_2d71e116-1b1d-46e6-86d7-6c82ac3dced8 
+2018-11-02 10:14:29,104 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_2d71e116-1b1d-46e6-86d7-6c82ac3dced8 
+2018-11-02 10:14:29,106 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 9 guids out of 10; updating. 
+2018-11-02 10:14:29,133 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 10 guids.  
+2018-11-02 10:14:29,384 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_2f10df6a-1192-4dae-adbf-f865cd04ab03 
+2018-11-02 10:14:30,044 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_2f10df6a-1192-4dae-adbf-f865cd04ab03 
+2018-11-02 10:14:30,066 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_2f10df6a-1192-4dae-adbf-f865cd04ab03 
+2018-11-02 10:14:30,139 | findNeighbour3-server.py:556 | insert | DEBUG | Recompressing: ctrl_2f10df6a-1192-4dae-adbf-f865cd04ab03 
+2018-11-02 10:14:30,472 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_2f10df6a-1192-4dae-adbf-f865cd04ab03 
+2018-11-02 10:14:30,473 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_2f10df6a-1192-4dae-adbf-f865cd04ab03 
+2018-11-02 10:14:30,474 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_2f10df6a-1192-4dae-adbf-f865cd04ab03 
+2018-11-02 10:14:30,475 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 10 guids out of 11; updating. 
+2018-11-02 10:14:30,624 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 11 guids.  
+2018-11-02 10:14:30,950 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_3962d1af-8fa7-4045-b028-6bffda7f7051 
+2018-11-02 10:14:31,579 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_3962d1af-8fa7-4045-b028-6bffda7f7051 
+2018-11-02 10:14:31,636 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_3962d1af-8fa7-4045-b028-6bffda7f7051 
+2018-11-02 10:14:31,894 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_3962d1af-8fa7-4045-b028-6bffda7f7051 
+2018-11-02 10:14:31,894 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_3962d1af-8fa7-4045-b028-6bffda7f7051 
+2018-11-02 10:14:31,895 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_3962d1af-8fa7-4045-b028-6bffda7f7051 
+2018-11-02 10:14:31,896 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 11 guids out of 12; updating. 
+2018-11-02 10:14:31,968 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 12 guids.  
+2018-11-02 10:14:32,257 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_3a10b14a-218a-49f4-9397-c3dc7ef73818 
+2018-11-02 10:14:32,903 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_3a10b14a-218a-49f4-9397-c3dc7ef73818 
+2018-11-02 10:14:32,959 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_3a10b14a-218a-49f4-9397-c3dc7ef73818 
+2018-11-02 10:14:33,105 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_3a10b14a-218a-49f4-9397-c3dc7ef73818 
+2018-11-02 10:14:33,106 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_3a10b14a-218a-49f4-9397-c3dc7ef73818 
+2018-11-02 10:14:33,106 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_3a10b14a-218a-49f4-9397-c3dc7ef73818 
+2018-11-02 10:14:33,108 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 12 guids out of 13; updating. 
+2018-11-02 10:14:33,245 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 13 guids.  
+2018-11-02 10:14:33,586 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_4ccb04ac-d658-495c-9d69-def73f087fe0 
+2018-11-02 10:14:34,213 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_4ccb04ac-d658-495c-9d69-def73f087fe0 
+2018-11-02 10:14:34,287 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_4ccb04ac-d658-495c-9d69-def73f087fe0 
+2018-11-02 10:14:34,339 | findNeighbour3-server.py:556 | insert | DEBUG | Recompressing: ctrl_4ccb04ac-d658-495c-9d69-def73f087fe0 
+2018-11-02 10:14:34,798 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_4ccb04ac-d658-495c-9d69-def73f087fe0 
+2018-11-02 10:14:34,799 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_4ccb04ac-d658-495c-9d69-def73f087fe0 
+2018-11-02 10:14:34,800 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_4ccb04ac-d658-495c-9d69-def73f087fe0 
+2018-11-02 10:14:34,801 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 13 guids out of 14; updating. 
+2018-11-02 10:14:34,994 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 14 guids.  
+2018-11-02 10:14:35,255 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_5b388874-2091-4850-92af-dc031613e3c3 
+2018-11-02 10:14:35,873 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_5b388874-2091-4850-92af-dc031613e3c3 
+2018-11-02 10:14:35,959 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_5b388874-2091-4850-92af-dc031613e3c3 
+2018-11-02 10:14:36,188 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_5b388874-2091-4850-92af-dc031613e3c3 
+2018-11-02 10:14:36,283 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_5b388874-2091-4850-92af-dc031613e3c3 
+2018-11-02 10:14:36,284 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_5b388874-2091-4850-92af-dc031613e3c3 
+2018-11-02 10:14:36,285 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 14 guids out of 15; updating. 
+2018-11-02 10:14:36,478 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 15 guids.  
+2018-11-02 10:14:37,093 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_68f914ea-b2b0-493a-ba56-155235dcec30 
+2018-11-02 10:14:37,734 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_68f914ea-b2b0-493a-ba56-155235dcec30 
+2018-11-02 10:14:37,813 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_68f914ea-b2b0-493a-ba56-155235dcec30 
+2018-11-02 10:14:37,968 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_68f914ea-b2b0-493a-ba56-155235dcec30 
+2018-11-02 10:14:37,968 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_68f914ea-b2b0-493a-ba56-155235dcec30 
+2018-11-02 10:14:37,969 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_68f914ea-b2b0-493a-ba56-155235dcec30 
+2018-11-02 10:14:37,970 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 15 guids out of 16; updating. 
+2018-11-02 10:14:38,157 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 16 guids.  
+2018-11-02 10:14:38,414 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_6acaf4aa-2d6b-4397-a26c-427c35d50153 
+2018-11-02 10:14:39,041 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_6acaf4aa-2d6b-4397-a26c-427c35d50153 
+2018-11-02 10:14:39,165 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_6acaf4aa-2d6b-4397-a26c-427c35d50153 
+2018-11-02 10:14:39,327 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_6acaf4aa-2d6b-4397-a26c-427c35d50153 
+2018-11-02 10:14:39,328 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_6acaf4aa-2d6b-4397-a26c-427c35d50153 
+2018-11-02 10:14:39,329 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_6acaf4aa-2d6b-4397-a26c-427c35d50153 
+2018-11-02 10:14:39,330 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 16 guids out of 17; updating. 
+2018-11-02 10:14:39,518 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 17 guids.  
+2018-11-02 10:14:39,787 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_72877773-4ff5-43e4-95e8-6dabba2eb1b5 
+2018-11-02 10:14:40,421 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_72877773-4ff5-43e4-95e8-6dabba2eb1b5 
+2018-11-02 10:14:40,517 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_72877773-4ff5-43e4-95e8-6dabba2eb1b5 
+2018-11-02 10:14:40,671 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_72877773-4ff5-43e4-95e8-6dabba2eb1b5 
+2018-11-02 10:14:40,672 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_72877773-4ff5-43e4-95e8-6dabba2eb1b5 
+2018-11-02 10:14:40,672 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_72877773-4ff5-43e4-95e8-6dabba2eb1b5 
+2018-11-02 10:14:40,674 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 17 guids out of 18; updating. 
+2018-11-02 10:14:40,859 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 18 guids.  
+2018-11-02 10:14:41,114 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_85725d78-5ce5-422f-8e41-8ca423ef87cd 
+2018-11-02 10:14:41,743 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_85725d78-5ce5-422f-8e41-8ca423ef87cd 
+2018-11-02 10:14:41,820 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_85725d78-5ce5-422f-8e41-8ca423ef87cd 
+2018-11-02 10:14:42,089 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_85725d78-5ce5-422f-8e41-8ca423ef87cd 
+2018-11-02 10:14:42,089 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_85725d78-5ce5-422f-8e41-8ca423ef87cd 
+2018-11-02 10:14:42,090 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_85725d78-5ce5-422f-8e41-8ca423ef87cd 
+2018-11-02 10:14:42,091 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 18 guids out of 19; updating. 
+2018-11-02 10:14:42,210 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 19 guids.  
+2018-11-02 10:14:42,459 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_8a881c3a-c5d5-499d-97f4-7e2b35111fb0 
+2018-11-02 10:14:43,099 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_8a881c3a-c5d5-499d-97f4-7e2b35111fb0 
+2018-11-02 10:14:43,190 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_8a881c3a-c5d5-499d-97f4-7e2b35111fb0 
+2018-11-02 10:14:44,447 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_8a881c3a-c5d5-499d-97f4-7e2b35111fb0 
+2018-11-02 10:14:44,447 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_8a881c3a-c5d5-499d-97f4-7e2b35111fb0 
+2018-11-02 10:14:44,448 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking ctrl_015fd748-2e21-44e7-9937-fd9363e04bc1 
+2018-11-02 10:14:44,460 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking ctrl_2f10df6a-1192-4dae-adbf-f865cd04ab03 
+2018-11-02 10:14:44,468 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking ctrl_17922571-c82f-440f-bda4-3ebfb20fa554 
+2018-11-02 10:14:44,477 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking ctrl_72877773-4ff5-43e4-95e8-6dabba2eb1b5 
+2018-11-02 10:14:44,485 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking ctrl_68f914ea-b2b0-493a-ba56-155235dcec30 
+2018-11-02 10:14:44,496 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking ctrl_29a7737f-2298-4e57-bb0e-8678c84bedd8 
+2018-11-02 10:14:44,504 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking ctrl_2031e0ab-fea3-4ccc-9045-72dbb2236655 
+2018-11-02 10:14:44,516 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking ctrl_3a10b14a-218a-49f4-9397-c3dc7ef73818 
+2018-11-02 10:14:44,525 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking ctrl_2d71e116-1b1d-46e6-86d7-6c82ac3dced8 
+2018-11-02 10:14:44,533 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking ctrl_8a881c3a-c5d5-499d-97f4-7e2b35111fb0 
+2018-11-02 10:14:44,544 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_8a881c3a-c5d5-499d-97f4-7e2b35111fb0 
+2018-11-02 10:14:44,546 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 19 guids out of 20; updating. 
+2018-11-02 10:14:44,772 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 20 guids.  
+2018-11-02 10:14:45,031 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_92ff82f3-e6b8-4acd-ae6a-07bedd0e8b52 
+2018-11-02 10:14:45,662 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_92ff82f3-e6b8-4acd-ae6a-07bedd0e8b52 
+2018-11-02 10:14:45,771 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_92ff82f3-e6b8-4acd-ae6a-07bedd0e8b52 
+2018-11-02 10:14:45,780 | findNeighbour3-server.py:556 | insert | DEBUG | Recompressing: ctrl_92ff82f3-e6b8-4acd-ae6a-07bedd0e8b52 
+2018-11-02 10:14:46,260 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_92ff82f3-e6b8-4acd-ae6a-07bedd0e8b52 
+2018-11-02 10:14:46,261 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_92ff82f3-e6b8-4acd-ae6a-07bedd0e8b52 
+2018-11-02 10:14:46,261 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_92ff82f3-e6b8-4acd-ae6a-07bedd0e8b52 
+2018-11-02 10:14:46,262 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 20 guids out of 21; updating. 
+2018-11-02 10:14:46,541 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 21 guids.  
+2018-11-02 10:14:47,167 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_964f6eb0-8084-40e2-b69d-96cb941abe0a 
+2018-11-02 10:14:47,798 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_964f6eb0-8084-40e2-b69d-96cb941abe0a 
+2018-11-02 10:14:47,908 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_964f6eb0-8084-40e2-b69d-96cb941abe0a 
+2018-11-02 10:14:49,481 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_964f6eb0-8084-40e2-b69d-96cb941abe0a 
+2018-11-02 10:14:49,482 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_964f6eb0-8084-40e2-b69d-96cb941abe0a 
+2018-11-02 10:14:49,483 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_964f6eb0-8084-40e2-b69d-96cb941abe0a 
+2018-11-02 10:14:49,484 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 21 guids out of 22; updating. 
+2018-11-02 10:14:49,717 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 22 guids.  
+2018-11-02 10:14:49,991 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_9694ea13-a45e-4c09-9629-343d4e28d5fc 
+2018-11-02 10:14:50,641 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_9694ea13-a45e-4c09-9629-343d4e28d5fc 
+2018-11-02 10:14:50,763 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_9694ea13-a45e-4c09-9629-343d4e28d5fc 
+2018-11-02 10:14:50,931 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_9694ea13-a45e-4c09-9629-343d4e28d5fc 
+2018-11-02 10:14:50,931 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_9694ea13-a45e-4c09-9629-343d4e28d5fc 
+2018-11-02 10:14:50,932 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_9694ea13-a45e-4c09-9629-343d4e28d5fc 
+2018-11-02 10:14:50,933 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 22 guids out of 23; updating. 
+2018-11-02 10:14:51,163 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 23 guids.  
+2018-11-02 10:14:51,424 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_9743c426-06a9-4da0-badd-429231b3b87f 
+2018-11-02 10:14:52,051 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_9743c426-06a9-4da0-badd-429231b3b87f 
+2018-11-02 10:14:52,130 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_9743c426-06a9-4da0-badd-429231b3b87f 
+2018-11-02 10:14:52,355 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_9743c426-06a9-4da0-badd-429231b3b87f 
+2018-11-02 10:14:52,356 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_9743c426-06a9-4da0-badd-429231b3b87f 
+2018-11-02 10:14:52,356 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_9743c426-06a9-4da0-badd-429231b3b87f 
+2018-11-02 10:14:52,358 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 23 guids out of 24; updating. 
+2018-11-02 10:14:52,628 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 24 guids.  
+2018-11-02 10:14:52,984 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_9c0a67cf-3991-4434-bcb0-f5704156f1ee 
+2018-11-02 10:14:53,620 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_9c0a67cf-3991-4434-bcb0-f5704156f1ee 
+2018-11-02 10:14:53,742 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_9c0a67cf-3991-4434-bcb0-f5704156f1ee 
+2018-11-02 10:14:53,912 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_9c0a67cf-3991-4434-bcb0-f5704156f1ee 
+2018-11-02 10:14:53,913 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_9c0a67cf-3991-4434-bcb0-f5704156f1ee 
+2018-11-02 10:14:53,914 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_9c0a67cf-3991-4434-bcb0-f5704156f1ee 
+2018-11-02 10:14:53,915 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 24 guids out of 25; updating. 
+2018-11-02 10:14:54,193 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 25 guids.  
+2018-11-02 10:14:54,456 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_9e13c191-3d31-43d6-ac68-f35d21b7d1da 
+2018-11-02 10:14:55,096 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_9e13c191-3d31-43d6-ac68-f35d21b7d1da 
+2018-11-02 10:14:55,177 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_9e13c191-3d31-43d6-ac68-f35d21b7d1da 
+2018-11-02 10:14:55,656 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_9e13c191-3d31-43d6-ac68-f35d21b7d1da 
+2018-11-02 10:14:55,657 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_9e13c191-3d31-43d6-ac68-f35d21b7d1da 
+2018-11-02 10:14:55,657 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_9e13c191-3d31-43d6-ac68-f35d21b7d1da 
+2018-11-02 10:14:55,659 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 25 guids out of 26; updating. 
+2018-11-02 10:14:55,803 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 26 guids.  
+2018-11-02 10:14:56,620 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_a152d7a4-07a6-44fa-8586-fc48ef429559 
+2018-11-02 10:14:57,256 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_a152d7a4-07a6-44fa-8586-fc48ef429559 
+2018-11-02 10:14:57,453 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_a152d7a4-07a6-44fa-8586-fc48ef429559 
+2018-11-02 10:14:57,738 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_a152d7a4-07a6-44fa-8586-fc48ef429559 
+2018-11-02 10:14:57,739 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_a152d7a4-07a6-44fa-8586-fc48ef429559 
+2018-11-02 10:14:57,740 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_a152d7a4-07a6-44fa-8586-fc48ef429559 
+2018-11-02 10:14:57,741 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 26 guids out of 27; updating. 
+2018-11-02 10:14:58,026 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 27 guids.  
+2018-11-02 10:14:58,301 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_a5eeb539-d491-46a3-9cb5-d1d637fc98ac 
+2018-11-02 10:14:58,918 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_a5eeb539-d491-46a3-9cb5-d1d637fc98ac 
+2018-11-02 10:14:59,030 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_a5eeb539-d491-46a3-9cb5-d1d637fc98ac 
+2018-11-02 10:14:59,288 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_a5eeb539-d491-46a3-9cb5-d1d637fc98ac 
+2018-11-02 10:14:59,288 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_a5eeb539-d491-46a3-9cb5-d1d637fc98ac 
+2018-11-02 10:14:59,289 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_a5eeb539-d491-46a3-9cb5-d1d637fc98ac 
+2018-11-02 10:14:59,290 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 27 guids out of 28; updating. 
+2018-11-02 10:14:59,566 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 28 guids.  
+2018-11-02 10:14:59,932 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_aa8e2831-bc3d-4c01-b617-89d2558132c9 
+2018-11-02 10:15:00,550 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_aa8e2831-bc3d-4c01-b617-89d2558132c9 
+2018-11-02 10:15:00,673 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_aa8e2831-bc3d-4c01-b617-89d2558132c9 
+2018-11-02 10:15:01,130 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_aa8e2831-bc3d-4c01-b617-89d2558132c9 
+2018-11-02 10:15:01,131 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_aa8e2831-bc3d-4c01-b617-89d2558132c9 
+2018-11-02 10:15:01,131 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking ctrl_4ccb04ac-d658-495c-9d69-def73f087fe0 
+2018-11-02 10:15:01,141 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking ctrl_19a21c0f-971e-4ce7-861d-023f610e9626 
+2018-11-02 10:15:01,150 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking ctrl_964f6eb0-8084-40e2-b69d-96cb941abe0a 
+2018-11-02 10:15:01,159 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking ctrl_184f0906-39e2-471e-9998-de951266b4da 
+2018-11-02 10:15:01,168 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking ctrl_9694ea13-a45e-4c09-9629-343d4e28d5fc 
+2018-11-02 10:15:01,177 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking ctrl_11db0d12-ad46-4ffe-94b4-06e1629a3f24 
+2018-11-02 10:15:01,186 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking ctrl_3962d1af-8fa7-4045-b028-6bffda7f7051 
+2018-11-02 10:15:01,195 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking ctrl_5b388874-2091-4850-92af-dc031613e3c3 
+2018-11-02 10:15:01,204 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking ctrl_1bc8b293-b1b5-422b-99a0-a84317611743 
+2018-11-02 10:15:01,213 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking ctrl_aa8e2831-bc3d-4c01-b617-89d2558132c9 
+2018-11-02 10:15:01,223 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_aa8e2831-bc3d-4c01-b617-89d2558132c9 
+2018-11-02 10:15:01,224 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 28 guids out of 29; updating. 
+2018-11-02 10:15:01,446 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 29 guids.  
+2018-11-02 10:15:02,078 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_b3b441fa-23d8-4ea3-aa8b-ab3cd77d8ee3 
+2018-11-02 10:15:02,721 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_b3b441fa-23d8-4ea3-aa8b-ab3cd77d8ee3 
+2018-11-02 10:15:02,865 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_b3b441fa-23d8-4ea3-aa8b-ab3cd77d8ee3 
+2018-11-02 10:15:03,093 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_b3b441fa-23d8-4ea3-aa8b-ab3cd77d8ee3 
+2018-11-02 10:15:03,094 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_b3b441fa-23d8-4ea3-aa8b-ab3cd77d8ee3 
+2018-11-02 10:15:03,095 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_b3b441fa-23d8-4ea3-aa8b-ab3cd77d8ee3 
+2018-11-02 10:15:03,096 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 29 guids out of 30; updating. 
+2018-11-02 10:15:03,387 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 30 guids.  
+2018-11-02 10:15:03,822 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_b60425a1-bbd8-45f8-ad57-fcae7255a240 
+2018-11-02 10:15:04,456 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_b60425a1-bbd8-45f8-ad57-fcae7255a240 
+2018-11-02 10:15:04,544 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_b60425a1-bbd8-45f8-ad57-fcae7255a240 
+2018-11-02 10:15:05,023 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_b60425a1-bbd8-45f8-ad57-fcae7255a240 
+2018-11-02 10:15:05,024 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_b60425a1-bbd8-45f8-ad57-fcae7255a240 
+2018-11-02 10:15:05,025 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_b60425a1-bbd8-45f8-ad57-fcae7255a240 
+2018-11-02 10:15:05,026 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 30 guids out of 31; updating. 
+2018-11-02 10:15:05,161 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 31 guids.  
+2018-11-02 10:15:06,247 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_b6e93a9d-0323-4953-a7be-651cec8fc486 
+2018-11-02 10:15:07,536 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_b6e93a9d-0323-4953-a7be-651cec8fc486 
+2018-11-02 10:15:07,763 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_b6e93a9d-0323-4953-a7be-651cec8fc486 
+2018-11-02 10:15:07,775 | findNeighbour3-server.py:556 | insert | DEBUG | Recompressing: ctrl_b6e93a9d-0323-4953-a7be-651cec8fc486 
+2018-11-02 10:15:08,689 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_b6e93a9d-0323-4953-a7be-651cec8fc486 
+2018-11-02 10:15:08,690 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_b6e93a9d-0323-4953-a7be-651cec8fc486 
+2018-11-02 10:15:08,690 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_b6e93a9d-0323-4953-a7be-651cec8fc486 
+2018-11-02 10:15:08,692 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 31 guids out of 32; updating. 
+2018-11-02 10:15:09,083 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 32 guids.  
+2018-11-02 10:15:09,391 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_c077d5cc-ed53-4fff-9534-7872638ed4bd 
+2018-11-02 10:15:10,023 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_c077d5cc-ed53-4fff-9534-7872638ed4bd 
+2018-11-02 10:15:10,175 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_c077d5cc-ed53-4fff-9534-7872638ed4bd 
+2018-11-02 10:15:10,359 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_c077d5cc-ed53-4fff-9534-7872638ed4bd 
+2018-11-02 10:15:10,360 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_c077d5cc-ed53-4fff-9534-7872638ed4bd 
+2018-11-02 10:15:10,361 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_c077d5cc-ed53-4fff-9534-7872638ed4bd 
+2018-11-02 10:15:10,362 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 32 guids out of 33; updating. 
+2018-11-02 10:15:10,644 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 33 guids.  
+2018-11-02 10:15:10,896 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_c4c47179-049e-4b5e-b129-fd4fb53dd4a8 
+2018-11-02 10:15:11,532 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_c4c47179-049e-4b5e-b129-fd4fb53dd4a8 
+2018-11-02 10:15:11,729 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_c4c47179-049e-4b5e-b129-fd4fb53dd4a8 
+2018-11-02 10:15:11,740 | findNeighbour3-server.py:556 | insert | DEBUG | Recompressing: ctrl_c4c47179-049e-4b5e-b129-fd4fb53dd4a8 
+2018-11-02 10:15:12,357 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_c4c47179-049e-4b5e-b129-fd4fb53dd4a8 
+2018-11-02 10:15:12,358 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_c4c47179-049e-4b5e-b129-fd4fb53dd4a8 
+2018-11-02 10:15:12,359 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_c4c47179-049e-4b5e-b129-fd4fb53dd4a8 
+2018-11-02 10:15:12,360 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 33 guids out of 34; updating. 
+2018-11-02 10:15:12,765 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 34 guids.  
+2018-11-02 10:15:13,071 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_c7991581-8bbd-4e59-972b-8f17c63b4618 
+2018-11-02 10:15:13,720 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_c7991581-8bbd-4e59-972b-8f17c63b4618 
+2018-11-02 10:15:13,916 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_c7991581-8bbd-4e59-972b-8f17c63b4618 
+2018-11-02 10:15:13,928 | findNeighbour3-server.py:556 | insert | DEBUG | Recompressing: ctrl_c7991581-8bbd-4e59-972b-8f17c63b4618 
+2018-11-02 10:15:14,573 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_c7991581-8bbd-4e59-972b-8f17c63b4618 
+2018-11-02 10:15:14,573 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_c7991581-8bbd-4e59-972b-8f17c63b4618 
+2018-11-02 10:15:14,574 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_c7991581-8bbd-4e59-972b-8f17c63b4618 
+2018-11-02 10:15:14,575 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 34 guids out of 35; updating. 
+2018-11-02 10:15:14,997 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 35 guids.  
+2018-11-02 10:15:15,297 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_cc8c6873-e972-4551-abc6-e7feee90d2fc 
+2018-11-02 10:15:16,167 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_cc8c6873-e972-4551-abc6-e7feee90d2fc 
+2018-11-02 10:15:16,528 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_cc8c6873-e972-4551-abc6-e7feee90d2fc 
+2018-11-02 10:15:16,542 | findNeighbour3-server.py:556 | insert | DEBUG | Recompressing: ctrl_cc8c6873-e972-4551-abc6-e7feee90d2fc 
+2018-11-02 10:15:17,724 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_cc8c6873-e972-4551-abc6-e7feee90d2fc 
+2018-11-02 10:15:17,725 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_cc8c6873-e972-4551-abc6-e7feee90d2fc 
+2018-11-02 10:15:17,726 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_cc8c6873-e972-4551-abc6-e7feee90d2fc 
+2018-11-02 10:15:17,727 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 35 guids out of 36; updating. 
+2018-11-02 10:15:18,196 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 36 guids.  
+2018-11-02 10:15:18,574 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_ceb133fe-e156-4c4d-bd0c-e3c944197371 
+2018-11-02 10:15:19,230 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_ceb133fe-e156-4c4d-bd0c-e3c944197371 
+2018-11-02 10:15:19,437 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_ceb133fe-e156-4c4d-bd0c-e3c944197371 
+2018-11-02 10:15:19,638 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_ceb133fe-e156-4c4d-bd0c-e3c944197371 
+2018-11-02 10:15:19,638 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_ceb133fe-e156-4c4d-bd0c-e3c944197371 
+2018-11-02 10:15:19,639 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_ceb133fe-e156-4c4d-bd0c-e3c944197371 
+2018-11-02 10:15:19,640 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 36 guids out of 37; updating. 
+2018-11-02 10:15:20,068 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 37 guids.  
+2018-11-02 10:15:20,462 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_d9451641-8e55-4cc5-8de0-972d7641a50c 
+2018-11-02 10:15:21,091 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_d9451641-8e55-4cc5-8de0-972d7641a50c 
+2018-11-02 10:15:21,282 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_d9451641-8e55-4cc5-8de0-972d7641a50c 
+2018-11-02 10:15:21,471 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_d9451641-8e55-4cc5-8de0-972d7641a50c 
+2018-11-02 10:15:21,472 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_d9451641-8e55-4cc5-8de0-972d7641a50c 
+2018-11-02 10:15:21,472 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_d9451641-8e55-4cc5-8de0-972d7641a50c 
+2018-11-02 10:15:21,474 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 37 guids out of 38; updating. 
+2018-11-02 10:15:21,889 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 38 guids.  
+2018-11-02 10:15:22,268 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_dff89405-1a00-4df1-bbe3-4322e2f8a20d 
+2018-11-02 10:15:22,907 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_dff89405-1a00-4df1-bbe3-4322e2f8a20d 
+2018-11-02 10:15:23,189 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_dff89405-1a00-4df1-bbe3-4322e2f8a20d 
+2018-11-02 10:15:23,443 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_dff89405-1a00-4df1-bbe3-4322e2f8a20d 
+2018-11-02 10:15:23,444 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_dff89405-1a00-4df1-bbe3-4322e2f8a20d 
+2018-11-02 10:15:23,445 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_dff89405-1a00-4df1-bbe3-4322e2f8a20d 
+2018-11-02 10:15:23,446 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 38 guids out of 39; updating. 
+2018-11-02 10:15:23,889 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 39 guids.  
+2018-11-02 10:15:24,172 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_e4245b7e-32fb-471b-985c-f83977ddae24 
+2018-11-02 10:15:24,892 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_e4245b7e-32fb-471b-985c-f83977ddae24 
+2018-11-02 10:15:25,200 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_e4245b7e-32fb-471b-985c-f83977ddae24 
+2018-11-02 10:15:25,456 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_e4245b7e-32fb-471b-985c-f83977ddae24 
+2018-11-02 10:15:25,457 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_e4245b7e-32fb-471b-985c-f83977ddae24 
+2018-11-02 10:15:25,457 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_e4245b7e-32fb-471b-985c-f83977ddae24 
+2018-11-02 10:15:25,459 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 39 guids out of 40; updating. 
+2018-11-02 10:15:25,872 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 40 guids.  
+2018-11-02 10:15:26,555 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_e629558c-14cd-4a0a-ad94-eadd4bd3649d 
+2018-11-02 10:15:27,181 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_e629558c-14cd-4a0a-ad94-eadd4bd3649d 
+2018-11-02 10:15:27,476 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_e629558c-14cd-4a0a-ad94-eadd4bd3649d 
+2018-11-02 10:15:29,016 | findNeighbour3-server.py:556 | insert | DEBUG | Recompressing: ctrl_e629558c-14cd-4a0a-ad94-eadd4bd3649d 
+2018-11-02 10:15:30,045 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_e629558c-14cd-4a0a-ad94-eadd4bd3649d 
+2018-11-02 10:15:30,046 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_e629558c-14cd-4a0a-ad94-eadd4bd3649d 
+2018-11-02 10:15:30,046 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_e629558c-14cd-4a0a-ad94-eadd4bd3649d 
+2018-11-02 10:15:30,048 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 40 guids out of 41; updating. 
+2018-11-02 10:15:30,553 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 41 guids.  
+2018-11-02 10:15:30,854 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_e9cdd622-01d2-48c0-a9f4-bb984d9103bd 
+2018-11-02 10:15:31,486 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_e9cdd622-01d2-48c0-a9f4-bb984d9103bd 
+2018-11-02 10:15:31,729 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_e9cdd622-01d2-48c0-a9f4-bb984d9103bd 
+2018-11-02 10:15:32,633 | findNeighbour3-server.py:556 | insert | DEBUG | Recompressing: ctrl_e9cdd622-01d2-48c0-a9f4-bb984d9103bd 
+2018-11-02 10:15:33,350 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_e9cdd622-01d2-48c0-a9f4-bb984d9103bd 
+2018-11-02 10:15:33,351 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_e9cdd622-01d2-48c0-a9f4-bb984d9103bd 
+2018-11-02 10:15:33,351 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_e9cdd622-01d2-48c0-a9f4-bb984d9103bd 
+2018-11-02 10:15:33,353 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 41 guids out of 42; updating. 
+2018-11-02 10:15:33,810 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 42 guids.  
+2018-11-02 10:15:34,088 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_eac07030-b069-4518-a239-a200787129b1 
+2018-11-02 10:15:34,760 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_eac07030-b069-4518-a239-a200787129b1 
+2018-11-02 10:15:34,967 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_eac07030-b069-4518-a239-a200787129b1 
+2018-11-02 10:15:35,146 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_eac07030-b069-4518-a239-a200787129b1 
+2018-11-02 10:15:35,147 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_eac07030-b069-4518-a239-a200787129b1 
+2018-11-02 10:15:35,147 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_eac07030-b069-4518-a239-a200787129b1 
+2018-11-02 10:15:35,149 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 42 guids out of 43; updating. 
+2018-11-02 10:15:35,365 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 43 guids.  
+2018-11-02 10:15:36,319 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_ef46ff95-4208-4508-9ddf-3a69f8cc8dc1 
+2018-11-02 10:15:36,961 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_ef46ff95-4208-4508-9ddf-3a69f8cc8dc1 
+2018-11-02 10:15:37,205 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_ef46ff95-4208-4508-9ddf-3a69f8cc8dc1 
+2018-11-02 10:15:38,462 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_ef46ff95-4208-4508-9ddf-3a69f8cc8dc1 
+2018-11-02 10:15:38,462 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_ef46ff95-4208-4508-9ddf-3a69f8cc8dc1 
+2018-11-02 10:15:38,463 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_ef46ff95-4208-4508-9ddf-3a69f8cc8dc1 
+2018-11-02 10:15:38,465 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 43 guids out of 44; updating. 
+2018-11-02 10:15:38,973 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 44 guids.  
+2018-11-02 10:15:39,249 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_efb9af09-b272-4dae-a165-55738018f85d 
+2018-11-02 10:15:39,881 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_efb9af09-b272-4dae-a165-55738018f85d 
+2018-11-02 10:15:40,088 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_efb9af09-b272-4dae-a165-55738018f85d 
+2018-11-02 10:15:40,266 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_efb9af09-b272-4dae-a165-55738018f85d 
+2018-11-02 10:15:40,285 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_efb9af09-b272-4dae-a165-55738018f85d 
+2018-11-02 10:15:40,285 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_efb9af09-b272-4dae-a165-55738018f85d 
+2018-11-02 10:15:40,287 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 44 guids out of 45; updating. 
+2018-11-02 10:15:40,526 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 45 guids.  
+2018-11-02 10:15:40,796 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_f6e101f0-207d-4dad-9bf2-82b09322ed23 
+2018-11-02 10:15:41,440 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_f6e101f0-207d-4dad-9bf2-82b09322ed23 
+2018-11-02 10:15:41,668 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_f6e101f0-207d-4dad-9bf2-82b09322ed23 
+2018-11-02 10:15:42,872 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_f6e101f0-207d-4dad-9bf2-82b09322ed23 
+2018-11-02 10:15:42,873 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_f6e101f0-207d-4dad-9bf2-82b09322ed23 
+2018-11-02 10:15:42,874 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_f6e101f0-207d-4dad-9bf2-82b09322ed23 
+2018-11-02 10:15:42,875 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 45 guids out of 46; updating. 
+2018-11-02 10:15:43,213 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 46 guids.  
+2018-11-02 10:15:43,490 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: ctrl_f88eec06-5489-4aa9-9870-45024c1921d2 
+2018-11-02 10:15:44,126 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: ctrl_f88eec06-5489-4aa9-9870-45024c1921d2 
+2018-11-02 10:15:44,535 | findNeighbour3-server.py:511 | insert | INFO | Persisting: ctrl_f88eec06-5489-4aa9-9870-45024c1921d2 
+2018-11-02 10:15:44,846 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded ctrl_f88eec06-5489-4aa9-9870-45024c1921d2 
+2018-11-02 10:15:44,847 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: ctrl_f88eec06-5489-4aa9-9870-45024c1921d2 
+2018-11-02 10:15:44,848 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: ctrl_f88eec06-5489-4aa9-9870-45024c1921d2 
+2018-11-02 10:15:44,849 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 46 guids out of 47; updating. 
+2018-11-02 10:15:45,404 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 47 guids.  
+2018-11-02 10:15:45,891 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 001e077c-18e1-41f9-9b9a-f12191ac2dc2 
+2018-11-02 10:15:46,529 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 001e077c-18e1-41f9-9b9a-f12191ac2dc2 
+2018-11-02 10:15:46,694 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 001e077c-18e1-41f9-9b9a-f12191ac2dc2 
+2018-11-02 10:15:46,905 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 001e077c-18e1-41f9-9b9a-f12191ac2dc2 
+2018-11-02 10:15:46,905 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 001e077c-18e1-41f9-9b9a-f12191ac2dc2 
+2018-11-02 10:15:46,906 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 001e077c-18e1-41f9-9b9a-f12191ac2dc2 
+2018-11-02 10:15:46,907 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 47 guids out of 48; updating. 
+2018-11-02 10:15:47,090 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 48 guids.  
+2018-11-02 10:15:47,519 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 0047f839-eb7e-4b3c-b971-db9cd506cd09 
+2018-11-02 10:15:48,151 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 0047f839-eb7e-4b3c-b971-db9cd506cd09 
+2018-11-02 10:15:48,326 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 0047f839-eb7e-4b3c-b971-db9cd506cd09 
+2018-11-02 10:15:48,799 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 0047f839-eb7e-4b3c-b971-db9cd506cd09 
+2018-11-02 10:15:48,800 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 0047f839-eb7e-4b3c-b971-db9cd506cd09 
+2018-11-02 10:15:48,801 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 0047f839-eb7e-4b3c-b971-db9cd506cd09 
+2018-11-02 10:15:48,802 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 48 guids out of 49; updating. 
+2018-11-02 10:15:48,987 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 49 guids.  
+2018-11-02 10:15:49,764 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 005fa7db-f7e5-4192-bf14-0b79a8313a47 
+2018-11-02 10:15:50,411 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 005fa7db-f7e5-4192-bf14-0b79a8313a47 
+2018-11-02 10:15:50,605 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 005fa7db-f7e5-4192-bf14-0b79a8313a47 
+2018-11-02 10:15:50,780 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 005fa7db-f7e5-4192-bf14-0b79a8313a47 
+2018-11-02 10:15:50,781 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 005fa7db-f7e5-4192-bf14-0b79a8313a47 
+2018-11-02 10:15:50,781 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 005fa7db-f7e5-4192-bf14-0b79a8313a47 
+2018-11-02 10:15:50,783 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 49 guids out of 50; updating. 
+2018-11-02 10:15:50,988 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 50 guids.  
+2018-11-02 10:15:51,350 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 007ae7af-c57b-4e35-83bd-0f2c37e2cf6f 
+2018-11-02 10:15:52,008 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 007ae7af-c57b-4e35-83bd-0f2c37e2cf6f 
+2018-11-02 10:15:52,196 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 007ae7af-c57b-4e35-83bd-0f2c37e2cf6f 
+2018-11-02 10:15:52,567 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 007ae7af-c57b-4e35-83bd-0f2c37e2cf6f 
+2018-11-02 10:15:52,568 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 007ae7af-c57b-4e35-83bd-0f2c37e2cf6f 
+2018-11-02 10:15:52,569 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 007ae7af-c57b-4e35-83bd-0f2c37e2cf6f 
+2018-11-02 10:15:52,570 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 50 guids out of 51; updating. 
+2018-11-02 10:15:52,753 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 51 guids.  
+2018-11-02 10:15:53,532 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 00937c40-da79-4906-b97e-d986ec5b6627 
+2018-11-02 10:15:54,152 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 00937c40-da79-4906-b97e-d986ec5b6627 
+2018-11-02 10:15:54,357 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 00937c40-da79-4906-b97e-d986ec5b6627 
+2018-11-02 10:15:54,570 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 00937c40-da79-4906-b97e-d986ec5b6627 
+2018-11-02 10:15:54,571 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 00937c40-da79-4906-b97e-d986ec5b6627 
+2018-11-02 10:15:54,571 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 00937c40-da79-4906-b97e-d986ec5b6627 
+2018-11-02 10:15:54,573 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 51 guids out of 52; updating. 
+2018-11-02 10:15:54,776 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 52 guids.  
+2018-11-02 10:15:55,909 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 009efc8a-447e-430c-948b-1c652964d44b 
+2018-11-02 10:15:56,564 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 009efc8a-447e-430c-948b-1c652964d44b 
+2018-11-02 10:15:56,778 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 009efc8a-447e-430c-948b-1c652964d44b 
+2018-11-02 10:15:57,002 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 009efc8a-447e-430c-948b-1c652964d44b 
+2018-11-02 10:15:57,003 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 009efc8a-447e-430c-948b-1c652964d44b 
+2018-11-02 10:15:57,003 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 009efc8a-447e-430c-948b-1c652964d44b 
+2018-11-02 10:15:57,005 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 52 guids out of 53; updating. 
+2018-11-02 10:15:57,214 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 53 guids.  
+2018-11-02 10:15:57,623 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 00b13ae3-6f93-4b4b-ad2f-ef0e1d6960b3 
+2018-11-02 10:15:58,263 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 00b13ae3-6f93-4b4b-ad2f-ef0e1d6960b3 
+2018-11-02 10:15:58,476 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 00b13ae3-6f93-4b4b-ad2f-ef0e1d6960b3 
+2018-11-02 10:15:58,695 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 00b13ae3-6f93-4b4b-ad2f-ef0e1d6960b3 
+2018-11-02 10:15:58,695 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 00b13ae3-6f93-4b4b-ad2f-ef0e1d6960b3 
+2018-11-02 10:15:58,696 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 00b13ae3-6f93-4b4b-ad2f-ef0e1d6960b3 
+2018-11-02 10:15:58,697 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 53 guids out of 54; updating. 
+2018-11-02 10:15:58,889 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 54 guids.  
+2018-11-02 10:15:59,148 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 00b7afdd-ad19-4406-acea-c0149c115ed0 
+2018-11-02 10:15:59,789 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 00b7afdd-ad19-4406-acea-c0149c115ed0 
+2018-11-02 10:15:59,998 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 00b7afdd-ad19-4406-acea-c0149c115ed0 
+2018-11-02 10:16:00,184 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 00b7afdd-ad19-4406-acea-c0149c115ed0 
+2018-11-02 10:16:00,235 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 00b7afdd-ad19-4406-acea-c0149c115ed0 
+2018-11-02 10:16:00,235 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 00b7afdd-ad19-4406-acea-c0149c115ed0 
+2018-11-02 10:16:00,237 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 54 guids out of 55; updating. 
+2018-11-02 10:16:00,451 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 55 guids.  
+2018-11-02 10:16:00,714 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 00f133c7-d424-4062-ae53-65c24d0015ba 
+2018-11-02 10:16:01,341 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 00f133c7-d424-4062-ae53-65c24d0015ba 
+2018-11-02 10:16:01,586 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 00f133c7-d424-4062-ae53-65c24d0015ba 
+2018-11-02 10:16:01,778 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 00f133c7-d424-4062-ae53-65c24d0015ba 
+2018-11-02 10:16:01,779 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 00f133c7-d424-4062-ae53-65c24d0015ba 
+2018-11-02 10:16:01,779 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 00f133c7-d424-4062-ae53-65c24d0015ba 
+2018-11-02 10:16:01,781 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 55 guids out of 56; updating. 
+2018-11-02 10:16:01,953 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 56 guids.  
+2018-11-02 10:16:02,220 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 011e05cb-a1f4-46cb-b95b-3e6b5c77ea8f 
+2018-11-02 10:16:02,853 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 011e05cb-a1f4-46cb-b95b-3e6b5c77ea8f 
+2018-11-02 10:16:03,071 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 011e05cb-a1f4-46cb-b95b-3e6b5c77ea8f 
+2018-11-02 10:16:03,490 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 011e05cb-a1f4-46cb-b95b-3e6b5c77ea8f 
+2018-11-02 10:16:03,490 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 011e05cb-a1f4-46cb-b95b-3e6b5c77ea8f 
+2018-11-02 10:16:03,491 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 011e05cb-a1f4-46cb-b95b-3e6b5c77ea8f 
+2018-11-02 10:16:03,493 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 56 guids out of 57; updating. 
+2018-11-02 10:16:03,662 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 57 guids.  
+2018-11-02 10:16:04,417 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 012a6690-5e7f-4c09-9f2b-1e8965c34fc1 
+2018-11-02 10:16:05,051 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 012a6690-5e7f-4c09-9f2b-1e8965c34fc1 
+2018-11-02 10:16:05,282 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 012a6690-5e7f-4c09-9f2b-1e8965c34fc1 
+2018-11-02 10:16:05,473 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 012a6690-5e7f-4c09-9f2b-1e8965c34fc1 
+2018-11-02 10:16:05,474 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 012a6690-5e7f-4c09-9f2b-1e8965c34fc1 
+2018-11-02 10:16:05,474 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 012a6690-5e7f-4c09-9f2b-1e8965c34fc1 
+2018-11-02 10:16:05,476 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 57 guids out of 58; updating. 
+2018-11-02 10:16:05,666 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 58 guids.  
+2018-11-02 10:16:05,937 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 0131fbe5-d403-4be6-b85d-781034ab9f12 
+2018-11-02 10:16:06,617 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 0131fbe5-d403-4be6-b85d-781034ab9f12 
+2018-11-02 10:16:06,853 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 0131fbe5-d403-4be6-b85d-781034ab9f12 
+2018-11-02 10:16:07,044 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 0131fbe5-d403-4be6-b85d-781034ab9f12 
+2018-11-02 10:16:07,044 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 0131fbe5-d403-4be6-b85d-781034ab9f12 
+2018-11-02 10:16:07,045 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 0131fbe5-d403-4be6-b85d-781034ab9f12 
+2018-11-02 10:16:07,047 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 58 guids out of 59; updating. 
+2018-11-02 10:16:07,220 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 59 guids.  
+2018-11-02 10:16:07,487 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 01456996-a4fc-42c8-a9f8-d24679d192de 
+2018-11-02 10:16:08,123 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 01456996-a4fc-42c8-a9f8-d24679d192de 
+2018-11-02 10:16:08,359 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 01456996-a4fc-42c8-a9f8-d24679d192de 
+2018-11-02 10:16:08,553 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 01456996-a4fc-42c8-a9f8-d24679d192de 
+2018-11-02 10:16:08,554 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 01456996-a4fc-42c8-a9f8-d24679d192de 
+2018-11-02 10:16:08,554 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 01456996-a4fc-42c8-a9f8-d24679d192de 
+2018-11-02 10:16:08,556 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 59 guids out of 60; updating. 
+2018-11-02 10:16:08,731 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 60 guids.  
+2018-11-02 10:16:09,099 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 015996e2-1dc8-4a66-804f-e844352c166a 
+2018-11-02 10:16:09,734 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 015996e2-1dc8-4a66-804f-e844352c166a 
+2018-11-02 10:16:09,981 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 015996e2-1dc8-4a66-804f-e844352c166a 
+2018-11-02 10:16:09,992 | findNeighbour3-server.py:556 | insert | DEBUG | Recompressing: 015996e2-1dc8-4a66-804f-e844352c166a 
+2018-11-02 10:16:10,762 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 015996e2-1dc8-4a66-804f-e844352c166a 
+2018-11-02 10:16:10,763 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 015996e2-1dc8-4a66-804f-e844352c166a 
+2018-11-02 10:16:10,764 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 015996e2-1dc8-4a66-804f-e844352c166a 
+2018-11-02 10:16:10,765 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 60 guids out of 61; updating. 
+2018-11-02 10:16:11,039 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 61 guids.  
+2018-11-02 10:16:11,424 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 01665ad5-a5dc-4b72-95cc-5b6b8263dd76 
+2018-11-02 10:16:12,065 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 01665ad5-a5dc-4b72-95cc-5b6b8263dd76 
+2018-11-02 10:16:12,376 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 01665ad5-a5dc-4b72-95cc-5b6b8263dd76 
+2018-11-02 10:16:12,642 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 01665ad5-a5dc-4b72-95cc-5b6b8263dd76 
+2018-11-02 10:16:12,642 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 01665ad5-a5dc-4b72-95cc-5b6b8263dd76 
+2018-11-02 10:16:12,643 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 01665ad5-a5dc-4b72-95cc-5b6b8263dd76 
+2018-11-02 10:16:12,645 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 61 guids out of 62; updating. 
+2018-11-02 10:16:12,876 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 62 guids.  
+2018-11-02 10:16:13,866 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 01ada54a-e908-4431-ae32-7704a732f325 
+2018-11-02 10:16:14,535 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 01ada54a-e908-4431-ae32-7704a732f325 
+2018-11-02 10:16:14,856 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 01ada54a-e908-4431-ae32-7704a732f325 
+2018-11-02 10:16:15,850 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 01ada54a-e908-4431-ae32-7704a732f325 
+2018-11-02 10:16:15,851 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 01ada54a-e908-4431-ae32-7704a732f325 
+2018-11-02 10:16:15,851 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 01ada54a-e908-4431-ae32-7704a732f325 
+2018-11-02 10:16:15,853 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 62 guids out of 63; updating. 
+2018-11-02 10:16:16,049 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 63 guids.  
+2018-11-02 10:16:16,331 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 0216a36e-2b14-4f89-89b4-f3a43c45881b 
+2018-11-02 10:16:16,948 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 0216a36e-2b14-4f89-89b4-f3a43c45881b 
+2018-11-02 10:16:17,266 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 0216a36e-2b14-4f89-89b4-f3a43c45881b 
+2018-11-02 10:16:17,647 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 0216a36e-2b14-4f89-89b4-f3a43c45881b 
+2018-11-02 10:16:17,648 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 0216a36e-2b14-4f89-89b4-f3a43c45881b 
+2018-11-02 10:16:17,648 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 0216a36e-2b14-4f89-89b4-f3a43c45881b 
+2018-11-02 10:16:17,650 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 63 guids out of 64; updating. 
+2018-11-02 10:16:17,830 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 64 guids.  
+2018-11-02 10:16:18,513 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 0283f1c1-be6d-413f-b5aa-9cc5eb30d0d6 
+2018-11-02 10:16:19,152 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 0283f1c1-be6d-413f-b5aa-9cc5eb30d0d6 
+2018-11-02 10:16:19,472 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 0283f1c1-be6d-413f-b5aa-9cc5eb30d0d6 
+2018-11-02 10:16:20,584 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 0283f1c1-be6d-413f-b5aa-9cc5eb30d0d6 
+2018-11-02 10:16:20,585 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 0283f1c1-be6d-413f-b5aa-9cc5eb30d0d6 
+2018-11-02 10:16:20,586 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 0283f1c1-be6d-413f-b5aa-9cc5eb30d0d6 
+2018-11-02 10:16:20,587 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 64 guids out of 65; updating. 
+2018-11-02 10:16:20,752 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 65 guids.  
+2018-11-02 10:16:21,035 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 0290f28d-8911-47cd-83fb-e00557191fca 
+2018-11-02 10:16:21,659 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 0290f28d-8911-47cd-83fb-e00557191fca 
+2018-11-02 10:16:21,996 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 0290f28d-8911-47cd-83fb-e00557191fca 
+2018-11-02 10:16:22,221 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 0290f28d-8911-47cd-83fb-e00557191fca 
+2018-11-02 10:16:22,222 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 0290f28d-8911-47cd-83fb-e00557191fca 
+2018-11-02 10:16:22,223 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 0290f28d-8911-47cd-83fb-e00557191fca 
+2018-11-02 10:16:22,224 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 65 guids out of 66; updating. 
+2018-11-02 10:16:22,471 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 66 guids.  
+2018-11-02 10:16:22,915 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 02cdb692-9175-4f0c-9254-564435bb3903 
+2018-11-02 10:16:23,542 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 02cdb692-9175-4f0c-9254-564435bb3903 
+2018-11-02 10:16:23,874 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 02cdb692-9175-4f0c-9254-564435bb3903 
+2018-11-02 10:16:24,088 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 02cdb692-9175-4f0c-9254-564435bb3903 
+2018-11-02 10:16:24,089 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 02cdb692-9175-4f0c-9254-564435bb3903 
+2018-11-02 10:16:24,090 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 02cdb692-9175-4f0c-9254-564435bb3903 
+2018-11-02 10:16:24,091 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 66 guids out of 67; updating. 
+2018-11-02 10:16:24,262 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 67 guids.  
+2018-11-02 10:16:24,838 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 02fafea8-e2b4-4a3e-98bf-2bc83fa825cb 
+2018-11-02 10:16:25,465 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 02fafea8-e2b4-4a3e-98bf-2bc83fa825cb 
+2018-11-02 10:16:25,796 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 02fafea8-e2b4-4a3e-98bf-2bc83fa825cb 
+2018-11-02 10:16:27,195 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 02fafea8-e2b4-4a3e-98bf-2bc83fa825cb 
+2018-11-02 10:16:27,196 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 02fafea8-e2b4-4a3e-98bf-2bc83fa825cb 
+2018-11-02 10:16:27,196 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 02fafea8-e2b4-4a3e-98bf-2bc83fa825cb 
+2018-11-02 10:16:27,198 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 67 guids out of 68; updating. 
+2018-11-02 10:16:27,439 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 68 guids.  
+2018-11-02 10:16:28,576 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 0311f806-ceed-47cc-b8f8-7ae0c1f67606 
+2018-11-02 10:16:29,281 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 0311f806-ceed-47cc-b8f8-7ae0c1f67606 
+2018-11-02 10:16:29,680 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 0311f806-ceed-47cc-b8f8-7ae0c1f67606 
+2018-11-02 10:16:29,968 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 0311f806-ceed-47cc-b8f8-7ae0c1f67606 
+2018-11-02 10:16:29,969 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 0311f806-ceed-47cc-b8f8-7ae0c1f67606 
+2018-11-02 10:16:29,969 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 0311f806-ceed-47cc-b8f8-7ae0c1f67606 
+2018-11-02 10:16:29,971 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 68 guids out of 69; updating. 
+2018-11-02 10:16:30,154 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 69 guids.  
+2018-11-02 10:16:30,472 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 035fd216-f7d4-4627-9e4f-0978e4a05718 
+2018-11-02 10:16:31,108 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 035fd216-f7d4-4627-9e4f-0978e4a05718 
+2018-11-02 10:16:31,470 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 035fd216-f7d4-4627-9e4f-0978e4a05718 
+2018-11-02 10:16:31,705 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 035fd216-f7d4-4627-9e4f-0978e4a05718 
+2018-11-02 10:16:31,706 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 035fd216-f7d4-4627-9e4f-0978e4a05718 
+2018-11-02 10:16:31,707 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 035fd216-f7d4-4627-9e4f-0978e4a05718 
+2018-11-02 10:16:31,708 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 69 guids out of 70; updating. 
+2018-11-02 10:16:31,856 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 70 guids.  
+2018-11-02 10:16:32,225 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 0381543d-efc7-4fb9-bcb2-db59c46a529e 
+2018-11-02 10:16:32,847 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 0381543d-efc7-4fb9-bcb2-db59c46a529e 
+2018-11-02 10:16:33,197 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 0381543d-efc7-4fb9-bcb2-db59c46a529e 
+2018-11-02 10:16:33,449 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 0381543d-efc7-4fb9-bcb2-db59c46a529e 
+2018-11-02 10:16:33,449 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 0381543d-efc7-4fb9-bcb2-db59c46a529e 
+2018-11-02 10:16:33,450 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 0381543d-efc7-4fb9-bcb2-db59c46a529e 
+2018-11-02 10:16:33,451 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 70 guids out of 71; updating. 
+2018-11-02 10:16:33,615 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 71 guids.  
+2018-11-02 10:16:34,381 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 038f05ed-bd5f-4a6f-b64b-e864574b80d3 
+2018-11-02 10:16:35,010 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 038f05ed-bd5f-4a6f-b64b-e864574b80d3 
+2018-11-02 10:16:35,392 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 038f05ed-bd5f-4a6f-b64b-e864574b80d3 
+2018-11-02 10:16:35,810 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 038f05ed-bd5f-4a6f-b64b-e864574b80d3 
+2018-11-02 10:16:35,810 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 038f05ed-bd5f-4a6f-b64b-e864574b80d3 
+2018-11-02 10:16:35,811 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 038f05ed-bd5f-4a6f-b64b-e864574b80d3 
+2018-11-02 10:16:35,813 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 71 guids out of 72; updating. 
+2018-11-02 10:16:35,987 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 72 guids.  
+2018-11-02 10:16:36,374 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 042a4cb6-d07f-458f-93b1-1a4821ab36fe 
+2018-11-02 10:16:37,011 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 042a4cb6-d07f-458f-93b1-1a4821ab36fe 
+2018-11-02 10:16:37,376 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 042a4cb6-d07f-458f-93b1-1a4821ab36fe 
+2018-11-02 10:16:37,731 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 042a4cb6-d07f-458f-93b1-1a4821ab36fe 
+2018-11-02 10:16:37,732 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 042a4cb6-d07f-458f-93b1-1a4821ab36fe 
+2018-11-02 10:16:37,733 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 042a4cb6-d07f-458f-93b1-1a4821ab36fe 
+2018-11-02 10:16:37,735 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 72 guids out of 73; updating. 
+2018-11-02 10:16:37,883 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 73 guids.  
+2018-11-02 10:16:38,664 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 045430d0-9543-418a-ad84-fb36f64fcfa5 
+2018-11-02 10:16:39,332 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 045430d0-9543-418a-ad84-fb36f64fcfa5 
+2018-11-02 10:16:39,723 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 045430d0-9543-418a-ad84-fb36f64fcfa5 
+2018-11-02 10:16:39,962 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 045430d0-9543-418a-ad84-fb36f64fcfa5 
+2018-11-02 10:16:39,963 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 045430d0-9543-418a-ad84-fb36f64fcfa5 
+2018-11-02 10:16:39,963 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 045430d0-9543-418a-ad84-fb36f64fcfa5 
+2018-11-02 10:16:39,965 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 73 guids out of 74; updating. 
+2018-11-02 10:16:40,105 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 74 guids.  
+2018-11-02 10:16:40,399 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 047aa3da-38f8-484a-b7f0-894786675810 
+2018-11-02 10:16:41,027 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 047aa3da-38f8-484a-b7f0-894786675810 
+2018-11-02 10:16:41,413 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 047aa3da-38f8-484a-b7f0-894786675810 
+2018-11-02 10:16:41,650 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 047aa3da-38f8-484a-b7f0-894786675810 
+2018-11-02 10:16:41,651 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 047aa3da-38f8-484a-b7f0-894786675810 
+2018-11-02 10:16:41,652 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 047aa3da-38f8-484a-b7f0-894786675810 
+2018-11-02 10:16:41,654 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 74 guids out of 75; updating. 
+2018-11-02 10:16:41,794 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 75 guids.  
+2018-11-02 10:16:42,087 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 047b0b27-5a95-4bfe-8ad5-0f2396a36627 
+2018-11-02 10:16:42,717 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 047b0b27-5a95-4bfe-8ad5-0f2396a36627 
+2018-11-02 10:16:43,136 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 047b0b27-5a95-4bfe-8ad5-0f2396a36627 
+2018-11-02 10:16:43,406 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 047b0b27-5a95-4bfe-8ad5-0f2396a36627 
+2018-11-02 10:16:43,406 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 047b0b27-5a95-4bfe-8ad5-0f2396a36627 
+2018-11-02 10:16:43,407 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 047b0b27-5a95-4bfe-8ad5-0f2396a36627 
+2018-11-02 10:16:43,409 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 75 guids out of 76; updating. 
+2018-11-02 10:16:43,556 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 76 guids.  
+2018-11-02 10:16:43,894 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 0485d982-df49-49a8-a3b8-831a54274d6d 
+2018-11-02 10:16:44,544 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 0485d982-df49-49a8-a3b8-831a54274d6d 
+2018-11-02 10:16:44,943 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 0485d982-df49-49a8-a3b8-831a54274d6d 
+2018-11-02 10:16:45,182 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 0485d982-df49-49a8-a3b8-831a54274d6d 
+2018-11-02 10:16:45,183 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 0485d982-df49-49a8-a3b8-831a54274d6d 
+2018-11-02 10:16:45,183 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 0485d982-df49-49a8-a3b8-831a54274d6d 
+2018-11-02 10:16:45,185 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 76 guids out of 77; updating. 
+2018-11-02 10:16:45,319 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 77 guids.  
+2018-11-02 10:16:45,614 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 04985390-2c99-4844-bd5b-a4439840e410 
+2018-11-02 10:16:46,255 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 04985390-2c99-4844-bd5b-a4439840e410 
+2018-11-02 10:16:46,667 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 04985390-2c99-4844-bd5b-a4439840e410 
+2018-11-02 10:16:46,949 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 04985390-2c99-4844-bd5b-a4439840e410 
+2018-11-02 10:16:46,950 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 04985390-2c99-4844-bd5b-a4439840e410 
+2018-11-02 10:16:46,951 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 04985390-2c99-4844-bd5b-a4439840e410 
+2018-11-02 10:16:46,952 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 77 guids out of 78; updating. 
+2018-11-02 10:16:47,094 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 78 guids.  
+2018-11-02 10:16:47,464 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 04afa0ff-40f3-42a2-a3d8-6192246d80b0 
+2018-11-02 10:16:48,089 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 04afa0ff-40f3-42a2-a3d8-6192246d80b0 
+2018-11-02 10:16:48,479 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 04afa0ff-40f3-42a2-a3d8-6192246d80b0 
+2018-11-02 10:16:48,755 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 04afa0ff-40f3-42a2-a3d8-6192246d80b0 
+2018-11-02 10:16:48,756 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 04afa0ff-40f3-42a2-a3d8-6192246d80b0 
+2018-11-02 10:16:48,756 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 0290f28d-8911-47cd-83fb-e00557191fca 
+2018-11-02 10:16:48,765 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 00f133c7-d424-4062-ae53-65c24d0015ba 
+2018-11-02 10:16:48,774 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 007ae7af-c57b-4e35-83bd-0f2c37e2cf6f 
+2018-11-02 10:16:48,783 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 00b13ae3-6f93-4b4b-ad2f-ef0e1d6960b3 
+2018-11-02 10:16:48,791 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 038f05ed-bd5f-4a6f-b64b-e864574b80d3 
+2018-11-02 10:16:48,801 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 015996e2-1dc8-4a66-804f-e844352c166a 
+2018-11-02 10:16:48,810 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 02fafea8-e2b4-4a3e-98bf-2bc83fa825cb 
+2018-11-02 10:16:48,820 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 01456996-a4fc-42c8-a9f8-d24679d192de 
+2018-11-02 10:16:48,829 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 0131fbe5-d403-4be6-b85d-781034ab9f12 
+2018-11-02 10:16:48,839 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 04afa0ff-40f3-42a2-a3d8-6192246d80b0 
+2018-11-02 10:16:48,849 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 04afa0ff-40f3-42a2-a3d8-6192246d80b0 
+2018-11-02 10:16:48,851 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 78 guids out of 79; updating. 
+2018-11-02 10:16:49,102 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 79 guids.  
+2018-11-02 10:16:49,645 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 04b5d4e7-987a-424d-a61f-3398d615b415 
+2018-11-02 10:16:50,278 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 04b5d4e7-987a-424d-a61f-3398d615b415 
+2018-11-02 10:16:50,710 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 04b5d4e7-987a-424d-a61f-3398d615b415 
+2018-11-02 10:16:50,988 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 04b5d4e7-987a-424d-a61f-3398d615b415 
+2018-11-02 10:16:50,988 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 04b5d4e7-987a-424d-a61f-3398d615b415 
+2018-11-02 10:16:50,989 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 04b5d4e7-987a-424d-a61f-3398d615b415 
+2018-11-02 10:16:50,990 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 79 guids out of 80; updating. 
+2018-11-02 10:16:51,140 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 80 guids.  
+2018-11-02 10:16:51,601 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 057a4f31-0e61-49c7-b1ac-d42fb8797f86 
+2018-11-02 10:16:52,228 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 057a4f31-0e61-49c7-b1ac-d42fb8797f86 
+2018-11-02 10:16:52,635 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 057a4f31-0e61-49c7-b1ac-d42fb8797f86 
+2018-11-02 10:16:52,647 | findNeighbour3-server.py:556 | insert | DEBUG | Recompressing: 057a4f31-0e61-49c7-b1ac-d42fb8797f86 
+2018-11-02 10:16:54,081 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 057a4f31-0e61-49c7-b1ac-d42fb8797f86 
+2018-11-02 10:16:54,083 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 057a4f31-0e61-49c7-b1ac-d42fb8797f86 
+2018-11-02 10:16:54,084 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 057a4f31-0e61-49c7-b1ac-d42fb8797f86 
+2018-11-02 10:16:54,089 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 80 guids out of 81; updating. 
+2018-11-02 10:16:54,536 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 81 guids.  
+2018-11-02 10:16:54,848 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 05b2451f-9b09-4a93-8478-84ce376e26f8 
+2018-11-02 10:16:55,516 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 05b2451f-9b09-4a93-8478-84ce376e26f8 
+2018-11-02 10:16:56,003 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 05b2451f-9b09-4a93-8478-84ce376e26f8 
+2018-11-02 10:16:56,321 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 05b2451f-9b09-4a93-8478-84ce376e26f8 
+2018-11-02 10:16:56,322 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 05b2451f-9b09-4a93-8478-84ce376e26f8 
+2018-11-02 10:16:56,322 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 05b2451f-9b09-4a93-8478-84ce376e26f8 
+2018-11-02 10:16:56,324 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 81 guids out of 82; updating. 
+2018-11-02 10:16:56,538 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 82 guids.  
+2018-11-02 10:16:57,099 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 05e4316a-71f8-45ea-b12d-b9d5454befac 
+2018-11-02 10:16:57,834 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 05e4316a-71f8-45ea-b12d-b9d5454befac 
+2018-11-02 10:16:58,360 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 05e4316a-71f8-45ea-b12d-b9d5454befac 
+2018-11-02 10:16:58,631 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 05e4316a-71f8-45ea-b12d-b9d5454befac 
+2018-11-02 10:16:58,632 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 05e4316a-71f8-45ea-b12d-b9d5454befac 
+2018-11-02 10:16:58,632 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 05e4316a-71f8-45ea-b12d-b9d5454befac 
+2018-11-02 10:16:58,634 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 82 guids out of 83; updating. 
+2018-11-02 10:16:58,846 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 83 guids.  
+2018-11-02 10:16:59,356 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 062beb94-59bd-4d45-8b09-6ac6267567c7 
+2018-11-02 10:17:00,055 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 062beb94-59bd-4d45-8b09-6ac6267567c7 
+2018-11-02 10:17:00,609 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 062beb94-59bd-4d45-8b09-6ac6267567c7 
+2018-11-02 10:17:00,968 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 062beb94-59bd-4d45-8b09-6ac6267567c7 
+2018-11-02 10:17:00,968 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 062beb94-59bd-4d45-8b09-6ac6267567c7 
+2018-11-02 10:17:00,969 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 062beb94-59bd-4d45-8b09-6ac6267567c7 
+2018-11-02 10:17:00,971 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 83 guids out of 84; updating. 
+2018-11-02 10:17:01,180 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 84 guids.  
+2018-11-02 10:17:01,526 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 066bf46a-1649-47a3-8c0f-a42b183aa245 
+2018-11-02 10:17:02,266 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 066bf46a-1649-47a3-8c0f-a42b183aa245 
+2018-11-02 10:17:02,795 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 066bf46a-1649-47a3-8c0f-a42b183aa245 
+2018-11-02 10:17:03,113 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 066bf46a-1649-47a3-8c0f-a42b183aa245 
+2018-11-02 10:17:03,114 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 066bf46a-1649-47a3-8c0f-a42b183aa245 
+2018-11-02 10:17:03,115 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 066bf46a-1649-47a3-8c0f-a42b183aa245 
+2018-11-02 10:17:03,116 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 84 guids out of 85; updating. 
+2018-11-02 10:17:03,368 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 85 guids.  
+2018-11-02 10:17:03,903 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 06a18fe5-3c0e-4bf0-b126-7a44d78153cb 
+
+2018-11-02 10:32:34,733 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 23b87c58-3427-4314-aba8-e32280363d9b 
+2018-11-02 10:32:34,775 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 158eca09-fcb2-4266-8fd7-9be97f82765c 
+2018-11-02 10:32:34,800 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 154001c1-9929-4318-ad14-c8f47f01990f 
+2018-11-02 10:32:34,830 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 0977c5b7-85d6-4636-a925-a6803349c636 
+2018-11-02 10:32:34,854 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 21ff9cd6-a374-43d2-a033-82de2fda54dd 
+2018-11-02 10:32:34,899 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 15a4adb2-77fb-44f0-9253-1d5362015a5f 
+2018-11-02 10:32:34,932 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 04b5d4e7-987a-424d-a61f-3398d615b415 
+2018-11-02 10:32:34,949 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 0cc75b46-d6d1-4264-9f6b-1eb41fe2e6d8 
+2018-11-02 10:32:34,966 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 0d8b4d52-c7ae-4020-a5c7-19b08d63d12c 
+2018-11-02 10:32:34,989 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 0790be1d-37de-4a04-96e2-93019e322242 
+2018-11-02 10:32:35,003 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 047aa3da-38f8-484a-b7f0-894786675810 
+2018-11-02 10:32:35,021 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 1bcf1c88-cecc-4f12-a6bd-d6d029e7783e 
+2018-11-02 10:32:35,042 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 06b515d5-2bc8-42df-bf72-9bea61121506 
+2018-11-02 10:32:35,058 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 0283f1c1-be6d-413f-b5aa-9cc5eb30d0d6 
+2018-11-02 10:32:35,083 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 233380b0-093e-4c50-8129-a52a7354d293 
+2018-11-02 10:32:35,099 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 12ab7504-bd96-4dcf-9eb0-0a5b3a7fb21a 
+2018-11-02 10:32:35,118 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 184df1f7-288f-4ddf-9bfe-ff78fbc5bbbb 
+2018-11-02 10:32:35,137 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 15b76825-675a-41a1-8e3e-6fefb05bb4ba 
+2018-11-02 10:32:35,164 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 0311f806-ceed-47cc-b8f8-7ae0c1f67606 
+2018-11-02 10:32:35,183 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 28b56c64-3a5e-43cb-a1e1-c086170d9f00 
+2018-11-02 10:32:35,247 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 093fbcf5-066e-499f-aab7-627698b22d93 
+2018-11-02 10:32:35,270 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 19c55fe5-7b88-4e06-b368-b43dea5b3ba0 
+2018-11-02 10:32:35,297 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 241619a8-f817-4fe3-8781-963ad1cbf8c3 
+2018-11-02 10:32:35,335 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 0cf3f05d-e142-4eb4-8529-ca1a8a4b6dbd 
+2018-11-02 10:32:35,353 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 1592d43b-1551-4690-8bfc-22643332d37e 
+2018-11-02 10:32:35,396 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 0381543d-efc7-4fb9-bcb2-db59c46a529e 
+2018-11-02 10:32:35,413 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 10af8bd7-8d5a-4525-8a86-6b8caec08509 
+2018-11-02 10:32:35,428 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 10e225fa-3fa2-4732-b7a2-d963b5f330a3 
+2018-11-02 10:32:35,460 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 28b8c34c-c4a1-48c1-9aa5-bcc54226687e 
+2018-11-02 10:32:35,522 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 144bf97a-6b1b-4337-84b7-2c91839303b5 
+2018-11-02 10:32:35,541 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 3051a51c-ef9d-4c58-8709-783c7b25905c 
+2018-11-02 10:32:35,572 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 0b9ab3b6-276f-4b5c-87fe-7782d0f31fb9 
+2018-11-02 10:32:35,598 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 1f774c09-8c6f-406d-b778-c57edf6b4d35 
+2018-11-02 10:32:35,625 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 2b6a0c17-5fc5-4fbb-8e9d-08b70717b1c2 
+2018-11-02 10:32:35,650 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 0bfceb9f-e0d6-4542-85c7-4761bf47289a 
+2018-11-02 10:32:35,675 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 07baaaf5-460a-437f-ba23-12b02d4530ad 
+2018-11-02 10:32:35,695 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 140cfc63-654a-451b-bc0d-8eccbeabd445 
+2018-11-02 10:32:35,714 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 1b4502a6-17ca-4143-8f8b-5f8c88555081 
+2018-11-02 10:32:35,730 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 1122778b-936f-4662-b7db-c186905a3a10 
+2018-11-02 10:32:35,750 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 1c3f7615-b5ad-4a82-b82d-df0d4e6a65c6 
+2018-11-02 10:32:35,766 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 1547a0be-4492-4d61-9dd3-fd94279af4ca 
+2018-11-02 10:32:35,807 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 10a2e9db-c3ab-4e35-9d0c-8b63a9c80296 
+2018-11-02 10:32:35,826 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 3151d319-c343-4f16-979c-c4b28b94a518 
+2018-11-02 10:32:35,844 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 28eb7deb-4e47-4687-8937-68c90c84ad29 
+2018-11-02 10:32:35,891 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 0fe18832-9946-4a1e-9403-4b71c7823a3d 
+2018-11-02 10:32:35,908 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 307bec33-713c-49f9-ad95-65a46f54f9b4 
+2018-11-02 10:32:35,939 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 101a2664-e04f-4e02-adc3-1ea4a04d9521 
+2018-11-02 10:32:35,968 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 0a66d476-721f-4d55-a511-8df93f5f70b7 
+2018-11-02 10:32:35,984 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 0b7a04b7-440c-4a09-ae62-72503280d77d 
+2018-11-02 10:32:36,009 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 15749828-462f-4b16-9c38-72cb2dbd8717 
+2018-11-02 10:32:36,035 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 27fb6cdf-d11d-43b6-8271-72310889d6cd 
+2018-11-02 10:32:36,063 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 1ebd4ad2-bea3-42fe-b81d-b2b7f18a672e 
+2018-11-02 10:32:36,078 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 04985390-2c99-4844-bd5b-a4439840e410 
+2018-11-02 10:32:36,099 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 274bfdf5-963f-4ecc-b3da-7b40a4934ee8 
+2018-11-02 10:32:36,132 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 012a6690-5e7f-4c09-9f2b-1e8965c34fc1 
+2018-11-02 10:32:36,149 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 0e36251d-3d99-4428-8243-e8534a75c263 
+2018-11-02 10:32:36,161 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 0edebbab-777e-4fd6-a3de-ebe79674b1d8 
+2018-11-02 10:32:36,185 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 10747d8a-b904-42d4-b5bd-4b1177655e7b 
+2018-11-02 10:32:36,203 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 0b1ea1ee-e7b2-403d-88aa-473a4bdc09f8 
+2018-11-02 10:32:36,221 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 0f2c4d30-9846-4798-a00d-3e63e980b80f 
+2018-11-02 10:32:36,247 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 07b78ee6-0f83-45b0-ba9f-a5e52443e90e 
+2018-11-02 10:32:36,274 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 08e86f2d-a40b-483e-91ce-d2ce43b1bfe4 
+2018-11-02 10:32:36,281 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 26134998-3117-48ba-952d-4ee4587f8d8e 
+2018-11-02 10:32:36,290 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 275cd4ce-7208-4160-b5a8-c054295e68cc 
+2018-11-02 10:32:36,298 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 22c2c343-59af-4b1f-957c-aaa47883a08a 
+2018-11-02 10:32:36,305 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 047b0b27-5a95-4bfe-8ad5-0f2396a36627 
+2018-11-02 10:32:36,310 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 3181939f-85d0-4999-9548-a81ec37b2a2b 
+2018-11-02 10:32:36,351 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 3181939f-85d0-4999-9548-a81ec37b2a2b 
+2018-11-02 10:32:36,353 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 281 guids out of 282; updating. 
+2018-11-02 10:32:37,547 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 282 guids.  
+2018-11-02 10:32:38,327 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 3192bf1a-bce0-4bfa-b5d2-01858d17e866 
+2018-11-02 10:32:39,004 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 3192bf1a-bce0-4bfa-b5d2-01858d17e866 
+2018-11-02 10:32:41,900 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 3192bf1a-bce0-4bfa-b5d2-01858d17e866 
+2018-11-02 10:32:42,845 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 3192bf1a-bce0-4bfa-b5d2-01858d17e866 
+2018-11-02 10:32:42,846 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 3192bf1a-bce0-4bfa-b5d2-01858d17e866 
+2018-11-02 10:32:42,846 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 3192bf1a-bce0-4bfa-b5d2-01858d17e866 
+2018-11-02 10:32:42,849 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 282 guids out of 283; updating. 
+2018-11-02 10:32:43,774 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 283 guids.  
+2018-11-02 10:32:44,454 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 31c0550b-1901-4d16-b1b7-38a7e89b94e4 
+2018-11-02 10:32:45,095 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 31c0550b-1901-4d16-b1b7-38a7e89b94e4 
+2018-11-02 10:32:48,361 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 31c0550b-1901-4d16-b1b7-38a7e89b94e4 
+2018-11-02 10:32:49,494 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 31c0550b-1901-4d16-b1b7-38a7e89b94e4 
+2018-11-02 10:32:49,495 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 31c0550b-1901-4d16-b1b7-38a7e89b94e4 
+2018-11-02 10:32:49,495 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 2742aacd-4a5b-43c2-9fac-929b9328445d 
+2018-11-02 10:32:49,500 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 2b1b3ba0-f8be-4aca-be05-1f3c1d94c935 
+2018-11-02 10:32:49,506 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 158eca09-fcb2-4266-8fd7-9be97f82765c 
+2018-11-02 10:32:49,510 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 0cc75b46-d6d1-4264-9f6b-1eb41fe2e6d8 
+2018-11-02 10:32:49,514 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 0d8b4d52-c7ae-4020-a5c7-19b08d63d12c 
+2018-11-02 10:32:49,519 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 06b515d5-2bc8-42df-bf72-9bea61121506 
+2018-11-02 10:32:49,523 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 233380b0-093e-4c50-8129-a52a7354d293 
+2018-11-02 10:32:49,527 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 15b76825-675a-41a1-8e3e-6fefb05bb4ba 
+2018-11-02 10:32:49,531 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 28b8c34c-c4a1-48c1-9aa5-bcc54226687e 
+2018-11-02 10:32:49,536 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 3181939f-85d0-4999-9548-a81ec37b2a2b 
+2018-11-02 10:32:49,541 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 1b4502a6-17ca-4143-8f8b-5f8c88555081 
+2018-11-02 10:32:49,545 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 1c3f7615-b5ad-4a82-b82d-df0d4e6a65c6 
+2018-11-02 10:32:49,550 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 1547a0be-4492-4d61-9dd3-fd94279af4ca 
+2018-11-02 10:32:49,554 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 0fe18832-9946-4a1e-9403-4b71c7823a3d 
+2018-11-02 10:32:49,558 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 0a66d476-721f-4d55-a511-8df93f5f70b7 
+2018-11-02 10:32:49,562 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 1ebd4ad2-bea3-42fe-b81d-b2b7f18a672e 
+2018-11-02 10:32:49,566 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 04985390-2c99-4844-bd5b-a4439840e410 
+2018-11-02 10:32:49,570 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 0edebbab-777e-4fd6-a3de-ebe79674b1d8 
+2018-11-02 10:32:49,576 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 08e86f2d-a40b-483e-91ce-d2ce43b1bfe4 
+2018-11-02 10:32:49,580 | findNeighbour3-server.py:467 | repack | DEBUG | Repacking 31c0550b-1901-4d16-b1b7-38a7e89b94e4 
+2018-11-02 10:32:49,593 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 31c0550b-1901-4d16-b1b7-38a7e89b94e4 
+2018-11-02 10:32:49,596 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 283 guids out of 284; updating. 
+2018-11-02 10:32:50,755 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 284 guids.  
+2018-11-02 10:32:51,660 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 31d0b936-cdc6-4fe1-8bf2-9855a3feaa5b 
+2018-11-02 10:32:52,418 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 31d0b936-cdc6-4fe1-8bf2-9855a3feaa5b 
+2018-11-02 10:32:55,851 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 31d0b936-cdc6-4fe1-8bf2-9855a3feaa5b 
+2018-11-02 10:32:56,820 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 31d0b936-cdc6-4fe1-8bf2-9855a3feaa5b 
+2018-11-02 10:32:56,820 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 31d0b936-cdc6-4fe1-8bf2-9855a3feaa5b 
+2018-11-02 10:32:56,821 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 31d0b936-cdc6-4fe1-8bf2-9855a3feaa5b 
+2018-11-02 10:32:56,823 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 284 guids out of 285; updating. 
+2018-11-02 10:32:57,579 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 285 guids.  
+2018-11-02 10:32:58,282 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 31e7d7cc-95e8-4d2d-8a29-a04dff89c6e8 
+2018-11-02 10:32:58,923 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 31e7d7cc-95e8-4d2d-8a29-a04dff89c6e8 
+2018-11-02 10:33:01,910 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 31e7d7cc-95e8-4d2d-8a29-a04dff89c6e8 
+2018-11-02 10:33:02,915 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 31e7d7cc-95e8-4d2d-8a29-a04dff89c6e8 
+2018-11-02 10:33:02,916 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 31e7d7cc-95e8-4d2d-8a29-a04dff89c6e8 
+2018-11-02 10:33:02,916 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 31e7d7cc-95e8-4d2d-8a29-a04dff89c6e8 
+2018-11-02 10:33:02,919 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 285 guids out of 286; updating. 
+2018-11-02 10:33:03,626 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 286 guids.  
+2018-11-02 10:33:04,343 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 32108e49-8b8d-4798-be65-d229748ac13f 
+2018-11-02 10:33:04,995 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 32108e49-8b8d-4798-be65-d229748ac13f 
+2018-11-02 10:33:08,075 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 32108e49-8b8d-4798-be65-d229748ac13f 
+2018-11-02 10:33:09,074 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 32108e49-8b8d-4798-be65-d229748ac13f 
+2018-11-02 10:33:09,074 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 32108e49-8b8d-4798-be65-d229748ac13f 
+2018-11-02 10:33:09,075 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 32108e49-8b8d-4798-be65-d229748ac13f 
+2018-11-02 10:33:09,077 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 286 guids out of 287; updating. 
+2018-11-02 10:33:09,804 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 287 guids.  
+2018-11-02 10:33:10,836 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 321d079d-9369-43b3-9e81-dc50cd44b098 
+2018-11-02 10:33:11,475 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 321d079d-9369-43b3-9e81-dc50cd44b098 
+2018-11-02 10:33:14,480 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 321d079d-9369-43b3-9e81-dc50cd44b098 
+2018-11-02 10:33:15,515 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 321d079d-9369-43b3-9e81-dc50cd44b098 
+2018-11-02 10:33:16,141 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 321d079d-9369-43b3-9e81-dc50cd44b098 
+2018-11-02 10:33:16,141 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 321d079d-9369-43b3-9e81-dc50cd44b098 
+2018-11-02 10:33:16,144 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 287 guids out of 288; updating. 
+2018-11-02 10:33:16,542 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 288 guids.  
+2018-11-02 10:33:17,376 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 3267985d-5339-4174-8e95-0bc9d8fece6b 
+2018-11-02 10:33:18,014 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 3267985d-5339-4174-8e95-0bc9d8fece6b 
+2018-11-02 10:33:21,071 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 3267985d-5339-4174-8e95-0bc9d8fece6b 
+2018-11-02 10:33:21,087 | findNeighbour3-server.py:556 | insert | DEBUG | Recompressing: 3267985d-5339-4174-8e95-0bc9d8fece6b 
+2018-11-02 10:33:28,931 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 3267985d-5339-4174-8e95-0bc9d8fece6b 
+2018-11-02 10:33:28,933 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 3267985d-5339-4174-8e95-0bc9d8fece6b 
+2018-11-02 10:33:28,934 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 3267985d-5339-4174-8e95-0bc9d8fece6b 
+2018-11-02 10:33:28,941 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 288 guids out of 289; updating. 
+2018-11-02 10:33:29,987 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 289 guids.  
+2018-11-02 10:33:30,703 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 32b391c5-cf4d-47f8-bcd0-9d79e03577e1 
+2018-11-02 10:33:31,328 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 32b391c5-cf4d-47f8-bcd0-9d79e03577e1 
+2018-11-02 10:33:34,381 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 32b391c5-cf4d-47f8-bcd0-9d79e03577e1 
+2018-11-02 10:33:35,382 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 32b391c5-cf4d-47f8-bcd0-9d79e03577e1 
+2018-11-02 10:33:35,383 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 32b391c5-cf4d-47f8-bcd0-9d79e03577e1 
+2018-11-02 10:33:35,383 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 32b391c5-cf4d-47f8-bcd0-9d79e03577e1 
+2018-11-02 10:33:35,386 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 289 guids out of 290; updating. 
+2018-11-02 10:33:35,707 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 290 guids.  
+2018-11-02 10:33:36,518 | findNeighbour3-server.py:481 | insert | INFO | Preparing to insert: 32c3a859-f725-4434-a7b6-ee041e477080 
+2018-11-02 10:33:37,197 | findNeighbour3-server.py:497 | insert | DEBUG | Finding links: 32c3a859-f725-4434-a7b6-ee041e477080 
+2018-11-02 10:33:40,395 | findNeighbour3-server.py:511 | insert | INFO | Persisting: 32c3a859-f725-4434-a7b6-ee041e477080 
+2018-11-02 10:33:41,493 | findNeighbour3-server.py:562 | insert | INFO | Insert succeeded 32c3a859-f725-4434-a7b6-ee041e477080 
+2018-11-02 10:33:41,494 | findNeighbour3-server.py:571 | insert | INFO | Repacking around: 32c3a859-f725-4434-a7b6-ee041e477080 
+2018-11-02 10:33:41,494 | findNeighbour3-server.py:576 | insert | INFO | Clustering around: 32c3a859-f725-4434-a7b6-ee041e477080 
+2018-11-02 10:33:41,497 | findNeighbour3-server.py:608 | update_clustering | INFO | Clustering graph SNV12_include contains 290 guids out of 291; updating. 
+2018-11-02 10:33:41,831 | findNeighbour3-server.py:653 | update_clustering | INFO | Cluster SNV12_include updated; now contains 291 guids.  

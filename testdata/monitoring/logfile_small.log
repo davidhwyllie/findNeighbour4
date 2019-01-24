@@ -1,0 +1,21 @@
+2018-10-30 12:01:04,153 | findNeighbour3-server.py:2432 | <module> | ERROR | Error raised on creating persistence object 
+Traceback (most recent call last):
+  File "findNeighbour3-server.py", line 2430, in <module>
+    server_monitoring_min_interval_msec = CONFIG['SERVER_MONITORING_MIN_INTERVAL_MSEC'])
+  File "E:\dwyllie\GitHub\findneighbour3\src\mongoStore.py", line 111, in __init__
+    self.db['guid2neighbour'].create_indexes([ix1, ix2])
+  File "C:\Users\dwyllie.JenLap-12M5TY1\AppData\Local\Programs\Python\Python37\lib\site-packages\pymongo\collection.py", line 1807, in create_indexes
+    with self._socket_for_writes() as sock_info:
+  File "C:\Users\dwyllie.JenLap-12M5TY1\AppData\Local\Programs\Python\Python37\lib\site-packages\pymongo\collection.py", line 196, in _socket_for_writes
+    return self.__database.client._socket_for_writes()
+  File "C:\Users\dwyllie.JenLap-12M5TY1\AppData\Local\Programs\Python\Python37\lib\site-packages\pymongo\mongo_client.py", line 1085, in _socket_for_writes
+    server = self._get_topology().select_server(writable_server_selector)
+  File "C:\Users\dwyllie.JenLap-12M5TY1\AppData\Local\Programs\Python\Python37\lib\site-packages\pymongo\topology.py", line 224, in select_server
+    address))
+  File "C:\Users\dwyllie.JenLap-12M5TY1\AppData\Local\Programs\Python\Python37\lib\site-packages\pymongo\topology.py", line 183, in select_servers
+    selector, server_timeout, address)
+  File "C:\Users\dwyllie.JenLap-12M5TY1\AppData\Local\Programs\Python\Python37\lib\site-packages\pymongo\topology.py", line 199, in _select_servers_loop
+    self._error_message(selector))
+pymongo.errors.ServerSelectionTimeoutError: localhost:27017: [WinError 10061] No connection could be made because the target machine actively refused it
+2018-10-30 12:01:04,217 | findNeighbour3-server.py:2434 | <module> | INFO | Error raised pertains to pyMongo connectivity 
+2018-10-30 12:02:09,964 | findNeighbour3-server.py:2442 | <module> | ERROR | Error raised on instantiating findNeighbour3 object 
