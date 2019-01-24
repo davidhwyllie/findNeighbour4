@@ -165,7 +165,7 @@ class seqComparer():
         for key2 in guids:
             if not guid==key2:
                 (guid1,guid2,dist,n1,n2,nboth, N1pos, N2pos, Nbothpos)=self.countDifferences_byKey(keyPair=(guid,key2),
-                                                                                                      cutoff = self.snpCompressionCeiling)            
+                                                                                                      cutoff = self.snpCeiling)            
                 neighbours.append([guid1,guid2,dist,n1,n2,nboth,N1pos, N2pos, Nbothpos])
 
        
@@ -199,11 +199,11 @@ class seqComparer():
     def summarise_stored_items(self):
         """ counts how many sequences exist of various types """
         retVal = {}
-        retVal['scstat|nSeqs'] = len(self.seqProfile.keys())
-        retVal['scstat|nConsensi'] = len(self.consensi.keys())
-        retVal['scstat|nInvalid'] = 0
-        retVal['scstat|nCompressed'] =0
-        retVal['scstat|nRecompressed'] =0
+        retVal['server|scstat|nSeqs'] = len(self.seqProfile.keys())
+        retVal['server|scstat|nConsensi'] = len(self.consensi.keys())
+        retVal['server|scstat|nInvalid'] = 0
+        retVal['server|scstat|nCompressed'] =0
+        retVal['server|scstat|nRecompressed'] =0
         
         if len(self.seqProfile.keys())==0:
             return(retVal)
@@ -211,11 +211,11 @@ class seqComparer():
         for guid in self.seqProfile.keys():
             if 'invalid' in self.seqProfile[guid]:
                 if self.seqProfile[guid]['invalid'] == 1:
-                    retVal['scstat|nInvalid'] +=1
+                    retVal['server|scstat|nInvalid'] +=1
             if set(self.seqProfile[guid].keys())==self.patch_and_consensus_keys:
-                retVal['scstat|nRecompressed'] +=1
+                retVal['server|scstat|nRecompressed'] +=1
             else:
-                retVal['scstat|nCompressed'] +=1
+                retVal['server|scstat|nCompressed'] +=1
         return(retVal)    
     def iscachedinram(self,guid):
         """ returns true or false depending whether we have a local copy of the refCompressed representation of a sequence (name=guid) in this machine """
@@ -406,8 +406,8 @@ class seqComparer():
             
         ## do the computation  
         # if either sequence is considered invalid (e.g. high Ns) then we report no neighbours.
-        self.setComparator1(self.seqProfile[key1])
-        self.setComparator2(self.seqProfile[key2])
+        self.setComparator1(self.seqProfile[key1])      # need to investigate - is this making large numbers of copies, not just one
+        self.setComparator2(self.seqProfile[key2])      # which eat up RAM during (for example) mCompare operations
         nDiff=self.countDifferences(cutoff=cutoff)
 
         if nDiff is None:
@@ -1150,7 +1150,7 @@ class test_seqComparer_49(unittest.TestCase):
 
         res = sc.summarise_stored_items()
         self.assertTrue(isinstance(res, dict))
-        self.assertEqual(set(res.keys()), set(['scstat|nSeqs', 'scstat|nConsensi', 'scstat|nInvalid', 'scstat|nCompressed', 'scstat|nRecompressed']))
+        self.assertEqual(set(res.keys()), set(['server|scstat|nSeqs', 'server|scstat|nConsensi', 'server|scstat|nInvalid', 'server|scstat|nCompressed', 'server|scstat|nRecompressed']))
 class test_seqComparer_48(unittest.TestCase):
     """ tests computations of p values from exact bionomial test """
     def runTest(self):

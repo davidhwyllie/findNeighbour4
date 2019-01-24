@@ -332,7 +332,7 @@ class findNeighbour3():
 		# determine how many guids there in the database
 		guids = self.PERSIST.refcompressedsequence_guids()
 	
-		self.server_monitoring_store(message='server | Starting load of sequences into memory from database')
+		self.server_monitoring_store(message='Starting load of sequences into memory from database')
 
 		nLoaded = 0
 		nRecompressed = 0
@@ -385,10 +385,10 @@ class findNeighbour3():
 		
 		app.logger.info("findNeighbour3 is checking clustering is up to date")
 		self.update_clustering()
-		
-		gc.collect()		# free up ram		
-		self.server_monitoring_store(message='Load from database complete.'.format(nLoaded))
-
+		#self.server_monitoring_store(message='Garbage collection.')		
+		#gc.collect()		# free up ram		
+		self.server_monitoring_store(message='Load from database complete.')
+		#gc.disable()
 
 
 	def reset(self):
@@ -402,13 +402,12 @@ class findNeighbour3():
 			self._create_empty_clustering_objects()
 			self._load_in_memory_data()
 
-	def server_monitoring_store(self, message="No message supplied"):
+	def server_monitoring_store(self, message="No message supplied", guid=None):
 		""" reports server memory information to store """
 		sc_summary = self.sc.summarise_stored_items()
 		db_summary = self.PERSIST.summarise_stored_items()
 		mem_summary = self.PERSIST.memory_usage()
-		self.PERSIST.server_monitoring_store(message=message, content={**sc_summary, **db_summary, **mem_summary})
-
+		self.PERSIST.server_monitoring_store(message=message, what='server', guid= guid, content={**sc_summary, **db_summary, **mem_summary})
 
 	def first_run(self, do_not_persist_keys):
 		""" actions taken on first-run only.
@@ -481,11 +480,6 @@ class findNeighbour3():
 			app.logger.debug("Repacking {0}".format(this_guid))
 			self.PERSIST.guid2neighbour_repack(this_guid)
 	
-	def record_server_status(self, message='No message supplied'):
-		""" stores server status to database.
-		Useful for process monitoring """
-		self.server_monitoring_store(message = message)
-		
 	def insert(self,guid,dna):
 		""" insert DNA called guid into the server,
 		persisting it in both RAM and on disc, and updating any clustering.
@@ -493,16 +487,21 @@ class findNeighbour3():
 		
 		# clean, and provide summary statistics for the sequence
 		app.logger.info("Preparing to insert: {0}".format(guid))
+
 		if not self.sc.iscachedinram(guid):                   # if the guid is not already there
+			self.server_monitoring_store(message='About to insert',guid=guid)
 			
 			# prepare to insert
 			self.objExaminer.examine(dna)  					  # examine the sequence
 			cleaned_dna=self.objExaminer.nucleicAcidString.decode()
 			refcompressedsequence =self.sc.compress(cleaned_dna)          # compress it and store it in RAM
+			self.server_monitoring_store(message='Compression complete',guid=guid)
+
 			self.sc.persist(refcompressedsequence, guid)			    # insert the DNA sequence into ram.
+			self.server_monitoring_store(message='Stored to RAM',guid=guid)
+
 			self.gs.add(guid)
-			self.server_monitoring_store(message='server | Inserted one into RAM'.format(guid))
-						
+			
 			# construct links with everything existing existing at the time the semaphore was acquired.
 			self.write_semaphore.acquire()				    # addition should be an atomic operation
 
@@ -510,7 +509,8 @@ class findNeighbour3():
 			try:
 				# this process reports links less than self.snpCeiling
 				app.logger.debug("Finding links: {0}".format(guid))
-
+				self.server_monitoring_store(message='Finding neighbours (mcompare - one vs. all)', guid=guid)
+			
 				res = self.sc.mcompare(guid)		# compare guid against all
 				to_compress = 0
 				for (guid1,guid2,dist,n1,n2,nboth, N1pos, N2pos, Nbothpos) in res: 	# all against all
@@ -524,7 +524,8 @@ class findNeighbour3():
 				## now persist in database.  
 				# we have considered what happens if database connectivity fails during the insert operations.
 				app.logger.info("Persisting: {0}".format(guid))
-
+				self.server_monitoring_store(message='Found neighbours; Persisting to disc', guid=guid)
+			
 				# if the database connectivity fails after this refcompressedseq_store has completed, then 
 				# the 'document' will already exist within the mongo file store.
 				# in such a case, a FileExistsError is raised.
@@ -536,6 +537,8 @@ class findNeighbour3():
 					app.logger.warning("Attempted to refcompressedseq_store {0}, but it already exists.  This is expected only if database connectivity failed during a previous INSERT operation.  Such failures should be noted in earlier logs".format(guid))
 				except Exception: 		# something else
 					raise			# we don't want to trap other things
+				self.server_monitoring_store(message='Stored to sequence disc', guid=guid)
+			
 
 				# annotation of guid will update if an existing record exists.  This is OK, and is acceptable if database connectivity failed during previous inserts
 				self.PERSIST.guid_annotate(guid=guid, nameSpace='DNAQuality',annotDict=self.objExaminer.composition)						
@@ -543,7 +546,8 @@ class findNeighbour3():
 				# addition of neighbours may cause neighbours to be entered more than once if database connectivity failed during previous inserts.
 				# because of the way that extraction of links works, this does not matter, and duplicates will not be reported.
 				self.PERSIST.guid2neighbour_add_links(guid=guid, targetguids=links)
-
+				self.server_monitoring_store(message='Stored to links and annotations to disc', guid=guid)
+	
 			except Exception as e:
 				app.logger.exception("Error raised on persisting {0}".format(guid))
 				self.write_semaphore.release() 	# ensure release of the semaphore if an error is trapped
@@ -567,12 +571,16 @@ class findNeighbour3():
 
 			if self.recompress_frequency > 0:				
 				if to_compress>= self.recompress_frequency and to_compress % self.recompress_frequency == 0:		# recompress if there are lots of neighbours, every self.recompress_frequency isolates
+					self.server_monitoring_store(message='About to recompress', guid=guid)
 					app.logger.debug("Recompressing: {0}".format(guid))
 					self.sc.compress_relative_to_consensus(guid)
-					self.server_monitoring_store(message='server | sample recompressed in RAM'.format(guid))
+					self.server_monitoring_store(message='sample recompressed in RAM', guid=guid)
 
-				if self.gc_on_recompress==1:
-					gc.collect()
+				#if self.gc_on_recompress==1:
+				#	self.server_monitoring_store(message='About to GC', guid=guid)
+					#gc.collect()
+				#	self.server_monitoring_store(message='Finished GC', guid=guid)
+	
 			app.logger.info("Insert succeeded {0}".format(guid))
 
 			# clean up guid2neighbour; this can readily be done post-hoc, if the process proves to be slow.
@@ -583,13 +591,19 @@ class findNeighbour3():
 		
 			if self.repack_frequency>0:
 				app.logger.info("Repacking around: {0}".format(guid))
+				self.server_monitoring_store(message='Repacking database', guid=guid)
+	
 				if len(guids) % self.repack_frequency ==0:		# repack if there are repack_frequency-1 neighbours
 					self.repack(guids)
-			
+				self.server_monitoring_store(message='Repacking over', guid=guid)
+				
 			# cluster
 			app.logger.info("Clustering around: {0}".format(guid))
+			self.server_monitoring_store(message='Starting clustering', guid=guid)
+	
 			self.update_clustering()
-
+			self.server_monitoring_store(message='Finished clustering', guid=guid)
+	
 			return "Guid {0} inserted.".format(guid)		
 		else:
 			return "Guid {0} is already present".format(guid)
@@ -1029,10 +1043,10 @@ class test_raise(unittest.TestCase):
 			
 		for error_at in ['main','persist','clustering','seqcomparer']:
 			guid = uuid.uuid4().hex
-			print(guid)
+
 			token = "TEST_ERROR_in_{0}_#_{1}".format(error_at, guid)
 			relpath = "/api/v2/raise_error/{0}/{1}".format(error_at, token)
-			print(relpath)
+
 			res = do_GET(relpath)
 	
 			if not os.path.exists(logfile):
@@ -1115,7 +1129,17 @@ class test_reset(unittest.TestCase):
 			
 		self.assertTrue(n_post>0)
 		self.assertTrue(n_post_reset==0)
-		
+
+@app.route('/api/v2/monitor', methods=['GET'])
+@app.route('/api/v2/monitor/<string:report_type>', methods=['GET'])
+def monitor(report_type = 'fn3monitor_report' ):
+	""" returns an html/bokeh file, generated by findNeighbour3-monitor,
+	and stored in a database. """
+	
+	html = fn3.PERSIST.monitor_read(report_type)
+	if html is None:
+		html = "No report called {0} is available.  Check that findNeighbour3-monitor.py is running.".format(report_type)
+	return html
 @app.route('/api/v2/clustering/<string:clustering_algorithm>/<int:cluster_id>/network',methods=['GET'])
 @app.route('/api/v2/clustering/<string:clustering_algorithm>/<int:cluster_id>/minimum_spanning_tree',methods=['GET'])
 def cl2network(clustering_algorithm, cluster_id):
@@ -1174,6 +1198,8 @@ def cl2network(clustering_algorithm, cluster_id):
 class test_cl2network(unittest.TestCase):
 	"""  tests return of a change_id number """
 	def runTest(self):
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
 		
 		# add four samples, two mixed
 		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
@@ -1234,8 +1260,8 @@ class test_cl2network(unittest.TestCase):
 		jsonresp = json.loads(str(res.text))
 		self.assertTrue(isinstance(jsonresp, dict))
 		self.assertTrue('elements' in jsonresp.keys())
-		for item in jsonresp['elements']:
-			print(item)
+		#for item in jsonresp['elements']:
+		#	print(item)
 	
 @app.route('/api/v2/multiple_alignment/guids', methods=['POST'])
 def msa_guids():
@@ -1531,8 +1557,6 @@ def msa_guids_by_cluster(clustering_algorithm, cluster_id, output_format):
 			abort(501, "asked to perform multiple sequence alignment with the following missing guids: {0}".format(missing_guids))
 			
 		# data validation complete.  construct outputs
-		## TODO: extract what from cluster definition
-		print("*** WHAT ",clustering_algorithm, fn3.clustering[clustering_algorithm].uncertain_base_type)
 		return construct_msa(guids, output_format, what=fn3.clustering[clustering_algorithm].uncertain_base_type)
 
 
@@ -1540,6 +1564,8 @@ class test_msa_1(unittest.TestCase):
 	""" tests route /api/v2/multiple_alignment/guids, with additional samples.
 	"""
 	def runTest(self):
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={}) 		
 		relpath = "/api/v2/guids"
 		res = do_GET(relpath)
 		n_pre = len(json.loads(str(res.text)))		# get all the guids
@@ -1618,6 +1644,9 @@ def server_config():
 class test_server_config(unittest.TestCase):
 	""" tests route v2/server_config"""
 	def runTest(self):
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		relpath = "/api/v2/server_config"
 		res = do_GET(relpath)
 		self.assertTrue(isjson(content = res.content))
@@ -1638,6 +1667,7 @@ def server_memory_usage(nrows):
 		result = fn3.server_memory_usage(max_reported = nrows)
 
 	except Exception as e:
+		
 		capture_exception(e)
 		abort(500, e)
 	
@@ -1755,6 +1785,7 @@ def server_storage_status(absdelta, stats_type, nrows):
 class test_server_memory_usage(unittest.TestCase):
 	""" tests route /api/v2/server_memory_usage"""
 	def runTest(self):
+
 		relpath = "/api/v2/server_memory_usage"
 		res = do_GET(relpath)
 		self.assertEqual(res.status_code, 200)
@@ -1778,9 +1809,11 @@ def snpceiling():
 class test_snpceiling(unittest.TestCase):
 	""" tests route /api/v2/snpceiling"""
 	def runTest(self):
+		res = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		relpath = "/api/v2/snpceiling"
 		res = do_GET(relpath)
-		print(res)
 		self.assertTrue(isjson(content = res.content))
 		config_dict = json.loads(res.content.decode('utf-8'))
 		self.assertTrue('snpceiling' in config_dict.keys())
@@ -1843,6 +1876,9 @@ def get_all_guids(**debug):
 class test_get_all_guids_1(unittest.TestCase):
 	""" tests route /api/v2/guids"""
 	def runTest(self):
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		relpath = "/api/v2/guids"
 		res = do_GET(relpath)
 		self.assertTrue(isjson(content = res.content))
@@ -1865,6 +1901,9 @@ def guids_with_quality_over(cutoff, **kwargs):
 class test_guids_with_quality_over_1(unittest.TestCase):
 	""" tests route /api/v2/guids_with_quality_over"""
 	def runTest(self):
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		relpath = "/api/v2/guids_with_quality_over/0.7"
 		res = do_GET(relpath)
 		self.assertTrue(isjson(content = res.content))
@@ -1888,6 +1927,9 @@ def guids_and_examination_times(**kwargs):
 class test_get_all_guids_examination_time_1(unittest.TestCase):
 	""" tests route /api/v2/guids_and_examination_times"""
 	def runTest(self):
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		relpath = "/api/v2/guids_and_examination_times"
 		res = do_GET(relpath)
 		self.assertTrue(isjson(content = res.content))
@@ -1942,6 +1984,9 @@ def get_matching_guids(startstr, max_returned=30):
 class test_get_matching_guids_1(unittest.TestCase):
 	""" tests route /api/v2/guids_beginning_with"""
 	def runTest(self):
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		#  get existing guids
 		relpath = "/api/v2/guids"
 		res = do_GET(relpath)
@@ -1987,6 +2032,9 @@ def annotations(**kwargs):
 class test_annotations_1(unittest.TestCase):
 	""" tests route /api/v2/annotations """
 	def runTest(self):
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		relpath = "/api/v2/annotations"
 		res = do_GET(relpath)
 		self.assertEqual(res.status_code, 200)
@@ -2013,6 +2061,9 @@ def exist_sample(guid, **kwargs):
 class test_exist_sample(unittest.TestCase):
 	""" tests route /api/v2/guid/exists """
 	def runTest(self):
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		relpath = "/api/v2/non_existent_guid/exists"
 		res = do_GET(relpath)
 	   
@@ -2043,6 +2094,9 @@ def clusters_sample(guid):
 class test_clusters_sample(unittest.TestCase):
 	""" tests route /api/v2/guid/clusters """
 	def runTest(self):
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		# what happens if there is nothing there
 		relpath = "/api/v2/non_existent_guid/clusters"
 		res = do_GET(relpath)
@@ -2088,6 +2142,9 @@ class test_clusters_sample(unittest.TestCase):
 class test_clusters_what(unittest.TestCase):
 	""" tests implementation of 'what' value, stored in clustering object"""
 	def runTest(self):
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		# what happens if there is nothing there
 		relpath = "/api/v2/non_existent_guid/clusters"
 		res = do_GET(relpath)
@@ -2119,9 +2176,11 @@ def annotations_sample(guid):
 class test_annotation_sample(unittest.TestCase):
 	""" tests route /api/v2/guid/annotation """
 	def runTest(self):
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		relpath = "/api/v2/non_existent_guid/annotation"
 		res = do_GET(relpath)
-		print(res)
 		self.assertEqual(res.status_code, 404)
 		self.assertTrue(isjson(content = res.content))
 		info = json.loads(res.content.decode('utf-8'))
@@ -2170,6 +2229,9 @@ def algorithms():
 class test_algorithms(unittest.TestCase):
 	"""  tests return of a change_id number """
 	def runTest(self):
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		relpath = "/api/v2/clustering"
 		res = do_GET(relpath)
 		self.assertEqual(res.status_code, 200)
@@ -2193,6 +2255,9 @@ def what_tested(clustering_algorithm):
 class test_what_tested(unittest.TestCase):
 	"""  tests return of what is tested """
 	def runTest(self):
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		relpath = "/api/v2/clustering/SNV12_include/what_tested"
 		res = do_GET(relpath)
 		self.assertEqual(res.status_code, 200)
@@ -2232,6 +2297,9 @@ def g2c(clustering_algorithm):
 class test_g2c(unittest.TestCase):
 	"""  tests return of guid2clusters data structure """
 	def runTest(self):
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		relpath = "/api/v2/clustering/SNV12_ignore/guids2clusters"
 		res = do_GET(relpath)
 		self.assertEqual(res.status_code, 200)
@@ -2281,7 +2349,7 @@ def clusters2cnt(clustering_algorithm, cluster_id = None):
 		df['cluster_id']=df.index
 		summary = json.loads(df.to_json(orient='records'))
 		detail  = json.loads(d.to_json(orient='records'))
-		print(request.url, request.url.endswith('summary'), request.url.endswith('members'))
+		#print(request.url, request.url.endswith('summary'), request.url.endswith('members'))
 		if cluster_id is not None:
 			retVal = {"summary":summary, "members":detail}
 		elif request.url.endswith('clusters'):
@@ -2309,6 +2377,9 @@ def clusters2cnt(clustering_algorithm, cluster_id = None):
 class test_clusters2cnt(unittest.TestCase):
 	"""  tests return of guid2clusters data structure """
 	def runTest(self):
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		relpath = "/api/v2/clustering/SNV12_ignore/clusters"
 		res = do_GET(relpath)
 		self.assertEqual(res.status_code, 200)
@@ -2333,6 +2404,9 @@ class test_clusters2cnt(unittest.TestCase):
 class test_cluster2cnt1(unittest.TestCase):
 	"""  tests return of guid2clusters data structure """
 	def runTest(self):
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		relpath = "/api/v2/clustering/SNV12_ignore/0"		# doesn't exist
 		res = do_GET(relpath)
 		self.assertEqual(res.status_code, 404)
@@ -2380,6 +2454,9 @@ def g2cl(clustering_algorithm):
 class test_g2cl(unittest.TestCase):
 	"""  tests return of a change_id number """
 	def runTest(self):
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		relpath = "/api/v2/clustering/SNV12_ignore/cluster_ids"
 		res = do_GET(relpath)
 		self.assertEqual(res.status_code, 200)
@@ -2400,6 +2477,9 @@ def g2ca(clustering_algorithm, change_id):
 class test_g2ca(unittest.TestCase):
 	"""  tests return of a change_id number """
 	def runTest(self):
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		relpath = "/api/v2/clustering/SNV12_ignore/guids2clusters/after_change_id/1"
 		res = do_GET(relpath)
 		self.assertEqual(res.status_code, 200)
@@ -2409,6 +2489,9 @@ class test_g2ca(unittest.TestCase):
 class test_change_id(unittest.TestCase):
 	"""  tests return of a change_id number """
 	def runTest(self):
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		relpath = "/api/v2/clustering/SNV12_ignore/change_id"
 		res = do_GET(relpath)
 		self.assertEqual(res.status_code, 200)
@@ -2431,6 +2514,9 @@ class test_change_id(unittest.TestCase):
 class test_insert_1(unittest.TestCase):
 	""" tests route /api/v2/insert """
 	def runTest(self):
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		relpath = "/api/v2/guids"
 		res = do_GET(relpath)
 		n_pre = len(json.loads(str(res.text)))		# get all the guids
@@ -2471,6 +2557,9 @@ class test_insert_10(unittest.TestCase):
 	""" tests route /api/v2/insert, with additional samples.
 		Also provides a set of very similar samples, testing recompression code."""
 	def runTest(self):
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		relpath = "/api/v2/guids"
 		res = do_GET(relpath)
 		n_pre = len(json.loads(str(res.text)))		# get all the guids
@@ -2522,6 +2611,9 @@ class test_insert_10a(unittest.TestCase):
 	""" tests route /api/v2/insert, with additional samples.
 		Also provides a set of very similar samples, testing mixture addition."""
 	def runTest(self):
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		relpath = "/api/v2/guids"
 		res = do_GET(relpath)
 		n_pre = len(json.loads(str(res.text)))		# get all the guids
@@ -2574,6 +2666,9 @@ class test_insert_60(unittest.TestCase):
 	""" tests route /api/v2/insert, with additional samples.
 		Also provides a set of very similar samples, testing recompression code."""
 	def runTest(self):
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		relpath = "/api/v2/guids"
 		res = do_GET(relpath)
 		n_pre = len(json.loads(str(res.text)))		# get all the guids
@@ -2662,13 +2757,13 @@ class test_insert_60(unittest.TestCase):
 		self.assertTrue(isjson(res.content))
 		d = json.loads(res.content.decode('utf-8'))
 		df = pd.DataFrame.from_records(d)
-		print(df)
 
-		print("running mixed checks:")
+		#print("running mixed checks:")
 		for item in retVal:
 			if 'mixed_' in item['guid']:
-				print(item['guid'], item['is_mixed'])
+				#print(item['guid'], item['is_mixed'])
 				#self.assertTrue(item['is_mixed'])
+				pass
 	
 class test_mirror(unittest.TestCase):
 	""" tests route /api/v2/mirror """
@@ -2723,6 +2818,9 @@ def neighbours_within(guid, threshold, **kwargs):
 class test_neighbours_within_1(unittest.TestCase):
 	""" tests route /api/v2/guid/neighbours_within/ """
 	def runTest(self):
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		relpath = "/api/v2/non_existent_guid/neighbours_within/12"
 		res = do_GET(relpath)
 		self.assertTrue(isjson(content = res.content))
@@ -2733,6 +2831,9 @@ class test_neighbours_within_1(unittest.TestCase):
 class test_neighbours_within_2(unittest.TestCase):
 	""" tests route /api/v2/guid/neighbours_within/ """
 	def runTest(self):
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		relpath = "/api/v2/non_existent_guid/neighbours_within/12/with_quality_cutoff/0.5"
 		res = do_GET(relpath)
 		self.assertTrue(isjson(content = res.content))
@@ -2743,6 +2844,10 @@ class test_neighbours_within_2(unittest.TestCase):
 class test_neighbours_within_3(unittest.TestCase):
 	""" tests route /api/v2/guid/neighbours_within/ """
 	def runTest(self):
+		
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		relpath = "/api/v2/non_existent_guid/neighbours_within/12/with_quality_cutoff/0.5/in_format/1"
 		res = do_GET(relpath)
 
@@ -2754,6 +2859,10 @@ class test_neighbours_within_3(unittest.TestCase):
 class test_neighbours_within_4(unittest.TestCase):
 	""" tests route /api/v2/guid/neighbours_within/ """
 	def runTest(self):
+		
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		relpath = "/api/v2/non_existent_guid/neighbours_within/12/with_quality_cutoff/0.5/in_format/2"
 		res = do_GET(relpath)
 
@@ -2765,6 +2874,11 @@ class test_neighbours_within_4(unittest.TestCase):
 class test_neighbours_within_5(unittest.TestCase):
 	""" tests route /api/v2/guid/neighbours_within/ """
 	def runTest(self):
+		
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
+		
 		relpath = "/api/v2/non_existent_guid/neighbours_within/12/in_format/2"
 		res = do_GET(relpath)
 		print(res)
@@ -2776,6 +2890,10 @@ class test_neighbours_within_5(unittest.TestCase):
 class test_neighbours_within_6(unittest.TestCase):
 	""" tests all the /api/v2/guid/neighbours_within methods using test data """
 	def runTest(self):
+		
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		relpath = "/api/v2/guids"
 		res = do_GET(relpath)
 		n_pre = len(json.loads(str(res.text)))
@@ -2866,6 +2984,10 @@ def sequence(guid):
 class test_sequence_1(unittest.TestCase):
 	""" tests route /api/v2/*guid*/sequence"""
 	def runTest(self):
+		
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		relpath = "/api/v2/guids"
 		res = do_GET(relpath)
 		n_pre = len(json.loads(str(res.text)))		# get all the guids
@@ -2896,6 +3018,10 @@ class test_sequence_1(unittest.TestCase):
 class test_sequence_2(unittest.TestCase):
 	""" tests route /api/v2/*guid*/sequence"""
 	def runTest(self):
+		
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		relpath = "/api/v2/{0}/sequence".format('no_guid_exists')
 		res = do_GET(relpath)
 		self.assertEqual(res.status_code, 404)
@@ -2903,6 +3029,10 @@ class test_sequence_2(unittest.TestCase):
 class test_sequence_3(unittest.TestCase):
 	""" tests route /api/v2/*guid*/sequence"""
 	def runTest(self):
+		
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		relpath = "/api/v2/guids"
 		res = do_GET(relpath)
 		print(res)
@@ -2927,16 +3057,20 @@ class test_sequence_3(unittest.TestCase):
 		self.assertEqual(res.status_code, 200)
 
 		info = json.loads(res.content.decode('utf-8'))
-		print(info)
+		#print(info)
 		self.assertEqual(info['guid'], guid_to_insert)
 		self.assertEqual(info['invalid'], 1)
 
 class test_sequence_4(unittest.TestCase):
 	""" tests route /api/v2/*guid*/sequence"""
 	def runTest(self):
+		
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		relpath = "/api/v2/guids"
 		res = do_GET(relpath)
-		print(res)
+		#print(res)
 		n_pre = len(json.loads(res.content.decode('utf-8')))		# get all the guids
 
 		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
@@ -2981,9 +3115,13 @@ class test_sequence_4(unittest.TestCase):
 class test_sequence_5(unittest.TestCase):
 	""" tests route /api/v2/*guid*/sequence"""
 	def runTest(self):
+		
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		relpath = "/api/v2/guids"
 		res = do_GET(relpath)
-		print(res)
+		#print(res)
 		n_pre = len(json.loads(res.content.decode('utf-8')))		# get all the guids
 
 		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
@@ -3043,6 +3181,10 @@ def nucleotides_excluded():
 class test_nucleotides_excluded(unittest.TestCase):
 	""" tests route /api/v2/nucleotides_excluded"""
 	def runTest(self):
+		
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
 		relpath = "api/v2/nucleotides_excluded"
 		res = do_GET(relpath)
 		resDict = json.loads(res.text)

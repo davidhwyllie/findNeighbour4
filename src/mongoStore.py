@@ -142,6 +142,7 @@ class fn3persistence():
             # open gridfs systems
             self.fs = gridfs.GridFS(self.db, collection='refcompressedseq')       
             self.clusters = gridfs.GridFS(self.db, collection='clusters')       
+            self.monitor = gridfs.GridFS(self.db, collection='monitor')       
 
             # enable sharding at database level
             #self.client.admin.command('enableSharding', self.dbname)
@@ -211,7 +212,7 @@ class fn3persistence():
                 Uses the psutil module, as the resource module is not available in windows.
                 """       
                 memdict = psutil.virtual_memory()._asdict()
-                sm = {'mstat|'+k: v for k, v in memdict.items()}
+                sm = {'server|mstat|'+k: v for k, v in memdict.items()}
                 return(sm)
 
         # methods for the config collection
@@ -228,9 +229,17 @@ class fn3persistence():
             return self._load('config',key)
         
         # methods for the server_monitoring
-        def recent_server_monitoring(self, max_reported = 100):
+        def recent_server_monitoring(self, max_reported = 100, selection_field = None, selection_string = None):
             """ returns a list containing recent server monitoring, in reverse order (i.e. tail first).
                 The _id field is an integer reflecting the order added.  Lowest numbers are most recent.
+                
+                Inputs
+                max_reported - return this number of lines, at most.
+                selection_field - if not None, will only return lines containing selection_string
+                                  in the 'selection_field' key of the returned dictionary.
+                selection_string -if selection_field is not None, only returns rows if
+                                  selection_string is present in the 'selection_field' key of the
+                                  monitoring element. If None, this constraint is ignored.
             """
 
             if not isinstance(max_reported, int):
@@ -244,23 +253,32 @@ class fn3persistence():
             n= 0
             retVal = []
             #self.connect()
-            formerly_cursor = self.db['server_monitoring'].find({}).sort('_id', pymongo.DESCENDING)
+            if selection_field is None:
+                    formerly_cursor = self.db['server_monitoring'].find({}).sort('_id', pymongo.DESCENDING)
+            else:
+                    formerly_cursor = self.db['server_monitoring'].find({selection_field:selection_string}).sort('_id', pymongo.DESCENDING)
+                 
             for formerly in formerly_cursor:
                 n+=1
                 formerly['_id']=n
                 retVal.append(formerly)
+
                 if n>=max_reported:
                         break
             return(retVal)
         
-        def server_monitoring_store(self, message = 'No message provided', content={}):
+        def server_monitoring_store(self, message = 'No message provided', what=None, guid=None, content={}):
             """ stores object into config collection.  Adds memory usage.
             It is assumed object is a dictionary"""
             now = dict(**content)
-            now['info|message'] = message
+            if what is not None:
+                now['content|activity|whatprocess']= what
+            if guid is not None:
+                now['content|activity|guid']= guid
+            now['context|info|message'] = message
             current_time = datetime.datetime.now()
-            now['time|time_now']=current_time.isoformat()
-            now['time|time_boot']=datetime.datetime.fromtimestamp(psutil.boot_time()).strftime("%Y-%m-%d %H:%M:%S")  
+            now['context|time|time_now']=current_time.isoformat()
+            now['context|time|time_boot']=datetime.datetime.fromtimestamp(psutil.boot_time()).strftime("%Y-%m-%d %H:%M:%S")  
                
             # should we write this data?  We have the option not to log all messages, to prevent the store getting very full.
             write_content = False       
@@ -279,7 +297,25 @@ class fn3persistence():
                 return True
             else:
                 return False
-        
+
+        # methods for monitor, which store the contents of an html file
+        # in a gridFS store.
+        def monitor_store(self, monitoring_id, html):
+                """ stores the monitor output string html.  Overwrites any prior object.
+                 """
+                self.monitor.delete(monitoring_id)
+                with io.BytesIO(html.encode('utf-8')) as f:
+                        id = self.monitor.put(f, _id=monitoring_id, filename=monitoring_id)
+                        return id
+
+        def monitor_read(self, monitoring_id):
+                """ loads stored string (e.g. html object) from the monitor collection. """
+                res = self.monitor.find_one({'_id':monitoring_id})
+                if res is None:
+                    return None
+                else:
+                    return res.read().decode('utf-8')
+  
         # methods for clusters, which holds the reference compressed details of the sequences
         # in a gridFS store.
         def clusters_store(self, clustering_setting, obj):
@@ -1147,7 +1183,16 @@ class Test_Clusters(unittest.TestCase):
                 p.clusters_store('cl1', payload1)
                 payload2 = p.clusters_read('cl1')   
                 self.assertEqual(payload1, payload2)
-                
+
+class Test_Monitor(unittest.TestCase):
+        """ tests saving and recovery of strings to monitor"""
+        def runTest(self):
+                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)              
+                payload1 = "line1"
+                p.monitor_store('r1', payload1)
+                payload2 = p.monitor_read('r1')   
+                self.assertEqual(payload1, payload2)
+                   
 class test_Raise_error(unittest.TestCase):
     """ tests raise_error"""
     def runTest(self):
