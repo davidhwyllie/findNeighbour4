@@ -146,7 +146,7 @@ def birth_death_tree(birth, death, nsize=10, max_time=None, remlosses=True, r=Tr
     return tree
 def mix_sequences(seq1, seq2):
     """ simulates a mixture of sequences. 
-    converts any nucleotides differing between seq1 and seq2 to N  
+    converts any nucleotides differing between seq1 and seq2 to M  
     seq1 and seq2 are strings.
     returns a string representing the output of consensus base calling of a mix of seq1 and seq2."""
     
@@ -160,10 +160,10 @@ def mix_sequences(seq1, seq2):
         if seq1[i] == seq2[i]:
             retVal.append(seq1[i])
         else:
-            retVal.append('N')
+            retVal.append('M')
     return ''.join(retVal)
-def introduce_n(seq, p):
-    """ introduce Ns at random into a sequence, seq.
+def introduce_nm(what, seq, p):
+    """ introduce character what ('N' or 'M') at random into a sequence, seq.
     The probability that each base is N is p, where 0<=p<=1
     """
 
@@ -175,7 +175,7 @@ def introduce_n(seq, p):
     to_change = random.sample(range(seqlen),n)
     seqlist = list(seq)
     for pos in to_change:
-        seqlist[pos] = 'N'
+        seqlist[pos] = what
     
     return ''.join(seqlist)
 def snv_distance(seq1, seq2):
@@ -272,7 +272,7 @@ Also:
 
 Example usage:
 
-python make_simulation.py 50 10000 0.02 0.01 0.05 0.1 20 1 ../output/simulation_set_1
+python make_simulation.py 50 10000 0.02 0.01 0.001 0.05 0.1 20 1 ../output/simulation_set_1
 
 """)
     
@@ -288,6 +288,8 @@ python make_simulation.py 50 10000 0.02 0.01 0.05 0.1 20 1 ../output/simulation_
                         help='proportion of nucleotides which are mutated within the phylogeny.  Must be low to be relevant to TB.  Suitable value = 0.01')
     parser.add_argument('prop_random_N', type=float, nargs=1,
                         help='proportion of nucleotides which are called N by chance.  Suitable value = 0.01')
+    parser.add_argument('prop_random_M', type=float, nargs=1,
+                        help='proportion of nucleotides which are called M by chance.  Suitable value = 0.001')
     parser.add_argument('prop_risk_not_mixed', type=float, nargs=1,
                         help='proportion of non-mixed samples with a risk factor. Suitable value = 0.05')
     parser.add_argument('prop_risk_mixed', type=float, nargs=1,
@@ -304,6 +306,7 @@ python make_simulation.py 50 10000 0.02 0.01 0.05 0.1 20 1 ../output/simulation_
     l = args.len_simulated_alignment[0]
     prop_bases_mutated = args.prop_bases_mutated[0]
     prop_random_N = args.prop_random_N[0]
+    prop_random_M = args.prop_random_M[0]
     prop_risk_mixed = args.prop_risk_mixed[0]
     prop_risk_not_mixed = args.prop_risk_not_mixed[0]
     n_simulations = args.n_simulations[0]
@@ -483,7 +486,8 @@ python make_simulation.py 50 10000 0.02 0.01 0.05 0.1 20 1 ../output/simulation_
         # compute observed sequences, including random Ns to reflect sequencing error
         observed_sequences_nomix = copy.copy(simulated_sequences)
         for key in observed_sequences_nomix.keys():
-            observed_sequences_nomix[key] = introduce_n(observed_sequences_nomix[key], prop_random_N)
+            observed_sequences_nomix[key] = introduce_nm('N', observed_sequences_nomix[key], prop_random_N)
+            observed_sequences_nomix[key] = introduce_nm('M', observed_sequences_nomix[key], prop_random_M)
         observed_sequences_mix = copy.copy(observed_sequences_nomix)
         observed_sequences_mix[mixed] =  mix_sequences(observed_sequences_nomix[mixed], observed_sequences_nomix[mixed_with])
        
@@ -511,7 +515,6 @@ python make_simulation.py 50 10000 0.02 0.01 0.05 0.1 20 1 ../output/simulation_
         for element in ['0_preadd','1_nomix','2_mix','3_mix_marked']:
             comparison[element] = compare_clustering(connections['0_preadd'], connections[element])
             
-        print(comparison)
 
         print("Exporting observed sequences and associated tree")        
         with open(observed_filename,'wt') as f:
@@ -520,26 +523,30 @@ python make_simulation.py 50 10000 0.02 0.01 0.05 0.1 20 1 ../output/simulation_
                 
                 # determine what clustering groups it is in
                 ## TODO
-                for element in   ['0_preadd','1_nomix','2_mix','3_mix_marked']:
-                    if key in comparison[element].index:
-                        cln = comparison[element].loc[key,]
+                #for element in   ['0_preadd','1_nomix','2_mix','3_mix_marked']:
+                #    if key in comparison[element].index:
+                #        cln = comparison[element].loc[key,]
+                
                 # annotate tree
                 subtree = bdtree&key
-                subtree.add_face(ete3.TextFace(cl_number_1,ftype='Courier New', fsize=6), column=2, position='aligned')
-                subtree.add_face(ete3.TextFace(cl_number_2,ftype='Courier New', fsize=6), column=3, position='aligned')
+                #subtree.add_face(ete3.TextFace(cl_number_1,ftype='Courier New', fsize=6), column=2, position='aligned')
+                #subtree.add_face(ete3.TextFace(cl_number_2,ftype='Courier New', fsize=6), column=3, position='aligned')
                 #subtree.add_face(ete3.TextFace(observed_sequences[key], ftype='Courier New', fsize=6), column=0, position='aligned')
                 #subtree.add_face(ete3.TextFace('-', ftype='Courier New', fsize=6), column=0, position='aligned')
                 
-                ns = list(observed_sequences[key]).count('N')
+                ns = list(observed_sequences_mix[key]).count('N')
+                ms = list(observed_sequences_mix[key]).count('M')
                 subtree.add_face(ete3.TextFace(ns, ftype='Courier New', fsize=6), column=0, position='aligned')
+                subtree.add_face(ete3.TextFace(ms, ftype='Courier New', fsize=6), column=1, position='aligned')
                 if key == mixed:
                     subtree.add_face(ete3.TextFace('Y c. {0}'.format(mixed_with), ftype='Courier New', fsize=6), column=2, position='aligned')
                     risk_factor = np.random.binomial(1, prop_risk_mixed)
-                    f.write("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}\n".format(key, ns, key==mixed, mixed_with, common_ancestor, dist,risk_factor,observed_sequences[key], cl_number_1, cl_number_2))
-                else:
+                    #f.write("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}\n".format(key, ns, key==mixed, mixed_with, common_ancestor, dist,risk_factor,observed_sequences_mix[key], cl_number_1, cl_number_2))
+                elif not key == mixed_with:         # we don't export mixed_with ??
+                    # optionally don't export a proportion ( ? 30%)
                     subtree.add_face(ete3.TextFace('N',ftype='Courier New', fsize=6), column=1, position='aligned')
                     risk_factor = np.random.binomial(1, prop_risk_not_mixed)
-                    f.write("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}\n".format(key, ns, key==mixed, '', '', 0,risk_factor, observed_sequences[key], cl_number_1, cl_number_2))
+                    #f.write("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}\n".format(key, ns, key==mixed, '', '', 0,risk_factor, observed_sequences_mix[key], cl_number_1, cl_number_2))
     
         # export tree depicting clustering with mixed and unmixed samples
         bdtree.render(annotated_treepic_filename, tree_style= ts,units='px', w=1024, h=1024) 
@@ -554,7 +561,7 @@ python make_simulation.py 50 10000 0.02 0.01 0.05 0.1 20 1 ../output/simulation_
                   'prop_risk_mixed':prop_risk_mixed,
                   'observed_sequence_mixed':mixed,
                   'observed_sequence_mixed_with':mixed_with,
-                  'distance_between_mixed':dist,
+                  'distance_between_mixed':mixed_dist,
                   'common_ancestor':common_ancestor}
         with open(params_filename,'wt') as f:
             json.dump(params,f)

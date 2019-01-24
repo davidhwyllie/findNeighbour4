@@ -90,7 +90,7 @@ if __name__ == '__main__':
         # create a log file if it does not exist.
         print("Starting logging")
         logdir = os.path.dirname(CONFIG['LOGFILE'])
-        pathlib.Path(os.path.dirname(CONFIG['LOGFILE'])).mkdir(parents=True, exist_ok=True)
+        pathlib.Path(os.path.dirname(logdir)).mkdir(parents=True, exist_ok=True)
 
         # set up logger
         loglevel=logging.INFO
@@ -102,8 +102,9 @@ if __name__ == '__main__':
 
         # configure logging object
         logger = logging.getLogger()
-        logger.setLevel(loglevel)       
-        file_handler = logging.FileHandler("dbmanager-{0}".format(os.path.basename(CONFIG['LOGFILE'])))
+        logger.setLevel(loglevel)
+        logfile = os.path.join(logdir, "dbmanager-{0}".format(os.path.basename(CONFIG['LOGFILE'])))
+        file_handler = logging.FileHandler(logfile)
         formatter = logging.Formatter( "%(asctime)s | %(pathname)s:%(lineno)d | %(funcName)s | %(levelname)s | %(message)s ")
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
@@ -154,7 +155,7 @@ if __name__ == '__main__':
 
                      # log database size
                      db_summary = PERSIST.summarise_stored_items()
-                     PERSIST.server_monitoring_store(message="dbManager | Repack one", content=db_summary)
+                     PERSIST.server_monitoring_store(what='dbManager', message="Repack one", guid=guid, content=db_summary)
 
              if nModified == 0:
                      # everything has been packed

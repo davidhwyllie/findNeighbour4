@@ -16,5 +16,10 @@
 "LOGLEVEL":"DEBUG",	
 "SNPCEILING": 20,
 "REST_PORT":5020,
-"CLUSTERING":{"SNV12_ignore":{"snv_threshold":12,"mixed_sample_management":"ignore","mixture_criterion":"p_value1","cutoff":0.001},"SNV12_include":{"snv_threshold":12,"mixed_sample_management":"include","mixture_criterion":"p_value1","cutoff":0.001}}
+"SERVER_MONITORING_MIN_INTERVAL_MSEC":0,
+"SENTRY_URL":"https://c7dc45edef0e457aa05bad88cf3a3dc1@sentry.io/1285550",
+"CLUSTERING":{
+"SNV12_ignore":{"snv_threshold":12,"mixed_sample_management":"ignore","mixture_criterion":"p_value1","cutoff":0.001, "uncertain_base_type":"N"},
+"SNV12_include":{"snv_threshold":12,"mixed_sample_management":"include","mixture_criterion":"p_value1","cutoff":0.001,"uncertain_base_type":"N"},
+"SNV12_include_M":{"snv_threshold":12,"mixed_sample_management":"include","mixture_criterion":"p_value1","cutoff":0.001,"uncertain_base_type":"M"}}
 }

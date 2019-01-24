@@ -39,6 +39,7 @@ Clustering
 
 **/api/v2/clustering/*clustering_algorithm*/*cluster_id* **  Returns cluster summary and detail for cluster_id.  The format is the same as for /clusters, but only details for cluster_id are returned.   
 
+**/api/v2/clustering/*clustering_algorithm*/what_tested** Returns the uncertain character (one of N, M, or N_or_M) used when computing p-values in alignments   
 **/api/v2/clustering/*clustering_algorithm*/guids2clusters**  Return a guid -> cluster lookup  
 **/api/v2/clustering/*clustering_algorithm*/guids2clusters/after_change_id/*change_id* ** Return a guid -> cluster lookup after some particular point in time.  
 **/api/v2/clustering/*clustering_algorithm*/cluster_ids**  Return unique cluster_ids for *clustering_algorithm*  
@@ -51,14 +52,16 @@ Insert into server
 Server config & testing
 ---------------------------------
 **/**  display the routes available  (this page)  
-[/api/v2/server_config](/api/v2/server_config)  Describe server config.  Disabled if not in debug mode.  
 [/api/v2/server_memory_usage](/api/v2/server_memory_usage) Return the server's log of internal memory and disc usage     
 **/api/v2/server_memory_usage/*nrows* ** Return the [last *nrows* of the] server's log of internal memory and disc usage   
 [/api/v2/server_time](/api/v2/server_time) Return server time   
+[/api/v2/server_name](/api/v2/server_name) Return server name and description  
 [/api/v2/snpceiling](/api/v2/snpceiling) Return maximum snv stored by the server  
 [/api/v2/nucleotides_excluded](/api/v2/nucleotides_excluded) List nucleotides masked (ignored) by the server in distance computations  
 **/api/v2/mirror**  (requires POST)  returns the dictionary posted to the server. Can be used for testing network connectivity.    
-**/api/v2/raise_error/*component*/*token*/** raises an error internally.  Can be used to test error logging.  Disabled unless in debug mode.
+**/api/v2/raise_error/*component*/*token*/** raises an error internally.  Can be used to test error logging.  Disabled unless in debug mode.  
+[/api/v2/server_config](/api/v2/server_config)  Describe server config.  Not available (returns 404) if not in debug mode.  
+[/api/v2/reset](/api/v2/reset)  Deletes all in memory and on-disc data for this server. Not available (returns 404) if not in debug mode.    
 
 Notes
 -----------
