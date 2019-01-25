@@ -5,7 +5,15 @@ To do so, it keeps a log, recording disc and memory usage before and after relev
 - sample insertion  
 - memory repacking  
 - database repacking  
-- clustering  
+- clustering
+
+#### Detailed report
+[Show](/api/v2/monitor) detailed report (renders slowly .. wait)
+
+#### Memory usage now
+[Show](/api/v2/server_memory_usage/1/html) current server memory usage
+
+#### Trends
 
 | Display |  For | recent | events |
 | :----------------- |  :-------------------: | :-: | :-: |  

@@ -1,8 +1,9 @@
 Frontend
 --------
-[/ui/info](/ui/info) server status page   
-**/ui/server_status/*absdelta*/*stats_type*/*nrows* **  visualise server disc and application memory usage  
-[/api/v2/monitor](/api/v2/monitor)  returns an html page containing monitoring data. Requires the findNeighbour3-monitor.py app is running.
+[/ui/info](/ui/info) server status page  
+[/api/v2/server_memory_usage/1/html](/api/v2/server_memory_usage/1/html) Memory usage now  
+**/ui/server_status/*absdelta*/*stats_type*/*nrows* **  visualise server disc and application memory usage    
+[/api/v2/monitor](/api/v2/monitor)  interactive html containing monitoring data. Initial render is slow.  Requires findNeighbour3-monitor.py app is running.
 
 Search/describe sequences in the server
 -----------------------------------------------------------------------
