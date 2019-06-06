@@ -1809,9 +1809,9 @@ class test_snpceiling(unittest.TestCase):
 	""" tests route /api/v2/snpceiling"""
 	def runTest(self):
 		res = "/api/v2/reset"
+		relpath = "/api/v2/snpceiling"
 		res = do_POST(relpath, payload={})
 		
-		relpath = "/api/v2/snpceiling"
 		res = do_GET(relpath)
 		self.assertTrue(isjson(content = res.content))
 		config_dict = json.loads(res.content.decode('utf-8'))
