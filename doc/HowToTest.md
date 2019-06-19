@@ -154,7 +154,10 @@ DEBUGMODE:      Controls operation of the server:
 
 If true, will delete any samples in the backend data store on each run.
 SERVERNAME:     the name of the server.  Used as the name of mongodb database which is bound to the server.
-FNPERSISTENCE_CONNSTRING: a valid mongodb connection string. if shard keys are set, the 'guid' field is suitable key.
+FNPERSISTENCE_CONNSTRING: a valid mongodb connection string. if shard keys are set, the 'guid' field is suitable key.  if you don't want to put this is
+                in a configuration file, leave the config. file value as "" and  make an environment variable with this name;
+                and the server will use the value in that instead.
+
 MAXN_STORAGE:   The maximum number of Ns in the sequence <excluding those defined in > EXCLUDEFILE which should be indexed.
                 Other files, e.g. those with all Ns, will be tagged as 'invalid'.  Although a record of their presence in the database
                 is kept, they are not compared with other sequences.

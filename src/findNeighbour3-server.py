@@ -127,6 +127,9 @@ class findNeighbour3():
 
 			SERVERNAME:     the name of the server. used as the name of mongodb database which is bound to the server.
 			FNPERSISTENCE_CONNSTRING: a valid mongodb connection string. if shard keys are set, the 'guid' field is suitable key.
+							Note: if a FNPERSISTENCE_CONNSTRING environment variable is present, then the value of this will take precedence over any values in the config file.
+							This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuraton file.
+		
 			MAXN_STORAGE:   The maximum number of Ns in the sequence <excluding those defined in > EXCLUDEFILE which should be indexed.
 							Other files, e.g. those with all Ns, will be tagged as 'invalid'.  Although a record of their presence in the database
 							is kept, they are not compared with other sequences.
@@ -210,6 +213,8 @@ class findNeighbour3():
 		
 		where the database connection binds to
 		FNPERSISTENCE_CONNSTRING
+		Note: if a FNPERSISTENCE_CONNSTRING environment variable is present, then the value of this will take precedence over any values in the config file.
+		This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuration file.
 		
 		related to internal server memory management:
 		GC_ON_RECOMPRESS
@@ -3254,12 +3259,20 @@ python findNeighbour3-server.py ../config/myConfigFile.json	\
 			raise KeyError("CONFIG must be either a dictionary or a JSON string encoding a dictionary.  It is: {0}".format(CONFIG))
 	
 	# check that the keys of config are as expected.
-	
 	required_keys=set(['IP', 'REST_PORT', 'DEBUGMODE', 'LOGFILE', 'MAXN_PROP_DEFAULT'])
 	missing=required_keys-set(CONFIG.keys())
 	if not missing == set([]):
 			raise KeyError("Required keys were not found in CONFIG. Missing are {0}".format(missing))
 
+	# determine whether a FNPERSISTENCE_CONNSTRING environment variable is present,
+	# if so, the value of this will take precedence over any values in the config file.
+	# This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuraton file.
+	if os.environ.get("FNPERSISTENCE_CONNSTRING") is not None:
+		CONFIG["FNPERSISTENCE_CONNSTRING"] = os.environ.get("FNPERSISTENCE_CONNSTRING")
+		print("Set connection string to mongodb from environment variable")
+	else:
+		print("Using connection string to mongodb from configuration file.")
+		
 	########################### SET UP LOGGING #####################################  
 	# create a log file if it does not exist.
 	print("Starting logging")

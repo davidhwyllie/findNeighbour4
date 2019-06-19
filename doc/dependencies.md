@@ -15,7 +15,7 @@ Create a virtual environment
 
 Populate the virtual environment tested as follows:
 ```
-pipenv install biopython blinker urllib3 requests pymongo pandas markdown sentry-sdk matplotlib networkx bokeh flask flask-cors psutil scipy
+pipenv install biopython dnspython blinker urllib3 requests pymongo pandas markdown sentry-sdk matplotlib networkx bokeh flask flask-cors psutil scipy
 ```
 After testing, a working package configuration can be saved with
 ```

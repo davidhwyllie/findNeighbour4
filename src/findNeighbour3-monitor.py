@@ -96,6 +96,15 @@ if __name__ == '__main__':
         if not 'SERVER_MONITORING_MIN_INTERVAL_MSEC' in CONFIG.keys():
                CONFIG['SERVER_MONITORING_MIN_INTERVAL_MSEC']=0
 
+        # determine whether a FNPERSISTENCE_CONNSTRING environment variable is present,
+        # if so, the value of this will take precedence over any values in the config file.
+        # This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuration file.
+        if os.environ.get("FNPERSISTENCE_CONNSTRING") is not None:
+                CONFIG["FNPERSISTENCE_CONNSTRING"] = os.environ.get("FNPERSISTENCE_CONNSTRING")
+                print("Set connection string to mongodb from environment variable")
+        else:
+                print("Using connection string to mongodb from configuration file.")
+
         #########################  CONFIGURE HELPER APPLICATIONS ######################
 
 
