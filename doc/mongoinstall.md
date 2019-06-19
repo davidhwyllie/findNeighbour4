@@ -2,6 +2,9 @@
 We have tested this application with Mongo 3.6.1 (Windows, and MongoDb atlas), and Mongo 4 (linux, windows).
 It does not work with 2.6.  
 
+## Remote server
+If you are using a remote mongodb server, you do not need to install mongodb locally.  We have tested findNeighbour3 with [MongoDB Atlas](https://www.mongodb.com/cloud/atlas).
+
 ## Windows
 MSI installers are [available](https://www.mongodb.com/download-center).
 The server can be started/stopped using the Services application, available via the Control Panel.
