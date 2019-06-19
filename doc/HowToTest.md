@@ -9,32 +9,21 @@ It has been tested with python 3.5 and 3.7, and with Mongodb v 3.6.1 and 4.0
 
 Operating system
 ----------------
-The code has been tested on Linux (Ubuntu 16.04) and Windows 7.  The below instruction include linux-specific commands.
+The code has been tested on Linux (Ubuntu 16.04), Windows 7 and Windows 10.  The below instruction include linux-specific commands.
 
 Dependencies
 ------------
-* Python 3.5+.   
+* Python >= 3.5.  On Windows there are MSI installers available.  See below for Linux.  
 You may need to install pip3 with: ```sudo apt-get install python3-pip```
 
-* Global installation of packages  
-The following packages are required:  
- requests  
- logging  
- hashlib  
- queue  
- threading  
- pymongo  
- pandas  
- numpy   
- flask  
- psutil    
- BioPython
- scipy
- networkx
- 
- Example:
- ```sudo pip3 install requests```
- 
+
+Install pipenv, as follows:  
+```pip3 install pipenv```  
+
+If you do not have root/admin access, you can install this locally:  
+```pip3 install pipenv --user```
+
+Then install dependencies.  The [recommended method](dependencies.md) uses a virtual environment.  
 
 Database backend
 ----------------
@@ -65,9 +54,17 @@ Then clone repository:
 
 After this, please follow the below steps.
 
+Virtual environments
+--------------------
+It is recommended, but not essential, to use a virtual environment.
+This [section](dependencies.md), covered above, describes how to set this up.
+The below commands will run without a virtual environment.
+To run with a virtual environment, preface command with ```pipenv run ..```
+e.g.
+```pipenv run python3 findNeighbour3-server.py```.
+
 Start the server
 -----------------
-
 To start the server, go to the findNeighbour3 *src* folder and run the command:  
 ```python3 findNeighbour3-server.py```  
 
