@@ -4,8 +4,8 @@
 ## Using real data
 Due to their size, the real data is not included in github.  It can at present be downloaded from the below links:
 
-[AC587 (a small dataset, < 100 samples)](https://www.dropbox.com/s/2jk0vx2gax1q6nt/AA041.zip?dl=0)  
-[AA041 (a larger dataset, ~ 1000 samples)](https://www.dropbox.com/s/3ohmf475aa9enxn/AC587.zip?dl=0)  
+[AC587 (a small dataset, < 100 samples)](https://www.dropbox.com/s/3ohmf475aa9enxn/AC587.zip?dl=0)  
+[AA041 (a larger dataset, ~ 1000 samples)](https://www.dropbox.com/s/2jk0vx2gax1q6nt/AA041.zip?dl=0)  
 [England201618 (a >7000 sample dataset described in the publication *M. tuberculosis microvariation is common and is associated with transmission:  analysis of three years prospective universal sequencing in England*)](https://www.dropbox.com/s/5y5d0m7qpbhbzxl/england201618.tar?dl=0)
 
 Download the zip files, unzip them, and place them in /demos.
