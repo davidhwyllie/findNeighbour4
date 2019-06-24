@@ -39,6 +39,6 @@ To run the demo:
 ### England201618
 a collection of over 7,000 TB samples from England 2016 to 2018.  This data set includes  
 i) .csv files containing the positions of [where different bases map with high quality to the same site across each genome](https://github.com/davidhwyllie/VCFMIX)  
-ii) fasta files in which these positions are marked with IUPAC codes.  
+ii) fasta files in which these positions are marked with [IUPAC codes](https://www.bioinformatics.org/sms/iupac.html).  
 These fasta files can be loaded by scripts similar to those above.
 
