@@ -61,13 +61,13 @@ There are the following other differences:
 [Demonstrations using real and simulated data](doc/demos.md)  
 [Integration tests](doc/integration.md)
 
-# Publication
-A publication describing findNeighbour3 is planned.
-
-A publication describing findNeighbour2 is in BMC Bioinformatics:
+# Publications
+A publication describing findNeighbour3 implementation & performance is planned.  
+A publication describing findNeighbour2 is in BMC Bioinformatics:  
 *BugMat and FindNeighbour: command line and server applications for investigating bacterial relatedness*
-DOI : 10.1186/s12859-017-1907-2 (https://dx.doi.org/10.1186/s12859-017-1907-2)
+DOI : 10.1186/s12859-017-1907-2 (https://dx.doi.org/10.1186/s12859-017-1907-2)  
+Use of the mixPORE (mixture detection algorithm) is described in our BioRxiv paper (link to follow).
 
 # Large test data sets
 Test data sets of *N. meningitidis*, *M. tuberculosis* and *S. enterica* data are available to download [here](https://ora.ox.ac.uk/objects/uuid:82ce6500-fa71-496a-8ba5-ba822b6cbb50).  These are .tar.gz files, to a total of 80GB.
-
+For the detection of mixtures, please see the additional test data sets [here](doc/demos/real.md)
