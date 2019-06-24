@@ -14,5 +14,4 @@ and the simulated data is fed to the findNeighbour3 server.  Responses are recor
 ```python run_simulation.py  ../output/simulation_set_1  ```
 
 Outputs are written to disc as excel files in ../output/simulation_set_1 in the above example.
-An R script to summarise outputs is available:
-``` STILL TO DO ```
+
