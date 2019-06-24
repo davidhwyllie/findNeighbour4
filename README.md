@@ -70,4 +70,4 @@ Use of the mixPORE (mixture detection algorithm) is described in our BioRxiv pap
 
 # Large test data sets
 Test data sets of *N. meningitidis*, *M. tuberculosis* and *S. enterica* data are available to download [here](https://ora.ox.ac.uk/objects/uuid:82ce6500-fa71-496a-8ba5-ba822b6cbb50).  These are .tar.gz files, to a total of 80GB.  
-For the detection of mixtures, please see the additional test data sets [here](doc/demos/demos_real.md).
+For the detection of mixtures, please see the additional test data sets [here](doc/demos_real.md).
