@@ -19,6 +19,25 @@ It has the following features:
 
 It was produced as part of the [Modernising Medical Microbiology](http://modmedmicro.nsms.ox.ac.uk/) initiative, together with [Public Health England](https://www.gov.uk/government/organisations/public-health-england).
 
+# Front end
+findNeighbour3 is accessed by web services.    
+In general, these return json objects.
+
+There is an interactive front end to findNeighbour3, written in AngularJS.  Source code is [here](https://gitlab.com/ModernisingMedicalMicrobiology/fnmonitor).   
+
+Installation is possible using [Docker]((https://docs.docker.com/install/linux/docker-ce/ubuntu/):  
+```
+dockerImageName=triendo/fnmonitor
+dockerpid=`docker ps -a | grep $dockerImageName | grep "Up" | awk -F " " '{ print $1 }'`
+if [[ $dockerpid != "" ]];then
+   docker kill $dockerpid
+   docker rm $dockerpid
+fi
+docker pull $dockerImageName
+docker run -d -p 3020:80 --rm $dockerImageName
+```
+
+
 # Implementation and Requirements
 findNeighbour3 is written entirely in python3.  
 It operates on Windows and Linux environments.    
