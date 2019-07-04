@@ -8,7 +8,9 @@ If you are using a remote mongodb server, you do not need to install mongodb loc
 ## Windows
 MSI installers are [available](https://www.mongodb.com/download-center).
 The server can be started/stopped using the Services application, available via the Control Panel.
+
 ## Linux
+Please read the [documentation](https://docs.mongodb.com/manual/tutorial/install-mongodb-on-ubuntu/).
 The below installs MongoDB 4 on Ubuntu 16.04 LTS:
 ```
 sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 9DA31620334BD75D9DCB49F368818C72E52529D4
