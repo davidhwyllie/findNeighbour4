@@ -36,6 +36,10 @@ fi
 docker pull $dockerImageName
 docker run -d -p 3020:80 --rm $dockerImageName
 ```
+This has only been tested on Linux.  Depending on how Docker is configured, these commands (which can be put in a shell script) may need to be run as root.
+After execution, an Angular server should be running.  If accessing from the server, this should be accessible at http://localhost:3020.  
+The page will ask you for the URL of the findNeighbour3 server.  When it is running, you can enter its url, such as http://127.0.0.1:5020
+  
 
 
 # Implementation and Requirements
