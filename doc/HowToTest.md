@@ -16,6 +16,8 @@ Dependencies
 * Python >= 3.5.  On Windows there are MSI installers available.  See below for Linux.  
 You may need to install pip3 with: ```sudo apt-get install python3-pip```
 
+Note, Ubuntu 18 users, there is a [known issue](https://github.com/pypa/pipenv/issues/2122) and you may need to unisntall pip first, e.g.  
+```sudo python3 -m pip uninstall pip && sudo apt install python3-pip --reinstall```
 
 Install pipenv, as follows:  
 ```pip3 install pipenv```  
