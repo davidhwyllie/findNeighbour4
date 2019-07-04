@@ -9,7 +9,7 @@ It has been tested with python 3.5 and 3.7, and with Mongodb v 3.6.1 and 4.0
 
 Operating system
 ----------------
-The code has been tested on Linux (Ubuntu 16.04), Windows 7 and Windows 10.  The below instruction include linux-specific commands.
+The code has been tested on Linux (Ubuntu 16.04, 18.04), Windows 7 and Windows 10.  The below instruction include linux-specific commands.
 
 Dependencies
 ------------
@@ -34,7 +34,7 @@ This server has been tested both with a local mongodb database and with a free c
 
 Protocol for configuring a clean Linux ubuntu 14.04 instance
 -----------------------
-Note that this protocol does not use a virtual environment.
+
 Note: **at present this has not been tested with findneighbour3, only findNeighbour2.**
 ```
 sudo apt-get update  
@@ -57,11 +57,12 @@ After this, please follow the below steps.
 Virtual environments
 --------------------
 It is recommended, but not essential, to use a virtual environment.
-This [section](dependencies.md), covered above, describes how to set this up.
-The below commands will run without a virtual environment.
+This [section](dependencies.md) describes how to set this up.
 To run with a virtual environment, preface command with ```pipenv run ..```
 e.g.
 ```pipenv run python3 findNeighbour3-server.py```.
+
+The below commands will run without a virtual environment.   
 
 Start the server
 -----------------
