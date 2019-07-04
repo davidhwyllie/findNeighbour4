@@ -19,13 +19,7 @@ You may need to install pip3 with: ```sudo apt-get install python3-pip```
 Note, Ubuntu 18 users, there is a [known issue](https://github.com/pypa/pipenv/issues/2122) and you may need to unisntall pip first, e.g.  
 ```sudo python3 -m pip uninstall pip && sudo apt install python3-pip --reinstall```
 
-Install pipenv, as follows:  
-```pip3 install pipenv```  
-
-If you do not have root/admin access, you can install this locally:  
-```pip3 install pipenv --user```
-
-Then install dependencies.  The [recommended method](dependencies.md) uses a virtual environment.  
+Now see how to install dependencies [recommended method](dependencies.md) uses a virtual environment.  
 
 Database backend
 ----------------
@@ -64,7 +58,7 @@ To run with a virtual environment, preface command with ```pipenv run ..```
 e.g.
 ```pipenv run python3 findNeighbour3-server.py```.
 
-The below commands will run without a virtual environment.   
+The below commands will run without a virtual environment if relevant packages are installed at a machine level.   
 
 Start the server
 -----------------
@@ -83,6 +77,11 @@ The more general form for starting the server is:
 ```
 nohup python3 findNeighbour3-server.py {configfile.json} &  
 ```
+or, if using a virtual environment
+
+```
+nohup pipenv run python3 findNeighbour3-server.py {configfile.json} &  
+```  
 
 If {configfile.json} is omitted, then it will use a default config file, config/default_test_config.json.  This is suitable for unit testing, and other kinds of one-off tests. It expects a mongodb running on localhost on the default port.
 It is **unsuitable for production**, because:  
@@ -99,24 +98,39 @@ python3 -m unittest  NucleicAcid
 python3 -m unittest  seqComparer  
 python3 -m unittest  clustering  
 python3 -m unittest  mongoStore   # requires mongodb server on localhost
+```
 
-More complex testing requires a findNeighbour3 server running.
-Unit tests don't start the server. You will need to do.  After this, you can run unit tests.  
+With a virtual environment, do 
+```
+pipenv run python3 -m unittest  NucleicAcid seqComparer clustering mongoStore
+```
 
-# starting a test RESTFUL server
-nohup python3 findNeighbour3-server.py &
-
-# And then (e.g. in a different terminal, in windows) launching unit tests as below.
-#
-# Note: unittesting is changes the data in the server.
-# Do not run unittests against a production server.
-# In the below configuration, the unittests will run against a
-# separate instance of the server used for debugging, called 'fn3_unittesting'
-
-python3 -m unittest findNeighbour3-server 
+More complex testing requires a findNeighbour3 server running.  Note that unit tests don't start the server. You will need to do.  After this, you can run unit tests.  
 
 ```
-All should pass.
+# starting a test RESTFUL server
+nohup python3 findNeighbour3-server.py &
+```
+or if using a virtual environment 
+```
+# starting a test RESTFUL server
+nohup pipenv run python3 findNeighbour3-server.py &
+```  
+
+And then (e.g. in a different terminal, in windows) launching unit tests as below.
+Note: unittesting is changes the data in the server.
+Do not run unittests against a production server.
+In the below configuration, the unittests will run against a
+separate instance of the server used for debugging, called 'fn3_unittesting'
+```
+python3 -m unittest findNeighbour3-server 
+```
+or 
+```
+pipenv run python3 -m unittest findNeighbour3-server 
+```
+
+All tests should pass.
 Now kill the webserver
 
 ```
