@@ -155,7 +155,11 @@ class DepictServerStatus():
         """
 
         self.monitoring_data[data_tag] = pd.DataFrame.from_records(input_json)
-        
+        nrows_recovered = len(self.monitoring_data[data_tag].index)
+        if nrows_recovered == 0:
+            self._create_cds(data_tag)
+            return
+
         # generate x axis and labels for tooltips
         self.monitoring_data[data_tag]['order']= -self.monitoring_data[data_tag].index
         self.monitoring_data[data_tag]['t'] = [dateutil.parser.parse(datestring) for datestring in self.monitoring_data[data_tag]['context|time|time_now'].tolist()]
@@ -170,31 +174,32 @@ class DepictServerStatus():
         
     def _create_cds(self,data_tag):
         """ creates interval data & columnar data source for the data set with data_tag"""
-        # reindex
-        self.monitoring_data[data_tag].reset_index(drop=True, inplace=True)
-        #self.monitoring_data[data_tag].loc[:,'order']= -self.monitoring_data[data_tag].index
+        if not data_tag in self.monitoring_data.keys():
+                # no data
+                self.source[data_tag] = ColumnDataSource()
+                return
+        if len(self.monitoring_data[data_tag].index) > 0:
 
-        # compute timings between events ('interval')
-        if 't' in self.monitoring_data[data_tag].columns.tolist():
-            self.monitoring_data[data_tag].loc[:,'interval']=None
-    
-            n=0
-            previous=None
-            for ix in self.monitoring_data[data_tag].index:
+        	# reindex
+        	self.monitoring_data[data_tag].reset_index(drop=True, inplace=True)
 
-                n+=1
-                if n==1:
-                    interval=None
-                
-                else:
-                    # compute interval
-                    try:                    
-                        interval=  (self.monitoring_data[data_tag].loc[previous,'t']-self.monitoring_data[data_tag].loc[ix,'t']).total_seconds()
-                    except TypeError:
-                        interval = None
-                    self.monitoring_data[data_tag].loc[ix,'interval'] = interval
-
-                previous=ix
+        	# compute timings between events ('interval')
+        	if 't' in self.monitoring_data[data_tag].columns.tolist():
+                    self.monitoring_data[data_tag].loc[:,'interval']=None   
+                    n=0
+                    previous=None
+                    for ix in self.monitoring_data[data_tag].index:
+                        n+=1
+                        if n==1:
+                            interval=None	        
+                        else:
+                            # compute interval
+                            try:                    
+                                interval=  (self.monitoring_data[data_tag].loc[previous,'t']-self.monitoring_data[data_tag].loc[ix,'t']).total_seconds()
+                            except TypeError:
+                                interval = None
+                                self.monitoring_data[data_tag].loc[ix,'interval'] = interval
+                        previous=ix
 
         columns=[]
         for item in self.monitoring_data[data_tag].columns.tolist():
@@ -211,9 +216,11 @@ class DepictServerStatus():
         column_name:   a column name to select against
         cell_values:   a list of valid cell values.  Any cells matching these will be selected"""
 
-        self.monitoring_data[to_data_tag]=self.monitoring_data[from_data_tag][self.monitoring_data[from_data_tag][column_name].isin(cell_values)]
-        self.monitoring_data[to_data_tag].reset_index(drop=True, inplace=True)
-
+        try:
+            self.monitoring_data[to_data_tag]=self.monitoring_data[from_data_tag][self.monitoring_data[from_data_tag][column_name].isin(cell_values)]
+            self.monitoring_data[to_data_tag].reset_index(drop=True, inplace=True)
+        except KeyError: # fails if empty, or invalid column proposed
+            pass
         # create intervals & a column data source
         self._create_cds(to_data_tag)
     def most_recent_guids(self, data_tag, n = 10):
@@ -226,9 +233,13 @@ class DepictServerStatus():
         guids= set()
 
         for ix in self.monitoring_data[data_tag].index:
-            guids.add(self.monitoring_data[data_tag].loc[ix,'content|activity|guid'])
-            if len(guids)>=n:
-                return guids
+            try:
+               guids.add(self.monitoring_data[data_tag].loc[ix,'content|activity|guid'])
+               if len(guids)>=n:
+                  return guids
+            except KeyError:
+               # fails if empty data base with no reports
+               pass
         return guids
               
     def show_underlying_data(self, data_tag='all',tab_title="No title"):
@@ -260,6 +271,15 @@ class DepictServerStatus():
         returns:
         output:     a Bokeh tab containing graphics of server function
         """
+
+        if not data_tag in self.monitoring_data.keys():
+                # no data: a special case
+                text = "No data for {0}".format(data_tag)
+                div = Div(text= text, render_as_text=False, width=1000, height=800)
+                tab1 = Panel(child=div, title=text)        
+                return tab1
+
+
         self.server_info_tab()    
         # specify the tools used to plot and a container for plots
         tools = ["box_select", "hover", "wheel_zoom", "box_zoom", "pan", "save", "reset"]
@@ -345,9 +365,15 @@ class DepictServerStatus():
         
         input:
         dbquery_result: result of calling PERSIST.server_monitoring
+
+        returns: bokeh document
         """
+
+        # try to read json.  
         self.read_json(all_result, data_tag='pre_insert')
         self.read_json(recent_result, data_tag='recent_all')
+
+
         tab_server = self.depict(data_tag='pre_insert', tab_title="In RAM sequence", metrics='server|scstat',  x_axis_label = 'Order sequences added (Oldest --> Most recent)')
         tab_memory = self.depict(data_tag='pre_insert', tab_title="RAM usage", metrics='server|mstat', x_axis_label = 'Order sequences added (Oldest --> Most recent)')
 
