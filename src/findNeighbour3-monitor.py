@@ -104,7 +104,18 @@ if __name__ == '__main__':
                 print("Set connection string to mongodb from environment variable")
         else:
                 print("Using connection string to mongodb from configuration file.")
-
+        
+        
+        # determine whether a FN_SENTRY_URL environment variable is present,
+        # if so, the value of this will take precedence over any values in the config file.
+        # This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuraton file.
+        if os.environ.get("FN_SENTRY_URL") is not None:
+                CONFIG["SENTRY_URL"] = os.environ.get("FN_SENTRY_URL")
+                print("Set Sentry connection string from environment variable")
+        else:
+                print("Using Sentry connection string from configuration file.")
+                
+                
         #########################  CONFIGURE HELPER APPLICATIONS ######################
 
 

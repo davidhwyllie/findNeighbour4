@@ -161,7 +161,10 @@ class findNeighbour3():
 								 these p-values arise from three different tests for mixtures.  Please see seqComparer._msa() for details.
 							cutoff: samples are regarded as mixed if the mixture_criterion is less than or equal to this value.
 			SENTRY_URL:  optional.  If provided, will launch link Sentry to the flask application using the API key provided.  See https://sentry.io for a description of this service. 
-			LISTEN_TO:   optional.  If missing, will bind to localhost (only) on 127.0.0.1.  If present, will listen to requests from the IP stated.  if '0.0.0.0', the server will respond to all external requests.
+
+								Note: if a FN_SENTRY_URL environment variable is present, then the value of this will take precedence over any values in the config file.
+								This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuraton file.
+					LISTEN_TO:   optional.  If missing, will bind to localhost (only) on 127.0.0.1.  If present, will listen to requests from the IP stated.  if '0.0.0.0', the server will respond to all external requests.
 		An example CONFIG is below:
 
 		
@@ -226,7 +229,8 @@ class findNeighbour3():
 		
 		related to error handling
 		SENTRY_URL (optional)
-		
+		Note: if a FN_SENTRY URL environment variable is present, then the value of this will take precedence over any values in the config file.
+		This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuraton file.
 		PERSIST is a storage object needs to be supplied.  The fn3Persistence class in mongoStore is one suitable object.
 		PERSIST=fn3persistence(connString=CONFIG['FNPERSISTENCE_CONNSTRING'])
 
@@ -3269,9 +3273,18 @@ python findNeighbour3-server.py ../config/myConfigFile.json	\
 	# This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuraton file.
 	if os.environ.get("FNPERSISTENCE_CONNSTRING") is not None:
 		CONFIG["FNPERSISTENCE_CONNSTRING"] = os.environ.get("FNPERSISTENCE_CONNSTRING")
-		print("Set connection string to mongodb from environment variable")
+		print("Set mongodb connection string  from environment variable")
 	else:
-		print("Using connection string to mongodb from configuration file.")
+		print("Using mongodb connection string from configuration file.")
+
+	# determine whether a FN_SENTRY_URLenvironment variable is present,
+	# if so, the value of this will take precedence over any values in the config file.
+	# This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuraton file.
+	if os.environ.get("FN_SENTRY_URL") is not None:
+		CONFIG["SENTRY_URL"] = os.environ.get("FN_SENTRY_URL")
+		print("Set Sentry connection string from environment variable")
+	else:
+		print("Using Sentry connection string from configuration file.")
 		
 	########################### SET UP LOGGING #####################################  
 	# create a log file if it does not exist.
