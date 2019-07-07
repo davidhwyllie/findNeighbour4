@@ -7,22 +7,24 @@ It has the following features:
 * Allows incremental addition of new sequences to a collection via RESTful web services.  
 * Automatically masks a pre-defined set of nucleotides in the reference mapped data.  Such sites are ignored in pairwise sequence computations.
 * Maintains a sparse distance matrix of bacterial sequences using reference mapped sequence data.  Very large matrices can be efficiently and transparently stored.
-* Uses a highly compressed sequence representation, relying on compression to local reference, having first applied compression to the reference sequence to which mapping occurred.  This *double delta* technique aids storage of large numbers of sequences in RAM.
-* Tracks memory usage, logging to database, during routine operation.
 * Returns pairwise distance matrices.
 * Returns multiple sequence alignments.
+* [Detects mixtures of different sequences](https://www.biorxiv.org/content/10.1101/681502v1).
 * Automatically performs clustering to a range of SNV thresholds.
 * Can detect, and appropriately cluster sequences in the presence of, inter-sample mixtures.
-* Allows rapid additions (< 2 sec per sample adding to a 30,000 sequence collection)
 * Allows queries identifying similar sequences, cluster members, and multisequence alignments with  millisecond response times.
-* Would readily allow attachment of arbitrary metadata to each sequence, but the front end for this is not implemented.
+* Uses a highly compressed sequence representation, relying on compression to local reference, having first applied compression to the reference sequence to which mapping occurred.  This *double delta* technique aids storage of large numbers of sequences in RAM.
+* Tracks memory usage, logging to database, during routine operation.
+* Allow attachment of arbitrary metadata to each sequence, but the front end for this is not implemented.
 
 It was produced as part of the [Modernising Medical Microbiology](http://modmedmicro.nsms.ox.ac.uk/) initiative, together with [Public Health England](https://www.gov.uk/government/organisations/public-health-england).
 
 # Front end
-findNeighbour3 is accessed by web services.    
-In general, these return json objects.
-This is easy to use and to install.  See [details](doc/frontend.md).
+There is a front end, *findNeighbour3 monitor*.   Although not required to run or use findNeighbour3 effectively, it helps to visualise server status and supports ad hoc queries.  In particular, it allows selecting and browsing of samples and clusters of samples in the server, including multisequence alignment, mixture detection, and depiction of their relationships.  
+
+![findNeighbour3 monitor example page](https://davidhwyllie.github.io/FNMFINDNEIGHBOUR3/img/startup.PNG)  
+The *findNeighbour3 monitor* is easy to use and to install.  See [details](doc/frontend.md).  
+findNeighbour3 itself is accessed by [web services](doc/rest-routes.md). In general, these return json objects.
 
 # Implementation and Requirements
 findNeighbour3 is written entirely in python3.  
