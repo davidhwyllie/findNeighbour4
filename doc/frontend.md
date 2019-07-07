@@ -1,5 +1,6 @@
 # Frontend
-There is an interactive front end to findNeighbour3, written in AngularJS.  Source code is [here](https://gitlab.com/ModernisingMedicalMicrobiology/fnmonitor).   
+There is an interactive front end to findNeighbour3, written in AngularJS.    
+A short guide to how to use the front end is [here](https://davidhwyllie.github.io/FNMFINDNEIGHBOUR3/fnm3.pdf).  Source code is [here](https://gitlab.com/ModernisingMedicalMicrobiology/fnmonitor).   
 
 Installation is possible using [Docker]((https://docs.docker.com/install/linux/docker-ce/ubuntu/):  
 
