@@ -219,15 +219,16 @@ class fn3persistence():
         def config_store(self, key, object):
             """ stores object into config collection
             It is assumed object is a dictionary"""
-            #self.connect()
+
             return self._store('config',key, object)
         
         def config_read(self, key):
             """ loads object from config.
                 It is assumed object is a dictionary"""
-            #self.connect()
+
             return self._load('config',key)
-        
+
+
         # methods for the server_monitoring
         def recent_server_monitoring(self, max_reported = 100, selection_field = None, selection_string = None):
             """ returns a list containing recent server monitoring, in reverse order (i.e. tail first).
@@ -1025,13 +1026,33 @@ class Test_SeqMeta_guid_annotate_3(unittest.TestCase):
         self.assertEqual(res['sequence_meta'], payloads)
            
 class Test_SeqMeta_init(unittest.TestCase):
-    """ tests version of library.  only tested with > v3.0""" 
+    """ tests database creation""" 
     def runTest(self): 
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
         self.assertTrue(p.first_run() == True)
+        res = p.config_read('preComparer')
+        self.assertEqual(res, None)
+
         p.config_store('config',{'item':1})
-        self.assertTrue(p.first_run() == False)      
-        
+        self.assertTrue(p.first_run() == False)    
+        res = p.config_read('config')
+        self.assertEqual(res, {'_id':'config','item':1})
+
+        p.config_store('preComparer',{'item':2})
+        res = p.config_read('config')
+        self.assertEqual(res, {'_id':'config', 'item':1})
+        res = p.config_read('preComparer')
+        self.assertEqual(res, {'_id':'preComparer','item':2})
+
+        p.config_store('preComparer',{'item':3})
+        res = p.config_read('config')
+        self.assertEqual(res, {'_id':'config', 'item':1})
+        res = p.config_read('preComparer')
+        self.assertEqual(res, {'_id':'preComparer','item':3})
+
+
+      
+      
 class Test_SeqMeta_guids(unittest.TestCase):
     """ tests recovery of sequence guids""" 
     def runTest(self): 
