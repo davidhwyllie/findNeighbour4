@@ -18,6 +18,7 @@ import dateutil.parser
 import datetime
 import unittest
 from bokeh.embed import file_html
+from bokeh.plotting import show
 from bokeh.resources import CDN
 
 # fn3 storage module
@@ -31,7 +32,7 @@ if __name__ == '__main__':
         # an example config file is default_test_config.json
                
         ############################ LOAD CONFIG ######################################
-        print("findNeighbour3-dbmanager server .. reading configuration file.")
+        print("findNeighbour4-dbmanager server .. reading configuration file.")
 
         max_batch_size = 100
 
@@ -137,12 +138,11 @@ if __name__ == '__main__':
                                     server_url=CONFIG['IP'],
                                     server_port=CONFIG['REST_PORT'],
                                     server_description=CONFIG['DESCRIPTION'])
-        print("Monitoring ..")
         while True:
-            insert_data = PERSIST.recent_server_monitoring(selection_field="context|info|message", selection_string="About to insert", max_reported=100000)
-            recent_data = PERSIST.recent_server_monitoring(selection_field="content|activity|whatprocess", selection_string="server", max_reported=1000)
+            insert_data = PERSIST.recent_server_monitoring(selection_field="context|info|message", selection_string="About to insert", max_reported=500)
+            recent_data = PERSIST.recent_server_monitoring(selection_field="content|activity|whatprocess", selection_string="server", max_reported=100)
             page_content = dss1.make_report(insert_data, recent_data)
-            for item in page_content.keys():
+            for item in page_content.keys():       
                 html = file_html(page_content[item], CDN, item)
                 PERSIST.monitor_store(item, html)                
             print("Wrote output to database.  Waiting 2mins .. ")

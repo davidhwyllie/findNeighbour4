@@ -60,7 +60,7 @@ class hybridComparer():
    
         excludePositions contains a zero indexed set of bases which should not be considered at all in the sequence comparisons.  Any bases which are always N should be added to this set.  Not doing so will substantially degrade the algorithm's performance.
 
-        preComparer_parameters: parameters passed to the preComparer
+        preComparer_parameters: parameters passed to the preComparer.  Used to judge which sequences do not need further analysis
 
         PERSIST: either a mongo connection string, or an instance of fn3persistence
 
@@ -157,7 +157,17 @@ class hybridComparer():
     def mcompare(self, guid, guids=None):
         """ performs comparison of one guid with 
         all guids, which are also stored samples.
+
+        input:  
+            guid: the guid to compare 
+            guids: guids to compare with; if blank, compares with all.
+        output:
+            a dictionary, including as keys
+            'neighbours' : a list of neighbours and their distances
+            'timings': a dictionary including numbers analysed and timings for comparisons.
         """
+
+        t1 = datetime.datetime.now()
 
         # if guids are not specified, we do all vs all
         if guids is None:
@@ -170,25 +180,49 @@ class hybridComparer():
         candidate_guids = set()
 
         for match in self.pc.mcompare(guid, guids):
-            if match['no_retest']==False:
+            if not match['no_retest']:
                 candidate_guids.add(match['guid2'])
+
+        t2= datetime.datetime.now()
 
         guids = list(set(guids))       
         sampleCount = len(guids)
         neighbours = []
         
         # load guid
+        load_time =0 
         seq1 = self.load(guid)
-        for key2 in guids:
+        for key2 in candidate_guids:
             if not guid==key2:
+                l1 = datetime.datetime.now()
                 seq2 = self.load(key2)
+                l2 = datetime.datetime.now()
+                i4 = l2-l1
+                load_time = load_time + i4.total_seconds()
                 comparison = self.countDifferences(guid,key2,seq1,seq2,cutoff = self.snpCeiling)   
                 if comparison is not None:      # is is none if one of the samples is invalid
                     (guid1,guid2,dist,n1,n2,nboth, N1pos, N2pos, Nbothpos)= comparison         
                     neighbours.append([guid1,guid2,dist,n1,n2,nboth,N1pos, N2pos, Nbothpos])
 
-       
-        return(neighbours)
+        t3= datetime.datetime.now()
+        i1 = t2-t1
+        i2 = t3-t2
+        i3 = t3-t1
+        n1 = len(self.pc.seqProfile.keys())
+        n2 = len(candidate_guids)
+        if n1>0:
+            rate1 = 1e3*i1.total_seconds()/n1
+        else:
+            rate1 = 0
+        if n2>0:
+            rate2 = 1e3*i2.total_seconds()/n2
+            rate3 = 1e3*load_time/n2
+        else:
+            rate2 = 0
+            rate3 = 0
+
+        timings = {'preComparer_msec_per_comparison':rate1, 'seqComparer_msec_per_comparison':rate2, 'preCompared':n1, 'candidates':n2, 'matches':len(neighbours),'total_sec':i3.total_seconds(),'seqComparer_msec_per_sequence_loaded':rate3}
+        return({'neighbours':neighbours, 'timings':timings})
         
     def summarise_stored_items(self):
         """ counts how many sequences exist of various types in the preComparer and seqComparer objects """
@@ -971,7 +1005,7 @@ class test_hybridComparer_mcompare(unittest.TestCase):
             sc.persist(c, guid=guid)
 
         res = sc.mcompare(guids[0])      # defaults to sample size 30
-        
+        res = res['neighbours']
         self.assertEqual(len(res), len(originals)-1)
         print("completed")
 	
@@ -1475,9 +1509,11 @@ class test_hybridComparer_18(unittest.TestCase):
         sc.persist(seq1, 'k1')
 
         res = sc.mcompare('k1')
+        res = res['neighbours']
         self.assertEqual(len(res), 0)
 
         res = sc.mcompare('k2')
+        res = res['neighbours']
         self.assertEqual(len(res), 0)
 
 

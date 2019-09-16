@@ -2,7 +2,7 @@
 """ 
 A server providing relatedness information for bacterial genomes via a Restful API.
 
-Implemented in pure Python3 3, it uses in-memory data storage backed by MongoDb.
+Implemented in pure Python3, it uses in-memory data storage backed by MongoDb.
 It loads configuration from a config file, which must be set in production.
 
 If no config file is provided, it will run in  'testing' mode with the  parameters
@@ -19,13 +19,22 @@ All internal modules, and the restful API, are covered by unit testing.
 Unit testing can be achieved by:
 
 # starting a test RESTFUL server
-python3 findNeighbour3-server.py
+python3 findNeighbour4-server.py
 
 # And then (e.g. in a different terminal) launching unit tests with
-python3 -m unittest findNeighbour3-server
-
+python3 -m unittest findNeighbour4-server
 """
  
+
+## TODO
+## REMOVE CLUSTERING TO SEPARATE MODULE [disabled routinely but code still present]
+## SPEED IT UP!
+## retain clustering here but have an option to switch it off
+
+## CHECK THAT NO QUERIES NEED TO READ RAM [one does - to review]
+## ADD all-insert option [later]
+## HOW WILL preComparer configuration be arranged? set_operating_settings method
+
 # import libraries
 import os
 import sys
@@ -53,9 +62,9 @@ import matplotlib
 import dateutil.parser
 import argparse
 import networkx as nx
+import progressbar
 from sentry_sdk import capture_message, capture_exception
 from sentry_sdk.integrations.flask import FlaskIntegration
-
 
 # flask
 from flask import Flask, make_response, jsonify, Markup
@@ -71,9 +80,9 @@ import psutil
 # reference based compression, storage and clustering modules
 from NucleicAcid import NucleicAcid
 from mongoStore import fn3persistence
-from seqComparer import seqComparer		# import from seqComparer_mt for multithreading
+from hybridComparer import hybridComparer	
 from clustering import snv_clustering
-from guidLookup import guidSearcher  # fast lookup of first part of guids
+from guidLookup import guidSearcher  		# fast lookup of first part of guids
 
 # network visualisation
 from visualiseNetwork import snvNetwork
@@ -92,19 +101,20 @@ from urllib.parse import urljoin as urljoiner
 import uuid
 import time
 
-class findNeighbour3():
+class findNeighbour4():
 	""" a server based application for maintaining a record of bacterial relatedness using SNP distances.
 	
 		The high level arrangement is that
-		- This class interacts with in-memory sequences
-		  [handled by the seqComparer class] and backends [fn3Persistance class] used by the server
-		- methods in findNeighbour3() return native python3 objects.
+		- This class interacts with  sequences, partly held in memory
+		  [handled by the hybridComparer class] 
+		- cached data is accessed by an fn3persistence object
+		- methods in findNeighbour4() return native python3 objects.
 		
 		- a web server, currently flask, handles the inputs and outputs of this class
 		- in particular, native python3 objects returned by this class are serialised by the Flask web server code.
 		"""
 		
-	def __init__(self,CONFIG, PERSIST, on_startup_repack_memory_every = [None]):
+	def __init__(self,CONFIG, PERSIST):
 		""" Using values in CONFIG, starts a server with CONFIG['NAME'] on port CONFIG['PORT'].
 
 		CONFIG contains Configuration parameters relevant to the reference based compression system which lies
@@ -126,6 +136,7 @@ class findNeighbour3():
 							Enable /restart endpoint, which restarts empty server (for testing)      N       N        Y
 
 			SERVERNAME:     the name of the server. used as the name of mongodb database which is bound to the server.
+			PRECOMPARER_PARAMETERS:		parameters passed to precomparer.  ** DOCS NEEDED ON THIS**.  It is important that these values are either set to 'fail always'  -route all precompared samples to the seqcomparer - or are the result of calibration.  preComparer_calibration will do the calibration process automatically.
 			FNPERSISTENCE_CONNSTRING: a valid mongodb connection string. if shard keys are set, the 'guid' field is suitable key.
 							Note: if a FNPERSISTENCE_CONNSTRING environment variable is present, then the value of this will take precedence over any values in the config file.
 							This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuraton file.
@@ -137,11 +148,7 @@ class findNeighbour3():
 			LOGFILE:        the log file used
 			LOGLEVEL:		default logging level used by the server.  Valid values are DEBUG INFO WARNING ERROR CRITICAL
 			SNPCEILING: 	links between guids > this are not stored in the database
-			GC_ON_RECOMPRESS: if 'recompressing' sequences to a local reference, something the server does automatically, perform
-							a full mark-and-sweep gc at this point.  This setting alters memory use and compute time, but not the results obtained.
-			RECOMPRESS_FREQUENCY: if recompressable records are detected, recompress every RECOMPRESS_FREQ th detection (e.g. 5).
-							Trades off compute time with mem usage.  This setting alters memory use and compute time, but not the results obtained.
-							If zero, recompression is disabled.
+			
 			REPACK_FREQUENCY: see /docs/repack_frequency.md
 			CLUSTERING:		a dictionary of parameters used for clustering.  In the below example, there are two different
 							clustering settings defined, one named 'SNV12_ignore' and the other 'SNV12_include.
@@ -177,13 +184,11 @@ class findNeighbour3():
 		"SERVERNAME":"TBSNP",
 		"FNPERSISTENCE_CONNSTRING":"mongodb://127.0.0.1",
 		"MAXN_STORAGE":100000,
-		"SNPCOMPRESSIONCEILING":250,
 		"MAXN_PROP_DEFAULT":0.70,
+		"PRECOMPARER_PARAMETERS":{},
 		"LOGFILE":"../unittest_tmp/logfile.log",
 		"LOGLEVEL":"INFO",
 		"SNPCEILING": 20,
-		"GC_ON_RECOMPRESS":1,
-		"RECOMPRESS_FREQUENCY":5,
 		"SERVER_MONITORING_MIN_INTERVAL_MSEC":0,
 		"SENTRY_URL":"https://c******************@sentry.io/1******",
 		"CLUSTERING":{'SNV12_ignore' :{'snv_threshold':12, 'mixed_sample_management':'ignore', 'mixture_criterion':'pvalue_1', 'cutoff':0.001},
@@ -199,6 +204,7 @@ class findNeighbour3():
 		EXCLUDEFILE
 		INPUTREF
 		CLUSTERING
+		PRECOMPARER_PARAMETERS
 		
 		These settings cannot be changed because they alter the way that the data is stored; if you want to change
 		the settings, the data will have to be re-loaded. 
@@ -219,11 +225,6 @@ class findNeighbour3():
 		Note: if a FNPERSISTENCE_CONNSTRING environment variable is present, then the value of this will take precedence over any values in the config file.
 		This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuration file.
 		
-		related to internal server memory management:
-		GC_ON_RECOMPRESS
-		RECOMPRESS_FREQUENCY
-		SNPCOMPRESSIONCEILING
-		
 		related to what monitoring the server uses
 		SERVER_MONITORING_MIN_INTERVAL_MSEC (optional)
 		
@@ -236,7 +237,7 @@ class findNeighbour3():
 
 		"""
 		
-		# store the persistence object as part of the object
+		# store the persistence object as part of this object
 		self.PERSIST=PERSIST
 		
 		# check input
@@ -254,28 +255,41 @@ class findNeighbour3():
 		# check that the keys of config are as expected.
 		required_keys=set(['IP','INPUTREF','EXCLUDEFILE','DEBUGMODE','SERVERNAME',
 						   'FNPERSISTENCE_CONNSTRING', 'MAXN_STORAGE',
-						   'SNPCOMPRESSIONCEILING', "SNPCEILING", 'MAXN_PROP_DEFAULT', 'REST_PORT',
-						   'LOGFILE','LOGLEVEL','GC_ON_RECOMPRESS','RECOMPRESS_FREQUENCY', 'REPACK_FREQUENCY', 'CLUSTERING'])
+						    "SNPCEILING", 'MAXN_PROP_DEFAULT', 'REST_PORT',
+						   'LOGFILE','LOGLEVEL', 'CLUSTERING', "PRECOMPARER_PARAMETERS"])
 		missing=required_keys-set(self.CONFIG.keys())
 		if not missing == set([]):
 			raise KeyError("Required keys were not found in CONFIG. Missing are {0}".format(missing))
+
+		if len(self.CONFIG['PRECOMPARER_PARAMETERS'])>0:
+			# these are supplied
+			observed_keys = set(list(self.CONFIG['PRECOMPARER_PARAMETERS'].keys()))
+			expected_keys = set(["selection_cutoff",
+		    					"over_selection_cutoff_ignore_factor",
+                    			"mixed_reporting_cutoff",
+                    			"N_mean",
+                    			"N_sd",
+                    			"highN_z_reporting_cutoff",
+                    			"alpha",
+                    			"probN_inflation_factor",           
+                    			"n_positions_examined"])
+
+			missing = expected_keys - observed_keys
+			if not missing == set([]):
+				raise KeyError("Precomparer parameters were supplied, but the required keys were not found . Missing are {0}".format(missing))
 
 		# the following keys are not stored in any database backend, as a server could be moved, i.e.
 		# running on the same data but with different IP etc
 		
 		do_not_persist_keys=set(['IP',"SERVERNAME",'FNPERSISTENCE_CONNSTRING',
 								 'LOGFILE','LOGLEVEL','REST_PORT',
-								 'GC_ON_RECOMPRESS','RECOMPRESS_FREQUENCY', 'REPACK_FREQUENCY', 'SENTRY_URL', 'SERVER_MONITORING_MIN_INTERVAL_MSEC'])
+								 'SENTRY_URL', 'SERVER_MONITORING_MIN_INTERVAL_MSEC'])
 				
 		# determine whether this is a first-run situation.
 		if self.PERSIST.first_run():
 			self.first_run(do_not_persist_keys)
 
 		# load global settings from those stored at the first run.
-		if on_startup_repack_memory_every[0] is None:
-			self.on_startup_repack_memory_every = 1e20		# not reachable
-		else:
-			self.on_startup_repack_memory_every = on_startup_repack_memory_every[0]
 		cfg = self.PERSIST.config_read('config')
 		
 		# set easy to read properties from the config
@@ -284,12 +298,8 @@ class findNeighbour3():
 		self.debugMode = cfg['DEBUGMODE']
 		self.maxNs = cfg['MAXN_STORAGE']
 		self.snpCeiling = cfg['SNPCEILING']
-		self.snpCompressionCeiling = cfg['SNPCOMPRESSIONCEILING']
 		self.maxn_prop_default = cfg['MAXN_PROP_DEFAULT']
 		self.clustering_settings = cfg['CLUSTERING']
-		self.recompress_frequency = self.CONFIG['RECOMPRESS_FREQUENCY']
-		self.repack_frequency = self.CONFIG['REPACK_FREQUENCY']
-		self.gc_on_recompress = self.CONFIG['GC_ON_RECOMPRESS']
 		
 		## start setup
 		self.write_semaphore = threading.BoundedSemaphore(1)        # used to permit only one process to INSERT at a time.
@@ -304,15 +314,15 @@ class findNeighbour3():
 		self.gs = guidSearcher()
 		self._load_in_memory_data()
 		
-		print("findNeighbour3 is ready.")
+		print("findNeighbour4 is ready.")
 	
 	def _load_in_memory_data(self):
-		""" loads in memory data into the seqComparer object from database storage """
+		""" loads in memory data into the hybridComparer object from database storage """
 		
 		# set up clustering
 		# while doing so, find a clustering strategy with the highest snv_threshold
 		# we will use this for in-memory recompression.
-		app.logger.info("findNeighbour3 is loading clustering data.")
+		app.logger.info("findNeighbour4 is loading clustering data.")
 		
 		clustering_name_for_recompression = None
 		max_snv_cutoff = 0
@@ -320,15 +330,7 @@ class findNeighbour3():
 		for clustering_name in self.clustering_settings.keys():
 			json_repr = self.PERSIST.clusters_read(clustering_name)
 			self.clustering[clustering_name] = snv_clustering(saved_result =json_repr)
-			if self.clustering[clustering_name].snv_threshold > max_snv_cutoff:
-				clustering_name_for_recompression = clustering_name
-				max_snv_cutoff = self.clustering[clustering_name].snv_threshold
 			app.logger.info("Loaded clustering {0} with SNV_threshold {1}".format(clustering_name, self.clustering[clustering_name].snv_threshold))
-		
-		if clustering_name_for_recompression is not None:
-			app.logger.info("Will use clusters from pipeline {0} for in-memory recompression".format(clustering_name_for_recompression))
-		else:
-			app.logger.info("In memory recompression is not enabled as no clustering results found.")
 			
 		# ensure that clustering object is up to date.  clustering is an in-memory graph, which is periodically
 		# persisted to disc.  It is possible that, if the server crashes/does a disorderly shutdown,
@@ -336,294 +338,42 @@ class findNeighbour3():
 		# database.  This situation is OK, because the clustering object will bring itself up to date when
 		# the new guids and their links are loaded into it.
 
-		# initialise seqComparer, which manages in-memory reference compressed data
-		self.sc=seqComparer(reference=self.reference,
+		# initialise hybridComparer, which manages in-memory reference compressed data
+		# preComparer_parameters will be read from disc
+		self.hc = hybridComparer(reference=self.reference,
 							maxNs=self.maxNs,
 							snpCeiling= self.snpCeiling,
-							debugMode=self.debugMode,
 							excludePositions=self.excludePositions,
-							snpCompressionCeiling = self.snpCompressionCeiling)
-		app.logger.info("In-RAM data store set up; sequence comparison uses {0} threads".format(self.sc.cpuCount))
+							preComparer_parameters={},
+                    		PERSIST=self.PERSIST)
+		
+		app.logger.info("In-RAM data store set up.")
 		
 		# determine how many guids there in the database
 		guids = self.PERSIST.refcompressedsequence_guids()
 	
 		self.server_monitoring_store(message='Starting load of sequences into memory from database')
-
+		app.logger.info("Loading sequences from database")
+		
 		nLoaded = 0
 		nRecompressed = 0
-		# this object is just used for compression
-		snvc = snv_clustering(snv_threshold=12, mixed_sample_management='ignore')		# compress highly similar sequences to a consensus
-	
+		bar = progressbar.ProgressBar(max_value = len(guids))
 		for guid in guids:
 			nLoaded+=1
 			self.gs.add(guid)
 			obj = self.PERSIST.refcompressedsequence_read(guid)
-			self.sc.persist(obj, guid=guid)
-			
-			# recompression in ram is relatively slow.
-			# to keep the server load fast, and memory usage low, we recompress after every n th sequence;
-			# we use an existing clustering scheme (if present) in order to do this.
-			# due to speed constraints, we don't do recompression unless there is an existing clustering scheme.
-			
-			# if the server is configured to compress memory and there is a clustering object available	
-			if False:		# in ram recompression on reload is disabled until a storage solution is available
-				if clustering_name_for_recompression is not None and self.recompress_frequency > 0:
-					# every self.on_startup_repack_memory_every samples, or when the load is over, get the clusters
-					if nLoaded % self.on_startup_repack_memory_every == 0 or nLoaded == len(guids):		# periodically recompress
-						app.logger.info("Recompressing memory based on {2}.. {0}/{1} loaded".format(nLoaded, len(guids), clustering_name_for_recompression))
-						nRecompressed = 0 	
-						cl2g = self.clustering[clustering_name].clusters2guid()
-						total_clusters = len(cl2g.keys())
-						nClusters = 0
-						for cl in cl2g.keys():
-							nClusters +=1
-							available_to_compress = []
-							for guid in cl2g[cl]:
-								if guid in self.sc.seqProfile.keys():		# it exists among records already loaded
-									available_to_compress.append(guid)
-							if len(available_to_compress)>3:
-								# find a single guid from this cluster
-								# and recompress relative to that.
-								to_recompress = available_to_compress[0]	# the last sequence
-								nRecompressed = nRecompressed + len(available_to_compress)
-								if nClusters % 25 == 0:
-									app.logger.info("Recompressed {0}/{1} clusters, {2}/{3} sequences ...".format(nClusters, total_clusters, nRecompressed,nLoaded))
-								self.sc.compress_relative_to_consensus(to_recompress)
-						
-			if nLoaded % 500 ==0:
-				if clustering_name_for_recompression is not None:
-						app.logger.info("Loading {1} sequences from database .. ({0}).  Will repack memory every {2} sequences".format(self.sc.excluded_hash(),len(guids),self.on_startup_repack_memory_every))
-				else:
-						app.logger.info("Loading {1} sequences from database .. ({0}).".format(self.sc.excluded_hash(), len(guids)))
-			
-		print("findNeighbour3 has loaded {0} sequences from database; Recompressed {1}".format(len(guids),nRecompressed))
+			self.hc.persist(obj, guid=guid)
+			bar.update(nLoaded)
+		bar.finish()
+		app.logger.info("findNeighbour4 has finished loaded {0} sequences from database".format(len(guids)))
 		
-		app.logger.info("findNeighbour3 is checking clustering is up to date")
+		app.logger.info("findNeighbour4 is checking clustering is up to date")
 		self.update_clustering()
-		#self.server_monitoring_store(message='Garbage collection.')		
-		#gc.collect()		# free up ram		
+		self.server_monitoring_store(message='Garbage collection.')
+		app.logger.info("Garbage collecting")		
+		gc.collect()		# free up ram		
 		self.server_monitoring_store(message='Load from database complete.')
-		#gc.disable()
 
-
-	def reset(self):
-		""" restarts the server, deleting any existing data """
-		if not self.debugMode == 2:
-			return		 # no action taken by calls to this unless debugMode ==2
-		else:
-			print("Deleting existing data and restarting")
-			self.PERSIST._delete_existing_data()
-			time.sleep(2) # let the database recover
-			self._create_empty_clustering_objects()
-			self._load_in_memory_data()
-
-	def server_monitoring_store(self, message="No message supplied", guid=None):
-		""" reports server memory information to store """
-		sc_summary = self.sc.summarise_stored_items()
-		db_summary = self.PERSIST.summarise_stored_items()
-		mem_summary = self.PERSIST.memory_usage()
-		self.PERSIST.server_monitoring_store(message=message, what='server', guid= guid, content={**sc_summary, **db_summary, **mem_summary})
-
-	def first_run(self, do_not_persist_keys):
-		""" actions taken on first-run only.
-		Include caching results from CONFIGFILE to database, unless they are in do_not_persist_keys"""
-		
-		app.logger.info("First run situation: parsing inputs, storing to database. ")
-
-		# create a config dictionary
-		config_settings= {}
-		
-		# store start time 
-		config_settings['createTime']= datetime.datetime.now()
-		
-		# store description
-		config_settings['description']=self.CONFIG['DESCRIPTION']
-
-		# store clustering settings
-		self.clustering_settings=self.CONFIG['CLUSTERING']
-		config_settings['clustering_settings']= self.clustering_settings
-		
-		# load the excluded bases
-		excluded=set()
-		if self.CONFIG['EXCLUDEFILE'] is not None:
-			with open(self.CONFIG['EXCLUDEFILE'],'rt') as f:
-				rows=f.readlines()
-			for row in rows:
-				excluded.add(int(row))
-
-		app.logger.info("Noted {0} positions to exclude.".format(len(excluded)))
-		config_settings['excludePositions'] = list(sorted(excluded))
-		
-		# load reference
-		with open(self.CONFIG['INPUTREF'],'rt') as f:
-			for r in SeqIO.parse(f,'fasta'):
-				config_settings['reference']=str(r.seq)
-
-		# create clusters objects
-		app.logger.info("Setting up in-ram clustering objects..")
-		self._create_empty_clustering_objects()
-		
-		# persist other config settings.
-		for item in self.CONFIG.keys():
-			if not item in do_not_persist_keys:
-				config_settings[item]=self.CONFIG[item]
-				
-		res = self.PERSIST.config_store('config',config_settings)
-		app.logger.info("First run actions complete.")
-	
-	
-	def _create_empty_clustering_objects(self):
-		""" create empty clustering objects """
-		self.clustering = {}
-		expected_clustering_config_keys = set(['snv_threshold',  'uncertain_base_type', 'mixed_sample_management', 'cutoff', 'mixture_criterion'])
-		for clustering_name in self.clustering_settings.keys():
-			observed = self.clustering_settings[clustering_name] 
-			if not observed.keys() == expected_clustering_config_keys:
-				raise KeyError("Got unexpected keys for clustering setting {0}: got {1}, expected {2}".format(clustering_name, observed, expected_clustering_config_keys))
-			self.clustering[clustering_name] = snv_clustering(snv_threshold=observed['snv_threshold'] ,
-															  mixed_sample_management=observed['mixed_sample_management'],
-															  uncertain_base_type=observed['uncertain_base_type'])
-			self.PERSIST.clusters_store(clustering_name, self.clustering[clustering_name].to_dict())
-			app.logger.info("First run: Configured clustering {0} with SNV_threshold {1}".format( clustering_name, observed['snv_threshold']))
-
-	def repack(self,guids=None):
-		""" generates a smaller and faster representation in the persistence store
-		for the guids in the list. optional"""
-		if guids is None:
-			guids = self.PERSIST.guids()  # all the guids
-		for this_guid in guids:
-			app.logger.debug("Repacking {0}".format(this_guid))
-			self.PERSIST.guid2neighbour_repack(this_guid)
-	
-	def insert(self,guid,dna):
-		""" insert DNA called guid into the server,
-		persisting it in both RAM and on disc, and updating any clustering.
-		"""
-		
-		# clean, and provide summary statistics for the sequence
-		app.logger.info("Preparing to insert: {0}".format(guid))
-
-		if not self.sc.iscachedinram(guid):                   # if the guid is not already there
-			self.server_monitoring_store(message='About to insert',guid=guid)
-			
-			# prepare to insert
-			self.objExaminer.examine(dna)  					  # examine the sequence
-			cleaned_dna=self.objExaminer.nucleicAcidString.decode()
-			refcompressedsequence =self.sc.compress(cleaned_dna)          # compress it and store it in RAM
-			self.server_monitoring_store(message='Compression complete',guid=guid)
-
-			self.sc.persist(refcompressedsequence, guid)			    # insert the DNA sequence into ram.
-			self.server_monitoring_store(message='Stored to RAM',guid=guid)
-
-			self.gs.add(guid)
-			
-			# construct links with everything existing existing at the time the semaphore was acquired.
-			self.write_semaphore.acquire()				    # addition should be an atomic operation
-
-			links={}			
-			try:
-				# this process reports links less than self.snpCeiling
-				app.logger.debug("Finding links: {0}".format(guid))
-				self.server_monitoring_store(message='Finding neighbours (mcompare - one vs. all)', guid=guid)
-			
-				res = self.sc.mcompare(guid)		# compare guid against all
-				to_compress = 0
-				for (guid1,guid2,dist,n1,n2,nboth, N1pos, N2pos, Nbothpos) in res: 	# all against all
-					if not guid1==guid2:
-						link = {'dist':dist,'n1':n1,'n2':n2,'nboth':nboth}
-						if dist is not None:
-							if link['dist'] <= self.snpCeiling:
-								links[guid2]=link			
-								to_compress +=1
-
-				## now persist in database.  
-				# we have considered what happens if database connectivity fails during the insert operations.
-				app.logger.info("Persisting: {0}".format(guid))
-				self.server_monitoring_store(message='Found neighbours; Persisting to disc', guid=guid)
-			
-				# if the database connectivity fails after this refcompressedseq_store has completed, then 
-				# the 'document' will already exist within the mongo file store.
-				# in such a case, a FileExistsError is raised.
-				# we trap for such errors, logging a warning, but permitting continuing execution since
-				# this is expected if refcompressedseq_store succeeds, but subsequent inserts fail.
-				try:
-					self.PERSIST.refcompressedseq_store(guid, refcompressedsequence)     # store the parsed object to database
-				except FileExistsError:
-					app.logger.warning("Attempted to refcompressedseq_store {0}, but it already exists.  This is expected only if database connectivity failed during a previous INSERT operation.  Such failures should be noted in earlier logs".format(guid))
-				except Exception: 		# something else
-					raise			# we don't want to trap other things
-				self.server_monitoring_store(message='Stored to sequence disc', guid=guid)
-			
-
-				# annotation of guid will update if an existing record exists.  This is OK, and is acceptable if database connectivity failed during previous inserts
-				self.PERSIST.guid_annotate(guid=guid, nameSpace='DNAQuality',annotDict=self.objExaminer.composition)						
-
-				# addition of neighbours may cause neighbours to be entered more than once if database connectivity failed during previous inserts.
-				# because of the way that extraction of links works, this does not matter, and duplicates will not be reported.
-				self.PERSIST.guid2neighbour_add_links(guid=guid, targetguids=links)
-				self.server_monitoring_store(message='Stored to links and annotations to disc', guid=guid)
-	
-			except Exception as e:
-				app.logger.exception("Error raised on persisting {0}".format(guid))
-				self.write_semaphore.release() 	# ensure release of the semaphore if an error is trapped
-
-				# Rollback anything which could leave system in an inconsistent state
-				# remove the guid from RAM is the only step necessary
-				self.sc.remove(guid)	
-				app.logger.info("Guid successfully removed from ram. {0}".format(guid))
-
-				if e.__module__ == "pymongo.errors":
-					app.logger.info("Error raised pertains to pyMongo connectivity")
-					capture_exception(e)
-					abort(503,e)		# the mongo server may be refusing connections, or busy.  This is observed occasionally in real-world use
-				else:
-					capture_exception(e)
-					abort(500,e)		# some other kind of error
-
-				
-			# release semaphore
-			self.write_semaphore.release()                  # release the write semaphore
-
-			if self.recompress_frequency > 0:				
-				if to_compress>= self.recompress_frequency and to_compress % self.recompress_frequency == 0:		# recompress if there are lots of neighbours, every self.recompress_frequency isolates
-					self.server_monitoring_store(message='About to recompress', guid=guid)
-					app.logger.debug("Recompressing: {0}".format(guid))
-					self.sc.compress_relative_to_consensus(guid)
-					self.server_monitoring_store(message='sample recompressed in RAM', guid=guid)
-
-				#if self.gc_on_recompress==1:
-				#	self.server_monitoring_store(message='About to GC', guid=guid)
-					#gc.collect()
-				#	self.server_monitoring_store(message='Finished GC', guid=guid)
-	
-			app.logger.info("Insert succeeded {0}".format(guid))
-
-			# clean up guid2neighbour; this can readily be done post-hoc, if the process proves to be slow.
-			# it is a mongodb reformatting operation which doesn't affect results.
-
-			guids = list(links.keys())
-			guids.append(guid)
-		
-			if self.repack_frequency>0:
-				app.logger.info("Repacking around: {0}".format(guid))
-				self.server_monitoring_store(message='Repacking database', guid=guid)
-	
-				if len(guids) % self.repack_frequency ==0:		# repack if there are repack_frequency-1 neighbours
-					self.repack(guids)
-				self.server_monitoring_store(message='Repacking over', guid=guid)
-				
-			# cluster
-			app.logger.info("Clustering around: {0}".format(guid))
-			self.server_monitoring_store(message='Starting clustering', guid=guid)
-	
-			self.update_clustering()
-			self.server_monitoring_store(message='Finished clustering', guid=guid)
-	
-			return "Guid {0} inserted.".format(guid)		
-		else:
-			return "Guid {0} is already present".format(guid)
-			app.logger.info("Already present, no insert needed: {0}".format(guid))
 	
 	def update_clustering(self, store=True):
 		""" performs clustering on any samples within the persistence store which are not already clustered
@@ -684,7 +434,7 @@ class findNeighbour3():
 			for cluster in clusters_to_check:
 				guids_for_msa = cl2guids[cluster]							# do msa on the cluster
 				app.logger.debug("Checking cluster {0}; performing MSA on {1} samples".format(cluster,len(guids_for_msa)))
-				msa = self.sc.multi_sequence_alignment(guids_for_msa, output='df',uncertain_base_type=self.clustering[clustering_name].uncertain_base_type)		#  a pandas dataframe; p_value tests mixed
+				msa = self.hc.multi_sequence_alignment(guids_for_msa, output='df',uncertain_base_type=self.clustering[clustering_name].uncertain_base_type)		#  a pandas dataframe; p_value tests mixed
 				app.logger.debug("Multi sequence alignment is complete")
 
 				if not msa is None:		# no alignment was made
@@ -739,6 +489,198 @@ class findNeighbour3():
 			if store==True:
 				self.PERSIST.clusters_store(clustering_name, self.clustering[clustering_name].to_dict())
 				app.logger.debug("Cluster {0} persisted".format(clustering_name))
+
+	def reset(self):
+		""" restarts the server, deleting any existing data """
+		if not self.debugMode == 2:
+			return		 # no action taken by calls to this unless debugMode ==2
+		else:
+			print("Deleting existing data and restarting")
+			self.PERSIST._delete_existing_data()
+			time.sleep(2) # let the database recover
+			self._create_empty_clustering_objects()
+			self._load_in_memory_data()
+
+	def server_monitoring_store(self, message="No message supplied", guid=None):
+		""" reports server memory information to store """
+		hc_summary = self.hc.summarise_stored_items()
+		db_summary = self.PERSIST.summarise_stored_items()
+		mem_summary = self.PERSIST.memory_usage()
+		self.PERSIST.server_monitoring_store(message=message, what='server', guid= guid, content={**hc_summary, **db_summary, **mem_summary})
+
+	def first_run(self, do_not_persist_keys):
+		""" actions taken on first-run only.
+		Include caching results from CONFIGFILE to database, unless they are in do_not_persist_keys"""
+		
+		app.logger.info("First run situation: parsing inputs, storing to database. ")
+
+		# create a config dictionary
+		config_settings= {}
+		
+		# store start time 
+		config_settings['createTime']= datetime.datetime.now()
+		
+		# store description
+		config_settings['description']=self.CONFIG['DESCRIPTION']
+
+		# store clustering settings
+		self.clustering_settings=self.CONFIG['CLUSTERING']
+		config_settings['clustering_settings']= self.clustering_settings
+
+		# store precomparer settings
+		if len(self.CONFIG['PRECOMPARER_PARAMETERS'])>0:
+			self.PERSIST.config_store('preComparer', self.CONFIG['PRECOMPARER_PARAMETERS'])
+
+		# load the excluded bases
+		excluded=set()
+		if self.CONFIG['EXCLUDEFILE'] is not None:
+			with open(self.CONFIG['EXCLUDEFILE'],'rt') as f:
+				rows=f.readlines()
+			for row in rows:
+				excluded.add(int(row))
+
+		app.logger.info("Noted {0} positions to exclude.".format(len(excluded)))
+		config_settings['excludePositions'] = list(sorted(excluded))
+		
+		# load reference
+		with open(self.CONFIG['INPUTREF'],'rt') as f:
+			for r in SeqIO.parse(f,'fasta'):
+				config_settings['reference']=str(r.seq)
+
+		# create clusters objects
+		app.logger.info("Setting up in-ram clustering objects..")
+		self._create_empty_clustering_objects()
+		
+		# persist other config settings.
+		for item in self.CONFIG.keys():
+			if not item in do_not_persist_keys:
+				config_settings[item]=self.CONFIG[item]
+				
+		res = self.PERSIST.config_store('config',config_settings)
+		app.logger.info("First run actions complete.")
+	
+	
+	def _create_empty_clustering_objects(self):
+		""" create empty clustering objects """
+		self.clustering = {}
+		expected_clustering_config_keys = set(['snv_threshold',  'uncertain_base_type', 'mixed_sample_management', 'cutoff', 'mixture_criterion'])
+		for clustering_name in self.clustering_settings.keys():
+			observed = self.clustering_settings[clustering_name] 
+			if not observed.keys() == expected_clustering_config_keys:
+				raise KeyError("Got unexpected keys for clustering setting {0}: got {1}, expected {2}".format(clustering_name, observed, expected_clustering_config_keys))
+			self.clustering[clustering_name] = snv_clustering(snv_threshold=observed['snv_threshold'] ,
+															  mixed_sample_management=observed['mixed_sample_management'],
+															  uncertain_base_type=observed['uncertain_base_type'])
+			self.PERSIST.clusters_store(clustering_name, self.clustering[clustering_name].to_dict())
+			app.logger.info("First run: Configured clustering {0} with SNV_threshold {1}".format( clustering_name, observed['snv_threshold']))
+
+	def repack(self,guids=None):
+		""" generates a smaller and faster representation in the persistence store
+		for the guids in the list. optional"""
+		if guids is None:
+			guids = self.PERSIST.guids()  # all the guids
+		for this_guid in guids:
+			app.logger.debug("Repacking {0}".format(this_guid))
+			self.PERSIST.guid2neighbour_repack(this_guid)
+	
+	def insert(self,guid,dna):
+		""" insert DNA called guid into the server,
+		persisting it in both RAM and on disc, and updating any clustering.
+		"""
+		
+		# clean, and provide summary statistics for the sequence
+		app.logger.info("Preparing to insert: {0}".format(guid))
+
+		if not self.hc.iscachedinram(guid):                   # if the guid is not already there
+			self.server_monitoring_store(message='About to insert',guid=guid)
+			
+			# prepare to insert
+			self.objExaminer.examine(dna)  					  # examine the sequence
+			cleaned_dna=self.objExaminer.nucleicAcidString.decode()
+			refcompressedsequence =self.hc.compress(cleaned_dna)          # compress it and store it in RAM
+			self.server_monitoring_store(message='Compression complete',guid=guid)
+
+			self.hc.persist(refcompressedsequence, guid)			    # insert the DNA sequence into ram.
+			self.server_monitoring_store(message='Stored to RAM',guid=guid)
+
+			self.gs.add(guid)
+			
+			# construct links with everything existing existing at the time the semaphore was acquired.
+			self.write_semaphore.acquire()				    # addition should be an atomic operation
+
+			links={}			
+			try:
+				# this process reports links less than self.snpCeiling
+				app.logger.debug("Finding links: {0}".format(guid))
+				self.server_monitoring_store(message='Finding neighbours (mcompare - one vs. all)', guid=guid)
+			
+				mcompare_result = self.hc.mcompare(guid)		# compare guid against all
+	
+				to_compress = 0
+				for (guid1,guid2,dist,n1,n2,nboth, N1pos, N2pos, Nbothpos) in mcompare_result['neighbours']: 	# all against all
+					if not guid1==guid2:
+						link = {'dist':dist,'n1':n1,'n2':n2,'nboth':nboth}
+						if dist is not None:
+							if link['dist'] <= self.snpCeiling:
+								links[guid2]=link			
+								to_compress +=1
+
+				# if we found neighbours, report mcompare timings to log
+				if to_compress>0:
+					for key in mcompare_result['timings'].keys():
+						app.logger.info("mcompare| {0} {1}".format(key, mcompare_result['timings'][key]))
+
+				## now persist in database.  
+				# we have considered what happens if database connectivity fails during the insert operations.
+				app.logger.info("Persisting: {0}".format(guid))
+				self.server_monitoring_store(message='Found neighbours; Persisting to disc', guid=guid)
+			
+				# annotation of guid will update if an existing record exists.  This is OK, and is acceptable if database connectivity failed during previous inserts
+				self.PERSIST.guid_annotate(guid=guid, nameSpace='DNAQuality',annotDict=self.objExaminer.composition)						
+
+				# addition of neighbours may cause neighbours to be entered more than once if database connectivity failed during previous inserts.
+				# because of the way that extraction of links works, this does not matter, and duplicates will not be reported.
+				self.PERSIST.guid2neighbour_add_links(guid=guid, targetguids=links)
+				self.server_monitoring_store(message='Stored to links and annotations to disc', guid=guid)
+	
+			except Exception as e:
+				app.logger.exception("Error raised on persisting {0}".format(guid))
+				self.write_semaphore.release() 	# ensure release of the semaphore if an error is trapped
+
+				# Rollback anything which could leave system in an inconsistent state
+				# remove the guid from RAM is the only step necessary
+				self.hc.remove(guid)	
+				app.logger.info("Guid successfully removed from ram. {0}".format(guid))
+
+				if e.__module__ == "pymongo.errors":
+					app.logger.info("Error raised pertains to pyMongo connectivity")
+					capture_exception(e)
+					abort(503,e)		# the mongo server may be refusing connections, or busy.  This is observed occasionally in real-world use
+				else:
+					capture_exception(e)
+					abort(500,e)		# some other kind of error
+
+				
+			# release semaphore
+			self.write_semaphore.release()                  # release the write semaphore
+
+			app.logger.info("Insert succeeded {0}".format(guid))
+
+			guids = list(links.keys())
+			guids.append(guid)
+					
+			# cluster
+			## CLUSTERING IS DISABLED ##
+			#app.logger.info("Clustering around: {0}".format(guid))
+			#self.server_monitoring_store(message='Starting clustering', guid=guid)
+	
+			self.update_clustering()
+			#self.server_monitoring_store(message='Finished clustering', guid=guid)
+	
+			return "Guid {0} inserted.".format(guid)		
+		else:
+			return "Guid {0} is already present".format(guid)
+			app.logger.info("Already present, no insert needed: {0}".format(guid))
 			
 	def exist_sample(self,guid):
 		""" determine whether the sample exists in RAM"""
@@ -769,7 +711,8 @@ class findNeighbour3():
 			return None
 	def server_nucleotides_excluded(self):
 		""" returns the nucleotides excluded by the server """
-		return {"exclusion_id":self.sc.excluded_hash(), "excluded_nt":list(self.sc.excluded)}
+		# TODO: make this solely dependent on the config file
+		return {"exclusion_id":self.hc.excluded_hash(), "excluded_nt":list(self.hc.excluded)}
 	
 	def server_memory_usage(self, max_reported=None):
 		""" reports recent server memory activity """
@@ -866,17 +809,12 @@ class findNeighbour3():
 	def get_one_annotation(self, guid):
 		return self.PERSIST.guid_annotation(guid)
 		
-	def query_get_detail(self, sname1, sname2):
-		""" gets detail on the comparison of a pair of samples.  Computes this on the fly """
-		ret = self.sc.query_get_detail(sname1,sname2)
-		return(ret)
-
 	def sequence(self, guid):
 		""" gets masked sequence for the guid, in format sequence|fasta """
-		if not self.sc.iscachedinram(guid):
+		if not self.hc.iscachedinram(guid):
 			return None
 		try:		
-			seq = self.sc.uncompress(self.sc.seqProfile[guid])
+			seq = self.hc.uncompress_guid(guid)
 			return {'guid':guid, 'invalid':0,'comment':'Masked sequence, as stored','masked_dna':seq}
 		except ValueError:
 				return {'guid':guid, 'invalid':1,'comment':'No sequence is available, as invalid sequences are not stored'}
@@ -919,7 +857,7 @@ def not_found(error):
  
 @app.teardown_appcontext
 def shutdown_session(exception=None):
-	fn3.PERSIST.closedown()		# close database connection
+	fn.PERSIST.closedown()		# close database connection
 
 def do_GET(relpath):
 	""" makes a GET request  to relpath.
@@ -1003,24 +941,24 @@ def raise_error(component, token):
 	seqcomparer - raise in seqcomparer.
 	"""
 
-	if not fn3.debugMode == 2:
+	if not fn.debugMode == 2:
 		# if we're not in debugMode==2, then this option is not allowed
 		abort(404, 'Calls to /raise_error are only allowed with debugMode == 2' )
 
 	if component == 'main':
 		raise ZeroDivisionError(token)
 	elif component == 'clustering':
-		clustering_names = list(fn3.clustering_settings.keys())
+		clustering_names = list(fn.clustering_settings.keys())
 
 		if len(clustering_names)==0:
 			self.fail("no clustering settings defined; cannot test error generation in clustering")
 		else:
 			clustering_name = clustering_names[0]
-			fn3.clustering_settings[clustering_name].raise_error(token)
+			fn.clustering_settings[clustering_name].raise_error(token)
 	elif component == 'seqcomparer':
-		fn3.sc.raise_error(token)
+		fn.sc.raise_error(token)
 	elif component == 'persist':
-		fn3.PERSIST.raise_error(token)
+		fn.PERSIST.raise_error(token)
 	else:
 		raise KeyError("Invalid component called.  Allowed: main;persist;clustering;seqcomparer.")
 
@@ -1082,7 +1020,7 @@ def construct_msa(guids, output_format, what):
 		what is one of 'N','M','N_or_M'
 	
 	"""
-	res = fn3.sc.multi_sequence_alignment(guids, output='df_dict', uncertain_base_type=what)
+	res = fn.sc.multi_sequence_alignment(guids, output='df_dict', uncertain_base_type=what)
 	df = pd.DataFrame.from_dict(res,orient='index')
 	html = df.to_html()
 	fasta= ""
@@ -1105,11 +1043,11 @@ def construct_msa(guids, output_format, what):
 @app.route('/api/v2/reset', methods=['POST'])
 def reset():
 	""" deletes any existing data from the server """
-	if not fn3.debugMode == 2:
+	if not fn.debugMode == 2:
 		# if we're not in debugMode==2, then this option is not allowed
 		abort(404, 'Calls to /reset are only allowed with debugMode == 2' )
 	else:
-		fn3.reset()
+		fn.reset()
 		return make_response(json.dumps({'message':'reset completed'}))
 class test_reset(unittest.TestCase):
 	""" tests route /api/v2/reset
@@ -1128,6 +1066,7 @@ class test_reset(unittest.TestCase):
 		
 		relpath = "/api/v2/insert"
 		res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
+		print(res)
 		self.assertTrue(isjson(content = res.content))
 		info = json.loads(res.content.decode('utf-8'))
 		self.assertEqual(info, 'Guid {0} inserted.'.format(guid_to_insert))
@@ -1149,13 +1088,13 @@ class test_reset(unittest.TestCase):
 @app.route('/api/v2/monitor', methods=['GET'])
 @app.route('/api/v2/monitor/<string:report_type>', methods=['GET'])
 def monitor(report_type = 'Report' ):
-	""" returns an html/bokeh file, generated by findNeighbour3-monitor,
+	""" returns an html/bokeh file, generated by findNeighbour4-monitor,
 	and stored in a database. If not report_type is specified, uses 'Report',
-	which is the name of the default report produced by findNeighbour3-monitor"""
+	which is the name of the default report produced by findNeighbour4-monitor"""
 	
-	html = fn3.PERSIST.monitor_read(report_type)
+	html = fn.PERSIST.monitor_read(report_type)
 	if html is None:
-		html = "No report called {0} is available.  Check that findNeighbour3-monitor.py is running.".format(report_type)
+		html = "No report called {0} is available.  Check that findNeighbour4-monitor.py is running.".format(report_type)
 	return html
 @app.route('/api/v2/clustering/<string:clustering_algorithm>/<int:cluster_id>/network',methods=['GET'])
 @app.route('/api/v2/clustering/<string:clustering_algorithm>/<int:cluster_id>/minimum_spanning_tree',methods=['GET'])
@@ -1166,7 +1105,7 @@ def cl2network(clustering_algorithm, cluster_id):
 	"""
 	# validate input
 	try:
-		res = fn3.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)		
+		res = fn.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)		
 	except KeyError:
 		# no clustering algorithm of this type
 		return make_response(tojson("no clustering algorithm {0}".format(clustering_algorithm)), 404)
@@ -1189,14 +1128,14 @@ def cl2network(clustering_algorithm, cluster_id):
 		guids = sorted(df['guid'].tolist())
 					
 		# data validation complete.  construct outputs
-		snv_threshold = fn3.clustering_settings[clustering_algorithm]['snv_threshold']
+		snv_threshold = fn.clustering_settings[clustering_algorithm]['snv_threshold']
 		snvn = snvNetwork(snv_threshold = snv_threshold)
 		E=[]
 		for guid in guids:
-			is_mixed = int(fn3.clustering[clustering_algorithm].is_mixed(guid))
+			is_mixed = int(fn.clustering[clustering_algorithm].is_mixed(guid))
 			snvn.G.add_node(guid, is_mixed=is_mixed)     
 		for guid in guids:
-			res = fn3.PERSIST.guid2neighbours(guid, cutoff=snv_threshold, returned_format=1)
+			res = fn.PERSIST.guid2neighbours(guid, cutoff=snv_threshold, returned_format=1)
 			for (guid2, snv) in res['neighbours']:
 				if guid2 in guids:		# don't link outside the cluster
 					E.append((guid,guid2))
@@ -1320,7 +1259,7 @@ def msa_guids():
 	missing_guids = []
 	for guid in sorted(guids):
 		try:
-			result = fn3.exist_sample(guid)
+			result = fn.exist_sample(guid)
 		except Exception as e:
 			capture_exception(e)
 			abort(500, e)
@@ -1538,7 +1477,7 @@ def msa_guids_by_cluster(clustering_algorithm, cluster_id, output_format):
 	
 	# validate input
 	try:
-		res = fn3.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)		
+		res = fn.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)		
 	except KeyError:
 		# no clustering algorithm of this type
 		return make_response(tojson("no clustering algorithm {0}".format(clustering_algorithm)), 404)
@@ -1561,7 +1500,7 @@ def msa_guids_by_cluster(clustering_algorithm, cluster_id, output_format):
 		guids = []
 		for guid in sorted(df['guid'].tolist()):
 			try:
-				result = fn3.exist_sample(guid)
+				result = fn.exist_sample(guid)
 			except Exception as e:
 				capture_exception(e)
 				abort(500, e)
@@ -1574,7 +1513,7 @@ def msa_guids_by_cluster(clustering_algorithm, cluster_id, output_format):
 			abort(501, "asked to perform multiple sequence alignment with the following missing guids: {0}".format(missing_guids))
 			
 		# data validation complete.  construct outputs
-		return construct_msa(guids, output_format, what=fn3.clustering[clustering_algorithm].uncertain_base_type)
+		return construct_msa(guids, output_format, what=fn.clustering[clustering_algorithm].uncertain_base_type)
 
 
 class test_msa_1(unittest.TestCase):
@@ -1652,7 +1591,7 @@ def server_config():
 		backend databases and perhaps connection strings with passwords.
 
 	"""
-	res = fn3.server_config()
+	res = fn.server_config()
 	if res is None:		# not allowed to see it
 		return make_response(tojson({'NotAvailable':"Endpoint is only available in debug mode"}), 404)
 	else:
@@ -1682,7 +1621,7 @@ def server_memory_usage(nrows, output_format):
 	The server notes memory usage at various key points (pre/post insert; pre/post recompression)
 	and these are stored. """
 	try:
-		result = fn3.server_memory_usage(max_reported = nrows)
+		result = fn.server_memory_usage(max_reported = nrows)
 
 	except Exception as e:
 		
@@ -1696,7 +1635,7 @@ def server_memory_usage(nrows, output_format):
 	resl = resl[resl.event_description.astype(str).str.startswith('server')]		# only server
 	resl['descriptor1']='Server'
 	resl['descriptor2']='RAM'
-	resl['detail']= [fn3.mhr.convert(x) for x in resl['event_description'].tolist()]
+	resl['detail']= [fn.mhr.convert(x) for x in resl['event_description'].tolist()]
 	resl = resl.drop(['event_description'], axis =1)
 
 	if output_format == 'html':
@@ -1713,7 +1652,7 @@ def server_storage_status(absdelta, stats_type, nrows):
 	The server notes memory usage at various key points (pre/post insert; pre/post recompression)
 	and these are stored."""
 	try:
-		result = fn3.server_memory_usage(max_reported = nrows)
+		result = fn.server_memory_usage(max_reported = nrows)
 		df = pd.DataFrame.from_records(result, index='_id')  #, coerce_float=True
 
 		# identify target columns
@@ -1768,7 +1707,7 @@ def server_storage_status(absdelta, stats_type, nrows):
 		mapper={}
 		new_target_columns = []
 		for item in target_columns:
-			mapper[item] = fn3.mhr.convert(item)
+			mapper[item] = fn.mhr.convert(item)
 			new_target_columns.append(mapper[item])
 		dfp.rename(mapper, inplace=True, axis='columns')
 
@@ -1807,7 +1746,7 @@ class test_server_memory_usage(unittest.TestCase):
 def snpceiling():
 	""" returns largest snp distance stored by the server """
 	try:
-		result = {"snpceiling":fn3.snpCeiling}
+		result = {"snpceiling":fn.snpCeiling}
 		
 	except Exception as e:
 		capture_exception(e)
@@ -1831,7 +1770,7 @@ class test_snpceiling(unittest.TestCase):
 def server_time():
 	""" returns server time """
 	try:
-		result = fn3.server_time()
+		result = fn.server_time()
 
 	except Exception as e:
 		capture_exception(e)
@@ -1842,7 +1781,7 @@ def server_time():
 def server_name():
 	""" returns server name """
 	try:
-		result = fn3.server_name()
+		result = fn.server_name()
 
 	except Exception as e:
 		capture_exception(e)
@@ -1875,7 +1814,7 @@ class test_server_name(unittest.TestCase):
 def get_all_guids(**debug):
 	""" returns all guids.  other params, if included, is ignored."""
 	try:
-		result = list(fn3.get_all_guids())
+		result = list(fn.get_all_guids())
 	except Exception as e:
 		capture_exception(e)
 		abort(500, e)
@@ -1900,7 +1839,7 @@ class test_get_all_guids_1(unittest.TestCase):
 def guids_with_quality_over(cutoff, **kwargs):
 	""" returns all guids with quality score >= cutoff."""
 	try:
-		result = fn3.guids_with_quality_over(cutoff)	
+		result = fn.guids_with_quality_over(cutoff)	
 	except Exception as e:
 		capture_exception(e)
 		abort(500, e)
@@ -1925,7 +1864,7 @@ def guids_and_examination_times(**kwargs):
 	""" returns all guids and their examination (addition) time.
 	reference, if passed, is ignored."""
 	try:	
-		result =fn3.get_all_guids_examination_time()	
+		result =fn.get_all_guids_examination_time()	
 	except Exception as e:
 		capture_exception(e)
 		abort(500, e)
@@ -1980,7 +1919,7 @@ def get_matching_guids(startstr, max_returned=30):
 	If > max_returned records match, then an empty list is returned.
 	"""
 	try:
-		result = fn3.gs.search(search_string= startstr, max_returned=max_returned)
+		result = fn.gs.search(search_string= startstr, max_returned=max_returned)
 		app.logger.debug(result)
 	except Exception as e:
 		capture_exception(e)
@@ -2029,7 +1968,7 @@ def annotations(**kwargs):
 	This query can be slow for very large data sets.
 	"""
 	try:
-		result = fn3.get_all_annotations()
+		result = fn.get_all_annotations()
 		
 	except Exception as e:
 		capture_exception(e)
@@ -2058,7 +1997,7 @@ def exist_sample(guid, **kwargs):
 	reference and method are ignored."""
 	
 	try:
-		result = fn3.exist_sample(guid)
+		result = fn.exist_sample(guid)
 		
 	except Exception as e:
 		capture_exception(e)
@@ -2085,11 +2024,11 @@ class test_exist_sample(unittest.TestCase):
 def clusters_sample(guid):
 	""" returns clusters in which a sample resides """
 	
-	clustering_algorithms = sorted(fn3.clustering.keys())
+	clustering_algorithms = sorted(fn.clustering.keys())
 	retVal=[]
 	for clustering_algorithm in clustering_algorithms:
 
-		res = fn3.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)		
+		res = fn.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)		
 		for item in res:
 			if item['guid']==guid:
 				item['clustering_algorithm']=clustering_algorithm
@@ -2169,7 +2108,7 @@ def annotations_sample(guid):
 	""" returns annotations of one sample """
 	
 	try:
-		result = fn3.PERSIST.guid_annotation(guid)
+		result = fn.PERSIST.guid_annotation(guid)
 	
 	except Exception as e:
 		capture_exception(e)
@@ -2208,7 +2147,7 @@ def insert():
 		if 'seq' in data_keys and 'guid' in data_keys:
 			guid = str(payload['guid'])
 			seq  = str(payload['seq'])
-			result = fn3.insert(guid, seq)
+			result = fn.insert(guid, seq)
 		else:
 			abort(501, 'seq and guid are not present in the POSTed data {0}'.format(data_keys))
 		
@@ -2231,7 +2170,7 @@ def mirror():
 @app.route('/api/v2/clustering', methods=['GET'])
 def algorithms():
 	"""  returns the available clustering algorithms """
-	res = sorted(fn3.clustering.keys())		
+	res = sorted(fn.clustering.keys())		
 	return make_response(tojson({'algorithms':res}))
 
 class test_algorithms(unittest.TestCase):
@@ -2253,7 +2192,7 @@ def what_tested(clustering_algorithm):
 		 Useful for producing reports of what clustering algorithms are doing
 	"""
 	try:
-		res = fn3.clustering[clustering_algorithm].uncertain_base_type
+		res = fn.clustering[clustering_algorithm].uncertain_base_type
 	except KeyError:
 		# no clustering algorithm of this type
 		abort(404, "no clustering algorithm {0}".format(clustering_algorithm))
@@ -2284,7 +2223,7 @@ def change_id(clustering_algorithm):
 	"""  returns the current change_id number, which is incremented each time a change is made.
 		 Useful for recovering changes in clustering after a particular point."""
 	try:
-		res = fn3.clustering[clustering_algorithm].change_id		
+		res = fn.clustering[clustering_algorithm].change_id		
 	except KeyError:
 		# no clustering algorithm of this type
 		abort(404, "no clustering algorithm {0}".format(clustering_algorithm))
@@ -2295,7 +2234,7 @@ def change_id(clustering_algorithm):
 def g2c(clustering_algorithm):
 	"""  returns a guid -> clusterid dictionary for all guids """
 	try:
-		res = fn3.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)		
+		res = fn.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)		
 	except KeyError:
 		# no clustering algorithm of this type
 		abort(404, "no clustering algorithm {0}".format(clustering_algorithm))
@@ -2329,7 +2268,7 @@ def clusters2cnt(clustering_algorithm, cluster_id = None):
 		 * If /summary is requested, returns a dictionary with only 'summary' key"""
 
 	try:
-		all_res = fn3.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)
+		all_res = fn.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)
 
 	except KeyError:
 		# no clustering algorithm of this type
@@ -2445,7 +2384,7 @@ class test_cluster2cnt1(unittest.TestCase):
 def g2cl(clustering_algorithm):
 	"""  returns a guid -> clusterid dictionary for all guids """
 	try:
-		res = fn3.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)		
+		res = fn.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)		
 	except KeyError:
 		# no clustering algorithm of this type
 		abort(404, "no clustering algorithm {0}".format(clustering_algorithm))
@@ -2475,7 +2414,7 @@ def g2ca(clustering_algorithm, change_id):
 	"""  returns a guid -> clusterid dictionary, with changes occurring after change_id, a counter which is incremented each time a change is made.
 		 Useful for recovering changes in clustering after a particular point."""
 	try:
-		res = fn3.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = change_id)		
+		res = fn.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = change_id)		
 	except KeyError:
 		# no clustering algorithm of this type
 		abort(404, "no clustering algorithm {0}".format(clustering_algorithm))
@@ -2669,7 +2608,7 @@ class test_insert_10a(unittest.TestCase):
 			self.assertEqual(res.status_code, 200)
 			self.assertEqual(info, True)	
 
-#@unittest.skip("skipped; to investigate if this ceases timeout")		
+#@unittest.skip("skipped; to investigate if this causes a timeout")		
 class test_insert_60(unittest.TestCase):
 	""" tests route /api/v2/insert, with additional samples.
 		Also provides a set of very similar samples, testing recompression code."""
@@ -2813,7 +2752,7 @@ def neighbours_within(guid, threshold, **kwargs):
 		abort(500, "Invalid cutoff requested, must be between 0 and 1")
 		
 	try:
-		result = fn3.neighbours_within_filter(guid, threshold, cutoff, returned_format)
+		result = fn.neighbours_within_filter(guid, threshold, cutoff, returned_format)
 	except KeyError as e:
 		# guid doesn't exist
 		abort(404, e)
@@ -2983,7 +2922,7 @@ class test_neighbours_within_6(unittest.TestCase):
 @app.route('/api/v2/<string:guid>/sequence', methods=['GET'])
 def sequence(guid):
 	""" returns the masked sequence as a string """	
-	result = fn3.sequence(guid)
+	result = fn.sequence(guid)
 	if result is None:  # no guid exists
 		return make_response(tojson('guid {0} does not exist'.format(guid)), 404)
 	else:
@@ -3178,7 +3117,7 @@ def nucleotides_excluded():
 	and client masking are identical. """
 	
 	try:
-		result = fn3.server_nucleotides_excluded()
+		result = fn.server_nucleotides_excluded()
 		
 	except Exception as e:
 		capture_exception(e)
@@ -3207,26 +3146,26 @@ if __name__ == '__main__':
 	# command line usage.  Pass the location of a config file as a single argument.
 	parser = argparse.ArgumentParser(
 		formatter_class= argparse.RawTextHelpFormatter,
-		description="""Runs findNeighbour3-server, a service for bacterial relatedness monitoring.
+		description="""Runs findNeighbour4-server, a service for bacterial relatedness monitoring.
 									 
 
 Example usage: 
 ============== 
 # show command line options 
-python findNeighbour3-server.py --help 	
+python findNeighbour4-server.py --help 	
 
 # run with debug settings; only do this for unit testing.
-python findNeighbour3-server.py 	
+python findNeighbour4-server.py 	
 
 # run using settings in myConfigFile.json.  Memory will be recompressed after loading. 
-python findNeighbour3-server.py ../config/myConfigFile.json		
+python findNeighbour4-server.py ../config/myConfigFile.json		
 
 # run using settings in myConfigFile.json; 
 # recompress RAM every 20000 samples loaded 
 # (only needed if RAM is in short supply and data close to limit) 
 # enabling this option will slow up loading 
 
-python findNeighbour3-server.py ../config/myConfigFile.json	\ 
+python findNeighbour4-server.py ../config/myConfigFile.json	\ 
                         --on_startup_recompress-memory_every 20000 
 
 """)
@@ -3239,7 +3178,7 @@ python findNeighbour3-server.py ../config/myConfigFile.json	\
 	# an example config file is default_test_config.json
 
 	############################ LOAD CONFIG ######################################
-	print("findNeighbour3 server .. reading configuration file.")
+	print("findNeighbour4 server .. reading configuration file.")
 
 	if len(args.path_to_config_file)>0:
 			configFile = args.path_to_config_file
@@ -3352,9 +3291,9 @@ python findNeighbour3-server.py ../config/myConfigFile.json	\
 	# instantiate server class
 	print("Loading sequences into server, please wait ...")
 	try:
-		fn3 = findNeighbour3(CONFIG, PERSIST, args.on_startup_recompress_memory_every)
+		fn = findNeighbour4(CONFIG, PERSIST)
 	except Exception as e:
-			app.logger.exception("Error raised on instantiating findNeighbour3 object")
+			app.logger.exception("Error raised on instantiating findNeighbour4 object")
 			raise
 
 

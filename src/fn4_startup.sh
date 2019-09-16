@@ -5,7 +5,7 @@
 
 
 if [ $# -gt 0 ]; then
-    echo "findNeighbour3 startup script; using config file $1"
+    echo "findNeighbour4 startup script; using config file $1"
 else
     echo "Your command line contains no arguments.  A config file must be passed"
     exit 1
@@ -19,11 +19,11 @@ else
 fi
 
 echo "Starting server"
-nohup pipenv run python3 findNeighbour3-server.py $1 &
+nohup pipenv run python3 findNeighbour4-server.py $1 > nohup_server.out &
 echo "Starting dbmanager"
-nohup pipenv run python3 findNeighbour3-dbmanager.py $1 &
+nohup pipenv run python3 findNeighbour4-dbmanager.py $1 > nohup_dbmanager.out &
 echo "Starting monitor"
-nohup pipenv run python3 findNeighbour3-monitor.py $1 &
+nohup pipenv run python3 findNeighbour4-monitor.py $1 > nohup_monitor.out &
 
 echo "Startup complete"
 

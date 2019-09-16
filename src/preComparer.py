@@ -43,12 +43,12 @@ class preComparer():
                     selection_cutoff = 20,
                     over_selection_cutoff_ignore_factor = 5,
                     mixed_reporting_cutoff=0,
-                    N_mean=40000,
-                    N_sd = 3000,
+                    N_mean=39420,
+                    N_sd = 9210,
                     highN_z_reporting_cutoff = 2,
                     alpha = 1e-14,
                     probN_inflation_factor = 3,           
-                    n_positions_examined = 3812800
+                    n_positions_examined = 3854241
                 ):
 
         """ instantiates the sequence comparer, an object which manages in-memory reference compressed sequences.
@@ -175,6 +175,7 @@ class preComparer():
         self.seqProfile={}      # the positions which differ from the reference
         self.composition = {}   # composition statistics for each sequence
         self.variant_positions = set()          # variant (non reference) positions
+        self.variant_positions_freq = dict()
         self.N_positions = dict()	# number of Ns at positions where there are Ns
         self.M_positions = dict()	# number of Ns at positions where there are Ns
         self.binom_results = {} # results of binomial tests: they are expensive to compute, so we cache the results
@@ -249,6 +250,11 @@ class preComparer():
         for key in set(obj.keys()).intersection(['A','C','G','T']):
                 for pos in obj[key]:
                     self.variant_positions.add(pos)
+                    try:
+                        existing_variant_sequences = self.variant_positions_freq[pos]
+                    except KeyError:
+                        existing_variant_sequences=0
+                    self.variant_positions_freq[pos] = existing_variant_sequences +1
         for key in set(['A','C','G','T']) - set(obj.keys()):        # what is missing
                 obj[key]=set()      # add empty set
                     
@@ -262,6 +268,10 @@ class preComparer():
 
         try:
             del(obj['N'])       # delete any N entry
+        except KeyError:
+            pass                # ignore if there are no N
+        try:
+            del(obj['U'])       # delete any U (unknown - Ms or Ns) entry
         except KeyError:
             pass                # ignore if there are no N
 
@@ -785,7 +795,7 @@ class test_preComparer_9(unittest.TestCase):
         sc=preComparer(  selection_cutoff = 20,
                     mixed_reporting_cutoff=0,
                     N_mean=40000,
-                    N_sd = 3000,
+                    N_sd = 9000,
                     highN_z_reporting_cutoff = 2,
                     alpha = 1e-14,
                     probN_inflation_factor = 3,           

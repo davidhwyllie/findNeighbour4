@@ -29,9 +29,10 @@ class MakeHumanReadable():
         """ creats a new converter """
         self.tag2readable = {
             "content|activity|guid":"sequence identifier",
-            "server|mstat|":"memory, ",
-            "server|scstat|n":"in-memory sequences, ",
-            "interval":"Interval between events (seconds)",
+            "server|mstat|":"memory",
+            "server|pcstat|n":"in-memory sequences (preComparer, no N) ",
+            "server|scstat|n":"in-memory sequences (seqComparer, incl. N) ",
+            "interval":"Interval between events (seconds) ",
             "dstats|guid2neighbour|": "db, guid2neighbour collection (stores similar sequence pairs), ",
             "dstats|guid2meta|": "db, guid2metadata collection (stores meta data about sequences), ",
             "dstats|server_monitoring|": "db, server monitoring collection (stores server state information over time), ",
@@ -162,7 +163,8 @@ class DepictServerStatus():
 
         # generate x axis and labels for tooltips
         self.monitoring_data[data_tag]['order']= -self.monitoring_data[data_tag].index
-        self.monitoring_data[data_tag]['t'] = [dateutil.parser.parse(datestring) for datestring in self.monitoring_data[data_tag]['context|time|time_now'].tolist()]
+        self.monitoring_data[data_tag]['t']= [dateutil.parser.parse(x) for x in self.monitoring_data[data_tag]['context|time|time_now'].tolist()]
+
         self.monitoring_data[data_tag]['label_t']= self.monitoring_data[data_tag]['context|time|time_now'].tolist()
         self.monitoring_data[data_tag]['label_event']= self.monitoring_data[data_tag]['context|info|message'].tolist()
         try:
@@ -178,13 +180,14 @@ class DepictServerStatus():
                 # no data
                 self.source[data_tag] = ColumnDataSource()
                 return
+
         if len(self.monitoring_data[data_tag].index) > 0:
 
         	# reindex
-        	self.monitoring_data[data_tag].reset_index(drop=True, inplace=True)
+            self.monitoring_data[data_tag].reset_index(drop=True, inplace=True)
 
         	# compute timings between events ('interval')
-        	if 't' in self.monitoring_data[data_tag].columns.tolist():
+            if 't' in self.monitoring_data[data_tag].columns.tolist():
                     self.monitoring_data[data_tag].loc[:,'interval']=None   
                     n=0
                     previous=None
@@ -194,13 +197,14 @@ class DepictServerStatus():
                             interval=None	        
                         else:
                             # compute interval
+
                             try:                    
                                 interval=  (self.monitoring_data[data_tag].loc[previous,'t']-self.monitoring_data[data_tag].loc[ix,'t']).total_seconds()
                             except TypeError:
                                 interval = None
-                                self.monitoring_data[data_tag].loc[ix,'interval'] = interval
+                            self.monitoring_data[data_tag].loc[ix,'interval'] = interval
                         previous=ix
-
+  
         columns=[]
         for item in self.monitoring_data[data_tag].columns.tolist():
             columns.append(TableColumn(field=item, title=item))
@@ -374,7 +378,7 @@ class DepictServerStatus():
         self.read_json(recent_result, data_tag='recent_all')
 
 
-        tab_server = self.depict(data_tag='pre_insert', tab_title="In RAM sequence", metrics='server|scstat',  x_axis_label = 'Order sequences added (Oldest --> Most recent)')
+        tab_server = self.depict(data_tag='pre_insert', tab_title="In RAM sequence", metrics='server|pcstat',  x_axis_label = 'Order sequences added (Oldest --> Most recent)')
         tab_memory = self.depict(data_tag='pre_insert', tab_title="RAM usage", metrics='server|mstat', x_axis_label = 'Order sequences added (Oldest --> Most recent)')
 
         tab_g2n = self.depict(data_tag='pre_insert', tab_title="Db: guid->neighbours", metrics='dstats|guid2neighbour',  x_axis_label = 'Order sequences added (Oldest --> Most recent)')
@@ -386,7 +390,7 @@ class DepictServerStatus():
         recent_guids = self.most_recent_guids('recent_all',n=n)
         self.subset_data(from_data_tag='recent_all', to_data_tag='recent_server', column_name='content|activity|guid', cell_values=[x for x in recent_guids])
 
-        tab_rserver = self.depict(data_tag='recent_server', tab_title="Last {0} inserts: Sequences".format(n), metrics='server|scstat')
+        tab_rserver = self.depict(data_tag='recent_server', tab_title="Last {0} inserts: Sequences".format(n), metrics='server|pcstat')
         tab_rmemory = self.depict(data_tag='recent_server', tab_title="Last {0} inserts: RAM".format(n), metrics='server|mstat')
         self._set_server_info()
         
@@ -436,7 +440,7 @@ class test_depict_1(unittest.TestCase):
         dss = DepictServerStatus(logfile= logfile)
         dss.read_json(res, data_tag='all')
         dss.subset_data(from_data_tag='all', to_data_tag='pre_insert', column_name="context|info|message", cell_values=["About to insert"])
-        tab_server = dss.depict(data_tag='pre_insert', tab_title="In RAM sequence", metrics='server|scstat',  x_axis_label = 'Order sequences added (Oldest --> Most recent)')
+        tab_server = dss.depict(data_tag='pre_insert', tab_title="In RAM sequence", metrics='server|pcstat',  x_axis_label = 'Order sequences added (Oldest --> Most recent)')
         tab_memory = dss.depict(data_tag='pre_insert', tab_title="RAM usage", metrics='server|mstat', x_axis_label = 'Order sequences added (Oldest --> Most recent)')
         tab_g2n = dss.depict(data_tag='pre_insert', tab_title="Db: guid->neighbours", metrics='dstats|guid2neighbour',  x_axis_label = 'Order sequences added (Oldest --> Most recent)')
         tab_g2m = dss.depict(data_tag='pre_insert', tab_title="Db: guid->metadata", metrics='dstats|guid2meta',  x_axis_label = 'Order sequences added (Oldest --> Most recent)')
@@ -446,7 +450,7 @@ class test_depict_1(unittest.TestCase):
         n=5
         recent_guids = dss.most_recent_guids('all',n=n)
         dss.subset_data(from_data_tag='all', to_data_tag='recent_guids', column_name='content|activity|guid', cell_values=[x for x in recent_guids])
-        tab_rserver = dss.depict(data_tag='recent_guids', tab_title="Last {0} RAM sequences".format(n), metrics='server|scstat')
+        tab_rserver = dss.depict(data_tag='recent_guids', tab_title="Last {0} RAM sequences".format(n), metrics='server|pcstat')
         tab_rmemory = dss.depict(data_tag='recent_guids', tab_title="Last {0} RAM usage".format(n), metrics='server|mstat')
         
         # get tail of logfile
