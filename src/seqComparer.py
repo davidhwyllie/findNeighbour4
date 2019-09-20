@@ -102,6 +102,7 @@ class seqComparer():
             """
         try:
                del self.seqProfile[guid]
+
         except KeyError:
                pass 	# we permit attempts to delete things which don't exist
 

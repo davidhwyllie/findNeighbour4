@@ -5,7 +5,7 @@ import unittest
 import os
 import glob
 import sys
-
+import copy
 import datetime
 import pickle
 import hashlib
@@ -213,8 +213,6 @@ class preComparer():
             pass
 
         # store composition
-        obj = obj.copy()        # we are going to remove any N key; don't want to alter any referenced object
-
         # store the positions of Ns, and their number
         try:
             for pos in obj['N']:        # the Ns
@@ -266,16 +264,15 @@ class preComparer():
             pass        # no N
         self.composition[guid] = obj_composition
 
-        try:
-            del(obj['N'])       # delete any N entry
-        except KeyError:
-            pass                # ignore if there are no N
-        try:
-            del(obj['U'])       # delete any U (unknown - Ms or Ns) entry
-        except KeyError:
-            pass                # ignore if there are no N
+        # create a smaller object to store.
+        smaller_obj = {}
+        for item in ['A','C','G','T','M','invalid']:
+            try:
+                smaller_obj[item] = copy.deepcopy(obj[item])
+            except KeyError:
+                pass        # if it doesn't exist, that's OK	
 
-        self.seqProfile[guid]=obj
+        self.seqProfile[guid]=smaller_obj
 
     def remove(self, guid):
         """ removes a reference compressed object into RAM.

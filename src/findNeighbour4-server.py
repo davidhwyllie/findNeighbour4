@@ -364,6 +364,11 @@ class findNeighbour4():
 			obj = self.PERSIST.refcompressedsequence_read(guid)
 			self.hc.persist(obj, guid=guid)
 			bar.update(nLoaded)
+
+			if nLoaded % 100 == 0:
+				self.server_monitoring_store(message='Server restarting; loaded {0} from database ..'.format(nLoaded))
+
+
 		bar.finish()
 		app.logger.info("findNeighbour4 has finished loaded {0} sequences from database".format(len(guids)))
 		
