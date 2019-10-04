@@ -1033,7 +1033,7 @@ class test_hybridComparer_summarise_stored_items(unittest.TestCase):
 
         res = sc.summarise_stored_items()
         self.assertTrue(isinstance(res, dict))
-        self.assertEqual(set(res.keys()), set(['server|scstat|nSeqs', 'server|pcstat|nBinomialResults', 'server|pcstat|nVariantPositions', 'server|pcstat|nSeqs']))
+        self.assertEqual(set(res.keys()), set(['server|scstat|nSeqs', 'server|pcstat|nBinomialResults',  'server|pcstat|nSeqs']))
 
 class test_hybridComparer_48(unittest.TestCase):
     """ tests computations of p values from exact bionomial test """

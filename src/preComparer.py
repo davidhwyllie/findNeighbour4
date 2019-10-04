@@ -174,8 +174,6 @@ class preComparer():
         """ initialise in ram stores """
         self.seqProfile={}      # the positions which differ from the reference
         self.composition = {}   # composition statistics for each sequence
-        self.variant_positions = set()          # variant (non reference) positions
-        self.variant_positions_freq = dict()
         self.N_positions = dict()	# number of Ns at positions where there are Ns
         self.M_positions = dict()	# number of Ns at positions where there are Ns
         self.binom_results = {} # results of binomial tests: they are expensive to compute, so we cache the results
@@ -245,14 +243,6 @@ class preComparer():
 
         for key in set(obj.keys()).intersection(['A','C','G','T','M','N']):
                 obj_composition[key] = len(obj[key])
-        for key in set(obj.keys()).intersection(['A','C','G','T']):
-                for pos in obj[key]:
-                    self.variant_positions.add(pos)
-                    try:
-                        existing_variant_sequences = self.variant_positions_freq[pos]
-                    except KeyError:
-                        existing_variant_sequences=0
-                    self.variant_positions_freq[pos] = existing_variant_sequences +1
         for key in set(['A','C','G','T']) - set(obj.keys()):        # what is missing
                 obj[key]=set()      # add empty set
                     
@@ -292,14 +282,14 @@ class preComparer():
             """
         return self.seqProfile[guid]
       
-    def M_in_variant_positions(self, guids=None):
+    def M_in_variant_positions(self, guids=None, variant_positions=set()):
         """ reports on the number of M bases in, and outside, the positions of variation, where:
         M bases = mixed bases
-        positions of variation = positions with non-reference bases in positions of variation 
+        positions of variation = a set consisting of positions of interest.  This version of the preComparer does not compute these automatically, as doing so slowed up operation.
 
         Parameters:
         guids: a list on which to report whether Ms are in variant positions.  If a string is passed, it is assumed to be a single guid; if None is passed, or nothing provided, all guids will be analysed.
-
+        variant_positions: a set of positions of interest, e.g. positions of ancetral variation.  These have to be supplied by the user.
         Returns:
         a dictionary, keyed by guid, with parameters about the number of Ms in each sequence."""
 
@@ -323,7 +313,7 @@ class preComparer():
                 retVal[guid] = {'M_total':None,
                       'M_in_vpos':None,
                       'M_not_in_vpos':None,
-                      'number_variant_positions':len(self.variant_positions),
+                      'number_variant_positions':len(variant_positions),
                       'expected_p':None,
                       'observed_p':None,
                       'p_value':None}
@@ -337,34 +327,34 @@ class preComparer():
                     Ms = set()
                 nMs = len(Ms)
 
-                Ms_in_vpos = Ms.intersection(self.variant_positions)
+                Ms_in_vpos = Ms.intersection(variant_positions)
                 nMs_in_vpos = len(Ms_in_vpos)
                 nMs_not_in_vpos= nMs - nMs_in_vpos
 
-                if len(self.variant_positions)>0:
-                    observed_p = nMs_in_vpos/len(self.variant_positions)
+                if len(variant_positions)>0:
+                    observed_p = nMs_in_vpos/len(variant_positions)
                 else:
                     observed_p = None
-                if self.n_positions_examined-len(self.variant_positions)>0:
-                    expected_p = nMs_not_in_vpos/(self.n_positions_examined-len(self.variant_positions))
+                if self.n_positions_examined-len(variant_positions)>0:
+                    expected_p = nMs_not_in_vpos/(self.n_positions_examined-len(variant_positions))
                 else:
                     expected_p = None
 
                 if expected_p is None:     # we don't have an expectation, so we can't assess the binomial test;
                     p_value = None
-                elif len(self.variant_positions)==0:      # we don't have any information to work with
+                elif len(variant_positions)==0:      # we don't have any information to work with
                     p_value = None                
                 else:  
                     if nMs_in_vpos== 0:
                         p_value = 1     # no need to compute
                     else:
-                        p_value = binom_test(nMs_in_vpos,len(self.variant_positions), expected_p, alternative='greater')                    
+                        p_value = binom_test(nMs_in_vpos,len(variant_positions), expected_p, alternative='greater')                    
                                                      
                 retVal[guid]={ 
                           'M_total':nMs, 
                           'M_in_vpos':nMs_in_vpos, 
                           'M_not_in_vpos':nMs_not_in_vpos, 
-                          'number_variant_positions':len(self.variant_positions), 
+                          'number_variant_positions':len(variant_positions), 
                           'expected_p':expected_p, 
                           'observed_p':observed_p,  
                           'p_value':p_value 
@@ -399,8 +389,7 @@ class preComparer():
         retVal = {}
         retVal['server|pcstat|nSeqs'] = len(self.seqProfile.keys())
         retVal['server|pcstat|nBinomialResults'] = len(self.binom_results.keys())
-        retVal['server|pcstat|nVariantPositions'] = len(self.variant_positions)
-    
+   
         return(retVal)
 
     def iscachedinram(self,guid):
@@ -672,12 +661,12 @@ class test_preComparer_4(unittest.TestCase):
                     probN_inflation_factor = 3,           
                     n_positions_examined = 3812800)
         res1 = sc.summarise_stored_items()
-        self.assertEqual({'server|pcstat|nSeqs': 0, 'server|pcstat|nBinomialResults': 0, 'server|pcstat|nVariantPositions':0}, res1)
+        self.assertEqual({'server|pcstat|nSeqs': 0, 'server|pcstat|nBinomialResults': 0}, res1)
 
         obj = {'A':set([1,2,3,4])}
         sc.persist(obj,'guid1')
         res2 = sc.summarise_stored_items()
-        self.assertEqual({'server|pcstat|nSeqs': 1, 'server|pcstat|nBinomialResults': 0, 'server|pcstat|nVariantPositions':4}, res2)
+        self.assertEqual({'server|pcstat|nSeqs': 1, 'server|pcstat|nBinomialResults': 0}, res2)
 
 class test_preComparer_5(unittest.TestCase):
     """ tests comparison """
@@ -831,12 +820,12 @@ class test_preComparer_10(unittest.TestCase):
         obj = {'A':set([1,2,3,4]), 'invalid':0}
         sc.persist(obj,'guid2')
  
-        res = sc.M_in_variant_positions()
+        res = sc.M_in_variant_positions(variant_positions=set([1,2,3,4]))
         self.assertEqual(res, {'guid2':{'M_total':0, 'M_in_vpos':0, 'M_not_in_vpos':0, 'number_variant_positions':4, 'expected_p':0, 'observed_p':0, 'p_value':1}})
 
         obj = {'A':set([1,2,3,4]), 'M':{5:'Y',6:'Y'}, 'invalid':0}
         sc.persist(obj,'guid3')
-        res = sc.M_in_variant_positions()
+        res = sc.M_in_variant_positions(variant_positions=set([1,2,3,4]))
         self.assertEqual(len(res.keys()), 2)
         self.assertEqual(res['guid3']['M_not_in_vpos'],2)
 
@@ -844,7 +833,7 @@ class test_preComparer_10(unittest.TestCase):
 
         obj = {'M':{1:'Y',2:'Y',3:'Y', 4:'Y'}, 'invalid':0}
         sc.persist(obj,'guid4')
-        res = sc.M_in_variant_positions()
+        res = sc.M_in_variant_positions(variant_positions=set([1,2,3,4]))
         self.assertEqual(res['guid4']['M_not_in_vpos'],0)
         self.assertEqual(res['guid4']['M_in_vpos'],4)
         self.assertEqual(res['guid4']['p_value'],0)
