@@ -92,6 +92,17 @@ class seqComparer():
             Note: the sequences are stored on disc/db relative to the reference.
             Compression relative to each other is carried out post-hoc in ram
             """
+
+        # older databases don't store the M/N combination positions in the 'U' key
+        # we create it on load into RAM
+        if not 'U' in object.keys():
+            object['U'] = set()
+            if 'N' in object.keys():
+                object['U']=object['N']     # if no Ms, then this is a reference taking ~ no memory
+            if 'M' in object.keys():
+                if len(object['M'])>0:
+                    object['U']=object['N'].intersection(object['M'])
+            
         self.seqProfile[guid]=object
 
     def remove(self, guid):
