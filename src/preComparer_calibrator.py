@@ -3,7 +3,7 @@
 Calibrate preComparer and report on performance of preComparer on real data
 """
  
-# import libraries [ not all are needed TODO]
+# import libraries 
 import os
 import sys
 import requests
@@ -248,7 +248,7 @@ class Calibrator():
 				pass
 			bar.update(nLoaded)
 			obj = self.PERSIST.refcompressedsequence_read(guid)	# ref compressed sequence
-
+			
 			pc.persist(obj, guid)
 			sc.persist(obj, guid)
 			if obj['invalid']==0:
@@ -352,8 +352,8 @@ class Calibrator():
 		print("Results:")
 		print(summary)
 
-		failures = pd.read_sql("select settings_ix, reported_category, count(*) n from validation where low_distance=1 and not substr(reported_category,1,9)='No retest' group by settings_ix, reported_category;", con=engine)
-		print("The following regimes failed QC")
+		failures = pd.read_sql("select settings_ix, reported_category, count(*) n from validation where low_distance=1 and substr(reported_category,1,9)='No retest' group by settings_ix, reported_category;", con=engine)
+		print("The following samples failed QC")
 		print(failures)
 
 
@@ -514,13 +514,14 @@ python findNeighbour3-varmod.py ../config/myConfigFile.json
 			print("Error raised on instantiating findNeighbour3 distance estimator object")
 			raise
 
-	settings = calib.derive_settings(train_on=5000)		# provides default settings
+	# derive initial settings
+	settings = calib.derive_settings(train_on=500)		# provides default settings, Z scores etc
+	print(settings)
 
 	print("Running first ")
-	validation = calib.test_settings(settings, train_on =5000, start_afresh = True)
-	print("Running second")
-	settings['probN_inflation_factor']=1
-	settings['mixed_reporting_cutoff']=100
-	validation = calib.test_settings(settings, train_on =5000, input_connstring = validation, start_afresh =False)
-	print("Data is in ",validation)
+	validation = calib.test_settings(settings, train_on =5000
+, start_afresh = True)
+	print("Data is in directory ",os.getcwd(), "in file", validation)
+
+
 
