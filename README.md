@@ -1,7 +1,8 @@
 # Abstract
-findNeighbour3 is a server application for investigating bacterial relatedness using reference-mapped data.
-Accessible via RESTful webservices, findNeighbour3 maintains a sparse distance matrix in a database
+findNeighbour4 is a server application for investigating bacterial relatedness using reference-mapped data.
+Accessible via RESTful webservices, findNeighbour4 maintains a sparse distance matrix in a database
 for a set of sequences.
+
 
 It has the following features:
 * Allows incremental addition of new sequences to a collection via RESTful web services.  
@@ -11,37 +12,39 @@ It has the following features:
 * Returns multiple sequence alignments.
 * [Detects mixtures of different sequences](https://www.biorxiv.org/content/10.1101/681502v1).
 * Automatically performs clustering to a range of SNV thresholds.
-* Can detect, and appropriately cluster sequences in the presence of, inter-sample mixtures.
+* Can detect, and appropriately cluster sequences in the presence of, inter-sample mixtures. [NOTE: THIS IS BEING UPDATED]
 * Allows queries identifying similar sequences, cluster members, and multisequence alignments with  millisecond response times.
-* Uses a highly compressed sequence representation, relying on compression to local reference, having first applied compression to the reference sequence to which mapping occurred.  This *double delta* technique aids storage of large numbers of sequences in RAM.
 * Tracks memory usage, logging to database, during routine operation.
 * Allow attachment of arbitrary metadata to each sequence, but the front end for this is not implemented.
+
+Compared with findNeighbour3, its predecessor it works about 30 x faster and uses about 5% of the RAM.  
+This is achieved using a 'preComparer' - a module which stores only definite variation from the reference, initially ignoring uncertain ('N') calls.  The preComparer, given correct settings, can (at least of the TB sequences) successfully and rapidly identify distant samples which do not need the more expensive pairwise computation including Ns to be performed.  The code committed includes preComparer settings optimised for the PHE TB pipeline output, but a python module to autoderive suitable settings from arbitrary data is also provided.   
 
 It was produced as part of the [Modernising Medical Microbiology](http://modmedmicro.nsms.ox.ac.uk/) initiative, together with [Public Health England](https://www.gov.uk/government/organisations/public-health-england).
 
 # Front end
-There is a front end, *findNeighbour3 monitor*.   Although not required to run or use findNeighbour3 effectively, it helps to visualise server status and supports ad hoc queries.  In particular, it allows selecting and browsing of samples and clusters of samples in the server, including multisequence alignment, mixture detection, and depiction of their relationships.  
+There is a front end, *findNeighbour3 monitor*.  (this also works with findNeighbour4; the API of the two servers is identical).    Although not required to run or use findNeighbour4 effectively, it helps to visualise server status and supports ad hoc queries.  In particular, it allows selecting and browsing of samples and clusters of samples in the server, including multisequence alignment, mixture detection, and depiction of their relationships.  
+
+Note that the findNeighbour4 startup script (fn4_startup.sh) does not startup the web front end.  The web front end startup script requires root priviledges (loads and runs a docker image) but the findNeighbour4 server does not.
 
 ![findNeighbour3 monitor example page](https://davidhwyllie.github.io/FNMFINDNEIGHBOUR3/img/startup.PNG)  
 The *findNeighbour3 monitor* is easy to use and to install.  See [details](doc/frontend.md).  
-findNeighbour3 itself is accessed by [web services](doc/rest-routes.md). In general, these return json objects.
+findNeighbour4 itself is accessed by [web services](doc/rest-routes.md). In general, these return json objects.
 
 # Implementation and Requirements
-findNeighbour3 is written entirely in python3.  
+findNeighbour4 is written entirely in python3.  
 It operates on Windows and Linux environments.    
 It uses mongodb as a storage layer.
 
 # Access
 The server can be accessed via RESTful web services from any language.
-A python client (fn3client), which calls the REST endpoints and converts output into python objects, is also provided.
+A python client (fnclient), which calls the REST endpoints and converts output into python objects, is also provided.
 
 # Memory and disc usage
 This depends on the kind of sequences stored.  For *M. tuberculosis*:
 
 **Memory usage**   
-* Memory usage is about 2G per 1,000 samples,   or 2M per sample. [calculated on Windows]  It scales linearly with sample numbers.
-* 50,000 samples will use about 100G of RAM
-* a machine with 2TB of RAM should be able to cope with 1M samples.  
+* 50,000 samples will use about 16G of RAM
    
 **Database size**   
 * database usage is about 0.2M (200kb) per sample.  This equates to about 5,000 samples per gigabyte.
@@ -69,12 +72,11 @@ There are the following other differences:
 [Integration tests](doc/integration.md)
 
 # Publications
-A publication describing findNeighbour3 implementation & performance is planned.  
+A publication describing findNeighbour4 implementation & performance is planned.  
 A publication describing findNeighbour2 is in BMC Bioinformatics:  
 *BugMat and FindNeighbour: command line and server applications for investigating bacterial relatedness*
 DOI : 10.1186/s12859-017-1907-2 (https://dx.doi.org/10.1186/s12859-017-1907-2)  
 The nature of the mixPORE (mixture detection algorithm) provided by the server, and its application to *M. tuberculosis* mixture detection is described [here](https://www.biorxiv.org/content/10.1101/681502v1).
 
 # Large test data sets
-Test data sets of *N. meningitidis*, *M. tuberculosis* and *S. enterica* data are available to download [here](https://ora.ox.ac.uk/objects/uuid:82ce6500-fa71-496a-8ba5-ba822b6cbb50).  These are .tar.gz files, to a total of 80GB.  
 For the detection of mixtures, please see the additional test data sets [here](doc/demos_real.md).
