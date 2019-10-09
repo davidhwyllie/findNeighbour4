@@ -351,27 +351,30 @@ class findNeighbour4():
 		
 		# determine how many guids there in the database
 		guids = self.PERSIST.refcompressedsequence_guids()
-	
-		self.server_monitoring_store(message='Starting load of sequences into memory from database')
-		app.logger.info("Loading sequences from database")
-		
-		nLoaded = 0
-		nRecompressed = 0
-		bar = progressbar.ProgressBar(max_value = len(guids))
-		for guid in guids:
-			nLoaded+=1
-			self.gs.add(guid)
-			obj = self.PERSIST.refcompressedsequence_read(guid)
-			self.hc.persist(obj, guid=guid)
-			bar.update(nLoaded)
+		if len(guids)==0:
+			self.server_monitoring_store(message='There is nothing to load')
+			app.logger.info("Nothing to load")
+		else:	
+			self.server_monitoring_store(message='Starting load of sequences into memory from database')
+			app.logger.info("Loading sequences from database")
+			
+			nLoaded = 0
+			nRecompressed = 0
+			bar = progressbar.ProgressBar(max_value = len(guids))
+			for guid in guids:
+				nLoaded+=1
+				self.gs.add(guid)
+				obj = self.PERSIST.refcompressedsequence_read(guid)
+				self.hc.persist(obj, guid=guid)
+				bar.update(nLoaded)
 
-			if nLoaded % 100 == 0:
-				self.server_monitoring_store(message='Server restarting; loaded {0} from database ..'.format(nLoaded))
+				if nLoaded % 100 == 0:
+					self.server_monitoring_store(message='Server restarting; loaded {0} from database ..'.format(nLoaded))
 
 
-		bar.finish()
-		app.logger.info("findNeighbour4 has finished loaded {0} sequences from database".format(len(guids)))
-		
+			bar.finish()
+			app.logger.info("findNeighbour4 has finished loaded {0} sequences from database".format(len(guids)))
+			
 		app.logger.info("findNeighbour4 is checking clustering is up to date")
 		self.update_clustering()
 		self.server_monitoring_store(message='Garbage collection.')
