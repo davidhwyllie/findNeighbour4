@@ -2,6 +2,5 @@
 unittest_tmp
 unittest_Tmp
 .Rproj.user
-Pipfile
 Pipfile.lock
 src/nohup.out
