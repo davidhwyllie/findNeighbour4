@@ -372,6 +372,10 @@ class seqComparer():
             nonN_seq1=seq1[nucleotide]-seq2['U']
             nonN_seq2=seq2[nucleotide]-seq1['U']
             differing_positions = differing_positions | (nonN_seq1 ^ nonN_seq2)
+
+            # exit early if the difference is already bigger than the cutoff
+            if len(differing_positions) > cutoff:
+                return
         
         nDiff = len(differing_positions)
         
