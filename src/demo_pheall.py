@@ -11,13 +11,7 @@ import datetime
 import pandas as pd
 from fn3client import fn3Client
 
-def ll2s(x):
-    """ converts a list of lists, e.g. [['guid1',2],['guid2',0]] into a set {'guid1','guid2'} """
-    neighbour_set = set()
-    for neighbour in x:
-        neighbour_set.add(neighbour[0])
-    return neighbour_set
-
+### Modify this line to reflect where the fasta files are 
 # define directory where the fastas are
 fastadir = os.path.join('/srv','data','mixfiles','mfasta')
 

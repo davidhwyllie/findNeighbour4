@@ -22,9 +22,9 @@ To run the demo:
 - make sure mongodb is running
 - from the src directory  
 -- start the server  
-``` python findNeighbour3-server.py ../demos/AC587/config/config.json ```  
+``` pipenv run python findNeighbour4-server.py ../demos/AC587/config/config.json ```  
 -- run the software adding samples to the server  
-``` python demo_ac587.py ```
+``` pipenv run python demo_ac587.py ```
 
 ### AA041
 a larger collection of ~ 1000 mapped samples containing related TB data.
@@ -32,13 +32,26 @@ To run the demo:
 - make sure mongodb is running
 - from the src directory  
 -- start the server  
-``` python findNeighbour3-server.py ../demos/AA041/config/config.json ```  
+``` pipenv run python findNeighbour4-server.py ../demos/AA041/config/config.json ```  
 -- run the software adding samples to the server  
-``` python demo_aa041.py ```
+``` pipenv run python demo_aa041.py ```
 
 ### England201618
 a collection of over 7,000 TB samples from England 2016 to 2018.  This data set includes  
 i) .csv files containing the positions of [where different bases map with high quality to the same site across each genome](https://github.com/davidhwyllie/VCFMIX)  
 ii) fasta files in which these positions are marked with [IUPAC codes](https://www.bioinformatics.org/sms/iupac.html).  
 These fasta files can be loaded by scripts similar to those above.
+-- the script demo_pheall.py is suitable for doing this.
+
+-- if not already running start the server with 
+```./fn4_startup.sh ../demos/phe_dev/config_phe_dev_nocl.json```		
+Note: (1) this config file does not do clustering; (2) it will run processes in the background using pipenv.  
+
+-- edit demo_pheall.py to change the fastadir to the directory in which they are contained  
+-- then submit the files to the server     
+``` pipenv run python3 demo_pheall.py ```  
+
+ 
+
+
 
