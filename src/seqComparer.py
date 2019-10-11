@@ -359,10 +359,10 @@ class seqComparer():
      
         nDiff=0
         if seq1 is None or seq2 is None:
-            return(None)
+            return None 
                  
         if seq1['invalid']==1 or seq2['invalid']==1:
-            return(None)
+            return None 
          
         # compute positions which differ;
         differing_positions = set()
@@ -373,6 +373,12 @@ class seqComparer():
             nonN_seq2=seq2[nucleotide]-seq1['U']
             differing_positions = differing_positions | (nonN_seq1 ^ nonN_seq2)
         
+            # if the number of differences is already larger than the cutoff,
+            # then we do not need to perform additional computations; we return None,
+            # which is indicated there is no link less than or equal to cutoff
+            if len(differing_positions) > cutoff:
+                return None
+
         nDiff = len(differing_positions)
         
         if nDiff>cutoff:
