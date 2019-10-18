@@ -145,10 +145,10 @@ class Calibrator():
 				train_on: the number of sequences to analyse
 				export_raw: a writable directory into which the data studied will be written.  If none, nothing will be written.
 			returns:
-				a dictionary containing recommended preComparer settings
+				a list of dictionaries containing preComparer settings for evaluation
 			
 		"""
-		retVal = {'selection_cutoff':selection_cutoff,
+		settings = {'selection_cutoff':selection_cutoff,
 					'n_positions_examined':self.analysed_reference_length,
 					'alpha':alpha}
 
@@ -186,15 +186,23 @@ class Calibrator():
 		composition = pd.DataFrame.from_dict(pc.composition, orient = 'index')
 		# allows computation of Z
 		valid = composition.query("invalid==0")
-		retVal['N_mean'] = np.median(valid['N'])
-		retVal['N_sd'] = median_absolute_deviation(valid['N'])
+		settings['N_mean'] = np.median(valid['N'])
+		settings['N_sd'] = median_absolute_deviation(valid['N'])
 
 		# next compute over_selection_cutoff_ignore_factor etc.
 		# for now, we just supply defaults
-		retVal['over_selection_cutoff_ignore_factor'] = 5
-		retVal['mixed_reporting_cutoff'] = 0
-		retVal['highN_z_reporting_cutoff'] = 2
-		retVal['probN_inflation_factor'] = 3
+		retVal = []
+		
+		for oi in [5,10,5e6]:
+			for mr in [0,5e6]:
+				for hiZ in [2,2.5,5e6]:
+					for pi in [3]:
+						settings['over_selection_cutoff_ignore_factor'] = oi
+						settings['mixed_reporting_cutoff'] = mr
+						settings['highN_z_reporting_cutoff'] = hiZ
+						settings['probN_inflation_factor'] = pi
+						retVal.append(settings.copy())
+
 
 		return retVal
 
@@ -226,7 +234,7 @@ class Calibrator():
 		engine = sqlalchemy.create_engine(connstring, echo=False)
 
 		pc = preComparer(**preComparer_settings)
-		sc = seqComparer(reference = self.reference, maxNs = self.maxNs , snpCeiling= 1e12)
+		sc = seqComparer(reference = self.reference, maxNs = self.maxNs , snpCeiling= 1e12, return_none_if_high_snp_distance=False)
 		print("testing settings")
 
 		# determine guids there in the database
@@ -234,7 +242,8 @@ class Calibrator():
 	
 		if train_on is None:
 			train_on = len(guids)
-
+		if train_on > len(guids):
+			train_on = len(guids)
 		# load samples 
 		print("Loading samples")
 		bar = progressbar.ProgressBar(max_value = train_on)
@@ -293,26 +302,21 @@ class Calibrator():
 		
 		try:
 			existing_settings_analysed = pd.read_sql("select * from settings;", con=engine)
-			print("Previous settings have been analysed:")
-			print(existing_settings_analysed)
 			settings_ix= len(existing_settings_analysed.index)
 		except sqlalchemy.exc.OperationalError:		# first run, no settings table
 			print("No previous settings have been analysed")
 			settings_ix = 0
+
 		settings_ix +=1
-		print("Storing new settings with index = ",settings_ix)
 		new_setting = pd.DataFrame.from_dict({settings_ix: preComparer_settings}, orient='index')
 		new_setting.to_sql('settings', con=engine, if_exists = 'append')	
 
 		print("Computing approximate distances")
-		print("Settings used are:")
-		print(new_setting)
 
 		bar = progressbar.ProgressBar(max_value = train_on*train_on)
 		nLoaded =0
 		try:
 			res, = pd.read_sql("select max(index) from validation;", con=engine)
-			print(res)
 			per_cmp_ix= 1 + res
 		except sqlalchemy.exc.OperationalError:		# first run, no settings table
 			per_cmp_ix = 0
@@ -346,20 +350,44 @@ class Calibrator():
 		per_cmp.to_sql('validation', con=engine, if_exists = 'append')		
 
 
-		### TODO: move out to different reporting function
+		return connstring
+
+	def report_summary(self, output_stem):
+		""" reports failure statistics for a wide variety of settings """
+
+		sql_filename = "{0}.sqlite".format(output_stem)
+		if not os.path.exists(sql_filename):
+			raise FileNotFoundError("No database found {0}".format(sql_filename))
+
+		connstring = 'sqlite:///{0}'.format(sql_filename)
+		engine = sqlalchemy.create_engine(connstring, echo=False)
+
+
 		# read from database
-		summary = pd.read_sql("select settings_ix, low_distance,reported_category, count(*) n from validation  group by settings_ix, low_distance, reported_category;", con=engine)
-		print("Results:")
-		print(summary)
+		summary = pd.read_sql("""select s.*, a.nPairs, b.nRetested, c.nMissed, d.uSec, e.nBinomial_tests from 
+	settings s
+	LEFT JOIN
+	(select settings_ix,  count(*) nPairs from validation group by settings_ix) a 
+	on s."index" = a.settings_ix
+	LEFT JOIN
+	(select settings_ix,  count(*) nRetested from validation where no_retest=0  group by settings_ix) b
+	on a.settings_ix = b.settings_ix
+	LEFT join
+	(select settings_ix,  sum(low_distance) nMissed from validation where no_retest=1 group by settings_ix) c
+	on a.settings_ix = c.settings_ix
+	LEFT join
+	(select settings_ix,  avg(seqComparer_timing*(case when no_retest=0 then 1 else 0 end) + preComparer_timing) uSec 
+from validation group by settings_ix) d
+	on d.settings_ix = a.settings_ix
+	LEFT join
+	(select settings_ix,  sum(case when penalised_destim is not null then 1 else 0 end) nBinomial_tests 
+from validation  group by settings_ix) e
+	on e.settings_ix = a.settings_ix
+	 """, con=engine)
+	
 
 		failures = pd.read_sql("select settings_ix, reported_category, count(*) n from validation where low_distance=1 and substr(reported_category,1,9)='No retest' group by settings_ix, reported_category;", con=engine)
-		print("The following samples failed QC")
-		print(failures)
-
-
-		per_category = summary.pivot(index=None, columns='reported_category', values = 'n')
-
-		return connstring
+		return(summary,failures)
 
 	def retest_settings(self, 
 							connstring,
@@ -368,7 +396,7 @@ class Calibrator():
 		""" using output from a previous test_settings() call, examine 
 			input:
 				connstring: a connection string to a database containing pairwise comparisons of seqComparer (accurate SNP distances) with pcaComparer (approximate distances), as provided by test_settings
-				preComparer_settings: a dictionary of precomparer settings, as returned by derive_settings
+				preComparer_settings: a dictionary of precomparer settings to test
 				output_stem: the name and, optionally, path of an sqlite database to which the output will be written.
 			returns:
 				a connection string to a database containing pairwise comparisons of seqComparer (accurate SNP distances) with pcaComparer (approximate distances)
@@ -475,7 +503,7 @@ python findNeighbour3-varmod.py ../config/myConfigFile.json
 		print("Set Sentry connection string from environment variable")
 	else:
 		print("Using Sentry connection string from configuration file.")
-		
+	
 	########################### SET UP LOGGING #####################################  
 	# create a log file if it does not exist.
 	print("Starting logging")
@@ -515,12 +543,19 @@ python findNeighbour3-varmod.py ../config/myConfigFile.json
 			raise
 
 	# derive initial settings
-	settings = calib.derive_settings(train_on=500)		# provides default settings, Z scores etc
-	print(settings)
+	possible_settings = calib.derive_settings(train_on=5000)		# provides default settings, Z scores etc
 
 	print("Running first ")
-	validation = calib.test_settings(settings, train_on =5000
-, start_afresh = True)
+	for i,settings in enumerate(possible_settings):
+		print("Evaluating settings # ",i)
+		validation = calib.test_settings(settings, output_stem = CONFIG['SERVERNAME'], train_on =5000
+, start_afresh = (i==0))
+
+	summary,failures= calib.report_summary(output_stem = CONFIG['SERVERNAME'])
+	print(summary)
+	ofile = "{0}_summary.xlsx".format(CONFIG['SERVERNAME'])
+	summary.to_excel(ofile)
+	print("Setting performance  is in", ofile)
 	print("Data is in directory ",os.getcwd(), "in file", validation)
 
 
