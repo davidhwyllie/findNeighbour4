@@ -417,7 +417,7 @@ class preComparer():
         if not key2 in self.seqProfile.keys():
             raise KeyError("{0} not present in preComparer".format(key2))
 
-	    # compute Ms in differing positions
+	# compute Ms in non-reference positions
         try:	
             m1 = set(list(self.seqProfile[key1]['M'].keys()))
         except KeyError:
@@ -441,15 +441,59 @@ class preComparer():
         ms= differing_positions.intersection(ms)
         n_ms = len(ms)
 
-        # we remove Ms from the computation; we regard these as different.
-        differing_positions = differing_positions - ms
-
         # estimate the extent to which destim overestimates using binomial theory
         destim = len(differing_positions)       # number of positions varying
-        # estimate proportion of these which will be N from the two sequences  + an inflaction facotr
+
+        # determine whether we can 'exit fast' - stop computation at an early stage
+        # optimisation discussed with Denis Volk
+        # assign default return values
+        res = {'guid1':key1, 
+			'guid2':key2, 
+			'destim':destim, 
+			'upperCI':None, 
+			'guid1_invalid':self.seqProfile[key1]['invalid'],
+			'guid2_invalid':self.seqProfile[key2]['invalid'],
+			'penalised_destim':None, 
+			'guid1_Ms':self.composition[key1]['M'],
+			'guid2_Ms':self.composition[key2]['M'],
+			'guid1_Ns':self.composition[key1]['N'],
+			'guid2_Ns':self.composition[key2]['N'],
+			'guid1_Z_Ns':self.composition[key1]['Z'],
+			'guid2_Z_Ns':self.composition[key2]['Z'],
+			'mixed_in_cmp':n_ms,
+            		'no_retest':False,
+			'reported_category':'not assigned'}
+
+        # if it is invalid, we can exit fast
+        if self.seqProfile[key1]['invalid']+self.seqProfile[key2]['invalid']>0:
+            res['reported_category'] = 'No retest - invalid'
+            res['no_retest'] = True
+            return res
+
+        # if it is mixed, we can exit fast if destim is very large; otherwise we retest
+        if destim > self.over_selection_cutoff_ignore_factor * self.selection_cutoff:
+           
+            if	res['mixed_in_cmp']> self.mixed_reporting_cutoff:
+                res['reported_category'] = 'No retest - Mixed, high estimated distance'
+                res['no_retest'] = True
+                return res
+
+            # if it has high N, we can exit fast if destim is very large; otherwise we retest
+            if (self.composition[key1]['Z'] > self.highN_z_reporting_cutoff  or self.composition[key2]['Z'] > self.highN_z_reporting_cutoff ):
+                res['reported_category'] = 'No retest - HighN, high estimated distance'
+                res['no_retest'] = True
+                return res
+
+            res['reported_category'] = 'No retest - No match'
+            res['no_retest'] = True
+            return res
+
+
+        # it isn't mixed as non-reference positions in these sequences; and the number of Ns is normal.  The destim is not very high.
+        # in this case we compute by how much destim may over estimate dexact.
         p = self.probN_inflation_factor * max(self.composition[key1]['propN'],self.composition[key2]['propN'])
         # round p to 2 sf
-        p = round(p,2)		# a speed enhancement : only analyse p accurate to the %
+        p = round(p,2)		# a speed enhancement : only analyse p accurate to the 0.01 (1%); allows us to cache binomial results, as computing these is relatively expensive
         binom_key = "{0}:{1}".format(p,destim)
 	    
         if destim > 0:
@@ -462,44 +506,20 @@ class preComparer():
         else:
     	    (lower,upper) = 0,0
         penalised_destim = destim - upper 
+        res['penalised_destim']=penalised_destim
+        res['upper'] = upper
 
-        # now categorise
-        res = {'guid1':key1, 
-			'guid2':key2, 
-			'destim':destim, 
-			'upperCI':upper, 
-			'penalised_destim':penalised_destim, 
-			'guid1_Ms':self.composition[key1]['M'],
-			'guid2_Ms':self.composition[key2]['M'],
-			'guid1_Z_Ns':self.composition[key1]['Z'],
-			'guid2_Z_Ns':self.composition[key2]['M'],
-			'mixed_in_cmp':n_ms,
-            		'no_retest':False,
-			'reported_category':'not assigned'}
-
-	# categorisation algorithm
-	# first evaluate if either are invalid
-        if self.seqProfile[key1]['invalid']+self.seqProfile[key2]['invalid']>0:
-                res['reported_category'] = 'No retest - invalid'
-                res['no_retest'] = True					
-        elif (self.composition[key1]['Z'] > self.highN_z_reporting_cutoff  or self.composition[key2]['Z'] > self.highN_z_reporting_cutoff ):
-            if penalised_destim > self.over_selection_cutoff_ignore_factor * self.selection_cutoff:
-                res['reported_category'] = 'No retest - HighN'
-                res['no_retest'] = True
-            else:
-                res['reported_category'] = 'High N'
-        elif	res['mixed_in_cmp']> self.mixed_reporting_cutoff:
-            if penalised_destim > self.over_selection_cutoff_ignore_factor * self.selection_cutoff:
-                res['reported_category'] = 'No retest - Mixed'
-                res['no_retest'] = True
-            else:
-                res['reported_category'] = 'Mixed'
-                res['no_retest'] = False	
-        elif penalised_destim > self.selection_cutoff:
-            res['reported_category'] = 'No retest - No match'
+	    # categorise
+        category = 'Normal N, M'
+        if	res['mixed_in_cmp']> self.mixed_reporting_cutoff:	
+            category = 'Elevated M'
+        if  (self.composition[key1]['Z'] > self.highN_z_reporting_cutoff  or self.composition[key2]['Z'] > self.highN_z_reporting_cutoff ):
+            category = 'Elevated N'
+        if penalised_destim > self.selection_cutoff:
+            res['reported_category'] = 'No retest - No match - '+category
             res['no_retest'] = True
         else:
-            res['reported_category'] = 'Possible match'
+            res['reported_category'] = 'Possible match -'+category
             res['no_retest'] = False	
         return res
 
@@ -688,7 +708,7 @@ class test_preComparer_5(unittest.TestCase):
         sc.persist(obj,'guid3')
 
         res = sc.compare('guid2','guid3')
-        self.assertEqual(res['reported_category'],'Possible match')
+        self.assertEqual(res['reported_category'],'Possible match -Normal N, M')
 
         # no detailed comparisons are made
         res = sc.summarise_stored_items()
@@ -714,7 +734,7 @@ class test_preComparer_6(unittest.TestCase):
         sc.persist(obj,'guid3')
 
         res = sc.compare('guid2','guid3')
-        self.assertEqual(res['reported_category'],'Possible match')
+        self.assertEqual(res['reported_category'],'Possible match -Normal N, M')
         res = sc.summarise_stored_items()
         self.assertEqual(res['server|pcstat|nBinomialResults'],1)
 
@@ -744,7 +764,7 @@ class test_preComparer_7(unittest.TestCase):
         res = sc.compare('guid2','guid3')
         self.assertEqual(res['reported_category'],'No retest - invalid')
         res = sc.summarise_stored_items()
-        self.assertEqual(res['server|pcstat|nBinomialResults'],1)
+        self.assertEqual(res['server|pcstat|nBinomialResults'],0)
 
 class test_preComparer_8(unittest.TestCase):
     """ tests comparison """
