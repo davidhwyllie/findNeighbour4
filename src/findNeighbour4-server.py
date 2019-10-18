@@ -601,6 +601,7 @@ class findNeighbour4():
 
 		if not self.hc.iscachedinram(guid):                   # if the guid is not already there
 			self.server_monitoring_store(message='About to insert',guid=guid)
+			app.logger.info("Guid is not present: {0}".format(guid))
 			
 			# prepare to insert
 			self.objExaminer.examine(dna)  					  # examine the sequence
@@ -687,8 +688,9 @@ class findNeighbour4():
 	
 			return "Guid {0} inserted.".format(guid)		
 		else:
-			return "Guid {0} is already present".format(guid)
 			app.logger.info("Already present, no insert needed: {0}".format(guid))
+
+			return "Guid {0} is already present".format(guid)
 			
 	def exist_sample(self,guid):
 		""" determine whether the sample exists in RAM"""
@@ -1028,7 +1030,7 @@ def construct_msa(guids, output_format, what):
 		what is one of 'N','M','N_or_M'
 	
 	"""
-	res = fn.sc.multi_sequence_alignment(guids, output='df_dict', uncertain_base_type=what)
+	res = fn.hc.multi_sequence_alignment(guids, output='df_dict', uncertain_base_type=what)
 	df = pd.DataFrame.from_dict(res,orient='index')
 	html = df.to_html()
 	fasta= ""
