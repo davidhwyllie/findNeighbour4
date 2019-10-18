@@ -34,7 +34,8 @@ class seqComparer():
                     maxNs,
                     snpCeiling,
 
-                    excludePositions=set()
+                    excludePositions=set(),
+                    return_none_if_high_snp_distance=True
                 ):
 
         """ instantiates the sequence comparer, an object which manages reference compressed sequences.
@@ -49,8 +50,11 @@ class seqComparer():
         Any bases which are always N should be added to this set.
         Not doing so will substantially degrade the algorithm's performance.
      
+        self.return_none_if_high_snp_distance: if True (default), does not report high SNP distances; returns None if the distance is higher than a SNP cutoff
+
         If the number of Ns are more than maxNs, no data from the sequence is stored.
-                
+         
+       
         Results > snpCeiling are not returned or stored.
             
         unknown_base_type is either N or M, and is used for computation of mixture statistics
@@ -64,7 +68,7 @@ class seqComparer():
         # we support three kinds of sequences.
         # sequence in strings;
         # reference based compression relative to reference 'compressed_sequence';
-         
+        self.return_none_if_high_snp_distance=return_none_if_high_snp_distance 
         self.compressed_sequence_keys = set(['invalid','A','C','G','T', 'N', 'M', 'U'])  
         self.snpCeiling = snpCeiling
               
@@ -376,12 +380,13 @@ class seqComparer():
             # if the number of differences is already larger than the cutoff,
             # then we do not need to perform additional computations; we return None,
             # which is indicated there is no link less than or equal to cutoff
-            if len(differing_positions) > cutoff:
+            # unless we are told to return exact differences
+            if self.return_none_if_high_snp_distance and len(differing_positions) > cutoff:
                 return None
 
         nDiff = len(differing_positions)
         
-        if nDiff>cutoff:
+        if self.return_none_if_high_snp_distance and nDiff>cutoff:
             return(None)
         else:
             return(nDiff)
