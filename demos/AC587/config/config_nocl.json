@@ -4,12 +4,12 @@
 "INPUTREF":"../reference/TB-ref.fasta",
 "EXCLUDEFILE":"../reference/TB-exclude-adaptive.txt",
 "DEBUGMODE":0,
-"SERVERNAME":"fn4_ac587_demo_cl",  
+"SERVERNAME":"fn4_ac587_demo_nocl",  
 "FNPERSISTENCE_CONNSTRING":"mongodb://localhost",
 "MAXN_STORAGE":130000,
 "SNPCOMPRESSIONCEILING":250,
 "MAXN_PROP_DEFAULT":0.80,
-"LOGFILE":"../demos/AC587/logfile.log",
+"LOGFILE":"../demos/AC587/logfile_nocl.log",
 "LOGLEVEL":"INFO",	
 "SNPCEILING": 20,
 "REST_PORT":5020,
@@ -23,8 +23,6 @@
                     "alpha":1e-14,
                     "probN_inflation_factor":3,
                     "n_positions_examined":3812800},
-"CLUSTERING":{"SNV12_exclude":{"snv_threshold":12,"mixed_sample_management":"exclude","mixture_criterion":"p_value2","cutoff":0.00001,"uncertain_base_type":"M"},
-              "SNV12_ignore":{"snv_threshold":12,"mixed_sample_management":"ignore","mixture_criterion":"p_value2","cutoff":0.00001,"uncertain_base_type":"M"},
-              "SNV12_include":{"snv_threshold":12,"mixed_sample_management":"include","mixture_criterion":"p_value2","cutoff":0.00001, "uncertain_base_type":"M"}
+"CLUSTERING":{}
         }
 }

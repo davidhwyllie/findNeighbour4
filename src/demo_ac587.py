@@ -12,13 +12,6 @@ import datetime
 import pandas as pd
 from fn3client import fn3Client
 
-def ll2s(x):
-    """ converts a list of lists, e.g. [['guid1',2],['guid2',0]] into a set {'guid1','guid2'} """
-    neighbour_set = set()
-    for neighbour in x:
-        neighbour_set.add(neighbour[0])
-    return neighbour_set
-
 # define directory where the fastas are
 fastadir = os.path.join('..','demos','AC587','fasta')
 outputdir = os.path.join('..','demos','AC587','output')
@@ -32,32 +25,17 @@ clusters=fn3c.clustering()
 # add control fasta files.  The system evaluates the %N in terms of the population existing
 # we load 40 randomly selected guids as controls
 
-for i,fastafile in enumerate(glob.glob(os.path.join(fastadir, 'controls','*.fasta'))):
-    guid = "ctrl_"+os.path.basename(fastafile).replace('.fasta','')
+for i,fastafile in enumerate(glob.glob(os.path.join(fastadir, 'controls','*.mfasta.gz'))):
+    guid = os.path.basename(fastafile).replace('.mfasta.gz','')
     seq = fn3c.read_fasta_file(fastafile)['seq']
     print("Controls",datetime.datetime.now(), i, guid)
     fn3c.insert(guid=guid,seq=seq)
  
  
-for i,fastafile in enumerate(sorted(glob.glob(os.path.join(fastadir, 'test', '*.fasta')))):
-    guid = os.path.basename(fastafile).replace('.fasta','')
+for i,fastafile in enumerate(sorted(glob.glob(os.path.join(fastadir, 'test', '*.mfasta.gz')))):
+    guid = os.path.basename(fastafile).replace('.mfasta.gz','')
     seq = fn3c.read_fasta_file(fastafile)['seq']
-    print("Test   ",datetime.datetime.now(), i, guid)
+    print("Test",datetime.datetime.now(), i, guid)
     fn3c.insert(guid=guid,seq=seq)
     
-    for clustering_algorithm in clusters['algorithms']:
-    
-        df = fn3c.guids2clusters(clustering_algorithm)
-        df['step'] = i
-        df['clustering_algorithm']=clustering_algorithm
-        if i==0:
-            clustering_df = df
-        else:
-            clustering_df = pd.concat([clustering_df,df], ignore_index=True, sort=False)
-
-        # note the MSA for all clusters this sample is in
-        df = fn3c.guids2clusters(clustering_algorithm)
-        print(guid)
-        print(df.query('guid==@guid'))
-
-clustering_df.to_excel(os.path.join(outputdir, "clustering.xlsx"))
+print("Finished")
