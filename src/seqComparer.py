@@ -167,8 +167,6 @@ class seqComparer():
         If half=True, returns only half the matrix.
         If diagonal=True, return the diagonal (all of which are zeros)
         
-        could refactor to support multithreading.
-        
         returns:
         A generator yielding neighbours, in format [guid1,guid2,dist,n1,n2,nboth,N1pos, N2pos, Nbothpos]
         """

@@ -63,10 +63,12 @@ class preComparer():
         over_selection_cutoff_ignore_factor:
             estimated SNP distances, ignoring Ns, more than over_selection_cutoff_ignore_factor * selection_cutoff do not need to be considered.  For example, if a SNP cutoff was 20, and over_selection_cutoff_ignore_factor is 5, we can safely consider isolates 
         mixed_reporting_cutoff:
-            regard sample pairs with more Ms than this in the alignment as mixed
+            regard sample pairs with more Ms than this in the alignment as mixed ## ignored 
 
         N_mean, n_sd:
-            mean and standard deviation of the number of Ns per sample in the population.  Used to compute z score for each sample
+            mean and standard deviation of the number of Ns per sample in the population.  Used to compute z score for each sample  
+
+	##### the below are currently ignored -not used
         highN_z_reporting_cutoff:  
             samples with Z-scores for numbers of Ns higher than this are regarded as having high Ns
         alpha:
@@ -76,7 +78,7 @@ class preComparer():
             probN is estimated as n_positions_examined/number of Ns per sample.
             the expected number of Ns in a comparison (or rather the mean of the distribution of Ns in a comparison)
             is computed as probN * probN_inflation_factor.  This is an important parameter and has to be estimated from data.  See preComparer_validator.py for details.
-
+	#### end of section which may be removed
 
 	Algorithmically, the compare() method 
 	* examines whether either sequence is tagged as invalid.  if so, reports no need to retest; otherwise
@@ -84,23 +86,9 @@ class preComparer():
         if penalised_destim > self.over_selection_cutoff_ignore_factor * self.selection_cutoff [essentially: the SNP distance estimate is very high]
             reports no need to retest
         otherwise
-            reports possbile match & need to retest; otherwise
-    * compares numbers of Ms.  if numbers exceed mix_reporting_cutoff: 
-        if penalised_destim > self.over_selection_cutoff_ignore_factor * self.selection_cutoff [essentially: the SNP distance estimate is very high]
-            reports no need to retest
-        otherwise
-            reports mix & need to retest
-    * if penalised_destim > self.selection_cutoff:
-            reports no need to retest
-        otherwise
-            reports possible match.
+	    reports a need to retest
 
-
-    If highN_z_reporting cutoff = 0: highN are ignored
-    If mix_reporting_cutoff is high (say, genomelength) then mixed bases are ignored
-    If probN_inflation_factor = 0 then all cases are reported as close matches.
-
-    For optimal performance, these cutoffs need to be tuned.  Code doing so is available.
+    For optimal performance, these cutoffs need to be tuned.  Code doing so is available in preComparer_calibrator.py.
         Returns:
         ========
         None
@@ -435,13 +423,14 @@ class preComparer():
         differing_positions = set()
         for nucleotide in ['C','G','A','T']:
 
-            # we do not consider differences relative to the reference if the other nucleotide is an N or M
-            differing_positions = differing_positions | (self.seqProfile[key1][nucleotide] ^ self.seqProfile[key2][nucleotide])
-
+            # we do not consider differences relative to the reference if the other nucleotide is an M
+            nonM_seq1=self.seqProfile[key1][nucleotide]-ms
+            nonM_seq2=self.seqProfile[key2][nucleotide]-ms
+            differing_positions = differing_positions | (nonM_seq1 ^ nonM_seq2)
+        
         ms= differing_positions.intersection(ms)
         n_ms = len(ms)
 
-        # estimate the extent to which destim overestimates using binomial theory
         destim = len(differing_positions)       # number of positions varying
 
         # determine whether we can 'exit fast' - stop computation at an early stage
@@ -470,58 +459,16 @@ class preComparer():
             res['no_retest'] = True
             return res
 
-        # if it is mixed, we can exit fast if destim is very large; otherwise we retest
-        if destim > self.over_selection_cutoff_ignore_factor * self.selection_cutoff:
+        # if destim is very large, we can stop.
+        if destim > self.over_selection_cutoff_ignore_factor * self.selection_cutoff:		# very large
            
-            if	res['mixed_in_cmp']> self.mixed_reporting_cutoff:
-                res['reported_category'] = 'No retest - Mixed, high estimated distance'
+                res['reported_category'] = 'No retest - High estimated distance'
                 res['no_retest'] = True
-                return res
-
-            # if it has high N, we can exit fast if destim is very large; otherwise we retest
-            if (self.composition[key1]['Z'] > self.highN_z_reporting_cutoff  or self.composition[key2]['Z'] > self.highN_z_reporting_cutoff ):
-                res['reported_category'] = 'No retest - HighN, high estimated distance'
-                res['no_retest'] = True
-                return res
-
-            res['reported_category'] = 'No retest - No match'
-            res['no_retest'] = True
-            return res
-
-
-        # it isn't mixed as non-reference positions in these sequences; and the number of Ns is normal.  The destim is not very high.
-        # in this case we compute by how much destim may over estimate dexact.
-        p = self.probN_inflation_factor * max(self.composition[key1]['propN'],self.composition[key2]['propN'])
-        # round p to 2 sf
-        p = round(p,2)		# a speed enhancement : only analyse p accurate to the 0.01 (1%); allows us to cache binomial results, as computing these is relatively expensive
-        binom_key = "{0}:{1}".format(p,destim)
-	    
-        if destim > 0:
-    	    # compute binomial estimate, if we have not stored it before
-            try:
-                (lower,upper) = self.binom_results[binom_key]
-            except KeyError:
-                (lower,upper) = binom.interval(self.oneminusalpha, destim, p)
-                self.binom_results[binom_key]=(lower,upper)
         else:
-    	    (lower,upper) = 0,0
-        penalised_destim = destim - upper 
-        res['penalised_destim']=penalised_destim
-        res['upper'] = upper
-
-	    # categorise
-        category = 'Normal N, M'
-        if	res['mixed_in_cmp']> self.mixed_reporting_cutoff:	
-            category = 'Elevated M'
-        if  (self.composition[key1]['Z'] > self.highN_z_reporting_cutoff  or self.composition[key2]['Z'] > self.highN_z_reporting_cutoff ):
-            category = 'Elevated N'
-        if penalised_destim > self.selection_cutoff:
-            res['reported_category'] = 'No retest - No match - '+category
-            res['no_retest'] = True
-        else:
-            res['reported_category'] = 'Possible match -'+category
-            res['no_retest'] = False	
+                res['reported_category'] = 'Retest - Estimated distance small'
+                res['no_retest'] = False
         return res
+
 
 class test_preComparer_1(unittest.TestCase):
     """ tests __init__ method"""
@@ -708,11 +655,8 @@ class test_preComparer_5(unittest.TestCase):
         sc.persist(obj,'guid3')
 
         res = sc.compare('guid2','guid3')
-        self.assertEqual(res['reported_category'],'Possible match -Normal N, M')
+        self.assertEqual(res['reported_category'],'Retest - Estimated distance small')
 
-        # no detailed comparisons are made
-        res = sc.summarise_stored_items()
-        self.assertEqual(res['server|pcstat|nBinomialResults'],0)
 
 class test_preComparer_6(unittest.TestCase):
     """ tests comparison """
@@ -734,9 +678,7 @@ class test_preComparer_6(unittest.TestCase):
         sc.persist(obj,'guid3')
 
         res = sc.compare('guid2','guid3')
-        self.assertEqual(res['reported_category'],'Possible match -Normal N, M')
-        res = sc.summarise_stored_items()
-        self.assertEqual(res['server|pcstat|nBinomialResults'],1)
+        self.assertEqual(res['reported_category'],'Retest - Estimated distance small')
 
 class test_preComparer_7(unittest.TestCase):
     """ tests comparison """

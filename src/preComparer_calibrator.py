@@ -193,9 +193,9 @@ class Calibrator():
 		# for now, we just supply defaults
 		retVal = []
 		
-		for oi in [5,10,5e6]:
-			for mr in [0,5e6]:
-				for hiZ in [2,2.5,5e6]:
+		for oi in [5,10,15]:
+			for mr in [0]:
+				for hiZ in [2]:
 					for pi in [3]:
 						settings['over_selection_cutoff_ignore_factor'] = oi
 						settings['mixed_reporting_cutoff'] = mr
@@ -388,43 +388,6 @@ from validation  group by settings_ix) e
 
 		failures = pd.read_sql("select settings_ix, reported_category, count(*) n from validation where low_distance=1 and substr(reported_category,1,9)='No retest' group by settings_ix, reported_category;", con=engine)
 		return(summary,failures)
-
-	def retest_settings(self, 
-							connstring,
-							preComparer_settings,
-							output_stem = 'output'):
-		""" using output from a previous test_settings() call, examine 
-			input:
-				connstring: a connection string to a database containing pairwise comparisons of seqComparer (accurate SNP distances) with pcaComparer (approximate distances), as provided by test_settings
-				preComparer_settings: a dictionary of precomparer settings to test
-				output_stem: the name and, optionally, path of an sqlite database to which the output will be written.
-			returns:
-				a connection string to a database containing pairwise comparisons of seqComparer (accurate SNP distances) with pcaComparer (approximate distances)
-			
-		"""
-
-		# iterate over sqlite table
-		# classification algorithm
-
-		if (self.composition[key1]['Z'] > self.highN_z_reporting_cutoff  or self.composition[key2]['Z'] > self.highN_z_reporting_cutoff ):
-		    if penalised_destim > self.over_selection_cutoff_ignore_factor * self.selection_cutoff:
-		        res['reported_category'] = 'No retest - HighN'
-		        res['no_retest'] = True
-		    else:
-		        res['reported_category'] = 'High N'
-		elif	res['mixed_in_cmp']> self.mixed_reporting_cutoff:
-		    if penalised_destim > self.over_selection_cutoff_ignore_factor * self.selection_cutoff:
-		        res['reported_category'] = 'No retest - Mixed'
-		        res['no_retest'] = True
-		    else:
-		        res['reported_category'] = 'Mixed'
-		        res['no_retest'] = False	
-		elif penalised_destim > self.selection_cutoff:
-		    res['reported_category'] = 'No retest - No match'
-		    res['no_retest'] = True
-		else:
-		    res['reported_category'] = 'Possible match'
-		    res['no_retest'] = False	
 
 		# and report, including a score	
 # startup
