@@ -74,7 +74,7 @@ class hybridComparer():
         """
         
      
-       # reference based compression relative to reference 'compressed_sequence' have keys as follows:
+        # reference based compression relative to reference 'compressed_sequence' have keys as follows:
         
         self.compressed_sequence_keys = set(['invalid','A','C','G','T', 'N', 'M'])  
 
@@ -126,7 +126,7 @@ class hybridComparer():
             this enables external software, such as that calibrating preComparer's performance, to
             update preComparer settings while  the server is operating. 
             """
-
+        
         # check preComparer parameters are up to date;
         stored_preComparer_parameters = self.PERSIST.config_read('preComparer')
         if stored_preComparer_parameters is not None:       # if settings exist on disc
@@ -201,8 +201,10 @@ class hybridComparer():
                 load_time = load_time + i4.total_seconds()
                 comparison = self.countDifferences(guid,key2,seq1,seq2,cutoff = self.snpCeiling)   
                 if comparison is not None:      # is is none if one of the samples is invalid
-                    (guid1,guid2,dist,n1,n2,nboth, N1pos, N2pos, Nbothpos)= comparison         
-                    neighbours.append([guid1,guid2,dist,n1,n2,nboth,N1pos, N2pos, Nbothpos])
+                    
+                    (guid1,guid2,dist,n1,n2,nboth, N1pos, N2pos, Nbothpos)= comparison 
+                    if dist < self.snpCeiling:
+                        neighbours.append([guid1,guid2,dist,n1,n2,nboth,N1pos, N2pos, Nbothpos])
 
         t3= datetime.datetime.now()
         i1 = t2-t1
@@ -222,6 +224,7 @@ class hybridComparer():
             rate3 = 0
 
         timings = {'preComparer_msec_per_comparison':rate1, 'seqComparer_msec_per_comparison':rate2, 'preCompared':n1, 'candidates':n2, 'matches':len(neighbours),'total_sec':i3.total_seconds(),'seqComparer_msec_per_sequence_loaded':rate3}
+      
         return({'neighbours':neighbours, 'timings':timings})
         
     def summarise_stored_items(self):
@@ -347,7 +350,8 @@ class hybridComparer():
     def countDifferences(self, key1, key2, seq1, seq2, cutoff=None):
         """ compares seq1 with seq2.
         
-        Ns and Ms (uncertain bases) are ignored in snp computations.
+        Ms (uncertain bases) are ignored in snp computations.
+    
 
 	"""
         #  if cutoff is not specified, we use snpCeiling
@@ -372,9 +376,7 @@ class hybridComparer():
         
         nDiff = len(differing_positions)
         
-        if nDiff>cutoff:
-            return((key1, key2, nDiff, None, None, None, None, None, None))
-        elif nDiff<=cutoff:
+        if nDiff<=cutoff:
             seq1_uncertain = seq1['N'] | set(seq1['M'].keys())
             seq2_uncertain = seq2['N'] | set(seq2['M'].keys())
             (n1, n2, nboth, N1pos, N2pos, Nbothpos) = self._setStats(seq1_uncertain, seq2_uncertain)
