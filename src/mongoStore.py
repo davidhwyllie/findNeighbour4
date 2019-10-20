@@ -347,10 +347,14 @@ class fn3persistence():
                 Issues an error FileExistsError
                 if the guid already exists. """
                 pickled_obj = pickle.dumps(obj, protocol=2)
-                #self.connect()
                 if guid in self.fs.list():
                         raise FileExistsError("Attempting to overwrite {0}".format(guid))
                 id = self.fs.put(pickled_obj, _id=guid, filename=guid)
+
+                # do a functional test to verify write
+                recovered_obj = self.refcompressedsequence_read(guid)
+                if not recovered_obj == obj:
+                    raise IOError("Integrity check failed on reference compressed item write/read for {0}".format(guid))
                 return id
 
         def refcompressedsequence_read(self, guid):
