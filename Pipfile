@@ -1,0 +1,34 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[dev-packages]
+
+[packages]
+biopython = "*"
+dnspython = "*"
+blinker = "*"
+urllib3 = "*"
+requests = "*"
+pymongo = "*"
+pandas = "*"
+markdown = "*"
+sentry-sdk = "*"
+matplotlib = "*"
+networkx = "*"
+bokeh = "*"
+flask = "*"
+flask-cors = "*"
+psutil = "*"
+scipy = "*"
+scikit-learn = "*"
+progressbar2 = "*"
+sqlalchemy = "*"
+networkit = "*"
+cython = "*"
+seaborn = "*"
+openpyxl = "*"
+
+[requires]
+python_version = "3.6"
