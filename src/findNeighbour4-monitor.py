@@ -144,8 +144,11 @@ if __name__ == '__main__':
             page_content = dss1.make_report(insert_data, recent_data)
             for item in page_content.keys():       
                 html = file_html(page_content[item], CDN, item)
-                PERSIST.monitor_store(item, html)                
-            print("Wrote output to database.  Waiting 2mins .. ")
+                PERSIST.monitor_store(item, html) 
+ 
+                #with open("test.html",'wt') as f:
+                #    f.write(html)
+             
             time.sleep(120)	# rerun in 2 minutes
 
 

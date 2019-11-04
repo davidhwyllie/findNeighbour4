@@ -25,15 +25,9 @@ python3 findNeighbour4-server.py
 python3 -m unittest findNeighbour4-server
 """
  
-
-## TODO
-## REMOVE CLUSTERING TO SEPARATE MODULE [disabled routinely but code still present]
-## SPEED IT UP!
-## retain clustering here but have an option to switch it off
-
+## TODO - option to run in 'read only' mode 
 ## CHECK THAT NO QUERIES NEED TO READ RAM [one does - to review]
 ## ADD all-insert option [later]
-## HOW WILL preComparer configuration be arranged? set_operating_settings method
 
 # import libraries
 import os
@@ -83,6 +77,7 @@ from mongoStore import fn3persistence
 from hybridComparer import hybridComparer	
 from clustering import snv_clustering
 from guidLookup import guidSearcher  		# fast lookup of first part of guids
+from ma_linkage import MixtureAwareLinkageResult
 
 # network visualisation
 from visualiseNetwork import snvNetwork
@@ -320,24 +315,18 @@ class findNeighbour4():
 		""" loads in memory data into the hybridComparer object from database storage """
 		
 		# set up clustering
-		# while doing so, find a clustering strategy with the highest snv_threshold
-		# we will use this for in-memory recompression.
+		# clustering is performed by findNeighbour4-cluster, and results are stored in the mongodb
+		# the clustering object used here is just a reader for the clustering status.
 		app.logger.info("findNeighbour4 is loading clustering data.")
 		
-		clustering_name_for_recompression = None
-		max_snv_cutoff = 0
 		self.clustering={}		# a dictionary of clustering objects, one per SNV cutoff/mixture management setting
 		for clustering_name in self.clustering_settings.keys():
-			json_repr = self.PERSIST.clusters_read(clustering_name)
-			self.clustering[clustering_name] = snv_clustering(saved_result =json_repr)
-			app.logger.info("Loaded clustering {0} with SNV_threshold {1}".format(clustering_name, self.clustering[clustering_name].snv_threshold))
+			self.clustering[clustering_name] = MixtureAwareLinkageResult(
+						PERSIST=self.PERSIST, 
+						name=clustering_name,
+						serialisation = None)
+			app.logger.info("set up clustering access object {0}".format(clustering_name))
 			
-		# ensure that clustering object is up to date.  clustering is an in-memory graph, which is periodically
-		# persisted to disc.  It is possible that, if the server crashes/does a disorderly shutdown,
-		# the clustering object which is persisted might not include all the guids in the reference compressed
-		# database.  This situation is OK, because the clustering object will bring itself up to date when
-		# the new guids and their links are loaded into it.
-
 		# initialise hybridComparer, which manages in-memory reference compressed data
 		# preComparer_parameters will be read from disc
 		self.hc = hybridComparer(reference=self.reference,
@@ -364,8 +353,7 @@ class findNeighbour4():
 			for guid in guids:
 				nLoaded+=1
 				self.gs.add(guid)
-				obj = self.PERSIST.refcompressedsequence_read(guid)
-				self.hc.persist(obj, guid=guid)
+				self.hc.repopulate(guid=guid)
 				bar.update(nLoaded)
 
 				if nLoaded % 100 == 0:
@@ -374,129 +362,11 @@ class findNeighbour4():
 
 			bar.finish()
 			app.logger.info("findNeighbour4 has finished loaded {0} sequences from database".format(len(guids)))
-			
-		app.logger.info("findNeighbour4 is checking clustering is up to date")
-		self.update_clustering()
+
 		self.server_monitoring_store(message='Garbage collection.')
 		app.logger.info("Garbage collecting")		
 		gc.collect()		# free up ram		
 		self.server_monitoring_store(message='Load from database complete.')
-
-	
-	def update_clustering(self, store=True):
-		""" performs clustering on any samples within the persistence store which are not already clustered
-			If Store=True, writes the clustered object to mongo."""
-		
-		# update clustering and re-cluster
-		for clustering_name in self.clustering_settings.keys():
-			
-			# ensure that clustering object is up to date.
-			
-			# clustering is an in-memory graph, which is periodically
-			# persisted to disc.
-			
-			# It is possible that, if the server crashes/does a disorderly shutdown,
-			# the clustering object which is persisted might not include all the guids in the
-			# reference compressed database.
-			
-			# This situation is OK, because the clustering object will
-			# bring itself up to date when
-			# the new guids and their links are loaded into it.
-			
-			guids = self.PERSIST.refcompressedsequence_guids()			# all guids processed and refernece compressed
-			in_clustering_guids = self.clustering[clustering_name].guids()  # all clustered guids
-			to_add_guids = guids - in_clustering_guids					# what we need to add
-			remaining_to_add_guids = copy.copy(to_add_guids)				# we iterate until there's nothing left to add
-			app.logger.info("Clustering graph {0} contains {2} guids out of {1}; updating.".format(clustering_name, len(guids), len(in_clustering_guids)))
-			while len(remaining_to_add_guids)>0:
-				to_add_guid = remaining_to_add_guids.pop()				# get the guid
-				app.logger.debug("To {0} adding guid{1}".format(clustering_name, to_add_guid))
-
-				links = self.PERSIST.guid2neighbours(to_add_guid, cutoff = self.clustering[clustering_name].snv_threshold, returned_format=3)['neighbours']	# and its links	
-				app.logger.debug("To {0} links of guid {1} recovered {2}".format(clustering_name, to_add_guid, links))
-
-				self.clustering[clustering_name].add_sample(to_add_guid, links)		# add it to the clustering db
-				app.logger.debug("To {0} guid {1} has been added.".format(clustering_name, to_add_guid))
-
-			in_clustering_guids = self.clustering[clustering_name].guids()  # all clustered guids
-
-			app.logger.info("Clustering graph {0} contains {2}/{1} guids post update.".format(clustering_name, len(guids), len(in_clustering_guids)))
-
-			# check any clusters to which to_add_guids have been added for mixtures.
-			nMixed = 0
-			guids_to_check = set()
-			clusters_to_check = set()
-			
-			for to_add_guid in to_add_guids:
-				guids_to_check.add(to_add_guid)								# then we need to check it and
-				app.logger.debug("Clustering graph {0}; examining guid{1}".format(clustering_name, to_add_guid))
-
-				for cluster in self.clustering[clustering_name].guid2clusters(to_add_guid):
-					app.logger.debug("Clustering graph {0}; examining guid {1}, cluster is {2}".format(clustering_name, to_add_guid,cluster))
-
-					clusters_to_check.add(cluster)						# everything else in the same cluster as it
-			
-			cl2guids = 	self.clustering[clustering_name].clusters2guid()	# dictionary allowing cluster -> guid lookup
-			#app.logger.debug("Clustering graph {0};  recovered cl2guids {1}".format(clustering_name, cl2guids))
-
-			for cluster in clusters_to_check:
-				guids_for_msa = cl2guids[cluster]							# do msa on the cluster
-				app.logger.debug("Checking cluster {0}; performing MSA on {1} samples".format(cluster,len(guids_for_msa)))
-				msa = self.hc.multi_sequence_alignment(guids_for_msa, output='df',uncertain_base_type=self.clustering[clustering_name].uncertain_base_type)		#  a pandas dataframe; p_value tests mixed
-				app.logger.debug("Multi sequence alignment is complete")
-
-				if not msa is None:		# no alignment was made
-					mixture_criterion = self.clustering_settings[clustering_name]['mixture_criterion']
-					mixture_cutoff = self.clustering_settings[clustering_name]['cutoff']
-					##################################################################################################
-					## NOTE: query_criterion is EVAL'd by pandas.  This potentially a route to attack the server, but
-					# to do so requires that you can edit either the CONFIG file (pre-startup) or the Mongodb in which
-					# the config is stored post first-run
-					##################################################################################################
-					app.logger.debug("selecting mixed from msa of length {0}..".format(len(msa.index)))
-
-					query_criterion = "{0} <= {1}".format(mixture_criterion,mixture_cutoff)					
-					msa_mixed = msa.query(query_criterion)
-					app.logger.debug("mixed samples selected from msa of length {0}..".format(len(msa_mixed.index)))
-					
-					# check the status of mixed samples in the cluster.
-					mixed_status = {}
-					n_mixed = 0
-					for mixed_guid in msa_mixed.index:
-						if self.clustering[clustering_name].is_mixed(mixed_guid)==True:   # if it's  known to be mixed
-							n_mixed +=1
-						else:
-							mixed_status[mixed_guid]=True		# otherwise we set it as mixed;
-
-					# if all the mixed samples are already assigned as such, we don't have to do anything.
-					# otherwise:
-					if not n_mixed == len(msa_mixed.index):		# all relevant samples are marked as mixed
-						# recover all links in the cluster.
-						app.logger.debug("There are mixed samples to update: currently vs required numbers {0} / {1}..".format(n_mixed, len(msa_mixed.index)))
-								
-						guid2neighbours = {}
-						for guid in msa.index:
-							app.logger.debug("Recovering links for guid {0}..".format(guid))
-
-							guid2neighbours[guid]= self.PERSIST.guid2neighbours(guid, cutoff=self.clustering[clustering_name].snv_threshold, returned_format=3)['neighbours']
-
-						app.logger.debug("Setting mixture status for {0}..".format(mixed_status))
-							
-						self.clustering[clustering_name].set_mixture_status(guid2similar_guids = guid2neighbours, change_guids = mixed_status)
-						app.logger.debug("Setting mixture status complete..")
-					else:
-						pass
-						app.logger.debug("Nothing to update")
-				else:
-					pass
-					app.logger.debug("MSA was none")
-					
-			in_clustering_guids = self.clustering[clustering_name].guids()
-			app.logger.info("Cluster {0} updated; now contains {1} guids. ".format(clustering_name, len(in_clustering_guids)))
-			
-			if store==True:
-				self.PERSIST.clusters_store(clustering_name, self.clustering[clustering_name].to_dict())
-				app.logger.debug("Cluster {0} persisted".format(clustering_name))
 
 	def reset(self):
 		""" restarts the server, deleting any existing data """
@@ -506,7 +376,6 @@ class findNeighbour4():
 			print("Deleting existing data and restarting")
 			self.PERSIST._delete_existing_data()
 			time.sleep(2) # let the database recover
-			self._create_empty_clustering_objects()
 			self._load_in_memory_data()
 
 	def server_monitoring_store(self, message="No message supplied", guid=None):
@@ -555,10 +424,6 @@ class findNeighbour4():
 			for r in SeqIO.parse(f,'fasta'):
 				config_settings['reference']=str(r.seq)
 
-		# create clusters objects
-		app.logger.info("Setting up in-ram clustering objects..")
-		self._create_empty_clustering_objects()
-		
 		# persist other config settings.
 		for item in self.CONFIG.keys():
 			if not item in do_not_persist_keys:
@@ -567,20 +432,6 @@ class findNeighbour4():
 		res = self.PERSIST.config_store('config',config_settings)
 		app.logger.info("First run actions complete.")
 	
-	
-	def _create_empty_clustering_objects(self):
-		""" create empty clustering objects """
-		self.clustering = {}
-		expected_clustering_config_keys = set(['snv_threshold',  'uncertain_base_type', 'mixed_sample_management', 'cutoff', 'mixture_criterion'])
-		for clustering_name in self.clustering_settings.keys():
-			observed = self.clustering_settings[clustering_name] 
-			if not observed.keys() == expected_clustering_config_keys:
-				raise KeyError("Got unexpected keys for clustering setting {0}: got {1}, expected {2}".format(clustering_name, observed, expected_clustering_config_keys))
-			self.clustering[clustering_name] = snv_clustering(snv_threshold=observed['snv_threshold'] ,
-															  mixed_sample_management=observed['mixed_sample_management'],
-															  uncertain_base_type=observed['uncertain_base_type'])
-			self.PERSIST.clusters_store(clustering_name, self.clustering[clustering_name].to_dict())
-			app.logger.info("First run: Configured clustering {0} with SNV_threshold {1}".format( clustering_name, observed['snv_threshold']))
 
 	def repack(self,guids=None):
 		""" generates a smaller and faster representation in the persistence store
@@ -604,62 +455,23 @@ class findNeighbour4():
 			app.logger.info("Guid is not present: {0}".format(guid))
 			
 			# prepare to insert
-			self.objExaminer.examine(dna)  					  # examine the sequence
+			self.objExaminer.examine(dna)  					  # examine the sequence				
 			cleaned_dna=self.objExaminer.nucleicAcidString.decode()
 			refcompressedsequence =self.hc.compress(cleaned_dna)          # compress it and store it in RAM
 			self.server_monitoring_store(message='Compression complete',guid=guid)
-
-			self.hc.persist(refcompressedsequence, guid)			    # insert the DNA sequence into ram.
-			self.server_monitoring_store(message='Stored to RAM',guid=guid)
-
-			self.gs.add(guid)
-			
-			# construct links with everything existing existing at the time the semaphore was acquired.
 			self.write_semaphore.acquire()				    # addition should be an atomic operation
-
-			links={}			
 			try:
-				# this process reports links less or equal to than self.snpCeiling
-				app.logger.debug("Finding links: {0}".format(guid))
-				self.server_monitoring_store(message='Finding neighbours (mcompare - one vs. all)', guid=guid)
-			
-				mcompare_result = self.hc.mcompare(guid)		# compare guid against all
-	
-				to_compress = 0
-				for i,item in enumerate(mcompare_result['neighbours']): 	# all against all
-					(guid1,guid2,dist,n1,n2,nboth, N1pos, N2pos, Nbothpos) = item
-					if not guid1==guid2:
-						link = {'dist':dist,'n1':n1,'n2':n2,'nboth':nboth}
-						if dist is not None:
-							if link['dist'] <= self.snpCeiling:
-								links[guid2]=link			
-								to_compress +=1
-								
+				loginfo = self.hc.persist(refcompressedsequence, 
+						guid,
+						{'DNAQuality':self.objExaminer.composition})	
+				for info in loginfo:
+					app.logger.info(info)
+				self.server_monitoring_store(message='Stored to db',guid=guid)
 
-				# if we found neighbours, report mcompare timings to log
-				if to_compress>0:
-					msg = "mcompare|"
-					for key in mcompare_result['timings'].keys():
-						msg = msg + " {0} {1}; ".format(key, mcompare_result['timings'][key])
-					app.logger.info(msg)
-				## now persist in database.  
-				# we have considered what happens if database connectivity fails during the insert operations.
-				# it would be best to use Mongo4's multi document transactions to do this ## TODO
-				app.logger.info("Persisting: {0}".format(guid))
-				self.server_monitoring_store(message='Found neighbours; Persisting to disc', guid=guid)
+				self.gs.add(guid)
 			
-				# annotation of guid will update if an existing record exists.  This is OK, and is acceptable if database connectivity failed during previous inserts
-				self.PERSIST.guid_annotate(guid=guid, nameSpace='DNAQuality',annotDict=self.objExaminer.composition)						
-
-				# addition of neighbours may cause neighbours to be entered more than once if database connectivity failed during previous inserts.
-				# because of the way that extraction of links works, this does not matter, and duplicates will not be reported.
-				app.logger.info("Persisting: {0} -> {1} links".format(guid,len(links)))
-				self.PERSIST.guid2neighbour_add_links(guid=guid, targetguids=links)
-				self.server_monitoring_store(message='Stored to links and annotations to disc', guid=guid)
-	
 			except Exception as e:
 				app.logger.exception("Error raised on persisting {0}".format(guid))
-				self.write_semaphore.release() 	# ensure release of the semaphore if an error is trapped
 
 				# Rollback anything which could leave system in an inconsistent state
 				# remove the guid from RAM is the only step necessary
@@ -677,21 +489,8 @@ class findNeighbour4():
 				
 			# release semaphore
 			self.write_semaphore.release()                  # release the write semaphore
-
 			app.logger.info("Insert succeeded {0}".format(guid))
-
-
 					
-			# cluster
-			guids = list(links.keys())
-			guids.append(guid)
-			## CLUSTERING IS DISABLED ##
-			#app.logger.info("Clustering around: {0}".format(guid))
-			#self.server_monitoring_store(message='Starting clustering', guid=guid)
-	
-			self.update_clustering()
-			#self.server_monitoring_store(message='Finished clustering', guid=guid)
-	
 			return "Guid {0} inserted.".format(guid)		
 		else:
 			app.logger.info("Already present, no insert needed: {0}".format(guid))
@@ -1035,6 +834,7 @@ def cl2network(clustering_algorithm, cluster_id):
 	or as a minimal spanning tree.
 	"""
 	# validate input
+	fn.clustering[clustering_algorithm].refresh()
 	try:
 		res = fn.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)		
 	except KeyError:
@@ -1059,7 +859,7 @@ def cl2network(clustering_algorithm, cluster_id):
 		guids = sorted(df['guid'].tolist())
 					
 		# data validation complete.  construct outputs
-		snv_threshold = fn.clustering_settings[clustering_algorithm]['snv_threshold']
+		snv_threshold = fn.clustering[clustering_algorithm].snv_threshold
 		snvn = snvNetwork(snv_threshold = snv_threshold)
 		E=[]
 		for guid in guids:
@@ -1150,6 +950,7 @@ def msa_guids_by_cluster(clustering_algorithm, cluster_id, output_format):
 	"""
 	
 	# validate input
+	fn.clustering[clustering_algorithm].refresh()
 	try:
 		res = fn.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)		
 	except KeyError:
@@ -1448,13 +1249,13 @@ def exist_sample(guid, **kwargs):
 @app.route('/api/v2/<string:guid>/clusters', methods=['GET'])
 def clusters_sample(guid):
 	""" returns clusters in which a sample resides """
-	
+
 	clustering_algorithms = sorted(fn.clustering.keys())
 	retVal=[]
 	for clustering_algorithm in clustering_algorithms:
-
-		res = fn.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)		
-		for item in res:
+		fn.clustering[clustering_algorithm].refresh()
+		res = fn.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)
+		for item in res:	
 			if item['guid']==guid:
 				item['clustering_algorithm']=clustering_algorithm
 				retVal.append(item)
@@ -1531,10 +1332,18 @@ def what_tested(clustering_algorithm):
 		 Useful for producing reports of what clustering algorithms are doing
 	"""
 	try:
+		fn.clustering[clustering_algorithm].refresh()
+		
+	except KeyError:
+		# no clustering algorithm of this type
+		abort(404, "no clustering algorithm {0} (failed update)".format(clustering_algorithm))
+	
+	try:
+		
 		res = fn.clustering[clustering_algorithm].uncertain_base_type
 	except KeyError:
 		# no clustering algorithm of this type
-		abort(404, "no clustering algorithm {0}".format(clustering_algorithm))
+		abort(404, "no clustering algorithm {0} (failed base recovery)".format(clustering_algorithm))
 		
 	return make_response(tojson({'what_tested': res, 'clustering_algorithm':clustering_algorithm}))
 
@@ -1546,6 +1355,7 @@ def change_id(clustering_algorithm):
 	"""  returns the current change_id number, which is incremented each time a change is made.
 		 Useful for recovering changes in clustering after a particular point."""
 	try:
+		fn.clustering[clustering_algorithm].refresh()
 		res = fn.clustering[clustering_algorithm].change_id		
 	except KeyError:
 		# no clustering algorithm of this type
@@ -1554,14 +1364,19 @@ def change_id(clustering_algorithm):
 	return make_response(tojson({'change_id': res, 'clustering_algorithm':clustering_algorithm}))
 
 @app.route('/api/v2/clustering/<string:clustering_algorithm>/guids2clusters', methods=['GET'])
-def g2c(clustering_algorithm):
+@app.route('/api/v2/clustering/<string:clustering_algorithm>/guids2clusters/after_change_id/<int:change_id>', methods=['GET'])
+def g2c(clustering_algorithm, change_id=None):
 	"""  returns a guid -> clusterid dictionary for all guids """
 	try:
-		res = fn.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)		
-	except KeyError:
-		# no clustering algorithm of this type
-		abort(404, "no clustering algorithm {0}".format(clustering_algorithm))
+
+		fn.clustering[clustering_algorithm].refresh()
 		
+	except KeyError:
+		app.logging.info("No algorithm {0}".format(clustering_algorithm))
+		abort(404, "no clustering algorithm {0}".format(clustering_algorithm))
+	
+	res = fn.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = change_id)		
+	
 	return make_response(tojson(res))
 
 
@@ -1580,6 +1395,7 @@ def clusters2cnt(clustering_algorithm, cluster_id = None):
 		 * If /summary is requested, returns a dictionary with only 'summary' key"""
 
 	try:
+		fn.clustering[clustering_algorithm].refresh()
 		all_res = fn.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)
 
 	except KeyError:
@@ -1637,6 +1453,7 @@ def clusters2cnt(clustering_algorithm, cluster_id = None):
 def g2cl(clustering_algorithm):
 	"""  returns a guid -> clusterid dictionary for all guids """
 	try:
+		fn.clustering[clustering_algorithm].refresh()
 		res = fn.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)		
 	except KeyError:
 		# no clustering algorithm of this type
@@ -1856,15 +1673,11 @@ python findNeighbour4-server.py ../config/myConfigFile.json	\
 			app.logger.info("Launching communication with Sentry bug-tracking service")
 			sentry_sdk.init(CONFIG['SENTRY_URL'], integrations=[FlaskIntegration()])
 
-	if not 'SERVER_MONITORING_MIN_INTERVAL_MSEC' in CONFIG.keys():
-		   CONFIG['SERVER_MONITORING_MIN_INTERVAL_MSEC']=0
-
 	print("Connecting to backend data store")
 	try:
-			PERSIST=fn3persistence(dbname = CONFIG['SERVERNAME'],
-								   connString=CONFIG['FNPERSISTENCE_CONNSTRING'],
-								   debug=CONFIG['DEBUGMODE'],
-								   server_monitoring_min_interval_msec = CONFIG['SERVER_MONITORING_MIN_INTERVAL_MSEC'])
+			PERSIST=fn3persistence(dbname = CONFIG['SERVERNAME'],			
+						connString=CONFIG['FNPERSISTENCE_CONNSTRING'],
+						debug=CONFIG['DEBUGMODE'])
 	except Exception as e:
 			app.logger.exception("Error raised on creating persistence object")
 			if e.__module__ == "pymongo.errors":

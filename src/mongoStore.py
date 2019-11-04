@@ -96,7 +96,7 @@ class fn3persistence():
             
             # delete any pre-existing data if we are in debug mode.
             if debug == 2:
-                self.logger.warning("Debug mode operational; deleting all data from collections.")
+                self.logger.warning("Debug mode operational [DEBUG={0}]; deleting all data from collections.".format(debug))
                 self._delete_existing_data()
 
                 self.max_neighbours_per_document =2             # used for unittests
@@ -342,6 +342,12 @@ class fn3persistence():
                 return json_repr
         # methods for refcompressedseq, which holds the reference compressed details of the sequences
         # in a gridFS store.
+        def clusters_delete(self, clustering_setting):
+                """ deletes the clustering object stored at clustering_setting
+                """
+                
+                self.clusters.delete(clustering_setting)
+
         def refcompressedseq_store(self, guid, obj):
                 """ stores the pickled object obj with guid guid.
                 Issues an error FileExistsError
@@ -680,6 +686,7 @@ class fn3persistence():
                 results=  self.db.guid2neighbour.find({'guid':guid})
                 reported_already = set()
                 for result in results:
+                        
                         for otherGuid in result['neighbours'].keys():
                                 if not otherGuid in reported_already:           # exclude duplicates
                                         if result['neighbours'][otherGuid]['dist']<=cutoff:        # if distance < cutoff
@@ -1208,7 +1215,10 @@ class Test_Clusters(unittest.TestCase):
                 p.clusters_store('cl1', payload1)
                 payload2 = p.clusters_read('cl1')   
                 self.assertEqual(payload1, payload2)
-
+                p.clusters_delete('cl1')
+                payload3 = p.clusters_read('cl1')   
+                self.assertIsNone(payload3)
+                
 class Test_Monitor(unittest.TestCase):
         """ tests saving and recovery of strings to monitor"""
         def runTest(self):

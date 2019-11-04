@@ -1,0 +1,186 @@
+""" clustering for findNeighbour4
+assumes a findNeighbour4 server is running, with the connection string stated in ../demos/AC587/config/config_cl.json.
+
+An example command doing this would be (starting from /src)
+
+pipenv run python3 findNeighbour4-server.py ../demos/AC587/config/config_cl.json
+
+The test performs clustering.
+"""
+
+# import libraries
+import os
+import sys
+import requests
+import json
+import logging
+import warnings
+import datetime
+import glob
+import sys
+import hashlib
+import queue
+import threading
+import gc
+import io
+import pymongo
+import pandas as pd
+import numpy as np
+import copy
+import pathlib
+import markdown
+import codecs
+import sentry_sdk
+import matplotlib
+import dateutil.parser
+import argparse
+import progressbar
+import time
+
+from Bio import SeqIO
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+from Bio.Alphabet import generic_nucleotide
+from sentry_sdk import capture_message, capture_exception
+from sentry_sdk.integrations.flask import FlaskIntegration
+
+# logging
+from logging.config import dictConfig
+
+# utilities for file handling and measuring file size
+import psutil
+
+# startup
+from mongoStore import fn3persistence
+from ma_linkage import MixtureAwareLinkage,MixPOREMixtureChecker, MixtureAwareLinkageResult
+from hybridComparer import hybridComparer
+from read_config import ReadConfig
+
+if __name__ == '__main__':
+
+	# command line usage.  Pass the location of a config file as a single argument.
+	parser = argparse.ArgumentParser(
+		formatter_class= argparse.RawTextHelpFormatter,
+		description="""Runs findNeighbour4-clustering, a findNeighbour4 component.
+									 
+
+Example usage: 
+============== 
+
+## does not require findNeighbour4-server to be running
+python findNeighbour4-clustering.py ../config/myConfigFile.json	 
+
+if a config file is not provided, it will run (as does findNeighbour4-server) is debug mode: it will run once, and then terminate.  This is useful for unit testing.  If a config file is specified, the clustering will  run until terminated.  
+
+Checks for new sequences are conducted once per minute.
+
+""")
+	parser.add_argument('path_to_config_file', type=str, action='store', nargs='?',
+						help='the path to the configuration file', default=''  )
+	args = parser.parse_args()
+	
+	# an example config file is default_test_config.json
+
+	############################ LOAD CONFIG ######################################
+	print("findNeighbour4 clustering .. reading configuration file.")
+
+	if len(args.path_to_config_file)>0:
+			configFile = args.path_to_config_file
+			debugmode = False
+			logging.info(configFile)
+	else:
+			configFile = os.path.join('..','config','default_test_config.json')
+			debugmode = True
+			warnings.warn("No config file name supplied ; using a configuration ('default_test_config.json') suitable only for testing, not for production. ")
+	rc = ReadConfig()
+	CONFIG = rc.read_config(configFile)
+	
+	########################### SET UP LOGGING #####################################  
+	# create a log file if it does not exist.
+	print("Starting logging")
+	logdir = os.path.dirname(CONFIG['LOGFILE'])
+	pathlib.Path(os.path.dirname(CONFIG['LOGFILE'])).mkdir(parents=True, exist_ok=True)
+
+	# set up logger
+	logger = logging.getLogger()
+	loglevel=logging.INFO
+	if 'LOGLEVEL' in CONFIG.keys():
+			if CONFIG['LOGLEVEL']=='WARN':
+					loglevel=logging.WARN
+			elif CONFIG['LOGLEVEL']=='DEBUG':
+					loglevel=logging.DEBUG
+
+	# configure logging object 
+	logger.setLevel(loglevel)       
+	file_handler = logging.FileHandler(CONFIG['LOGFILE'])
+	formatter = logging.Formatter( "%(asctime)s | %(pathname)s:%(lineno)d | %(funcName)s | %(levelname)s | %(message)s ")
+	file_handler.setFormatter(formatter)
+	logger.addHandler(file_handler)
+
+	# launch sentry if API key provided
+	if 'SENTRY_URL' in CONFIG.keys():
+			logger.info("Launching communication with Sentry bug-tracking service")
+			sentry_sdk.init(CONFIG['SENTRY_URL'], integrations=[FlaskIntegration()])
+
+	########################### prepare to launch server ####################################
+	# construct the required global variables
+	
+	print("Connecting to backend data store")
+	try:
+			PERSIST=fn3persistence(dbname = CONFIG['SERVERNAME'],
+								   connString=CONFIG['FNPERSISTENCE_CONNSTRING'],
+								   debug=0
+								   )  # if in debug mode wipes all data.  This is not what is wanted here, even if we are using unittesting database
+
+	except Exception as e:
+			logger.exception("Error raised on creating persistence object")
+			raise
+
+
+	################################# clustering #############################################
+	# open PERSIST and hybridComparer object used by all samples
+	
+	hc = hybridComparer(reference=CONFIG['reference'],
+		maxNs=CONFIG['MAXN_STORAGE'],
+		snpCeiling=  CONFIG['SNPCEILING'],
+		excludePositions=CONFIG['excluded'],
+		preComparer_parameters=CONFIG['PRECOMPARER_PARAMETERS'],
+		PERSIST=PERSIST)
+
+	# get a clustering object's settings
+	clusterers = {}
+	for clustering_name in CONFIG['CLUSTERING'].keys():
+		clustering_setting = CONFIG['CLUSTERING'][clustering_name]
+		
+
+		mpmc = MixPOREMixtureChecker(hc, **clustering_setting) 
+
+		# check update adds remaining guids
+
+		clusterers[clustering_name] = MixtureAwareLinkage(PERSIST=PERSIST, 
+				    MIXCHECK = mpmc,
+				    mixed_sample_management = clustering_setting['mixed_sample_management'], 
+				    snv_threshold=clustering_setting['snv_threshold'],
+				    serialisation=None,
+				    parameters= clustering_setting,
+				    name = clustering_name)
+
+	# now iterate - on a loop
+	while True:
+		for clustering_name in CONFIG['CLUSTERING'].keys():
+			clustering_setting = CONFIG['CLUSTERING'][clustering_name]
+			clusterers[clustering_name].update()	
+			clusterers[clustering_name].cluster()
+			clusterers[clustering_name].persist(what='graph')
+			clusterers[clustering_name].persist(what='output')
+			
+		if debugmode:
+
+			#for clustering_name in CONFIG['CLUSTERING'].keys():
+			#	malr = MixtureAwareLinkageResult(PERSIST=PERSIST, name=clustering_name)#
+			#	malr.refresh()
+			#	print(clustering_name)
+			#	print(malr.guid2clustermeta())
+			exit(0)
+		print("Waiting 60 seconds")
+		time.sleep(60)

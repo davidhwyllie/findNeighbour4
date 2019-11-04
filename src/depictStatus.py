@@ -54,6 +54,7 @@ class MakeHumanReadable():
             if item in column_header:
                 result = result.replace(item, self.tag2readable[item])
         return result     
+
 class DepictServerStatus():
     """ depicts server status using data in the format cached by the server in the server_monitoring collection
     in mongodb"""
@@ -80,7 +81,8 @@ class DepictServerStatus():
                  logfile=None,
                  server_url='Not specified',
                  server_port='Not specified',
-                 server_description='Not specified'
+                 server_description='Not specified',
+                 max_interval = 600,
                  ):
         """ initialises DepictServerStatus object
         
@@ -89,6 +91,7 @@ class DepictServerStatus():
         server_url: the server url.  only used to display info
         server_port:server port.  only used to display info
         server_description: server description.  only used as display info
+	max_interval: don't plot intervals more than this (seconds)
         returns:
         nothing
         """
@@ -100,7 +103,7 @@ class DepictServerStatus():
         self.mhr = MakeHumanReadable()
         self.source = {}
         self.source_columns={}
-
+        self.max_interval = max_interval
         self.monitoring_data={}
               
         self._set_server_info()
@@ -202,9 +205,11 @@ class DepictServerStatus():
                                 interval=  (self.monitoring_data[data_tag].loc[previous,'t']-self.monitoring_data[data_tag].loc[ix,'t']).total_seconds()
                             except TypeError:
                                 interval = None
-                            self.monitoring_data[data_tag].loc[ix,'interval'] = interval
+                        if interval is not None:
+                            if interval > self.max_interval:
+                                interval = None     # don't show very high intervals.  These normally result from the server waiting for new data                            
+                        self.monitoring_data[data_tag].loc[ix,'interval'] = interval
                         previous=ix
-  
         columns=[]
         for item in self.monitoring_data[data_tag].columns.tolist():
             columns.append(TableColumn(field=item, title=item))
@@ -358,7 +363,7 @@ class DepictServerStatus():
             return tab1
 
         else:
-            ## TODO: something transparent
+            ## be clear something went wrong
              text = "? asked for metrics which are not present.<br>No data for metrics {0} -> columns {1}".format(metrics, report_columns)
              div = Div(text= text, render_as_text=False, width=1000, height=800)
         tab1 = Panel(child=div, title=tab_title)        

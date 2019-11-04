@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# script to startup a findNeighbour server.
+# script to startup a findNeighbour server and accessory software (monitor, clustering, dbmanager).
 # expects a configuration file to be provided as a single parameter.
 
 
@@ -24,6 +24,9 @@ echo "Starting dbmanager"
 nohup pipenv run python3 findNeighbour4-dbmanager.py $1 > nohup_dbmanager.out &
 echo "Starting monitor"
 nohup pipenv run python3 findNeighbour4-monitor.py $1 > nohup_monitor.out &
+echo "Starting clustering"
+nohup pipenv run python3 findNeighbour4-clustering.py $1 > nohup_clustering.out &
+
 
 echo "Startup complete"
 

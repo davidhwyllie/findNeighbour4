@@ -61,7 +61,6 @@ from urllib.parse import urlparse as urlparser
 from urllib.parse import urljoin as urljoiner
 import uuid
 import time
-
 		
 # default parameters for unit testing only.
 RESTBASEURL   = "http://127.0.0.1:5020"
@@ -182,7 +181,7 @@ class test_reset(unittest.TestCase):
 		self.assertTrue(n_post_reset==0)
 
 class test_cl2network(unittest.TestCase):
-	"""  tests return of a change_id number """
+	"""  tests return of a change_id number from clustering engine"""
 	def runTest(self):
 		relpath = "/api/v2/reset"
 		res = do_POST(relpath, payload={})
@@ -226,6 +225,11 @@ class test_cl2network(unittest.TestCase):
 			res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
 			self.assertEqual(res.status_code, 200)
 
+		# run the clustering engine.
+
+		os.system("pipenv run python3 findNeighbour4-clustering.py")
+
+		# do tests
 		relpath = "/api/v2/clustering/SNV12_ignore/cluster_ids"
 		res = do_GET(relpath)
 		self.assertEqual(res.status_code, 200)
@@ -246,9 +250,6 @@ class test_cl2network(unittest.TestCase):
 		jsonresp = json.loads(str(res.text))
 		self.assertTrue(isinstance(jsonresp, dict))
 		self.assertTrue('elements' in jsonresp.keys())
-		#for item in jsonresp['elements']:
-		#	print(item)
-	
 
 
 class test_msa_2(unittest.TestCase):
@@ -305,7 +306,9 @@ class test_msa_2(unittest.TestCase):
 				self.assertTrue(isjson(content = res.content))
 				info = json.loads(res.content.decode('utf-8'))
 				self.assertEqual(info, 'Guid {0} inserted.'.format(guid_to_insert))
-	
+
+
+
 		relpath = "/api/v2/multiple_alignment/guids"
 		payload = {'guids':';'.join(inserted_guids),'output_format':'html'}
 		res = do_POST(relpath, payload=payload)
@@ -405,6 +408,9 @@ class test_msa_2(unittest.TestCase):
 		res = do_POST(relpath, payload=payload)
 		self.assertEqual(res.status_code, 404)
 
+		# Do clustering
+		print("Doing clustering")
+		os.system("pipenv run python3 findNeighbour4-clustering.py")
 				
 		relpath = "/api/v2/clustering/SNV12_ignore/guids2clusters"
 		res = do_GET(relpath)
@@ -425,9 +431,9 @@ class test_msa_2(unittest.TestCase):
 		self.assertTrue(isjson(res.content))
 		d = json.loads(res.content.decode('utf-8'))
 		df = pd.DataFrame.from_records(d)		
-		self.assertEqual(df.loc[df.index[0],'what_tested'],'N')
+		self.assertEqual(df.loc[df.index[0],'what_tested'],'M')
 
-		relpath = "/api/v2/multiple_alignment_cluster/SNV12_include_M/{0}/json-records".format(cluster_id)
+		relpath = "/api/v2/multiple_alignment_cluster/SNV12_include/{0}/json-records".format(cluster_id)
 		res = do_GET(relpath)
 		self.assertEqual(res.status_code, 200)
 		self.assertTrue(isjson(res.content))
@@ -436,7 +442,7 @@ class test_msa_2(unittest.TestCase):
 		self.assertEqual(df.loc[df.index[0],'what_tested'],'M')
 	
 		
-		relpath = "/api/v2/multiple_alignment_cluster/SNV12_ignore/{0}/fasta".format(cluster_id)
+		relpath = "/api/v2/multiple_alignment_cluster/SNV12_exclude/{0}/fasta".format(cluster_id)
 		res = do_GET(relpath)
 		self.assertFalse(isjson(res.content))
 		self.assertEqual(res.status_code, 200)
@@ -519,8 +525,7 @@ class test_server_config(unittest.TestCase):
 		self.assertTrue(isjson(content = res.content))
 
 		config_dict = json.loads(res.content.decode('utf-8'))
-
-		self.assertTrue('GC_ON_RECOMPRESS' in config_dict.keys())
+		self.assertTrue('PRECOMPARER_PARAMETERS' in config_dict.keys())
 		self.assertEqual(res.status_code, 200)
 
 
@@ -752,21 +757,65 @@ class test_clusters_sample(unittest.TestCase):
 
 		relpath = "/api/v2/guids"
 		res = do_GET(relpath)
-		n_post = len(json.loads(res.content.decode('utf-8')))
+		guids_loaded = json.loads(res.content.decode('utf-8'))
+		n_post = len(guids_loaded)
+		print("*** GUIDS LOADED ", guids_loaded)
 		self.assertEqual(n_pre+1, n_post)
 		
 		relpath = "/api/v2/{0}/clusters".format(guid_to_insert)
 		res = do_GET(relpath)
-		self.assertEqual(res.status_code, 200)
+		self.assertEqual(res.status_code, 404)		# clustering hasn't happened yet
+
+		# Do clustering
+		os.system("pipenv run python3 findNeighbour4-clustering.py")
+
+		relpath = "/api/v2/guids"
+		res = do_GET(relpath)
+		guids_loaded = json.loads(res.content.decode('utf-8'))
+		n_post = len(guids_loaded)
+		print("*** GUIDS RELOADED ", guids_loaded)
+		self.assertEqual(n_pre+1, n_post)
+			
+		relpath = "/api/v2/{0}/clusters".format(guid_to_insert)
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 200)		# clustering has happened 
+		
 		self.assertTrue(isjson(content = res.content))
-		info = json.loads(res.content.decode('utf-8'))
+		cluster_list = res.content.decode('utf-8')
+		info = json.loads(cluster_list)
+		print("CLUSTERINFO",info)
 		self.assertEqual(len(info),3)
 
 class test_clusters_what(unittest.TestCase):
-	""" tests implementation of 'what' value, stored in clustering object"""
+	""" tests implementation of 'what' value, stored in clustering results object"""
 	def runTest(self):
 		relpath = "/api/v2/reset"
 		res = do_POST(relpath, payload={})
+
+		# add one
+		relpath = "/api/v2/guids"
+		res = do_GET(relpath)
+		n_pre = len(json.loads(str(res.text)))		# get all the guids
+
+		guid_to_insert = "guid_{0}".format(n_pre+1)
+
+		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+		with open(inputfile, 'rt') as f:
+			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+					seq = str(record.seq)
+
+		print("Adding TB reference sequence of {0} bytes".format(len(seq)))
+		self.assertEqual(len(seq), 4411532)		# check it's the right sequence
+
+		relpath = "/api/v2/insert"
+		res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
+		self.assertEqual(res.status_code, 200)
+		self.assertTrue(isjson(content = res.content))
+		info = json.loads(res.content.decode('utf-8'))
+		self.assertEqual(info, 'Guid {0} inserted.'.format(guid_to_insert))
+
+		# Do clustering
+		os.system("pipenv run python3 findNeighbour4-clustering.py")
 		
 		# what happens if there is nothing there
 		relpath = "/api/v2/non_existent_guid/clusters"
@@ -800,7 +849,7 @@ class test_algorithms(unittest.TestCase):
 		res = do_GET(relpath)
 		self.assertEqual(res.status_code, 200)
 		retDict = json.loads(str(res.text))
-		self.assertEqual(retDict, {'algorithms': ['SNV12_ignore', 'SNV12_include','SNV12_include_M']})
+		self.assertEqual(set(retDict['algorithms']), set(['SNV12_ignore', 'SNV12_include','SNV12_exclude']))
 
 
 class test_what_tested(unittest.TestCase):
@@ -809,18 +858,51 @@ class test_what_tested(unittest.TestCase):
 		relpath = "/api/v2/reset"
 		res = do_POST(relpath, payload={})
 		
+		# add one
+		relpath = "/api/v2/guids"
+		res = do_GET(relpath)
+		n_pre = len(json.loads(str(res.text)))		# get all the guids
+
+		guid_to_insert = "guid_{0}".format(n_pre+1)
+
+		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+		with open(inputfile, 'rt') as f:
+			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+					seq = str(record.seq)
+
+		print("Adding TB reference sequence of {0} bytes".format(len(seq)))
+		self.assertEqual(len(seq), 4411532)		# check it's the right sequence
+
+		relpath = "/api/v2/insert"
+		res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
+		self.assertEqual(res.status_code, 200)
+		self.assertTrue(isjson(content = res.content))
+		info = json.loads(res.content.decode('utf-8'))
+		self.assertEqual(info, 'Guid {0} inserted.'.format(guid_to_insert))
+
+
+		# Do clustering
+		os.system("pipenv run python3 findNeighbour4-clustering.py")
+	
+
+
+		relpath = "/api/v2/clustering/SNV12_exclude/what_tested"
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 200)
+		retDict = json.loads(str(res.text))
+		self.assertEqual(retDict, {'clustering_algorithm': 'SNV12_exclude', 'what_tested':'M'})
+
 		relpath = "/api/v2/clustering/SNV12_include/what_tested"
 		res = do_GET(relpath)
 		self.assertEqual(res.status_code, 200)
 		retDict = json.loads(str(res.text))
-		self.assertEqual(retDict, {'clustering_algorithm': 'SNV12_include', 'what_tested':'N'})
-		relpath = "/api/v2/clustering/SNV12_include_M/what_tested"
+		self.assertEqual(retDict, {'clustering_algorithm': 'SNV12_include', 'what_tested':'M'})
+
+		relpath = "/api/v2/clustering/SNV12_ignore/what_tested"
 		res = do_GET(relpath)
 		self.assertEqual(res.status_code, 200)
 		retDict = json.loads(str(res.text))
-		self.assertEqual(retDict, {'clustering_algorithm': 'SNV12_include_M', 'what_tested':'M'})
-
-
+		self.assertEqual(retDict, {'clustering_algorithm': 'SNV12_ignore', 'what_tested':'M'})
 class test_g2c(unittest.TestCase):
 	"""  tests return of guid2clusters data structure """
 	def runTest(self):
@@ -833,6 +915,11 @@ class test_g2c(unittest.TestCase):
 		retVal = json.loads(str(res.text))
 		self.assertTrue(isinstance(retVal, list))
 
+		relpath = "/api/v2/clustering/SNV12_ignore/guids2clusters/after_change_id/0"
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 200)
+		retVal = json.loads(str(res.text))
+		self.assertTrue(isinstance(retVal, list))
 class test_clusters2cnt(unittest.TestCase):
 	"""  tests return of guid2clusters data structure """
 	def runTest(self):
@@ -909,12 +996,44 @@ class test_g2ca(unittest.TestCase):
 		relpath = "/api/v2/reset"
 		res = do_POST(relpath, payload={})
 		
-		relpath = "/api/v2/clustering/SNV12_ignore/guids2clusters/after_change_id/1"
+		relpath = "/api/v2/clustering/SNV12_ignore/guids2clusters"
+		res = do_GET(relpath)
+		self.assertEqual(res.status_code, 200)
+
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+		
+		relpath = "/api/v2/guids"
+		res = do_GET(relpath)
+		n_pre = len(json.loads(str(res.text)))		# get all the guids
+
+		guid_to_insert = "guid_{0}".format(n_pre+1)
+
+		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+		with open(inputfile, 'rt') as f:
+			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+					seq = str(record.seq)
+
+		print("Adding TB reference sequence of {0} bytes".format(len(seq)))
+		self.assertEqual(len(seq), 4411532)		# check it's the right sequence
+
+		relpath = "/api/v2/insert"
+		res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
+		self.assertEqual(res.status_code, 200)
+		self.assertTrue(isjson(content = res.content))
+		info = json.loads(res.content.decode('utf-8'))
+		self.assertEqual(info, 'Guid {0} inserted.'.format(guid_to_insert))
+
+		# Do clustering
+		os.system("pipenv run python3 findNeighbour4-clustering.py")
+		
+		relpath = "/api/v2/clustering/SNV12_ignore/guids2clusters"
+
 		res = do_GET(relpath)
 		self.assertEqual(res.status_code, 200)
 		retVal = json.loads(str(res.text))
 		self.assertTrue(isinstance(retVal, list))
-		
+
 class test_change_id(unittest.TestCase):
 	"""  tests return of a change_id number """
 	def runTest(self):
