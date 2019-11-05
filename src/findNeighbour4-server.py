@@ -433,15 +433,6 @@ class findNeighbour4():
 		app.logger.info("First run actions complete.")
 	
 
-	def repack(self,guids=None):
-		""" generates a smaller and faster representation in the persistence store
-		for the guids in the list. optional"""
-		if guids is None:
-			guids = self.PERSIST.guids()  # all the guids
-		for this_guid in guids:
-			app.logger.debug("Repacking {0}".format(this_guid))
-			self.PERSIST.guid2neighbour_repack(this_guid)
-	
 	def insert(self,guid,dna):
 		""" insert DNA called guid into the server,
 		persisting it in both RAM and on disc, and updating any clustering.
@@ -454,7 +445,7 @@ class findNeighbour4():
 			self.server_monitoring_store(message='About to insert',guid=guid)
 			app.logger.info("Guid is not present: {0}".format(guid))
 			
-			# prepare to insert
+			# insert sequence into the sequence store.
 			self.objExaminer.examine(dna)  					  # examine the sequence				
 			cleaned_dna=self.objExaminer.nucleicAcidString.decode()
 			refcompressedsequence =self.hc.compress(cleaned_dna)          # compress it and store it in RAM
@@ -464,33 +455,22 @@ class findNeighbour4():
 				loginfo = self.hc.persist(refcompressedsequence, 
 						guid,
 						{'DNAQuality':self.objExaminer.composition})	
-				for info in loginfo:
-					app.logger.info(info)
-				self.server_monitoring_store(message='Stored to db',guid=guid)
-
-				self.gs.add(guid)
 			
 			except Exception as e:
 				app.logger.exception("Error raised on persisting {0}".format(guid))
-
+				capture_exception(e)
 				# Rollback anything which could leave system in an inconsistent state
 				# remove the guid from RAM is the only step necessary
 				self.hc.remove(guid)	
 				app.logger.info("Guid successfully removed from ram. {0}".format(guid))
-
-				if e.__module__ == "pymongo.errors":
-					app.logger.info("Error raised pertains to pyMongo connectivity")
-					capture_exception(e)
-					abort(503,e)		# the mongo server may be refusing connections, or busy.  This is observed occasionally in real-world use
-				else:
-					capture_exception(e)
-					abort(500,e)		# some other kind of error
-
+				abort(503,e)		# the mongo server may be refusing connections, or busy.  This is observed occasionally in real-world use
 				
 			# release semaphore
 			self.write_semaphore.release()                  # release the write semaphore
 			app.logger.info("Insert succeeded {0}".format(guid))
-					
+			for info in loginfo:
+				app.logger.info(info)		# performance info
+			self.server_monitoring_store(message='Stored compressed sequence',guid=guid)
 			return "Guid {0} inserted.".format(guid)		
 		else:
 			app.logger.info("Already present, no insert needed: {0}".format(guid))

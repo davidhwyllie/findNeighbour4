@@ -166,19 +166,13 @@ class hybridComparer():
         self.update_precomparer_parameters()
 
         # store object in the precomparer
-        self.pc.persist(obj, guid)      # store in the preComparer
+        self.pc.persist(obj, guid)      # store in the preComparer.  This does not write to db.
 
         # add sequence and its links to disc
         try:
             self.PERSIST.refcompressedseq_store(guid, obj)      # store in the mongostore
         except FileExistsError:
-            pass        # exists
-
-        # add annotations
-        annotDict = {'Timing':{'InsertTime':datetime.datetime.now().isoformat()}}
-        annotations.update(annotDict)
-        for nameSpace in annotations.keys():
-            self.PERSIST.guid_annotate(guid=guid, nameSpace=nameSpace,annotDict=annotations[nameSpace])
+            pass        # exists - we don't need to re-add it.
 
         # add links
         links={}
@@ -194,11 +188,16 @@ class hybridComparer():
                 if link['dist'] <= self.snpCeiling:
                     links[guid2]=link			
 
-        ## now persist in database.  
-        # it may be best to use Mongo4's multi document transactions to do this ## TODO - THINK
+        ## now persist in database.
+
+        # insert as an atomic transaction
         if len(links.keys())>0:
-            #print("Storing",guid, links)
-            self.PERSIST.guid2neighbour_add_links(guid=guid, targetguids=links)
+            self.PERSIST.guid2neighbour_add_links(guid=guid,  targetguids=links)
+
+# add any annotations
+        if annotations is not None:
+            for nameSpace in annotations.keys():
+                self.PERSIST.guid_annotate(guid=guid, nameSpace=nameSpace, annotDict=annotations[nameSpace])
 
         # if we found neighbours, report mcompare timings to log
         msg = "mcompare|"
