@@ -24,10 +24,6 @@ python3 findNeighbour4-server.py
 # And then (e.g. in a different terminal) launching unit tests with
 python3 -m unittest findNeighbour4-server
 """
- 
-## TODO - option to run in 'read only' mode 
-## CHECK THAT NO QUERIES NEED TO READ RAM [one does - to review]
-## ADD all-insert option [later]
 
 # import libraries
 import os
@@ -380,8 +376,13 @@ class findNeighbour4():
 
 	def server_monitoring_store(self, message="No message supplied", guid=None):
 		""" reports server memory information to store """
-		hc_summary = self.hc.summarise_stored_items()
-		db_summary = self.PERSIST.summarise_stored_items()
+		hc_summary = {}
+		try:
+			hc_summary =  self.hc.summarise_stored_items()
+		except AttributeError:		# no hc object, occurs during startup
+			pass
+
+		db_summary =  self.PERSIST.summarise_stored_items()
 		mem_summary = self.PERSIST.memory_usage()
 		self.PERSIST.server_monitoring_store(message=message, what='server', guid= guid, content={**hc_summary, **db_summary, **mem_summary})
 
@@ -430,6 +431,8 @@ class findNeighbour4():
 				config_settings[item]=self.CONFIG[item]
 				
 		res = self.PERSIST.config_store('config',config_settings)
+		self.server_monitoring_store(message='First run complete.')
+
 		app.logger.info("First run actions complete.")
 	
 
@@ -451,18 +454,21 @@ class findNeighbour4():
 			refcompressedsequence =self.hc.compress(cleaned_dna)          # compress it and store it in RAM
 			self.server_monitoring_store(message='Compression complete',guid=guid)
 			self.write_semaphore.acquire()				    # addition should be an atomic operation
+			
 			try:
 				loginfo = self.hc.persist(refcompressedsequence, 
 						guid,
 						{'DNAQuality':self.objExaminer.composition})	
 			
 			except Exception as e:
+				self.write_semaphore.release()                  # release the write semaphore
 				app.logger.exception("Error raised on persisting {0}".format(guid))
+				app.logger.exception(e)
 				capture_exception(e)
 				# Rollback anything which could leave system in an inconsistent state
 				# remove the guid from RAM is the only step necessary
 				self.hc.remove(guid)	
-				app.logger.info("Guid successfully removed from ram. {0}".format(guid))
+				app.logger.info("Guid {0}  removed from preComparer. {0}".format(guid))
 				abort(503,e)		# the mongo server may be refusing connections, or busy.  This is observed occasionally in real-world use
 				
 			# release semaphore

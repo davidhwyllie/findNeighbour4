@@ -185,7 +185,7 @@ class preComparer():
                 a unique identifier for a sequence
 
             Returns:
-                None
+                invalid: 0 if valid, 1 if invalid
             """
 
         # check it does not exist.  Does not allow overwriting
@@ -251,6 +251,7 @@ class preComparer():
                 pass        # if it doesn't exist, that's OK	
 
         self.seqProfile[guid]=smaller_obj
+        return obj['invalid']
 
     def remove(self, guid):
         """ removes a reference compressed object into RAM.
@@ -376,7 +377,7 @@ class preComparer():
         """ counts how many sequences exist of various types """
         retVal = {}
         retVal['server|pcstat|nSeqs'] = len(self.seqProfile.keys())
-        retVal['server|pcstat|nBinomialResults'] = len(self.binom_results.keys())
+        #retVal['server|pcstat|nBinomialResults'] = len(self.binom_results.keys())
    
         return(retVal)
 

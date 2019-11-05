@@ -166,7 +166,7 @@ class hybridComparer():
         self.update_precomparer_parameters()
 
         # store object in the precomparer
-        self.pc.persist(obj, guid)      # store in the preComparer.  This does not write to db.
+        is_invalid = self.pc.persist(obj, guid)      # store in the preComparer.  This does not write to db.
 
         # add sequence and its links to disc
         try:
@@ -176,7 +176,7 @@ class hybridComparer():
 
         # add links
         links={}
-        loginfo=[]	
+        loginfo=["inserted {0} into precomparer; is_invalid = {1}".format(guid, is_invalid)]	
 
         mcompare_result = self.mcompare(guid)		# compare guid against all
 
@@ -190,9 +190,8 @@ class hybridComparer():
 
         ## now persist in database.
 
-        # insert as an atomic transaction
-        if len(links.keys())>0:
-            self.PERSIST.guid2neighbour_add_links(guid=guid,  targetguids=links)
+        # insert any links found, and the datetime we added the statement.
+        self.PERSIST.guid2neighbour_add_links(guid=guid,  targetguids=links)
 
 # add any annotations
         if annotations is not None:
@@ -242,7 +241,7 @@ class hybridComparer():
             guids = set(self.pc.seqProfile.keys())
         
         if not guid in self.pc.seqProfile.keys():
-            raise KeyError("Asked to compare {0}  but guid requested has not been stored.  call .persist() on the sample to be added before using mcompare.".format(guid))
+            raise KeyError("Asked to compare {0}  but guid requested has not been stored in the preComparer.  call .persist() on the sample to be added before using mcompare.".format(guid))
         
         # mcompare using preComparer
         candidate_guids = set()
@@ -617,6 +616,8 @@ e
         
         The p values reported are derived from exact, one-sided binomial tests as implemented in python's scipy.stats.binom_test().
 
+        Note: the below refers to 'N's, but what is analysed is actually the uncertain_base_type, which can be N, M, or N_or_M.
+
         TEST 1:
         This tests the hypothesis that the number of Ns in the *alignment*
         is GREATER than those expected from the expected_N in the population of whole sequences.
@@ -653,7 +654,7 @@ e
         reported as None.
              
         TEST 3: tests whether the proportion of Ns in the alignment is greater
-        than in the bases not in the alignment, for this sequence.
+        than in the bases not in the alignment, for this sequence.  This is the test published.
         
         ## TEST 4:  
         tests whether the proportion of Ns in the alignment  for this sequence

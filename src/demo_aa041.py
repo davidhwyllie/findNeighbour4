@@ -17,7 +17,7 @@ fastadir = os.path.join('..','demos','AA041','fasta')
 outputdir = os.path.join('..','demos','AA041','output')
 
 # instantiate client
-fn3c = fn3Client()      # expects operation on local host; pass baseurl if somewhere else.
+fn3c = fn3Client("http://127.0.0.1:5021")      # expects operation on local host; pass baseurl if somewhere else.
 
 # names of the clustering algorithms
 clusters=fn3c.clustering()
@@ -51,6 +51,7 @@ for i,fastafile in enumerate(sorted(glob.glob(os.path.join(fastadir, 'test', '*.
         if not guid in existing_guids:
             fn3c.insert(guid=guid,seq=seq)
             result= 'inserted'
+    print("Test",datetime.datetime.now(), i, guid, result)
           
 
 print("Finished")

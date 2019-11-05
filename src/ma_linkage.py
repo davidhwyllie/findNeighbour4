@@ -125,7 +125,7 @@ class MixPOREMixtureChecker(MixtureChecker):
                     mixture_criterion, 
                     cutoff, 
                     uncertain_base_type,
-                    max_seqs_mixpore = 2,
+                    max_seqs_mixpore,
                     **kwargs
             ):
         """ sets up the MixtureChecker.
@@ -146,7 +146,7 @@ class MixPOREMixtureChecker(MixtureChecker):
                 mixture_criterion: pvalue_n, where p = 1,2,3 or 4.  refers to the nature of the statistical test peformed; see  hybridComparer.msa() function for details.  pvalue_2 is recommended.    
 		cutoff:  the p value at which the result is considered mixed.  not corrected for multiple comparisons.  one comparison is performed per sample analysed. consider 1e-8
 
-                max_seqs_mixpore:  how many sequences the test sequence will be compared with to perform mixpore.  2 minimum.  recommended: 2
+                max_seqs_mixpore:  how many sequences the test sequence will be compared with to perform mixpore.  2 minimum.  recommended: 10
 
                 **kwargs: other args are ignored
                 Note that in all the below documentation, 'guid' refers to a node identified by a guid,
