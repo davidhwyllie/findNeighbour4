@@ -468,7 +468,7 @@ class findNeighbour4():
 				# Rollback anything which could leave system in an inconsistent state
 				# remove the guid from RAM is the only step necessary
 				self.hc.remove(guid)	
-				app.logger.info("Guid {0}  removed from preComparer. {0}".format(guid))
+				app.logger.warning("Guid {0}  removed from preComparer due to error {0}".format(guid))
 				abort(503,e)		# the mongo server may be refusing connections, or busy.  This is observed occasionally in real-world use
 				
 			# release semaphore

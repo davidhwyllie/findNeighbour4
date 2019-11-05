@@ -215,7 +215,11 @@ class hybridComparer():
     def remove_all(self):
         """ empties any sequence data from ram in the seqComparer """
         self._refresh()
-               
+    
+    def remove_all_temporary_seqs(self):
+        """ empties any sequence data from ram in the .seqProfile dictionary; these are used for MSAs.  does not affect the seqProfile object. """
+        self.seqProfile = {} 
+
     def _refresh(self):
         """ empties any sequence data from ram in any precomparer object existing. """
         if hasattr(self,'pc'):
@@ -678,7 +682,7 @@ e
         valid_guids = []
         invalid_guids = []
 
-        self.remove_all()       # remove all full seqProfiles from this object
+        self.remove_all_temporary_seqs()       # remove all full seqProfiles from this object
         for guid in guids:
             seq = self.load(guid)
             if seq is None:
@@ -686,7 +690,6 @@ e
 
             if seq['invalid'] == 0:
                 self.seqProfile[guid]= seq
-                self.pc.persist(seq, guid)
                 valid_guids.append(guid)
             else:
                 invalid_guids.append(guid)
@@ -1132,7 +1135,7 @@ class test_hybridComparer_summarise_stored_items(unittest.TestCase):
 
         res = sc.summarise_stored_items()
         self.assertTrue(isinstance(res, dict))
-        self.assertEqual(set(res.keys()), set(['server|pcstat|nBinomialResults',  'server|pcstat|nSeqs']))
+        self.assertEqual(set(res.keys()), set([ 'server|pcstat|nSeqs']))
 
 class test_hybridComparer_48(unittest.TestCase):
     """ tests computations of p values from exact bionomial test """
@@ -1436,6 +1439,8 @@ class test_hybridComparer_45a(unittest.TestCase):
             this_guid = "{0}-{1}".format(original,n )
             sc.persist(c, guid=this_guid)
             guid_names.append(this_guid)
+
+        self.assertEqual(len(sc.pc.seqProfile.keys()),7)
        
         res= sc.multi_sequence_alignment(guid_names)
         # there's variation at positions 0,1,2,3
@@ -1443,7 +1448,14 @@ class test_hybridComparer_45a(unittest.TestCase):
         df.columns=res['variant_positions']
         self.assertEqual(len(df.index), 7)
         self.assertEqual(res['variant_positions'],[0,1,2,3])
-
+	
+        self.assertEqual(len(sc.pc.seqProfile.keys()),7)
+     
+        res= sc.multi_sequence_alignment(guid_names[0:3])
+        df = pd.DataFrame.from_dict(res['guid2sequence'], orient='index')
+        df.columns=res['variant_positions']
+        self.assertEqual(len(sc.pc.seqProfile.keys()),7)
+        
 class test_hybridComparer_45b(unittest.TestCase):
     """ tests the generation of multiple alignments of variant sites."""
     def runTest(self):
@@ -1668,6 +1680,9 @@ class test_hybridComparer_remove_all(unittest.TestCase):
         compressedObj =sc.compress(sequence='ACTT')
         sc.persist(compressedObj, 'one' )     
         retVal=sc.load(guid='one' )
+        sc.seqProfile['one']=retVal 
+        self.assertEqual(len(sc.seqProfile.keys()),1)    # 1 entry in the temporary  dictionary  either
+
         self.assertEqual(compressedObj,retVal) 
         self.assertEqual(len(sc.pc.seqProfile.keys()),1)    # one entry in the preComparer     
 
@@ -1678,7 +1693,17 @@ class test_hybridComparer_remove_all(unittest.TestCase):
         self.assertEqual(len(sc.pc.seqProfile.keys()),2)    # two entry in the preComparer     
   
         sc.remove_all()
-        self.assertEqual(len(sc.pc.seqProfile.keys()),0)    # no entry in the preComparer     
+        self.assertEqual(len(sc.pc.seqProfile.keys()),0)    # no entry in the preComparer    
+        self.assertEqual(len(sc.seqProfile.keys()),0)    # 1 entry in the temporary  dictionary  either
+
+        sc.seqProfile['one']=retVal 
+        self.assertEqual(len(sc.seqProfile.keys()),1)    # 1 entry in the temporary  dictionary  either
+        compressedObj =sc.compress(sequence='ACTT')
+        sc.persist(compressedObj, 'one' )     
+        
+        sc.remove_all_temporary_seqs()
+        self.assertEqual(len(sc.pc.seqProfile.keys()),1)    # no entry in the preComparer    
+        self.assertEqual(len(sc.seqProfile.keys()),0)    # no entry in the temporary dictioanry
   
 class test_hybridComparer_24(unittest.TestCase):
     """ tests N compression """
