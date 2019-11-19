@@ -323,8 +323,10 @@ class test_msa_2(unittest.TestCase):
 		self.assertEqual(res.status_code, 200)
 		self.assertFalse(b"</table>" in res.content)
 		d = json.loads(res.content.decode('utf-8'))
-		not_present = set(inserted_guids) - set(d.keys())
-		self.assertEqual(not_present, set())
+		expected_keys = set(['variant_positions','invalid_guids','valid_guids','expected_p1',
+                    'sample_size','df_dict', 'what_tested','outgroup','creation_time'])
+		self.assertEqual(set(d.keys()), set(expected_keys))
+
 
 		payload = {'guids':';'.join(inserted_guids),'output_format':'json-records'}
 		res = do_POST(relpath, payload=payload)
@@ -383,8 +385,9 @@ class test_msa_2(unittest.TestCase):
 		self.assertTrue(isjson(res.content))
 		d = json.loads(res.content.decode('utf-8'))
 		df = pd.DataFrame.from_records(d)
-		self.assertEqual(df.loc[df.index[0],'what_tested'],'M')
 
+		self.assertEqual(df.loc[df.index[0],'what_tested'],'M')
+		
 		relpath = "/api/v2/multiple_alignment/guids"
 		payload = {'guids':';'.join(inserted_guids),'output_format':'json-records', 'what':'N_or_M'}
 		res = do_POST(relpath, payload=payload)
@@ -503,10 +506,11 @@ class test_msa_1(unittest.TestCase):
 		self.assertEqual(res.status_code, 200)
 		self.assertFalse(b"</table>" in res.content)
 		d = json.loads(res.content.decode('utf-8'))
-		self.assertEqual(set(d.keys()), set(inserted_guids))
+		expected_keys = set(['variant_positions','invalid_guids','valid_guids','expected_p1',
+                    'sample_size','df_dict', 'what_tested','outgroup','creation_time'])
+		self.assertEqual(set(d.keys()), set(expected_keys))
 
-		self.assertEqual(len(d.keys()), 3)		# should create a cluster of three
-		
+	
 		payload = {'guids':';'.join(inserted_guids),'output_format':'fasta'}
 		res = do_POST(relpath, payload=payload)
 		self.assertFalse(isjson(res.content))

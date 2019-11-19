@@ -36,6 +36,7 @@ import dateutil.parser
 import argparse
 import progressbar
 import time
+import progressbar
 
 from Bio import SeqIO
 from Bio.Seq import Seq
@@ -53,6 +54,7 @@ import psutil
 # startup
 from mongoStore import fn3persistence
 from ma_linkage import MixtureAwareLinkage,MixPOREMixtureChecker, MixtureAwareLinkageResult
+from msa import MSAStore
 from hybridComparer import hybridComparer
 from read_config import ReadConfig
 
@@ -167,20 +169,54 @@ Checks for new sequences are conducted once per minute.
 
 	# now iterate - on a loop
 	while True:
+		whitelist= set()
+		nbuilt=0
 		for clustering_name in CONFIG['CLUSTERING'].keys():
 			clustering_setting = CONFIG['CLUSTERING'][clustering_name]
 			clusterers[clustering_name].update()	
 			clusterers[clustering_name].cluster()
 			clusterers[clustering_name].persist(what='graph')
 			clusterers[clustering_name].persist(what='output')
-			
-		if debugmode:
 
-			#for clustering_name in CONFIG['CLUSTERING'].keys():
-			#	malr = MixtureAwareLinkageResult(PERSIST=PERSIST, name=clustering_name)#
-			#	malr.refresh()
-			#	print(clustering_name)
-			#	print(malr.guid2clustermeta())
+			malr = MixtureAwareLinkageResult(PERSIST=PERSIST, name=clustering_name)   
+			ms = MSAStore(PERSIST=PERSIST, in_ram_persistence_time=60)		# persist 60 seconds
+			# estimate expected:
+			estimated_unk = hc.estimate_expected_unk(sample_size=100, unk_type= malr.parameters['uncertain_base_type'])
+			estimated_p1 = estimated_unk / (len(hc.reference)-len(hc.excluded))
+			
+			# recover existing msas
+			stored_msa = ms.existing_tokens()
+
+			# build multisequence alighments
+			logger.info("Precomputing clusters for {0}".format(clustering_name))
+			cluster_contents=malr.cluster2guid.values()
+			bar = progressbar.ProgressBar(max_value=len(cluster_contents))
+			
+			for i,guids in enumerate(cluster_contents):
+	
+				bar.update(i+1)
+				token = ms.get_token(malr.parameters['uncertain_base_type'],False, guids)			
+				if len(guids)>2:
+					whitelist.add(token)		# we need to retain this msa, if it exists
+					
+					if not token in stored_msa:		# if we haven't already computed it 
+						msa_result = hc.multi_sequence_alignment(guids, expected_p1=estimated_p1, uncertain_base_type= malr.parameters['uncertain_base_type'])
+						ms.persist(token, msa_result)	
+						nbuilt+=1
+
+					
+			bar.finish()
+
+			# store the output
+			clusterers[clustering_name].persist(what='graph')
+			clusterers[clustering_name].persist(what='output')
+
+		# cleanup anything we don't need
+		ms.unpersist(whitelist=whitelist)
+		logger.info("Cleanup complete.  Stored data on {0} MSAs; Built {1} new clusters".format(len(whitelist), nbuilt))
+	
+		if debugmode:
 			exit(0)
-		print("Waiting 60 seconds")
+
+		logger.info("Waiting 60 seconds")
 		time.sleep(60)

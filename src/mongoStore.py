@@ -15,11 +15,25 @@ import pickle
 import psutil
 import copy
 import io
+import numpy as np
 
 # used for unit testing only
 import unittest
 from NucleicAcid import NucleicAcid 
 import time
+
+class NPEncoder(json.JSONEncoder):
+    """ encodes NP types as jsonisable equivalents """
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        else:
+            return super(NpEncoder, self).default(obj)
+
 
 class fn3persistence():
         """ System for persisting results from  large numbers of sequences stored in FindNeighbour.
@@ -87,7 +101,8 @@ class fn3persistence():
                                          'guid2meta','guid2neighbour',
                                          'config',
                                          'refcompressedseq.chunks','refcompressedseq.files',
-                                         'clusters.chunks','clusters.files']
+                                         'clusters.chunks','clusters.files',
+                                         'msa.chunks','msa.files']
             
             self.max_neighbours_per_document = max_neighbours_per_document
             self.server_monitoring_min_interval_msec = server_monitoring_min_interval_msec
@@ -103,13 +118,17 @@ class fn3persistence():
             else:
                 self.logger.info("Using stored data in mongostore")
                 
-            ## configure database.  has no effect if these actions have already been performed.
+
             # create indices on guid2neighbours; note will do nothing if index already exists
             ix1 = pymongo.IndexModel([("guid",pymongo.ASCENDING),("rstat", pymongo.ASCENDING)], name='by_guid_full')
             ix2 = pymongo.IndexModel([("rstat", pymongo.ASCENDING)], name='by_rstat')
     
             self.db['guid2neighbour'].create_indexes([ix1, ix2])            
-           
+ 
+            # create indices on msa; note will do nothing if index already exists
+            ix3 = pymongo.IndexModel([("filename",pymongo.ASCENDING),("uploadDate", pymongo.ASCENDING)], name='filename_date')
+            self.db['msa.files'].create_indexes([ix3])            
+ 
         def summarise_stored_items(self):
             """ counts how many sequences exist of various types """
             retVal = {}
@@ -140,9 +159,10 @@ class fn3persistence():
             self.db = self.client[self.dbname]
 
             # open gridfs systems
-            self.fs = gridfs.GridFS(self.db, collection='refcompressedseq')       
+            self.rcs = gridfs.GridFS(self.db, collection='refcompressedseq')       
             self.clusters = gridfs.GridFS(self.db, collection='clusters')       
             self.monitor = gridfs.GridFS(self.db, collection='monitor')       
+            self.msa = gridfs.GridFS(self.db, collection='msa') 
 
             # enable sharding at database level
             #self.client.admin.command('enableSharding', self.dbname)
@@ -269,8 +289,7 @@ class fn3persistence():
             return(retVal)
         
         def server_monitoring_store(self, message = 'No message provided', what=None, guid=None, content={}):
-            """ stores object into config collection.  Adds memory usage.
-            It is assumed object is a dictionary"""
+            """ stores content, a dictionary, into the server monitoirng log"""
             now = dict(**content)
             if what is not None:
                 now['content|activity|whatprocess']= what
@@ -311,51 +330,153 @@ class fn3persistence():
 
         def monitor_read(self, monitoring_id):
                 """ loads stored string (e.g. html object) from the monitor collection. """
-                res = self.monitor.find_one({'_id':monitoring_id})
+                try:
+                    res = self.monitor.get(monitoring_id)
+                except gridfs.errors.NoFile:
+                    return None
+
                 if res is None:
                     return None
                 else:
                     return res.read().decode('utf-8')
   
-        # methods for clusters, which holds the reference compressed details of the sequences
-        # in a gridFS store.
-        def clusters_store(self, clustering_setting, obj):
-                """ stores the clustering object obj.  Overwrites any prior object
-                 """
+        def msa_store(self, msa_token, msa):
+                """ stores the msa object msa under token msa_token. """
                 
-                if not isinstance(obj, dict):
+                if not isinstance(msa, dict):
                         raise TypeError("Can only store dictionary objects, not {0}".format(type(dict)))
-                self.clusters.delete(clustering_setting)
-                json_repr = json.dumps(obj).encode('utf-8')
-                with io.BytesIO(json_repr) as f:
-                        id = self.clusters.put(f, _id=clustering_setting, filename=clustering_setting)
-                        return id
 
-        def clusters_read(self, clustering_setting):
-                """ loads object from clusters collection.
+                res = self.msa.find_one({'_id':msa_token})
+                if res is None:                
+                    json_repr = json.dumps(msa).encode('utf-8')
+                    with io.BytesIO(json_repr) as f:
+                            self.msa.put(f, _id=msa_token, filename=msa_token)
+
+                    return msa_token
+
+        def msa_read(self, msa_token):
+                """ loads object from msa collection.
                 It is assumed object is a dictionary"""
                 
-                res = self.clusters.find_one({'_id':clustering_setting})
+                res = self.msa.find_one({'_id':msa_token})
                 if res is None:
                     return None
                 json_repr = json.loads(res.read().decode('utf-8'))
                 return json_repr
-        # methods for refcompressedseq, which holds the reference compressed details of the sequences
-        # in a gridFS store.
-        def clusters_delete(self, clustering_setting):
-                """ deletes the clustering object stored at clustering_setting
+
+        def msa_delete(self, msa_token):
+                """ deletes the msa with token msa_token
                 """
                 
-                self.clusters.delete(clustering_setting)
+                self.msa.delete(msa_token)
+
+        def msa_stored_ids(self):
+                """ returns a list of  msa tokens of all objects stored """
+                return [stored_msa._id for stored_msa in self.msa.find({})]
+ 
+        def msa_delete_unless_whitelisted(self, whitelist):
+                """ deletes the msa unless the id is in whitelist
+                """
+                to_delete= set()
+                for id in self.msa_stored_ids():
+                    if not id in whitelist:
+                        to_delete.add(id)
+                for msa_token in to_delete:
+                    self.msa.delete(msa_token)
+
+
+        def cluster_store(self, clustering_setting, obj):
+                """ stores the clustering object obj.  retains previous version.  To clean these up, call cluster_delete_legacy.
+
+                    obj: a dictionary to store
+                    clustering_setting: the name of the clustering, e.g. TBSNP12
+
+                    Returns: 
+                    current cluster version
+
+                    Note; does not replace previous version, but stores a new one. 
+
+                    cf. warning in Mongo docs:
+                    Do not use GridFS if you need to update the content of the entire file atomically. 
+                    As an alternative you can store multiple versions of each file and specify the current version of the file in the metadata. 
+                    You can update the metadata field that indicates “latest” status in an atomic update after uploading the new version of the file, 
+                    and later remove previous versions if needed.
+                 """
+                
+
+                if not isinstance(obj, dict):
+                        raise TypeError("Can only store dictionary objects, not {0}".format(type(dict)))
+                json_repr = json.dumps(obj, cls=NPEncoder).encode('utf-8')
+                with io.BytesIO(json_repr) as f:
+                        id = self.clusters.put(f, filename=clustering_setting)
+                        return id       # this is the current cluster version
+
+        def cluster_read(self, clustering_setting):
+                """ loads object from clusters collection corresponding to the most recent version of 
+                the clustering, saved with filename = 'clustering_setting'.
+                """
+                
+                cursor = self.clusters.find({'filename':clustering_setting}).sort('uploadDate',-1).limit(1)
+                for res in cursor:
+                    json_repr = json.loads(res.read().decode('utf-8'))
+                    return json_repr
+                # nothing there
+                return None
+
+        def cluster_read_update(self, clustering_setting, current_cluster_version):
+                """ loads object from clusters collection corresponding to the most recent version
+                    of the clustering, saved with filename = 'clustering_setting'.
+                    it will read only if the current version is different from current_cluster_version; other wise, it returns None
+                    It is assumed object is a dictionary"""
+                latest_version = self.cluster_latest_version(clustering_setting)
+                if latest_version == current_cluster_version:
+                    # no update
+                    return None
+                else:
+                    return self.cluster_read(clustering_setting)
+ 
+        def cluster_latest_version(self, clustering_setting):
+                """ returns id of latest version """
+                cursor = self.clusters.find({'filename':clustering_setting}).sort('uploadDate',-1).limit(1)
+                for res in cursor:
+                    return res._id
+                return None
+
+        def cluster_versions(self, clustering_setting):
+                """ lists ids and storage dates corresponding to versions of clustering identifed by clustering_setting.
+                    the newest version is first.
+                """
+                
+                cursor = self.clusters.find({'filename':clustering_setting}).sort('uploadDate',-1)
+                retVal=[]
+                for res in cursor:
+                    
+                    retVal.append(res._id)
+                return retVal
+
+        def cluster_delete_all(self, clustering_setting):
+                """ delete all clustering objects, including the latest version, stored at clustering_setting
+                """
+                ids = self.cluster_versions(clustering_setting)
+                for this_id in ids:
+                    self.clusters.delete(this_id)
+
+        def cluster_delete_legacy(self, clustering_setting):
+                """ delete all clustering objects, except latest version, stored at clustering_setting
+                """
+                ids = self.cluster_versions(clustering_setting)
+                ids = ids[1:]
+                for this_id in ids:
+                    self.clusters.delete(this_id)
 
         def refcompressedseq_store(self, guid, obj):
                 """ stores the pickled object obj with guid guid.
                 Issues an error FileExistsError
                 if the guid already exists. """
                 pickled_obj = pickle.dumps(obj, protocol=2)
-                if guid in self.fs.list():
+                if guid in self.rcs.list():
                         raise FileExistsError("Attempting to overwrite {0}".format(guid))
-                id = self.fs.put(pickled_obj, _id=guid, filename=guid)
+                id = self.rcs.put(pickled_obj, _id=guid, filename=guid)
 
                 # do a functional test to verify write
                 recovered_obj = self.refcompressedsequence_read(guid)
@@ -366,8 +487,8 @@ class fn3persistence():
         def refcompressedsequence_read(self, guid):
                 """ loads object from refcompressedseq collection.
                 It is assumed object is a dictionary"""
-                                
-                res = self.fs.find_one({'_id':guid})
+             
+                res = self.rcs.find_one({'_id':guid})
                 if res is None:
                     return None
                 
@@ -377,7 +498,7 @@ class fn3persistence():
             """ loads guids from refcompressedseq collection.
             """
             
-            return(set(self.fs.list()))
+            return(set(self.rcs.list()))
 
         # methods for guid2meta        
         def guid_annotate(self, guid, nameSpace, annotDict):
@@ -949,9 +1070,9 @@ class Test_SeqMeta_file_store1(unittest.TestCase):
                 p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
                 obj1 = {1,2,3}
                 guid ="guid1"
-                p.fs.delete({'filename':guid})              # delete if present
+                p.rcs.delete({'filename':guid})              # delete if present
                 p.refcompressedseq_store(guid, obj1)
-                res = p.fs.find_one({'filename':guid}).read()
+                res = p.rcs.find_one({'filename':guid}).read()
                 obj2 = pickle.loads(res)
                 self.assertEqual(obj1, obj2)
 class Test_SeqMeta_file_store2(unittest.TestCase):
@@ -960,7 +1081,7 @@ class Test_SeqMeta_file_store2(unittest.TestCase):
                 p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
                 obj1 = {1,2,3}
                 guid ="guid1"
-                p.fs.delete({'filename':guid})              # delete if present
+                p.rcs.delete({'filename':guid})              # delete if present
                 pickled_obj = pickle.dumps(obj1, protocol=2)
                 p.refcompressedseq_store(guid, obj1)
                 with self.assertRaises(FileExistsError):
@@ -971,8 +1092,8 @@ class Test_SeqMeta_file_store3(unittest.TestCase):
                 p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
                 obj1 = {1,2,3}
                 guid ="guid1"
-                p.fs.delete({'filename':"guid1"})              # delete if present
-                p.fs.delete({'filename':"guid2"})              # delete if present
+                p.rcs.delete({'filename':"guid1"})              # delete if present
+                p.rcs.delete({'filename':"guid2"})              # delete if present
                 res1 = p.refcompressedsequence_guids()
                 pickled_obj = pickle.dumps(obj1, protocol=2)
                 p.refcompressedseq_store(guid, pickled_obj)
@@ -1221,14 +1342,62 @@ class Test_Clusters(unittest.TestCase):
         """ tests saving and recovery of dictionaries to Clusters"""
         def runTest(self):
                 p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)              
-                payload1 = {'one':1, 'two':2}
-                p.clusters_store('cl1', payload1)
-                payload2 = p.clusters_read('cl1')   
-                self.assertEqual(payload1, payload2)
-                p.clusters_delete('cl1')
-                payload3 = p.clusters_read('cl1')   
-                self.assertIsNone(payload3)
                 
+                self.assertIsNone(p.cluster_latest_version('cl1'))
+
+                self.assertEqual(0, len(p.cluster_versions('cl1')))
+
+                payload1 = {'one':1, 'two':2}
+                x= p.cluster_store('cl1', payload1)
+
+                self.assertIsNotNone(p.cluster_latest_version('cl1'))
+                clv = p.cluster_latest_version('cl1')
+                self.assertEqual(x, clv)
+                self.assertEqual(1, len(p.cluster_versions('cl1')))
+                self.assertIsNone(p.cluster_read_update('cl1',clv))
+
+                payload2 = p.cluster_read('cl1')   
+                self.assertEqual(payload1, payload2)
+
+                payload3 = {'one':10, 'two':20}
+                p.cluster_store('cl1', payload3)       # this is now the latest version
+
+                self.assertEqual(2, len(p.cluster_versions('cl1')))
+                self.assertNotEqual(clv,p.cluster_latest_version('cl1'))
+                self.assertIsNotNone(p.cluster_read_update('cl1',clv))
+
+                payload4 = p.cluster_read('cl1')   
+                self.assertEqual(payload4, payload3)
+               
+                p.cluster_delete_legacy('cl1')
+
+                self.assertEqual(1, len(p.cluster_versions('cl1')))
+
+                p.cluster_delete_all('cl1')
+
+                self.assertEqual(0, len(p.cluster_versions('cl1')))
+          
+class Test_MSA(unittest.TestCase):
+        """ tests saving and recovery of dictionaries to MSA"""
+        def runTest(self):
+                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)              
+                payload1 = {'one':1, 'two':2}
+                p.msa_store(msa_token='msa1', msa = payload1)
+                payload2 = p.msa_read(msa_token = 'msa1')   
+                self.assertEqual(payload1, payload2)
+                p.msa_delete(msa_token='msa1')
+                payload3 = p.msa_read(msa_token = 'msa1')   
+                self.assertIsNone(payload3)
+
+                payload1 = {'one':1, 'two':2}
+                p.msa_store(msa_token='msa1', msa = payload1)
+                payload2 = {'one':3, 'two':4}
+                p.msa_store(msa_token='msa2', msa = payload2)
+                self.assertEqual(2, len(p.msa_stored_ids()))
+                p.msa_delete_unless_whitelisted(whitelist=['msa1','msa2'])
+                self.assertEqual(2, len(p.msa_stored_ids()))
+                p.msa_delete_unless_whitelisted(whitelist=['msa1'])
+                self.assertEqual(1, len(p.msa_stored_ids()))
 class Test_Monitor(unittest.TestCase):
         """ tests saving and recovery of strings to monitor"""
         def runTest(self):
@@ -1237,11 +1406,12 @@ class Test_Monitor(unittest.TestCase):
                 p.monitor_store('r1', payload1)
                 payload2 = p.monitor_read('r1')   
                 self.assertEqual(payload1, payload2)
-                   
+                payload3 = p.monitor_read('nil')
+                self.assertIsNone(payload3) 
 class test_Raise_error(unittest.TestCase):
     """ tests raise_error"""
     def runTest(self):
-                # generate compressed sequences
+        # generate compressed sequences
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)              
         with self.assertRaises(ZeroDivisionError):
             p.raise_error("token")

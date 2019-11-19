@@ -13,6 +13,8 @@ import statistics
 import warnings
 import pandas as pd
 import progressbar
+import logging
+from identify_sequence_set import IdentifySequenceSet
 
 # for unittesting only
 from hybridComparer import hybridComparer
@@ -33,7 +35,8 @@ class MockPersistence():
 
     def __init__(self, n_guids:int):
         """ starts up a MockPersistence object; generates a set of pairwise links compatible with n_guids being part of a set of similar sequences. """
-
+        self.latest_version = 0
+        self.latest_version_behaviour = 'increment'
         self.g = nk.generators.ClusteredRandomGraphGenerator(n_guids, int(n_guids/2), 1, 0).generate()
 
         self.node2name = {}
@@ -63,7 +66,12 @@ class MockPersistence():
             snv = random.sample(range(7),1)[0]     # distances drawn randomly from 0-6
             self._guid2neighbours[guid1].append([guid2,snv])
             self._guid2neighbours[guid2].append([guid1,snv])
-
+    def cluster_latest_version(self, clustering_version):
+        """ returns fake version information; increments if latest_version_behaviour is 'increment' """
+        if self.latest_version_behaviour=='increment':
+            self.latest_version +=1
+        return self.latest_version
+        
     def guids(self):   
         """ returns all guids (sequence identifiers) in the network """
         return set(self.name2node.keys())
@@ -81,11 +89,11 @@ class MockPersistence():
             raise NotImplementedError("the MockPersistence.guid2neighbours() method always returns type 1 output, but type {0} was requested".format(returned_format))
         return {'guid':guid, 'neighbours':self._guid2neighbours[guid]}
 
-    def clusters_store(self, key, serialisation):
+    def cluster_store(self, key, serialisation):
         """ stores serialisation in a dictionary using key """
         self.store[key]=serialisation
         return None
-    def clusters_read(self, key):
+    def cluster_read(self, key):
         try:
             return self.store[key]
         except KeyError:
@@ -159,10 +167,21 @@ class MixPOREMixtureChecker(MixtureChecker):
         self.mixture_criterion = mixture_criterion
         self.cutoff = cutoff 
         self.uncertain_base_type = uncertain_base_type
-        self.max_seqs_mixpore =2
+        self.max_seqs_mixpore =max_seqs_mixpore
+
+        # we need to load enough samples into the hybridComparer to do reliable composition based computations.  The hybridcomparer doesn't contain all the sequences, and doesn't need to, but it does need to contain enough to compute composition data used by msa().
+        self.ensure_composition()
+
+    def ensure_composition(self):
+        """ loads enough enough samples into the hybridComparer to do reliable composition based computations.  The hybridcomparer attached to this object doesn't contain all the sequences, and doesn't need to, but it does need to contain enough to compute composition data used by msa(). """
+        n_current_sequences = len(self.hc.pc.guids())
+
+        if n_current_sequences < 100:       # the target
+            self.hc.repopulate_sample(100)  # will do up to 100
 
     def is_mixed(self, guid):
         """ check for mixtures using mixpore method."""
+        self.ensure_composition()
         neighbours = self.hc.PERSIST.guid2neighbours(guid, returned_format=1)['neighbours']
         neighbours = sorted(neighbours, key = lambda x: int(x[1]))
         neighbours = [x for x in neighbours if x[1]<=self.snv_threshold]
@@ -171,8 +190,8 @@ class MixPOREMixtureChecker(MixtureChecker):
             to_msa = neighbours_analysed.copy()
             to_msa.append([guid,0])			
             guids_to_msa = [x[0] for x in to_msa]
-            df = self.hc.multi_sequence_alignment(guids_to_msa, output='df_dict', uncertain_base_type=self.uncertain_base_type)
-            res = df[guid]
+            msa_result = self.hc.multi_sequence_alignment(guids_to_msa,  uncertain_base_type=self.uncertain_base_type)
+            res = msa_result.df.loc[guid].to_dict()
             del(res['aligned_seq'])		# not useful, wastes ram
             res['is_mixed'] = False
             if res[self.mixture_criterion] is not None:
@@ -223,43 +242,59 @@ class MixtureAwareLinkageResult():
             returns:
                 None if there is not clustering data; or a changeId reflecting the clustering version.
         """
-
+        self.loaded_version = None
         self.PERSIST= PERSIST
         self.name = name
+        self.storage_key = "{0}-{1}".format(self.name, 'output')
+        
         self.refresh(serialisation=serialisation)
 
     def refresh(self, serialisation=None):
-        """ reloads data from persistence store """
-
-        start_afresh = False
-        if serialisation is None:
-            if self.PERSIST is None:
-                start_afresh = True
-            else:
-                serialisation = self._recover_serialisation()
-
-                if serialisation is None:
-                    start_afresh = True
-            if start_afresh:
-		        # no clustering data exists
-                self._first_run()
-            else: 
-                self._deserialise_from_dict(serialisation)
-        else:
+        """ reloads data from persistence store, if necessary.
+        > If serialisation is a dictionary, loads from that
+        > If serialisation is None and self.PERSIST is not None:
+            A data source exists; load a new version from it if it exists.
+        > If serialisation is None and self.PERSIST is None:
+            This is a first run situation.
+        """
+        if isinstance(serialisation, dict):
             self._deserialise_from_dict(serialisation)
-        return
- 
+            self.loaded_version_load_time = datetime.datetime.now()
+            self.loaded_version = None                                 # not linked to a stored version
+            
+            return
+
+        latest_version = self.PERSIST.cluster_latest_version(self.storage_key) 
+        if serialisation is None and self.PERSIST is not None:   # try to recover data
+            if self.loaded_version is not None and self.loaded_version==latest_version:   # no update needed
+                return
+    
+            if self.loaded_version is None or (not self.loaded_version==latest_version):   # nothing stored in ram,  or latest version not loaded;
+
+                serialisation = self._recover_serialisation()
+                if serialisation is not None:
+                    self._deserialise_from_dict(serialisation)
+                    self.loaded_version= latest_version 
+                    
+                    self.loaded_version_load_time = datetime.datetime.now()
+                else:
+                    #print("did not recover serialisation")
+                    pass
+                return
+
+        # otherwise
+        # First run 
+        self.current_version_load_time = datetime.datetime.now()
+        self._first_run()
+  
     def _recover_serialisation(self):
         """ reads a serialisation of  the clustering output from the Mongo db.  
 
         """
-        what='output'
+
         if self.PERSIST is None:
             raise ValueError("Must define a PERSIST Object to persist to disc")
-        storage_key = "{0}-{1}".format(self.name, what)
-
-        res = self.PERSIST.clusters_read(storage_key)
-        return res
+        return self.PERSIST.cluster_read(self.storage_key)
 
     def _deserialise_from_dict(self, serialisation):
         """ recovers the clustering data from a serialisation dictionary """
@@ -291,6 +326,7 @@ class MixtureAwareLinkageResult():
                 if not cluster_id in self.cluster2guid.keys():
                     self.cluster2guid[cluster_id] = []
                 self.cluster2guid[cluster_id].append(guid)
+
     def _first_run(self):
         """ sets up an empty clustering entry """
         self.parameters = {'note':'No data found'}
@@ -380,7 +416,7 @@ class MixtureAwareLinkage():
                                 If None, a fresh (empty) graph is returned.  
                                 If not None, snv_threshold is ignored, with the snv_threshold taken from from_dict.
                 PERSIST: a findNeighbour persistence object.  
-                         The guids(), guids2neighbours(), clusters_read and clusters_store methods are used.  For unittesting, an instance of MockPersistence can be used.
+                         The guids(), guids2neighbours(), cluster_read and cluster_store methods are used.  For unittesting, an instance of MockPersistence can be used.
                 MIXCHECK: an object whose is_mixed() method, called with a guid, returns a dictionary including an is_mixed key, a boolean indicating whether the sample is mixed or not.  Mixed samples are not used in the primary clustering.  If not supplied or None, a NoMixtureChecker object is used, which does not check for mixtures.
 
 
@@ -408,6 +444,7 @@ class MixtureAwareLinkage():
         # check it is the right class
         if not isinstance(self.MIXCHECK, MixtureChecker):
             raise TypeError("MIXCHECK must be a Mixture Checker")
+        self.iss = IdentifySequenceSet()
 
         self._node2name = {}
         self._name2node = {}
@@ -498,6 +535,7 @@ class MixtureAwareLinkage():
                   '_name2meta':self._name2meta,
                   'mixed_sample_management':self.mixed_sample_management,
                   'parameters':self.parameters}
+
         return retVal       
 
     def persist(self, what ):
@@ -517,7 +555,7 @@ class MixtureAwareLinkage():
             serialisation = self.serialise_output()
         else:
             raise ValueError("what must be one of graph, output")
-        self.PERSIST.clusters_store(storage_key, serialisation)
+        self.PERSIST.cluster_store(storage_key, serialisation)
         return
 
     def _recover_serialisation(self):
@@ -532,7 +570,7 @@ class MixtureAwareLinkage():
         if self.PERSIST is None:
             raise ValueError("Must define a PERSIST Object to persist to disc")
         storage_key = "{0}-{1}".format(self.name, what)
-        return self.PERSIST.clusters_read(storage_key)
+        return self.PERSIST.cluster_read(storage_key)
 
     def to_dict(self):
         """ serialises the object to a dictionary.  synonym of serialise() """
@@ -691,7 +729,7 @@ class MixtureAwareLinkage():
         guids_potentially_requiring_evaluation = guids_potentially_requiring_evaluation - already_mixed
         
         # assess whether these are mixed
-        print("Checking mixture status")
+        logging.info("Checking mixture status")
         bar = progressbar.ProgressBar(max_value=len(guids_potentially_requiring_evaluation))
         # we unlink everything - when new samples are added, they can re-link known mixed samples
         for i,guid in enumerate(guids_potentially_requiring_evaluation):
@@ -769,7 +807,7 @@ class MixtureAwareLinkage():
             guids_whose_edges_to_add = guids_to_add
         else:
             guids_whose_edges_to_add = remaining_guids_to_add
-        print("build graph with all edges")
+        logging.info("build graph with all edges")
         bar = progressbar.ProgressBar(max_value = len(guids_whose_edges_to_add))
    
         for i,guid_to_add in enumerate(guids_whose_edges_to_add):
@@ -798,12 +836,6 @@ class MixtureAwareLinkage():
             self._name2meta[guid_to_add].update({'mix_check_method':'No check', 'is_mixed':None, 'add_change_id':change_id})
         return change_id
 
-    def _hashComponents(self,x:list)->str:
-        """ returns an sha1 hash on a list, x """
-        x = sorted(x)
-
-        to_hash = ";".join([str(item) for item in x])
-        return hashlib.sha1(to_hash.encode('utf-8')).hexdigest()
 
     def cluster(self)->int:
         """ Performs clustering. 
@@ -895,7 +927,7 @@ class MixtureAwareLinkage():
         # compute change_id and hash
         for cluster_id in self.cluster2names.keys():
             members = self.cluster2names[cluster_id]['guids']
-            hashed_guids = self._hashComponents(members)
+            hashed_guids = self.iss.make_identifier('cluster','-',False,members)
             try:
                 latest_change_id = max([self._name2node[x] for x in members])
             except ValueError:      # no data
@@ -938,7 +970,7 @@ class MixtureAwareLinkage():
         parameters:
             what : either 'node_id' (internal node ids) or 'name' (guids)
         returns:
-            a list of lists
+            a dictionary, keyed by a hash of the connected components, with a value of a list of their values
         """
         self.cc.run()
         retVal = {}
@@ -950,8 +982,8 @@ class MixtureAwareLinkage():
                 returned_list = [self._node2name[x] for x in item]
             else:
                 returned_list = item    # we return the node_ids
-            sha1_item = self._hashComponents(returned_list)
-         
+            sha1_item = self.iss.make_identifier('connections','-',False, returned_list)
+    
             retVal[sha1_item] = returned_list
         return retVal   
     def _filter_guid2neighbours_by_snpcutoff(self, guid2neighbours:list, snpcutoff:int)->list:
@@ -1122,11 +1154,12 @@ class Test_MP(unittest.TestCase):
         self.assertTrue(isinstance(res,dict))
 
         to_store = {'one':1, 'two':2}   
-        res = p.clusters_store('myKey',to_store)
+        res = p.cluster_store('myKey',to_store)
         self.assertIsNone(res)
-        res = p.clusters_read('NoKey')
+        res = p.cluster_read('NoKey')
         self.assertIsNone(res)
-        res = p.clusters_read('myKey')
+        res = p.cluster_read('myKey')
+        
         self.assertEqual(to_store, res)
 class Test_MAL_1(unittest.TestCase):
     """ tests the MixtureLinkage startup"""
@@ -1213,16 +1246,6 @@ class Test_MAL_5(unittest.TestCase):
         result = m._connectedComponents(what = 'name')
         for key in result.keys():       # keys are hashes of contents
             self.assertTrue(isinstance(result[key][0], str))
-        
-class Test_MAL_6(unittest.TestCase):
-    """ tests the _hashComponents() method"""
-    def runTest(self):
-        p = MockPersistence(n_guids =20)
-        m = MixtureAwareLinkage(PERSIST=p, snv_threshold=20)
-
-        
-        self.assertEqual(m._hashComponents([1,2,3]),'cfd68e36493b6db0bc44c859e1e49290e07efb00')
-        self.assertEqual(m._hashComponents(['a','b','c']), 'a58bef80a0b3c42054baeea0edc2308989c7562c')
 
 class Test_MAL_7(unittest.TestCase):
     """ tests the _connectedComponents() method, at scale, with check of whether it got the right answer"""
@@ -1787,6 +1810,7 @@ class test_MIXCHECK_1(unittest.TestCase):
                 connString=CONFIG['FNPERSISTENCE_CONNSTRING'],
                 debug=CONFIG['DEBUGMODE']
                    )
+            PERSIST._delete_existing_data()
 
             hc = hybridComparer(reference=CONFIG['reference'],
                 maxNs=CONFIG['MAXN_STORAGE'],
@@ -1838,7 +1862,7 @@ class test_MIXCHECK_1(unittest.TestCase):
             # test the mixporemixture checker.
             for guid in guids_inserted:
                 res = mpmc.is_mixed(guid)
-                print(guid, res)
+
                 self.assertEqual("mixed" in guid, res['is_mixed'])      # should identify all mixed guids 
 
             m.update()
@@ -1925,4 +1949,53 @@ class Test_MALR_1(unittest.TestCase):
         self.assertEqual(len(res), 0)
 
 
+	    # load an empty or missing data set
+        p.latest_version_behaviour='nochange'       # don't increment version
 
+        malr = MixtureAwareLinkageResult(PERSIST=p, name='test')
+        self.assertTrue(isinstance(malr.change_id, int))
+        self.assertTrue(isinstance(malr.guids(), set))
+        self.assertEqual(malr.guids(), p.guids())
+        self.assertTrue(isinstance(malr.clusters2guid(), dict))
+        for guid in p.guids():
+            res = malr.guid2clusters(guid)
+            self.assertIsNotNone(res)       # should all be clustered
+        for guid in p.guids():
+            res = malr.is_mixed(guid)
+            res2 = malr.is_mixed(guid, reportUnknownAsFalse=False)
+            if res2 is None:
+                self.assertEqual(res, False)
+            else:
+                self.assertEqual(res, res2)
+        res = malr.clusters2guidmeta()
+        self.assertEqual(len(res), len(p.guids()))
+        t1= malr.current_version_load_time
+        malr.refresh()
+        t2 = malr.current_version_load_time		# should not reload
+        self.assertEqual(t1,t2)
+
+
+	    # load an empty or missing data set
+        p.latest_version_behaviour='increment'       # increment version
+
+        malr = MixtureAwareLinkageResult(PERSIST=p, name='test')
+        self.assertTrue(isinstance(malr.change_id, int))
+        self.assertTrue(isinstance(malr.guids(), set))
+        self.assertEqual(malr.guids(), p.guids())
+        self.assertTrue(isinstance(malr.clusters2guid(), dict))
+        for guid in p.guids():
+            res = malr.guid2clusters(guid)
+            self.assertIsNotNone(res)       # should all be clustered
+        for guid in p.guids():
+            res = malr.is_mixed(guid)
+            res2 = malr.is_mixed(guid, reportUnknownAsFalse=False)
+            if res2 is None:
+                self.assertEqual(res, False)
+            else:
+                self.assertEqual(res, res2)
+        res = malr.clusters2guidmeta()
+        self.assertEqual(len(res), len(p.guids()))
+        t1= malr.current_version_load_time
+        malr.refresh()
+        t2 = malr.current_version_load_time
+        self.assertNotEqual(t1,t2)      # updated

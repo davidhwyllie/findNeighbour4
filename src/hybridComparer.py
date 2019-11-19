@@ -14,6 +14,7 @@ import multiprocessing
 import uuid
 import json
 import psutil
+import copy
 from gzip import GzipFile
 import random
 import itertools
@@ -23,6 +24,9 @@ import pandas as pd
 from collections import Counter
 from mongoStore import fn3persistence
 from preComparer import preComparer
+from identify_sequence_set import IdentifySequenceSet
+from msa import MSAResult
+
 import logging
 # only used for unit testing
 from Bio import SeqIO
@@ -39,8 +43,9 @@ class hybridComparer():
                     maxNs,
                     snpCeiling,
                     excludePositions=set(),
-                    preComparer_parameters={},
-                    PERSIST=UNITTEST_MONGOCONN
+                    preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5},
+                    PERSIST=UNITTEST_MONGOCONN,
+                    unittesting=False
                 ):
 
         """ a module for determining relatedness between two sequences.  
@@ -60,15 +65,24 @@ class hybridComparer():
    
         excludePositions contains a zero indexed set of bases which should not be considered at all in the sequence comparisons.  Any bases which are always N should be added to this set.  Not doing so will substantially degrade the algorithm's performance.
 
-        preComparer_parameters: parameters passed to the preComparer.  Used to judge which sequences do not need further analysis
+        preComparer_parameters: parameters passed to the preComparer.  Used to judge which sequences do not need further analysis.
+	    Must include the following:
+	    selection_cutoff: (int)
+        snp distances more than this are not of interest epidemiologically and are not reported
+
+        uncertain_base (str): one of 'M', 'N', or 'M_or_N'
+        which bases to regard as uncertain in the computation.  Default to M.
+        if 'M_or_N', will store all us and Ns and will give the same result as the seqComparer module.
+
+        over_selection_cutoff_ignore_factor:
+        SNP distances more than over_selection_cutoff_ignore_factor * selection_cutoff do not need to be further analysed.  For example, if a SNP cutoff was 20, and over_selection_cutoff_ignore_factor is 5, we can safely consider with SNV distances > 100 (=20*5) as being unrelated.
+
 
         PERSIST: either a mongo connection string, or an instance of fn3persistence
 
+        unittesting: if True, will remove any stored data from the associated database
         David Wyllie, September 2019
-
-
-
-        
+  
         - to run unit tests, do
         python3 -m unittest hybridComparer
         """
@@ -104,6 +118,9 @@ class hybridComparer():
         else:
             self.PERSIST = PERSIST  # passed a persistence object
 
+        if unittesting:
+            self.PERSIST._delete_existing_data()
+
         # attempt to load preComparer_parameters from the mongoStore
         stored_preComparer_parameters = self.PERSIST.config_read('preComparer')
         if stored_preComparer_parameters is not None:
@@ -118,6 +135,26 @@ class hybridComparer():
 
         # update preComparer parameters
         self.update_precomparer_parameters()
+
+
+    def repopulate_sample(self, n=100):
+        """ saves a sample of reference compressed objects in the precomparer,
+            for the purpose of assessing sequence composition etc.
+
+            parameters:
+            n the number of samples to load
+         
+        """
+
+        guids = self.PERSIST.guids()-self.pc.guids()
+        if n < len(guids):
+            guids = random.sample(guids, n)
+        for guid in guids:
+            obj = self.PERSIST.refcompressedsequence_read(guid)
+
+            # store object in the precomparer
+            self.pc.persist(obj, guid)      # store in the preComparer
+        return
 
     def repopulate(self, guid):
         """ saves a reference compressed object in the precomparer,
@@ -165,14 +202,16 @@ class hybridComparer():
         # check preComparer settings are up to date
         self.update_precomparer_parameters()
 
-        # store object in the precomparer
-        is_invalid = self.pc.persist(obj, guid)      # store in the preComparer.  This does not write to db.
-
         # add sequence and its links to disc
         try:
             self.PERSIST.refcompressedseq_store(guid, obj)      # store in the mongostore
         except FileExistsError:
             pass        # exists - we don't need to re-add it.
+
+        pc_obj = copy.deepcopy(obj)
+        # store object in the precomparer
+        is_invalid = self.pc.persist(pc_obj, guid)      # store in the preComparer.  This does not write to db.
+
 
         # add links
         links={}
@@ -217,7 +256,7 @@ class hybridComparer():
         self._refresh()
     
     def remove_all_temporary_seqs(self):
-        """ empties any sequence data from ram in the .seqProfile dictionary; these are used for MSAs.  does not affect the seqProfile object. """
+        """ empties any sequence data from ram in the .seqProfile dictionary; these are used for MSAs.  Does not affect the preComparer. """
         self.seqProfile = {} 
 
     def _refresh(self):
@@ -422,7 +461,7 @@ class hybridComparer():
         Ms (uncertain bases) are ignored in snp computations.
     
 
-	"""
+	    """
         #  if cutoff is not specified, we use snpCeiling
         if cutoff is None:
             cutoff = self.snpCeiling
@@ -500,7 +539,7 @@ e
         Return
         either the median unk_type for the sample, or None if fewer than sample_size items are present.
 
-        Note: this is a very fast method
+        Note: this is a very fast method, if there are sequences in the preComparer.
         """
         
         if not unk_type in ['N', 'M', 'N_or_M']:
@@ -509,12 +548,15 @@ e
         composition = pd.DataFrame.from_dict(self.pc.composition, orient='index')       # preComparer maintains a composition list
         composition.drop(exclude_guids, inplace=True)                                   # remove the ones we want to exclude
 
+        if len(composition) == 0:
+            
+            return None
         if sample_size is not None:
             guids = composition.index.tolist()
             np.random.shuffle(guids)
             not_these_guids = guids[sample_size:]                                           # if there are more guids than sample_size, drop these
             composition.drop(not_these_guids, inplace=True)
-
+        
         composition['N_or_M'] = composition['N'] + composition['M']
         report_value = True
         if sample_size is not None:
@@ -547,9 +589,7 @@ e
         either the estimated median unk_type for the sample, or None if fewer than sample_size items are present.
 
         Note:
-        this is an exact method.  
-        for 'M' computations it is quick, because the Ms are stored in RAM.  For 'N' or 'N_or_M',
-	    is requires slower computation with samples loaded from disc.
+        this is an exact method.  Computation is slower as samples are loaded from disc.  Typical load is about 10msec/seq, or 300msec per 30 sample.
         """
   
 
@@ -562,65 +602,49 @@ e
         observed = []
 
         for guid in to_test:
-            if unk_type == 'M':
-                   try:
-                        relevant = len(set(self.pc.seqProfile[guid]['M'].keys()).intersection(sites))                  
-                   except KeyError:        # no M
-                        
-                        relevant=0
-            elif unk_type in ['N','N_or_M']:
-                obj = self.PERSIST.refcompressedsequence_read(guid)
-                try:
-                    N_sites = set(obj['N']).intersection(sites)
-                except KeyError:
-                    N_sites = set()
-                try:
-                    M_sites = set(obj['M'].keys()).intersection(sites)
-                except KeyError:
-                    M_sites = set()
 
-                relevant = 0
-        
-                if unk_type in ['M','N_or_M']:
-                        relevant = relevant + len(M_sites)
-                if unk_type in ['N','N_or_M']:
-                        relevant = relevant + len(N_sites)
-         
+            obj = self.PERSIST.refcompressedsequence_read(guid)
+            try:
+                N_sites = set(obj['N']).intersection(sites)
+            except KeyError:
+                N_sites = set()
+            try:
+                M_sites = set(obj['M'].keys()).intersection(sites)
+            except KeyError:
+                M_sites = set()
+
+            relevant = 0
+    
+            if unk_type in ['M','N_or_M']:
+                    relevant = relevant + len(M_sites)
+            if unk_type in ['N','N_or_M']:
+                    relevant = relevant + len(N_sites)
+     
             observed.append(relevant)   
                
         return np.median(observed)
-    def multi_sequence_alignment(self, guids, output='dict', sample_size=30, expected_p1=None, uncertain_base_type='N'):
+    def multi_sequence_alignment(self, guids, sample_size=30, expected_p1=None, uncertain_base_type='N', outgroup=None):
         """ computes a multiple sequence alignment containing only sites which vary between guids.
+        
+        Parameters:
+        guids: an iterable of guids to analyse
         
         sample_size is the number of samples to randomly sample to estimate the expected number of N or Ms in
         the population of sequences currently in the server.  From this, the routine computes expected_p1,
         which is expected_expected_N/M the length of sequence.
         if expected_p1 is supplied, then such sampling does not occur.
         
-        output can be either
-        'dict', in which case the output is presented as dictionaries mapping guid to results; or
-        'df' in which case the results is a pandas data frame like the below, where the index consists of the
-        guids identifying the sequences, or
+        uncertain_base_type: the kind of base which is to be analysed, either N,M, or M_or_N
+        outgroup: the outgroup sample, if any.  Not used in computations, but stored in the output
 
-            (index)      aligned_seq  allN  alignN   p_value
-            AAACGN-1        AAAC     1       0  0.250000
-            CCCCGN-2        CCCC     1       0  0.250000
-            TTTCGN-3        TTTC     1       0  0.250000
-            GGGGGN-4        GGGG     1       0  0.250000
-            NNNCGN-5        NNNC     4       3  0.003906
-            ACTCGN-6        ACTC     1       0  0.250000
-            TCTNGN-7        TCTN     2       1  0.062500
-            AAACGN-8        AAAC     1       0  0.250000
-            
-        'df_dict'.  This is a serialisation of the above, which correctly json serialised.  It can be turned back into a
-        pandas DataFrame as follows:
-        
-        res= sc.multi_sequence_alignment(guid_names[0:8], output='df_dict')     # make the dictionary, see unit test _47
-        df = pd.DataFrame.from_dict(res,orient='index')                         # turn it back.
-        
+        Output: 
+        A MSAResult object.
+
+        Statistical approach:
+        A key use of the function is to compute statistics comparing the frequency of mixed (N,N,M_or_N) bases between variant bases in the alignment, and whose which are not.
+        This includes statistical testing of mixed base frequencies.
+
         The p values reported are derived from exact, one-sided binomial tests as implemented in python's scipy.stats.binom_test().
-
-        Note: the below refers to 'N's, but what is analysed is actually the uncertain_base_type, which can be N, M, or N_or_M.
 
         TEST 1:
         This tests the hypothesis that the number of Ns in the *alignment*
@@ -657,8 +681,10 @@ e
         If there  are not enough samples in the server to obtain an estimate, p_value is not computed, being
         reported as None.
              
-        TEST 3: tests whether the proportion of Ns in the alignment is greater
-        than in the bases not in the alignment, for this sequence.  This is the test published.
+        ## TEST 3: 
+	tests whether the proportion of Ns in the alignment is greater
+        than in the bases not in the alignment, for this sequence.  
+	This is the test published.
         
         ## TEST 4:  
         tests whether the proportion of Ns in the alignment  for this sequence
@@ -669,7 +695,7 @@ e
         This test is computed if there are four or more samples in the cluster, and if the alignment length is non-zero.
 
         """
-        
+
         # -1 validate input
         if expected_p1 is not None:
             if expected_p1 < 0 or expected_p1 > 1:
@@ -691,7 +717,9 @@ e
             if seq['invalid'] == 0:
                 self.seqProfile[guid]= seq
                 valid_guids.append(guid)
+
             else:
+
                 invalid_guids.append(guid)
 
         # Estimate expected N or M as median(observed N or Ms),
@@ -706,9 +734,9 @@ e
         else:
             expected_N1 = np.floor(expected_p1 * len(self.reference))
             
-        return self._msa(valid_guids, invalid_guids, expected_p1, output, sample_size, uncertain_base_type)
+        return self._msa(valid_guids, invalid_guids, expected_p1, sample_size, uncertain_base_type, outgroup=outgroup)
     
-    def _msa(self, valid_guids, invalid_guids, expected_p1, output, sample_size, uncertain_base_type='N'):
+    def _msa(self, valid_guids, invalid_guids, expected_p1, sample_size, uncertain_base_type='N', outgroup=None):
         """ perform multisequence alignment and significance tests.
         It assumes that the relevant sequences (valid_guids) are in-ram in this hybridComparer object as part of the seqProfile dictionary.
 
@@ -726,27 +754,11 @@ e
           
         expected_p1:  The expected proportion of Ns or Ms (as specified by uncertain_base_type) is expected_p1.
                 
-        output:   can be either
-        'dict', in which case the output is presented as dictionaries mapping guid to results; or
-        'df' in which case the results is a pandas data frame like the below, where the index consists of the
-        guids identifying the sequences, or
+       
+        Returns:
+        MSAResult object.
 
-            (index)      aligned_seq  allN  alignN   p_value
-            AAACGN-1        AAAC     1       0  0.250000
-            CCCCGN-2        CCCC     1       0  0.250000
-            TTTCGN-3        TTTC     1       0  0.250000
-            GGGGGN-4        GGGG     1       0  0.250000
-            NNNCGN-5        NNNC     4       3  0.003906
-            ACTCGN-6        ACTC     1       0  0.250000
-            TCTNGN-7        TCTN     2       1  0.062500
-            AAACGN-8        AAAC     1       0  0.250000
-            
-        'df_dict'.  This is a serialisation of the above, which correctly json serialised.  It can be turned back into a
-        pandas DataFrame as follows:
-        
-        res= sc.multi_sequence_alignment(guid_names[0:8], output='df_dict')     # make the dictionary, see unit test _47
-        df = pd.DataFrame.from_dict(res,orient='index')                         # turn it back.
-        
+        Statistical note:
         The p values reported are derived from exact, one-sided binomial tests as implemented in pythons scipy.stats.binom_test().
         
         TEST 1:
@@ -861,7 +873,6 @@ e
             guid2msa_seq[guid] = ''.join(guid2seq[guid])
         
         # step 5: determine the expected_p2 at the ordered_variant_positions:
-        ## TODO: review this
         expected_N2 = self.estimate_expected_unk_sites(sites=set(ordered_variant_positions), unk_type = uncertain_base_type)
         if expected_N2 is None:
             expected_p2 = None
@@ -870,10 +881,6 @@ e
         else:
             expected_p2 = expected_N2 / len(ordered_variant_positions)
 
-        if not expected_p2 is None:
-            if expected_p2 > 1:		# some problem we don't yet understand
-                logging.warning("expected p2 computed as {0}; reset to 1  expected N2 = {1}; msa={2}".format(expected_p2, expected_N2, guid2msa_seq))
-                expected_p2 = 1
 		    
         
         # step 6: perform Binomial tests on all samples
@@ -917,7 +924,7 @@ e
                 elif len(guid2msa_seq[guid])==0:      # we don't have any information to work with
                     p_value2 = None                
                 else:
-                    #print(guid2align[uncertain_base_type][guid],len(guid2msa_seq[guid]), expected_p2)
+
                     p_value2 = binom_test(guid2align[uncertain_base_type][guid],len(guid2msa_seq[guid]), expected_p2, alternative='greater')                    
                 guid2pvalue2[guid]=p_value2
                 guid2expected_p2[guid]=expected_p2
@@ -1010,39 +1017,24 @@ e
             df = df.merge(df12, left_index=True, right_index=True)
                   
             retDict = {
-                'variant_positions':ordered_variant_positions,
+                    'variant_positions':ordered_variant_positions,
                     'invalid_guids': invalid_guids,
-                    'what_tested':[uncertain_base_type]*len(df.index),
-                    'guid2sequence':guid2seq,
-                    'guid2allN':guid2all['N'],
-                    'guid2allM':guid2all['M'],
-                    'guid2allN_or_M':guid2all['N_or_M'],
-                    'guid2msa_seq':guid2msa_seq,
-                    'guid2observed_proportion':guid2observed_p,
-                    'guid2expected_p1':guid2expected_p1,
-                    'guid2expected_p2':guid2expected_p2,
-                    'guid2expected_p3':guid2expected_p3,
-                    'guid2expected_p4':guid2expected_p4,
-                    'guid2pvalue1':guid2pvalue1,
-                    'guid2pvalue2':guid2pvalue2,
-                    'guid2pvalue3':guid2pvalue3,
-                    'guid2pvalue4':guid2pvalue4,
-                    'guid2alignN':guid2align['N'],
-                    'guid2alignM':guid2align['M'],
-                    'guid2alignN_or_M':guid2align['N_or_M']
+                    'valid_guids':valid_guids,
+                    'expected_p1':expected_p1,
+                    'sample_size':sample_size,
+                    'df_dict':df.to_dict(orient='index'),
+                    'what_tested':uncertain_base_type,
+                    'outgroup':outgroup,
+                    'creation_time':datetime.datetime.now().isoformat()
+             
                     }
+
+            return MSAResult(**retDict)
         
         else:
             return None
-                
-        if output=='dict':    
-            return(retDict)
-        elif output=='df':
-            return(df)
-        elif output=='df_dict':
-            return(df.to_dict(orient='index'))
-        else:
-            raise ValueError("Don't know how to format {0}.  Valid options are {'df','df_dict', 'dict'}".format(output))
+        
+
     def raise_error(self,token):
         """ raises a ZeroDivisionError, with token as the message.
             useful for unit tests of error logging """
@@ -1053,41 +1045,33 @@ class test_hybridComparer_update_preComparer_settings(unittest.TestCase):
     """ tests update preComparer settings """
     def runTest(self):
         # generate compressed sequences
+
         refSeq='GGGGGG'
+
         sc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
-                       snpCeiling =10)
+                       snpCeiling =10, 
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5},
+                       unittesting=True)
+
         n=0
         originals = [ 'AAACGN','CCCCGN' ]
         guids = []
         for original in originals:
             n+=1
             c = sc.compress(original)
+ 
             guid = "{0}-{1}".format(original,n )
             guids.append(guid)
             sc.persist(c, guid=guid)
 
         preComparer_settings = {'selection_cutoff' : 20,
-                    'over_selection_cutoff_ignore_factor' : 5,
-                    'mixed_reporting_cutoff':0,
-                    'N_mean':40000,
-                    'N_sd' : 3000,
-                    'highN_z_reporting_cutoff' : 2,
-                    'alpha' : 1e-14,
-                    'probN_inflation_factor' : 3,           
-                    'n_positions_examined' : 3812800}
+                    'over_selection_cutoff_ignore_factor' : 10, 'uncertain_base':'M'}
 
         sc.PERSIST.config_store('preComparer',preComparer_settings)
 
-        originals = [ 'TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN' ]
-        for original in originals:
-            n+=1
-            c = sc.compress(original)
-            guid = "{0}-{1}".format(original,n )
-            guids.append(guid)
-            sc.persist(c, guid=guid)
-        
-        self.assertEqual(sc.pc.n_positions_examined, 3812800)       # test object was set
+
+      
 class test_hybridComparer_mcompare(unittest.TestCase):
     """ tests mcompare """
     def runTest(self):
@@ -1095,7 +1079,11 @@ class test_hybridComparer_mcompare(unittest.TestCase):
         refSeq='GGGGGG'
         sc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
-                       snpCeiling =10)
+                       snpCeiling =10,
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5},
+                       unittesting=True)
+        
+        sc.PERSIST._delete_existing_data()
         n=0
         originals = [ 'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN' ]
         guids = []
@@ -1109,8 +1097,7 @@ class test_hybridComparer_mcompare(unittest.TestCase):
         res = sc.mcompare(guids[0])      # defaults to sample size 30
         res = res['neighbours']
         self.assertEqual(len(res), len(originals)-1)
-        print("completed")
-	
+
   
 class test_hybridComparer_summarise_stored_items(unittest.TestCase):
     """ tests reporting on stored contents """
@@ -1119,7 +1106,9 @@ class test_hybridComparer_summarise_stored_items(unittest.TestCase):
         refSeq='GGGGGG'
         sc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
-                       snpCeiling =10)
+                       snpCeiling =10,                       
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5},
+                       unittesting=True)
         # need > 30 sequences
         originals = ['AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
                      'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
@@ -1135,7 +1124,7 @@ class test_hybridComparer_summarise_stored_items(unittest.TestCase):
 
         res = sc.summarise_stored_items()
         self.assertTrue(isinstance(res, dict))
-        self.assertEqual(set(res.keys()), set([ 'server|pcstat|nSeqs']))
+        self.assertEqual(set(res.keys()), set(['server|pcstat|nSeqs']))
 
 class test_hybridComparer_48(unittest.TestCase):
     """ tests computations of p values from exact bionomial test """
@@ -1144,7 +1133,9 @@ class test_hybridComparer_48(unittest.TestCase):
         refSeq='GGGGGG'
         sc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
-                       snpCeiling =10)
+                       snpCeiling =10,                        
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5},
+                       unittesting=True)
         # need > 30 sequences
         originals = ['AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
                      'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
@@ -1167,7 +1158,9 @@ class test_hybridComparer_47c(unittest.TestCase):
         refSeq='GGGGGG'
         sc=hybridComparer( maxNs = 8,
                        reference=refSeq,
-                       snpCeiling =10)
+                       snpCeiling =10,                        
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5},
+                       unittesting=True)
         # need > 30 sequences
         originals = ['AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
                      'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
@@ -1183,22 +1176,22 @@ class test_hybridComparer_47c(unittest.TestCase):
             guid_names.append(this_guid)
 
         # but with expected_N supplied;
-        df= sc.multi_sequence_alignment(guid_names[0:8], output='df', expected_p1=0.995)      
+        msa= sc.multi_sequence_alignment(guid_names[0:8], expected_p1=0.995)      
         # there's variation at positions 0,1,2,3
-        self.assertTrue(isinstance(df, pd.DataFrame))
+        self.assertTrue(isinstance(msa, MSAResult))
         expected_cols = set(['what_tested','aligned_seq','aligned_seq_len','aligned_seq_len','allN','alignN','allM','alignM','allN_or_M','alignN_or_M','p_value1','p_value2','p_value3', 'p_value4', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3','expected_proportion4'])
-        self.assertEqual(set(df.columns.values),expected_cols)
+        self.assertEqual(set(msa.df.columns.values),expected_cols)
 
-        self.assertEqual(len(df.index),8)
-        res= sc.multi_sequence_alignment(guid_names[0:8], output='df_dict', expected_p1=0.995)
+        self.assertEqual(len(msa.df.index),8)
+
+        msa= sc.multi_sequence_alignment(guid_names[0:8], expected_p1=0.995)
         
-        df = pd.DataFrame.from_dict(res,orient='index')
 
-        self.assertEqual(set(df.columns.values),expected_cols)
+        self.assertEqual(set(msa.df.columns.values),expected_cols)
     
-        self.assertEqual(set(df.index.tolist()), set(['AAACGN-1','NNNCGN-5','CCCCGN-2','TTTCGN-3','GGGGGN-4','ACTCGN-6', 'TCTNGN-7','AAACGN-8']))
-        self.assertTrue(df.loc['AAACGN-1','expected_proportion1'] is not None)        # check it computed a value
-        self.assertEqual(df.loc['AAACGN-1','expected_proportion1'], 0.995)        # check is used the value passed
+        self.assertEqual(set(msa.df.index.tolist()), set(['AAACGN-1','NNNCGN-5','CCCCGN-2','TTTCGN-3','GGGGGN-4','ACTCGN-6', 'TCTNGN-7','AAACGN-8']))
+        self.assertTrue(msa.df.loc['AAACGN-1','expected_proportion1'] is not None)        # check it computed a value
+        self.assertEqual(msa.df.loc['AAACGN-1','expected_proportion1'], 0.995)        # check is used the value passed
 
 class test_hybridComparer_47b2(unittest.TestCase):
     """ tests generation of a multisequence alignment with
@@ -1209,7 +1202,9 @@ class test_hybridComparer_47b2(unittest.TestCase):
         refSeq='GGGGGG'
         sc=hybridComparer( maxNs = 6,
                        reference=refSeq,
-                       snpCeiling =10)
+                       snpCeiling =10,                        
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5},
+                       unittesting=True)
         # need > 30 sequences
         originals = ['AAACGY','CCCCGY','TTTCGY','GGGGGY','NNNCGY','ACTCGY', 'TCTQGY','AAACGY','CCCCGY','TTTCGY','GGGGGY','NNNCGY','ACTCGY', 'TCTNGY',
                      'AAACGY','CCCCGY','TTTCGY','GGGGGY','NNNCGY','ACTCGY', 'TCTNGY','AAACGY','CCCCGY','TTTCGY','GGGGGY','NNNCGY','ACTCGY', 'TCTNGY',
@@ -1224,7 +1219,7 @@ class test_hybridComparer_47b2(unittest.TestCase):
             sc.persist(c, guid=this_guid)
             guid_names.append(this_guid)
 
-        res= sc.multi_sequence_alignment(guid_names[0:8], output='dict', uncertain_base_type='M')
+        msa= sc.multi_sequence_alignment(guid_names[0:8], uncertain_base_type='M')
 
         # there's variation at positions 0,1,2,3
         #'AAACGY'
@@ -1236,22 +1231,17 @@ class test_hybridComparer_47b2(unittest.TestCase):
         #'TCTNGY'
         #'AAACGY'
         #'CCCCGY',
-        self.assertEqual(res['variant_positions'],[0,1,2,3])
-        df= sc.multi_sequence_alignment(guid_names[0:8], output='df', uncertain_base_type='M')
+        self.assertEqual(msa.variant_positions,[0,1,2,3])
         
         # there's variation at positions 0,1,2,3
-        self.assertTrue(isinstance(df, pd.DataFrame))
         expected_cols = set(['what_tested','aligned_seq','aligned_seq_len','aligned_seq_len','allN','alignN','allM','alignM','allN_or_M','alignN_or_M','p_value1','p_value2','p_value3', 'p_value4', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3','expected_proportion4'])
  
 
-        self.assertEqual(set(df.columns.values),expected_cols)
+        self.assertEqual(set(msa.df.columns.values),expected_cols)
 
-        self.assertEqual(len(df.index),8)
-        res= sc.multi_sequence_alignment(guid_names[0:8], output='df_dict')
-        df = pd.DataFrame.from_dict(res,orient='index')
-
-        self.assertTrue(df.loc['AAACGY-1','expected_proportion1'] is not None)        # check it computed a value
-        self.assertEqual(set(df.index.tolist()), set(['AAACGY-1','NNNCGY-5','CCCCGY-2','TTTCGY-3','GGGGGY-4','ACTCGY-6', 'TCTQGY-7','AAACGY-8']))
+        self.assertEqual(len(msa.df.index),8)
+        self.assertTrue(msa.df.loc['AAACGY-1','expected_proportion1'] is not None)        # check it computed a value
+        self.assertEqual(set(msa.df.index.tolist()), set(['AAACGY-1','NNNCGY-5','CCCCGY-2','TTTCGY-3','GGGGGY-4','ACTCGY-6', 'TCTQGY-7','AAACGY-8']))
 
 class test_hybridComparer_47b(unittest.TestCase):
     """ tests generation of a multisequence alignment with
@@ -1262,7 +1252,9 @@ class test_hybridComparer_47b(unittest.TestCase):
         refSeq='GGGGGG'
         sc=hybridComparer( maxNs = 6,
                        reference=refSeq,
-                       snpCeiling =10)
+                       snpCeiling =10,                        
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5},
+                       unittesting=True)
         # need > 30 sequences
         originals = ['AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
                      'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
@@ -1277,7 +1269,7 @@ class test_hybridComparer_47b(unittest.TestCase):
             sc.persist(c, guid=this_guid)
             guid_names.append(this_guid)
 
-        res= sc.multi_sequence_alignment(guid_names[0:8], output='dict')
+        msa =  sc.multi_sequence_alignment(guid_names[0:8])
 
         # there's variation at positions 0,1,2,3
         #'AAACGN'
@@ -1289,59 +1281,17 @@ class test_hybridComparer_47b(unittest.TestCase):
         #'TCTNGN'
         #'AAACGN'
         #'CCCCGN',
-        self.assertEqual(res['variant_positions'],[0,1,2,3])
-        df= sc.multi_sequence_alignment(guid_names[0:8], output='df')
+        self.assertEqual(msa.variant_positions,[0,1,2,3])
         
         # there's variation at positions 0,1,2,3
-        self.assertTrue(isinstance(df, pd.DataFrame))
         expected_cols = set(['what_tested','aligned_seq','aligned_seq_len','aligned_seq_len','allN','alignN','allM','alignM','allN_or_M','alignN_or_M','p_value1','p_value2','p_value3', 'p_value4', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3','expected_proportion4'])
  
-        self.assertEqual(set(df.columns.values),expected_cols)
-        self.assertEqual(len(df.index),8)
-        res= sc.multi_sequence_alignment(guid_names[0:8], output='df_dict')
-        df = pd.DataFrame.from_dict(res,orient='index')
-        self.assertTrue(df.loc['AAACGN-1','expected_proportion1'] is not None)        # check it computed a value
-        self.assertEqual(set(df.index.tolist()), set(['AAACGN-1','CCCCGN-2','TTTCGN-3','GGGGGN-4','NNNCGN-5','ACTCGN-6', 'TCTNGN-7','AAACGN-8']))
+        self.assertEqual(set(msa.df.columns.values),expected_cols)
+        self.assertEqual(len(msa.df.index),8)
+        self.assertTrue(msa.df.loc['AAACGN-1','expected_proportion1'] is not None)        # check it computed a value
+        self.assertEqual(set(msa.df.index.tolist()), set(['AAACGN-1','CCCCGN-2','TTTCGN-3','GGGGGN-4','NNNCGN-5','ACTCGN-6', 'TCTNGN-7','AAACGN-8']))
 
-class test_hybridComparer_47a(unittest.TestCase):
-    """ tests generation of a multisequence alignment with
-        testing for the proportion of Ns.
-        Tests all three outputs."""
-    def runTest(self):
-        # generate compressed sequences
-        refSeq='GGGGGG'
-        sc=hybridComparer( maxNs = 1e8,
-                       reference=refSeq,
-                       snpCeiling =10)
-        # need > 30 sequences
-        originals = ['AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
-                     'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
-                     'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN']
-        guid_names = []
-        n=0
-        for original in originals:
-            n+=1
-            c = sc.compress(original)
-            this_guid = "{0}-{1}".format(original,n )
-            sc.persist(c, guid=this_guid)
-            guid_names.append(this_guid)
 
-        res= sc.multi_sequence_alignment(guid_names[0:8], output='dict')
-        # there's variation at positions 0,1,2,3
-        self.assertEqual(res['variant_positions'],[0,1,2,3])
-
-        df= sc.multi_sequence_alignment(guid_names[0:8], output='df')
-        # there's variation at positions 0,1,2,3
-        self.assertTrue(isinstance(df, pd.DataFrame))
-        expected_cols = set(['what_tested','aligned_seq','aligned_seq_len','aligned_seq_len','allN','alignN','allM','alignM','allN_or_M','alignN_or_M','p_value1','p_value2','p_value3', 'p_value4', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3','expected_proportion4'])
- 
-        self.assertEqual(set(df.columns.values),expected_cols)
-        self.assertEqual(len(df.index),8)
-        res= sc.multi_sequence_alignment(guid_names[0:8], output='df_dict')
-        df = pd.DataFrame.from_dict(res,orient='index')
-    
-        self.assertEqual(set(df.index.tolist()), set(guid_names[0:8]))
- 
 class test_hybridComparer_estimate_expected_unk(unittest.TestCase):
     """ tests estimate_expected_unk, a function estimating the number of Ns in sequences
         by sampling """
@@ -1350,7 +1300,9 @@ class test_hybridComparer_estimate_expected_unk(unittest.TestCase):
         refSeq='GGGGGG'
         sc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
-                       snpCeiling =10)
+                       snpCeiling =10,                        
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5},
+                       unittesting=True)
         n=0
         originals = [ 'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN' ]
         guids = []
@@ -1381,7 +1333,9 @@ class test_hybridComparer_estimate_expected_unk_sites(unittest.TestCase):
         refSeq='GGGGGG'
         sc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
-                       snpCeiling =10)
+                       snpCeiling =10,                        
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5},
+                       unittesting=True)
         n=0
         originals = [ 'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN' ]
         guids = []
@@ -1403,7 +1357,9 @@ class test_hybridComparer_estimate_expected_unk_sites(unittest.TestCase):
         refSeq='GGGGGG'
         sc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
-                       snpCeiling =10)
+                       snpCeiling =10,                        
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5},
+                       unittesting=True)
         n=0
         originals = [ 'AAACGM','CCCCGM','TTTCGM','GGGGGM','MMMCGM','ACTCGM', 'TCTMGM' ]
         guids = []
@@ -1428,8 +1384,9 @@ class test_hybridComparer_45a(unittest.TestCase):
         refSeq='GGGGGG'
         sc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
-                       snpCeiling =10)
-        
+                       snpCeiling =10,                        
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5},
+                       unittesting=True)
         originals = [ 'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN' ]
         guid_names = []
         n=0
@@ -1442,20 +1399,13 @@ class test_hybridComparer_45a(unittest.TestCase):
 
         self.assertEqual(len(sc.pc.seqProfile.keys()),7)
        
-        res= sc.multi_sequence_alignment(guid_names)
+        msa= sc.multi_sequence_alignment(guid_names)
+
         # there's variation at positions 0,1,2,3
-        df = pd.DataFrame.from_dict(res['guid2sequence'], orient='index')
-        df.columns=res['variant_positions']
-        self.assertEqual(len(df.index), 7)
-        self.assertEqual(res['variant_positions'],[0,1,2,3])
-	
-        self.assertEqual(len(sc.pc.seqProfile.keys()),7)
-     
-        res= sc.multi_sequence_alignment(guid_names[0:3])
-        df = pd.DataFrame.from_dict(res['guid2sequence'], orient='index')
-        df.columns=res['variant_positions']
-        self.assertEqual(len(sc.pc.seqProfile.keys()),7)
-        
+        self.assertEqual(msa.alignment_length, 4)
+        self.assertEqual(msa.variant_positions, [0,1,2,3])
+
+      
 class test_hybridComparer_45b(unittest.TestCase):
     """ tests the generation of multiple alignments of variant sites."""
     def runTest(self):
@@ -1464,7 +1414,9 @@ class test_hybridComparer_45b(unittest.TestCase):
         refSeq='GGGGGG'
         sc=hybridComparer( maxNs = 6,
                        reference=refSeq,
-                       snpCeiling =10)
+                       snpCeiling =10,                        
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5},
+                       unittesting=True)
         
         originals = [ 'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTGGN' ]
         guid_names = []
@@ -1476,12 +1428,11 @@ class test_hybridComparer_45b(unittest.TestCase):
             sc.persist(c, guid=this_guid)
             guid_names.append(this_guid)
 
-        res= sc.multi_sequence_alignment(guid_names)
+        msa= sc.multi_sequence_alignment(guid_names)
+
         # there's variation at positions 0,1,2,3
-        df = pd.DataFrame.from_dict(res['guid2sequence'], orient='index')
-        df.columns=res['variant_positions']
-        self.assertEqual(len(df.index), 7)
-        self.assertEqual(res['variant_positions'],[0,1,2,3])
+        self.assertEqual(msa.alignment_length, 4)
+        self.assertEqual(msa.variant_positions, [0,1,2,3])
 
 class test_hybridComparer_1(unittest.TestCase):
     """ test init """
@@ -1559,7 +1510,7 @@ class test_hybridComparer_6c(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
 
-        sc=hybridComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq)
+        sc=hybridComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq, unittesting=True)
         originals = [ 'NNNN']
         for original in originals:
 
@@ -1571,7 +1522,7 @@ class test_hybridComparer_6d(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
 
-        sc=hybridComparer( maxNs = 3, snpCeiling = 20,reference=refSeq)
+        sc=hybridComparer( maxNs = 3, snpCeiling = 20,reference=refSeq, unittesting=True)
         originals = [ 'NNNN']
         for original in originals:
 
@@ -1586,7 +1537,7 @@ class test_hybridComparer_16(unittest.TestCase):
         refSeq='ACTG'
         sc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
-                       snpCeiling =10)
+                       snpCeiling =10, unittesting=True)
         
         seq1 = sc.compress('AAAA')
         seq2 = sc.compress('CCCC')
@@ -1598,7 +1549,7 @@ class test_hybridComparer_16b(unittest.TestCase):
         refSeq='ACTG'
         sc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
-                       snpCeiling =10)
+                       snpCeiling =10, unittesting=True)
         
         seq1 = sc.compress('AAAA')
         seq2 = sc.compress('RRCC')
@@ -1610,7 +1561,7 @@ class test_hybridComparer_16c(unittest.TestCase):
         refSeq='ACTG'
         sc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
-                       snpCeiling =10)
+                       snpCeiling =10, unittesting=True)
         
         seq1 = sc.compress('AAAA')
         seq2 = sc.compress('RRNN')
@@ -1622,7 +1573,7 @@ class test_hybridComparer_17(unittest.TestCase):
         refSeq='ACTG'
         sc=hybridComparer( maxNs = 3,
                        reference=refSeq,
-                       snpCeiling =10)
+                       snpCeiling =10, unittesting=True)
         
         seq1 = sc.compress('AAAA')
         seq2 = sc.compress('NNNN')
@@ -1635,7 +1586,8 @@ class test_hybridComparer_18(unittest.TestCase):
         refSeq='ACTG'
         sc=hybridComparer( maxNs = 3,
                        reference=refSeq,
-                       snpCeiling =10)
+                       snpCeiling =10,
+                       unittesting=True)
         
         seq1 = sc.compress('AAAA')
         seq2 = sc.compress('NNNN')
@@ -1655,19 +1607,22 @@ class test_hybridComparer_18(unittest.TestCase):
 
 class test_hybridComparer_saveload3(unittest.TestCase):
     def runTest(self):
-        refSeq='ACTG'
-        sc=hybridComparer( maxNs = 1e8, snpCeiling = 20, reference=refSeq)
-        compressedObj =sc.compress(sequence='ACTT')
+        refSeq='ACTGGG'
+        sc=hybridComparer( maxNs = 1e8, snpCeiling = 20, reference=refSeq,
+            preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5},
+            unittesting=True)
+        compressedObj =sc.compress(sequence='ACTTMN')
         sc.persist(compressedObj, 'one' )     
         retVal=sc.load(guid='one' )
+
         self.assertEqual(compressedObj,retVal) 
         self.assertEqual(len(sc.pc.seqProfile.keys()),1)    # one entry in the preComparer     
 
-        compressedObj =sc.compress(sequence='ACTT')
+        compressedObj =sc.compress(sequence='ACTTTT')
         with self.assertRaises(KeyError):
             sc.persist(compressedObj, 'one' )     
  
-        compressedObj =sc.compress(sequence='ACTT')
+        compressedObj =sc.compress(sequence='ACTTTA')
         sc.persist(compressedObj, 'two' )     
         retVal=sc.load(guid='two' )
         self.assertEqual(compressedObj,retVal) 
@@ -1679,17 +1634,14 @@ class test_hybridComparer_remove_all(unittest.TestCase):
         sc=hybridComparer( maxNs = 1e8, snpCeiling = 20, reference=refSeq)
         compressedObj =sc.compress(sequence='ACTT')
         sc.persist(compressedObj, 'one' )     
-        retVal=sc.load(guid='one' )
-        sc.seqProfile['one']=retVal 
+        sc_obj=sc.load(guid='one' )
+        sc.seqProfile['one']=sc_obj 
         self.assertEqual(len(sc.seqProfile.keys()),1)    # 1 entry in the temporary  dictionary  either
-
-        self.assertEqual(compressedObj,retVal) 
         self.assertEqual(len(sc.pc.seqProfile.keys()),1)    # one entry in the preComparer     
 
         compressedObj =sc.compress(sequence='ACTT')
         sc.persist(compressedObj, 'two' )     
         retVal=sc.load(guid='two' )
-        self.assertEqual(compressedObj,retVal) 
         self.assertEqual(len(sc.pc.seqProfile.keys()),2)    # two entry in the preComparer     
   
         sc.remove_all()
@@ -1877,4 +1829,39 @@ class test_hybridComparer_50(unittest.TestCase):
         res = sc.estimate_expected_proportion(['AAN','AAN', 'AAN'])
         self.assertTrue(res is not None)
         self.assertAlmostEqual(res, 1/3)
+
+class test_hybridComparer_51(unittest.TestCase):
+    """ tests repopulate_sample."""
+    def runTest(self):
         
+        # generate compressed sequences
+        refSeq='GGGGGG'
+        sc=hybridComparer( maxNs = 1e8,
+                       reference=refSeq,
+                       snpCeiling =10)
+        
+        originals = [ 'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN' ]
+        guid_names = []
+        n=0
+        for original in originals:
+            n+=1
+            c = sc.compress(original)
+            this_guid = "{0}-{1}".format(original,n )
+            sc.persist(c, guid=this_guid)
+            guid_names.append(this_guid)
+
+        self.assertEqual(len(sc.pc.seqProfile.keys()),7)
+
+
+        refSeq='GGGGGG'
+        sc=hybridComparer( maxNs = 1e8,
+                       reference=refSeq,
+                       snpCeiling =10)
+        
+        sc.repopulate_sample(n=7)      # defaults to 100
+
+        self.assertEqual(len(sc.pc.seqProfile.keys()),7)
+
+
+
+  

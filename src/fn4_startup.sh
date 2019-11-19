@@ -18,6 +18,9 @@ else
     exit 1
 fi
 
+# set sentry url for bug tracking
+FN_SENTRY_URL="https://49ebb508a10f428aaf82f9e1b6b11def@sentry.io/110110"
+
 echo "Starting server"
 nohup pipenv run python3 findNeighbour4-server.py $1 > nohup_server.out &
 echo "Starting dbmanager"
