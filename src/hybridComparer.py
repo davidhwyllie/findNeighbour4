@@ -45,7 +45,9 @@ class hybridComparer():
                     excludePositions=set(),
                     preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5},
                     PERSIST=UNITTEST_MONGOCONN,
-                    unittesting=False
+                    unittesting=False,
+					enable_catwalk=False
+
                 ):
 
         """ a module for determining relatedness between two sequences.  
@@ -77,10 +79,11 @@ class hybridComparer():
         over_selection_cutoff_ignore_factor:
         SNP distances more than over_selection_cutoff_ignore_factor * selection_cutoff do not need to be further analysed.  For example, if a SNP cutoff was 20, and over_selection_cutoff_ignore_factor is 5, we can safely consider with SNV distances > 100 (=20*5) as being unrelated.
 
-
+		
         PERSIST: either a mongo connection string, or an instance of fn3persistence
 
-        unittesting: if True, will remove any stored data from the associated database
+        unittesting: if True, will remove any stored data from the associated database [Careful!]
+		enable_catwalk: if True, will use the catwalk relatedness engine.  If false, does the same calculation slower using python.
         David Wyllie, September 2019
   
         - to run unit tests, do
@@ -130,8 +133,10 @@ class hybridComparer():
             # store them, if any are supplied
             if len(preComparer_parameters.keys())>0:
                 self.PERSIST.config_store('preComparer', preComparer_parameters)
-
-        self.pc = preComparer(**preComparer_parameters, catwalk_reference =self.reference)
+        if enable_catwalk:
+            self.pc = preComparer(**preComparer_parameters, catwalk_reference =self.reference)
+        else:
+            self.pc = preComparer(**preComparer_parameters, catwalk_reference =None)
 
         # update preComparer parameters
         self.update_precomparer_parameters()
