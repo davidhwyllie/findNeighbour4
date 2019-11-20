@@ -375,11 +375,10 @@ class findNeighbour4():
 
 	def server_monitoring_store(self, message="No message supplied", guid=None):
 		""" reports server memory information to store """
-		hc_summary = {}
 		try:
 			hc_summary =  self.hc.summarise_stored_items()
 		except AttributeError:		# no hc object, occurs during startup
-			pass
+			hc_summary = {}
 
 		db_summary =  self.PERSIST.summarise_stored_items()
 		mem_summary = self.PERSIST.memory_usage()
@@ -1350,7 +1349,10 @@ def g2c(clustering_algorithm, change_id=None):
 	except KeyError:
 		app.logging.info("No algorithm {0}".format(clustering_algorithm))
 		abort(404, "no clustering algorithm {0}".format(clustering_algorithm))
-	
+	except AttributeError:
+		app.logging.info("Never ran {0}".format(clustering_algorithm))
+		abort(421, "never ran clustering algorithm {0}".format(clustering_algorithm))
+
 	res = fn.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = change_id)		
 	
 	return make_response(tojson(res))
@@ -1377,6 +1379,8 @@ def clusters2cnt(clustering_algorithm, cluster_id = None):
 	except KeyError:
 		# no clustering algorithm of this type
 		abort(404, "no clustering algorithm {0}".format(clustering_algorithm))
+	except AttributeError:		# no clustering object
+		res = []
 
 	# if no cluster_id is specified, then we return all data.
 	if cluster_id is None:
@@ -1411,7 +1415,7 @@ def clusters2cnt(clustering_algorithm, cluster_id = None):
 			retVal = {"members":detail}
 		else:
 			abort(404, "url not recognised: "+request.url)
-	except KeyError:  # no data
+	except (KeyError, AttributeError):  # no data
 		if cluster_id is not None:
 			retVal = {"summary":[], "members":[]}
 		elif request.url.endswith('clusters'):
@@ -1434,6 +1438,9 @@ def g2cl(clustering_algorithm):
 	except KeyError:
 		# no clustering algorithm of this type
 		abort(404, "no clustering algorithm {0}".format(clustering_algorithm))
+	except AttributeError:
+		# no data
+		res = []
 	cluster_ids = set()
 	for item in res:
 		try:

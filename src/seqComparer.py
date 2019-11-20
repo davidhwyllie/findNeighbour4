@@ -2,21 +2,8 @@
 
 # python3 code to compare fasta sequences
 import unittest
-import os
-import glob
-import sys
-
-import datetime
-import pickle
 import hashlib
-import math
-import multiprocessing
-import uuid
 import json
-import psutil
-from gzip import GzipFile
-import random
-import itertools
 import numpy as np
 from scipy.stats import binom_test
 import pandas as pd

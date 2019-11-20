@@ -269,7 +269,7 @@ class MixtureAwareLinkageResult():
             if self.loaded_version is not None and self.loaded_version==latest_version:   # no update needed
                 return
     
-            if self.loaded_version is None or (not self.loaded_version==latest_version):   # nothing stored in ram,  or latest version not loaded;
+            elif self.loaded_version is None or (not self.loaded_version==latest_version):   # nothing stored in ram,  or latest version not loaded;
 
                 serialisation = self._recover_serialisation()
                 if serialisation is not None:
@@ -277,14 +277,10 @@ class MixtureAwareLinkageResult():
                     self.loaded_version= latest_version 
                     
                     self.loaded_version_load_time = datetime.datetime.now()
-                else:
-                    #print("did not recover serialisation")
-                    pass
-                return
+                    return
 
         # otherwise
         # First run 
-        self.current_version_load_time = datetime.datetime.now()
         self._first_run()
   
     def _recover_serialisation(self):
@@ -326,7 +322,8 @@ class MixtureAwareLinkageResult():
                 if not cluster_id in self.cluster2guid.keys():
                     self.cluster2guid[cluster_id] = []
                 self.cluster2guid[cluster_id].append(guid)
-
+        self.current_version_load_time = datetime.datetime.now()
+ 
     def _first_run(self):
         """ sets up an empty clustering entry """
         self.parameters = {'note':'No data found'}
@@ -334,7 +331,8 @@ class MixtureAwareLinkageResult():
         self.guid2cluster = {}
         self.uncertain_base_type = "?"
         self.snv_threshold = None
-
+        self.current_version_load_time = datetime.datetime.now()
+ 
         # compute change_id
         self.change_id = 0
         

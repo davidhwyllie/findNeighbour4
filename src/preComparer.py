@@ -2,6 +2,7 @@
 
 import unittest
 import copy
+import pycatwalk
 
 class preComparer():
     """ compares reference compressed sequences.  
@@ -19,14 +20,13 @@ class preComparer():
 
     This class can use a catWalk (compiled, high speed) relatedness engine if available.  For details of catWalk, see https://gitea.mmmoxford.uk/dvolk/catWalk.
 
-    WARNING:  The catwork component is not implemented & no unittests cover this option.
 
     """
     def __init__(self,                    
                     selection_cutoff = 20,
                     over_selection_cutoff_ignore_factor = 5,
                     uncertain_base = 'M',  
-                    catWalk = None,
+                    catWalk = False,
                     **kwargs
                 ):
 
@@ -50,8 +50,8 @@ class preComparer():
 	then preComparer will report all distances as requirng additional computation.
 	> if over_selection_cutoff_ignore_factor is 1, then preComparer will use the estimated snp distance computed as the basis for its decision as to whether additional testing is needed.
 
-        catWalk: the URL of a catWalk instance, if available.  If None, uses python computation.  
-                 The endpoint is assumed to be running, and *to be for the exclusive use of this connection*.  ##TODO maybe spin it up
+        catWalk: Boolean.  If False, uses python computation.  
+
 
         **kwargs any other arguments are ignored
         Returns:
@@ -70,7 +70,7 @@ class preComparer():
         self._refresh()
 
         # if catWalk, startup the catWalk server
-        if self.catWalk is not None:
+        if self.catWalk:
             pass
             # TODO either: start up the catWalk server on the url specified in self.catWalk
             # OR check it is working - an upstream component can start it up.  This latter is better as 
@@ -148,7 +148,6 @@ class preComparer():
         except KeyError:
             # no invalid tag
             obj['invalid']=0
-        smaller_obj={'invalid':obj['invalid']}
 
         # construct an object to be stored either directly in the self.seqProfile or in catWalk
 
@@ -159,45 +158,48 @@ class preComparer():
         if isinvalid:
             obj_composition['invalid']=1
   
-        # construct an object to store on disc
+        # construct an object to store
         for key in set(['A','C','G','T']) - set(obj.keys()):        # what is missing
                 obj[key]=set()      # add empty set if no key exists.
+
+        # create a smaller object to store.
+        smaller_obj = {}
+        for item in ['A','C','G','T']:
+            try:
+                smaller_obj[item] = copy.deepcopy(obj[item])
+            except KeyError:
+                pass        # if it doesn't exist, that's OK	
 
         # store uncertain bases - either us, Ns, or both
         # if there are no M or N keys, add them
         if not 'N' in obj.keys():
                 obj['N']=set()
         if not 'M' in obj.keys():
-                obj['M']={}
+                obj['M']=set()
+        else:
+                obj['M']=set(obj['M'].keys())       # make a set of the positions of us
 
         if self.uncertain_base == 'M':
-            obj['U']=set(obj['M'].keys())
+            obj['U']=obj['M']
         elif self.uncertain_base == 'N':
             obj['U']=obj['N']
         elif self.uncertain_base == 'M_or_N':
-            obj['U']=obj['N'].union(set(obj['M'].keys()))
+            obj['U']=obj['N'].union(obj['M'])
         else:
             raise KeyError("Invalid uncertain_base: got {0}".format(self.uncertain_base))
 
-        # create a smaller object to store.
-        if smaller_obj['invalid']==0:       # it's valid;
-
-            for item in ['A','C','G','T']:
-                try:
-                    smaller_obj[item] = copy.deepcopy(obj[item])
-                except KeyError:
-                    pass        # if it doesn't exist, that's OK	
-
-            # add the uncertain bases to the smaller object for storage
-            smaller_obj['U']=copy.deepcopy(obj['U'])
-            
-            if self.catWalk is not None:
-                    pass
-                    # TODO call the catWalk insert_refCompressed endpoint with smaller_obj
-                    # trap all errors and raise appropropriate error 
-                    smaller_obj ={'invalid':obj['invalid']}      # that's all we store in python if catWalk is in use
-
-        self.seqProfile[guid]=smaller_obj           # store in python dictionary for comparison
+        # add the uncertain bases to the smaller object for storage
+        smaller_obj['U']=copy.deepcopy(obj['U'])
+        
+        if self.catWalk is not None:
+            if not isinvalid:       # we only store valid sequences in catWalk
+                pass
+                # TODO call the catWalk insert_refCompressed endpoint with smaller_obj
+                # trap all errors and raise appropropriate error 
+            self.seqProfile[guid]={'invalid':obj['invalid']}      # that's all we store in python if catWalk is in use
+        else: 
+            smaller_obj['invalid']=obj['invalid']
+            self.seqProfile[guid]=smaller_obj           # store in python dictionary for comparison
 
         # set composition
         for key in set(obj.keys()).intersection(['A','C','G','T','M','N','U']):
@@ -205,7 +207,6 @@ class preComparer():
         self.composition[guid] = obj_composition
 
         return obj['invalid']
-        
 
     def remove(self, guid):
         """ removes a reference compressed object into RAM.
@@ -268,7 +269,7 @@ class preComparer():
         retVal['server|pcstat|nSeqs'] = len(self.seqProfile.keys())
   
         if self.catWalk is not None:
-            # TODO: call the catWalk server, and return the dictionary including status information in key-value format.
+            print(pycatwalk.status())
             # the keys must be pipe delimited and should be for the format 
             # 'server|catWalk|{key}'.  The values must be scalars, not lists or sets.
             # the dictionary thus manipulated should be added to retVal.
@@ -456,6 +457,7 @@ class test_preComparer_3(unittest.TestCase):
         self.assertEqual(sc.composition['guid1']['M'],0)
         self.assertEqual(sc.composition['guid1']['invalid'],1)
 
+        self.assertEqual(set(sc.seqProfile['guid1'].keys()), set(['invalid','A','T','C','U','G']))
         obj = {'A':set([1,2,3,4]), 'invalid':0}
         sc.persist(obj,'guid2')
         self.assertEqual(sc.composition['guid2']['A'],4)
@@ -488,10 +490,8 @@ class test_preComparer_3(unittest.TestCase):
 
         self.assertEqual(sc.guidscachedinram(),set(['guid1','guid2','guid3','guid4']))
 
-        self.assertEqual(set(sc.seqProfile['guid4'].keys()), set(['A','C','T','G','U','invalid']))
-        self.assertEqual(set(sc.seqProfile['guid3'].keys()), set(['A','C','T','G','U','invalid']))
         self.assertEqual(set(sc.seqProfile['guid2'].keys()), set(['A','C','T','G','U','invalid']))
-        self.assertEqual(set(sc.seqProfile['guid1'].keys()), set(['invalid']))
+        self.assertEqual(set(sc.seqProfile['guid1'].keys()), set(['A','C','T','G','U','invalid']))
         
 class test_preComparer_4(unittest.TestCase):
     """ tests reporting of server status """
@@ -578,7 +578,7 @@ class test_preComparer_8(unittest.TestCase):
         sc.persist(obj,'guid3')
       
         # check all keys are present
-        self.assertEqual(set(sc.seqProfile['guid3'].keys()), set(['invalid']))
+        self.assertEqual(set(sc.seqProfile['guid3'].keys()), set(['U','A','C','G','T','invalid']))
 
         # check invalid set
         self.assertEqual(sc.seqProfile['guid3']['invalid'], 1)

@@ -23,7 +23,7 @@ from scipy.stats import binom_test
 import pandas as pd
 from collections import Counter
 from mongoStore import fn3persistence
-from preComparer import preComparer
+from preComparer_cw import preComparer		# catwalk enabled
 from identify_sequence_set import IdentifySequenceSet
 from msa import MSAResult
 
@@ -131,7 +131,7 @@ class hybridComparer():
             if len(preComparer_parameters.keys())>0:
                 self.PERSIST.config_store('preComparer', preComparer_parameters)
 
-        self.pc = preComparer(**preComparer_parameters)
+        self.pc = preComparer(**preComparer_parameters, catwalk_reference =self.reference)
 
         # update preComparer parameters
         self.update_precomparer_parameters()
@@ -1124,7 +1124,7 @@ class test_hybridComparer_summarise_stored_items(unittest.TestCase):
 
         res = sc.summarise_stored_items()
         self.assertTrue(isinstance(res, dict))
-        self.assertEqual(set(res.keys()), set(['server|pcstat|nSeqs']))
+        self.assertTrue('server|pcstat|nSeqs' in set(res.keys()))
 
 class test_hybridComparer_48(unittest.TestCase):
     """ tests computations of p values from exact bionomial test """

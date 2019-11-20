@@ -16,7 +16,7 @@ from fn3client import fn3Client
 fastadir = os.path.join('/srv','data','mixfiles','mfasta')
 
 # instantiate client
-fn3c = fn3Client("http://localhost:5026")      # expects operation on local host; pass baseurl if somewhere else.
+fn3c = fn3Client("http://localhost:5027")      # expects operation on local host; pass baseurl if somewhere else.
 
 existing_guids = set(fn3c.guids())
 clustering_created = False

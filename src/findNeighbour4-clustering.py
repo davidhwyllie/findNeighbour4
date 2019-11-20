@@ -182,8 +182,10 @@ Checks for new sequences are conducted once per minute.
 			ms = MSAStore(PERSIST=PERSIST, in_ram_persistence_time=60)		# persist 60 seconds
 			# estimate expected:
 			estimated_unk = hc.estimate_expected_unk(sample_size=100, unk_type= malr.parameters['uncertain_base_type'])
-			estimated_p1 = estimated_unk / (len(hc.reference)-len(hc.excluded))
-			
+			if estimated_unk is not None:
+				estimated_p1 = estimated_unk / (len(hc.reference)-len(hc.excluded))
+			else:	
+				estimated_p1 = None		
 			# recover existing msas
 			stored_msa = ms.existing_tokens()
 
