@@ -7,6 +7,7 @@ import datetime
 import time
 from mongoStore import fn3persistence
 from identify_sequence_set import IdentifySequenceSet
+from msaviewer import DepictMSA
 
 class MSAStore():
     """ stores multisequence alignments, both in ram and in a database """
@@ -130,6 +131,12 @@ class MSAResult():
     def msa_dict(self):
         """ return the msa as a dictionary """
         return(self.df.to_dict(orient='index'))
+    def msa_interactive_depiction(self):
+        """ returns an interactive depiction of the msa object.
+        This is an html file string, with embedded data and javascript.
+        rendering it will produce an interactive visualisation """
+        dep_msa = DepictMSA(self.df, positions_analysed = sorted(list(self.variant_positions)))
+        return dep_msa.render_msa()
     def serialise(self):
         """ return the entire object in a serialisable format (dictionary) """
         return {
@@ -142,7 +149,7 @@ class MSAResult():
                     'what_tested':self.what_tested,
                     'outgroup':self.outgroup,
                     'creation_time':self.creation_time  
-                    }
+                }
     
 class Test_MSA(unittest.TestCase):
     """ tests the MSAResult class"""
@@ -154,6 +161,7 @@ class Test_MSA(unittest.TestCase):
         self.assertEqual(type(m.msa_html()), str)
         self.assertEqual(type(m.msa_dict()), dict)
         self.assertEqual(type(m.serialise()), dict)
+        self.assertEqual(type(m.msa_interactive_depiction()), str)
         self.assertEqual(type(m.df), pd.DataFrame)
         self.assertEqual(m.token, "msa|M|no_og|ddc4781ec984b66b0b5bf006a71b29cf1f523740")
 
