@@ -2,8 +2,9 @@
 
 import unittest
 import copy
-import pycatwalk
+import pycw_client
 import json
+import logging
 class preComparer():
     """ compares reference compressed sequences.  
 
@@ -16,7 +17,7 @@ class preComparer():
     The key parameter altering this behaviour is 'uncertain_base'. 
     If this is 'M', then only mixed bases are considered and the distances computed are approximate.  At least for TB, this is a helpful setting.  This approach is much faster and uses much less RAM than previous alternatives.    However, it requires that parameters for the function are carefully set and validated to ensure the approximate computation detects all pairs of samples which require more detailed computation.
     if this is 'N', then only uncertian basesa re considered and the distances computed are approximate.  This not usually a sensible setting to use.
-    if this is 'M_or_N', then the distances are exact and comparisons with M or N bases are considered to count nothing to the SNV distance.
+    if this is 'N_or_M', then the distances are exact and comparisons with M or N bases are considered to count nothing to the SNV distance.
 
     This class can use a catWalk (compiled, high speed) relatedness engine if available.  For details of catWalk, see https://gitea.mmmoxford.uk/dvolk/catWalk.
 
@@ -26,7 +27,7 @@ class preComparer():
                     selection_cutoff = 20,
                     over_selection_cutoff_ignore_factor = 5,
                     uncertain_base = 'M',  
-                    catwalk_reference = None,
+                    catWalk_url = "http://127.0.0.1:5000",
                     **kwargs
                 ):
 
@@ -37,9 +38,9 @@ class preComparer():
         selection_cutoff: (int)
             snp distances more than this are not of interest epidemiologically and are not reported
 
-        uncertain_base (str): one of 'M', 'N', or 'M_or_N'
+        uncertain_base (str): one of 'M', 'N', or 'N_or_M'
             which bases to regard as uncertain in the computation.  Default to M.
-            if 'M_or_N', will store all us and Ns and will give the same result as the seqComparer module.
+            if 'N_or_M', will store all us and Ns and will give the same result as the seqComparer module.
 
         over_selection_cutoff_ignore_factor:
             SNP distances more than over_selection_cutoff_ignore_factor * selection_cutoff do not need to be further analysed.  For example, if a SNP cutoff was 20, and over_selection_cutoff_ignore_factor is 5, we can safely consider with SNV distances > 100 (=20*5) as being unrelated.
@@ -50,7 +51,7 @@ class preComparer():
 	then preComparer will report all distances as requirng additional computation.
 	> if over_selection_cutoff_ignore_factor is 1, then preComparer will use the estimated snp distance computed as the basis for its decision as to whether additional testing is needed.
 
-        catWalk_reference: either None, or the reference sequence.  If None, uses python computation.  
+        catWalk_url: either None, or the url of a running catwalk instance.  If None, uses python computation.  
 
         
         Returns:
@@ -63,24 +64,33 @@ class preComparer():
         """
         self.set_operating_parameters( selection_cutoff,
                     over_selection_cutoff_ignore_factor, uncertain_base)
-        self.catWalk=catwalk_reference
+        self.catWalk=catWalk_url
+        self.uncertain_base = uncertain_base
 
         # initialise data structures
         self._refresh()
 
         # if catWalk, startup the catWalk server
-        if catwalk_reference is not None:
+        if catWalk_url is not None:
             # startup catwalk
             # TODO if it fails to start or returns inappropriately, trap the error, log it and self self.catWalk to None;
             # log a warning that we are falling back to using a python comparison engine.
-            pycatwalk.init(name="catWalk_pc",
-               reference_name="ref",
-               reference_sequence=self.catWalk,
-               mask_name="no_mask",
-               mask_str = "0")
-            #print("CATWALK ENABLED")
+            #pycw_client.init(name="catWalk_pc",
+            #   reference_name="ref",
+            #   reference_sequence=self.catWalk,
+            #   mask_name="no_mask",
+            #   mask_str = "0")
+
+         #   pycw_client.start(cw_binary_filepath="/home/phe.gov.uk/david.wyllie/catwalk/src/cw_server",
+         #                     instance_name="test",
+         #                     reference_filepath="../reference/TB-ref.fasta",
+         #                     mask_filepath="../reference/TB-exclude-adaptive.txt",
+         #                     max_distance=20)
+
+            print("Using catwalk server at {0}".format(catWalk_url))
+            pass
         else:
-            #print("CATWALK DISABLED")
+            print("No catwalk server; using python based computation.")
             pass
 
     def set_operating_parameters(self, 
@@ -143,7 +153,9 @@ class preComparer():
 
         # check if the guid exists.  Does not allow overwriting
         if guid in self.seqProfile.keys():
-            raise KeyError("Duplicate guid supplied; already exists in preComparer: {0}".format(guid))
+            return self.seqProfile[guid]['invalid']
+            #raise KeyError("Duplicate guid supplied; already exists in preComparer: {0}".format(guid))
+
 
         # check it is not invalid
         isinvalid = False
@@ -187,7 +199,7 @@ class preComparer():
             obj['U']=obj['M']
         elif self.uncertain_base == 'N':
             obj['U']=obj['N']
-        elif self.uncertain_base == 'M_or_N':
+        elif self.uncertain_base == 'N_or_M':
             obj['U']=obj['N'].union(obj['M'])
         else:
             raise KeyError("Invalid uncertain_base: got {0}".format(self.uncertain_base))
@@ -202,10 +214,12 @@ class preComparer():
                     to_catwalk[key_mapping[key]]=list(smaller_obj[key])
                      
                 # TODO  trap all errors and raise appropropriate error 
-                pycatwalk.add_sample_from_refcomp(guid, json.dumps(to_catwalk))              
+                rcs_json = json.dumps(to_catwalk)
+                pycw_client.add_sample_from_refcomp(guid, rcs_json)             
+                #logging.debug("CATWALK INPUT|{0}|{1}".format(guid,rcs_json))          # log what we wrote to catwalk 
             self.seqProfile[guid]={'invalid':obj['invalid']}      # that's all we store in python if catWalk is in use
  
-        else: 
+        else:           # cache in python dictionary
             smaller_obj['invalid']=obj['invalid']
             smaller_obj['U']=copy.deepcopy(obj['U'])
             self.seqProfile[guid]=smaller_obj           # store in python dictionary for comparison
@@ -231,8 +245,7 @@ class preComparer():
                pass 	# we permit attempts to delete things which don't exist
 
         if self.catWalk is not None:
-            # TODO: delete the record identfied by guid from catWalk
-            # Note guids which don't exist maybe be passed.  this should do nothing, but without error
+            # we cannot currently delete from catwalk
             pass
 
     def guids(self):
@@ -252,6 +265,14 @@ class preComparer():
             'no_retest':False,
 			'reported_category':'not assigned'
         }
+
+        if self.uncertain_base == 'N_or_M':
+            # then distances are exact
+            res['dexact'] = dEstim
+            res['no_retest'] = True
+            return res
+
+
         if dEstim is None:          # invalid
             res['reported_category'] = 'No retest - invalid'
             res['no_retest'] = True
@@ -275,7 +296,7 @@ class preComparer():
         if guids is None:
             guids = set(self.seqProfile.keys())     # guids are all guids which exist in the engine.  TODO consider if catWalk would want to do this differnetly
         
-        if not guid in self.seqProfile.keys():      # this is OK with catWalk operational as the seqProfile keys do include all the samples stored in catWalk + the invalid ones
+        if not guid in self.seqProfile.keys():      # seqProfile keys do include all the samples stored in catWalk + the invalid ones; what we're asked for should be in here
             raise KeyError("Asked to compare {0}  but guid requested has not been stored.  call .persist() on the sample to be added before using mcompare.")
         
         if self.seqProfile[guid]['invalid']==1:     # sequence is invalid
@@ -297,7 +318,7 @@ class preComparer():
         else:
 
             # use catwalk
-            sample_neighbours= pycatwalk.neighbours(guid)
+            sample_neighbours= pycw_client.neighbours(guid)
             for (neighbour, dist) in sample_neighbours:
                 if neighbour in guids:
                     res = {'guid1':guid, 'guid2':neighbour, 'destim':dist}
@@ -316,7 +337,7 @@ class preComparer():
         # 'server|catWalk|{key}'.  The values must be scalars, not lists or sets.
         # the dictionary thus manipulated should be added to retVal.
         if self.catWalk is not None:
-            cw_status=pycatwalk.status()
+            cw_status=pycw_client.info()
             for item in cw_status:
                 key = "server|catwalk|{0}".format(item)
                 retVal[key]=cw_status[item]
@@ -421,7 +442,7 @@ class test_preComparer_1a(unittest.TestCase):
         # initialise comparer
         sc=preComparer(  selection_cutoff = 20,
                     over_selection_cutoff_ignore_factor= 5,
-                    catwalk_reference = "AAAAAAAA")
+                    catWalk_url = "AAAAAAAA")
 
 
 class test_preComparer_1b(unittest.TestCase):
@@ -463,7 +484,7 @@ class test_preComparer_2a(unittest.TestCase):
     """ tests storage """
     def runTest(self):
         # initialise comparer
-        sc=preComparer(  selection_cutoff = 20, catwalk_reference="AAAA")
+        sc=preComparer(  selection_cutoff = 20, catWalk_url="AAAA")
         obj = {'A':set([1,2,3,4])}
         sc.persist(obj,'guid1')
         self.assertEqual(sc.composition['guid1']['A'],4)
@@ -529,7 +550,7 @@ class test_preComparer_3a(unittest.TestCase):
     """ tests storage of invalid samples """
     def runTest(self):
         
-        sc=preComparer(  selection_cutoff = 20, catwalk_reference = "AAAA")
+        sc=preComparer(  selection_cutoff = 20, catWalk_url = "AAAA")
         obj = {'A':set([1,2,3,4]), 'invalid':1}
         sc.persist(obj,'guid1')
         self.assertEqual(sc.composition['guid1']['A'],4)
@@ -595,7 +616,7 @@ class test_preComparer_4a(unittest.TestCase):
     def runTest(self):
         # initialise comparer
         sc=preComparer(  selection_cutoff = 20,
-                    over_selection_cutoff_ignore_factor = 5, catwalk_reference = "AAAA")
+                    over_selection_cutoff_ignore_factor = 5, catWalk_url = "AAAA")
         res1 = sc.summarise_stored_items()
         self.assertEqual(res1['server|pcstat|nSeqs'], 0 )
         self.assertEqual(res1['server|catwalk|mask_name'], 'no_mask' )
@@ -698,7 +719,7 @@ class test_preComparer_9a(unittest.TestCase):
     def runTest(self):
         
         sc=preComparer(  selection_cutoff = 20,
-                    over_selection_cutoff_ignore_factor = 5, catwalk_reference = "TTTTTT")
+                    over_selection_cutoff_ignore_factor = 5, catWalk_url = "TTTTTT")
        
         obj = {'A':set([1,2,3,4]), 'invalid':0}
         sc.persist(obj,'guid2')
@@ -711,4 +732,22 @@ class test_preComparer_9a(unittest.TestCase):
       
         res = sc.mcompare('guid2')
         self.assertEqual(len(res),1)
+
+class test_preComparer_10(unittest.TestCase):
+    """ tests comparison """
+    def runTest(self):
+        
+        sc=preComparer(  selection_cutoff = 20,
+                    over_selection_cutoff_ignore_factor = 5)
+       
+        obj = {'invalid':1}
+        sc.persist(obj,'guid2')
+      
+        obj = {'A':set([1,2,3,4]), 'N':set([10,11]), 'invalid':0}
+        sc.persist(obj,'guid3')
+
+        obj = {'A':set([1,2,3,4]), 'N':set([10,11]), 'invalid':0}
+        res = sc.persist(obj,'guid2')     # should return results for the previously stored guid2
+
+        self.assertEqual(res, 1)
 

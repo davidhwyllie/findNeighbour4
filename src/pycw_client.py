@@ -20,6 +20,12 @@ class CatWalkServerDidNotStartError(Exception):
         self.expression= expression
         self.message =message
 
+class CatWalkBinaryNotAvailableError(Exception):
+    """ no catwalk binary """
+    def __init__(self, expression, message):
+        self.expression= expression
+        self.message =message
+
 class CatWalk():
     """ start, stop, and communicate with a CatWalk server"""
     def __init__(self, cw_binary_filepath, reference_name, reference_filepath, mask_filepath, max_distance, bind_host="localhost", bind_port=5000):
@@ -27,7 +33,25 @@ class CatWalk():
         Start the catwalk process in the background, if it not running.
 
         """
-
+       
+        no_catwalk_exe_message = """
+The catWalk client could not find a CatWalk server application.  This is because either:
+i) the cw_binary_filepath parameter was None
+ii) the above, and there is no CW_BINARY_FILEPATH environment variable.  To set this, you insert a line like
+CW_BINARY_FILEPATH=/path/to/cw/executable
+in either
+.bashrc - if you're not using a virtual environment
+.env    - a file in the same directory as the PipFile, if you are using a virtual environment.
+          This file is not committed into the repository, so you'll have to create it once in your installation.
+"""
+        # if cw_binary_filepath is None, we check the env. variable CW_BINARY_FILEPATH and use that if present.
+        if cw_binary_filepath is None:
+            if 'CW_BINARY_FILEPATH' in os.environ:
+                cw_binary_filepath = os.environ['CW_BINARY_FILEPATH']
+            else:
+                raise CatWalkBinaryNotAvailableError(expression = None, message = no_catwalk_exe_message)
+        if not os.path.exists(cw_binary_filepath):
+                raise FileNotFoundError(expression=  None, message = "Was provided a cw_binary_filepath, but there is no file there {0}".format(cw_binary_filepath))
         # store parameters
         self.bind_host = bind_host
         self.bind_port = bind_port
@@ -37,7 +61,7 @@ class CatWalk():
         self.mask_filepath = mask_filepath
         self.max_distance = max_distance
         self.reference_name = reference_name
-        self.instance_name = "CatWalk-{0}-{1}-{2}".format(self.max_distance, self.bind_port,         str(uuid.uuid1()))
+        self.instance_name = "CatWalk-SNV-{0}-PORT-{1}-{2}".format(self.max_distance, self.bind_port,         str(uuid.uuid1()))
         # start up if not running
         if not self.server_is_running():
             self.start()
@@ -47,11 +71,14 @@ class CatWalk():
 
     def server_is_running(self):
         """ returns true if  response is received by the server, otherwise returns False """
+
         try:
             result=self.info()
             return True
         except requests.exceptions.ConnectionError: 
             return False
+        except Exception as e:
+            raise e      # something else when wrong
 
     def start(self):
         """ starts a catwalk process in the background """
@@ -66,7 +93,7 @@ class CatWalk():
 
         time.sleep(2)
         if self.info() is None:
-            raise CatWalkServerDidNotStartError(e)
+            raise CatWalkServerDidNotStartError()
  
     def stop(self):
         """ stops the catwalk server launched by this process, if running.  The process is identified by a uuid, so only one catwalk server will be shut down. """
@@ -94,6 +121,7 @@ class CatWalk():
 
         The json dict must have all keys: ACGTN, even if they're empty
         """
+        print("ABOUT TO POST AT ","{0}/add_sample_from_refcomp".format(self.cw_url))
         r = requests.post("{0}/add_sample_from_refcomp".format(self.cw_url),
                       json={ "name": name,
                              "refcomp": json.dumps(refcomp),
@@ -124,9 +152,11 @@ class test_cw(unittest.TestCase):
     """ starts server, and shuts it down """
     def setUp(self):
         """ cw_binary_filepath must point to the catwalk server and mask & reference files to the relevant data files. 
-            Shuts down **any catwalk server** running initially"""
+            Shuts down **any catwalk server** running initially.
+
+            Note: requires CW_BINARY_FILEPATH environment variable to point to the catwalk binary."""
         self.cw = CatWalk(
-                    cw_binary_filepath="/home/phe.gov.uk/david.wyllie/catwalk/src/cw_server",
+                    cw_binary_filepath=None,
                     reference_name="H37RV",
                     reference_filepath="../reference/TB-ref.fasta",
                     mask_filepath="../reference/TB-exclude-adaptive.txt",
