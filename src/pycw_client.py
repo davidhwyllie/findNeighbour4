@@ -215,7 +215,7 @@ class test_cw_3(test_cw):
         res = self.cw.add_sample_from_refcomp('guid1',payload1)
         res = self.cw.add_sample_from_refcomp('guid2',payload1)
 
-        self.assertEqual(self.cw.sample_names(), ['guid1''guid2'])      
+        self.assertEqual(set(self.cw.sample_names()), set(['guid1','guid2']))	# order doesn't matter      
 
 def main():
     """
