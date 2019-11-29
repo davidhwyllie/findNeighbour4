@@ -370,6 +370,13 @@ class test_msa_2(unittest.TestCase):
 		self.assertTrue(b"</table>" in res.content)
 
 		relpath = "/api/v2/multiple_alignment/guids"
+		payload = {'guids':';'.join(inserted_guids),'output_format':'interactive', 'what':'N_or_M'}
+		res = do_POST(relpath, payload=payload)
+		self.assertFalse(isjson(res.content))
+		self.assertEqual(res.status_code, 200)
+		self.assertTrue(b"</html>" in res.content)
+
+		relpath = "/api/v2/multiple_alignment/guids"
 		payload = {'guids':';'.join(inserted_guids),'output_format':'json-records', 'what':'N'}
 		res = do_POST(relpath, payload=payload)
 		self.assertEqual(res.status_code, 200)
@@ -1376,7 +1383,7 @@ class test_neighbours_within_4(unittest.TestCase):
 		relpath = "/api/v2/reset"
 		res = do_POST(relpath, payload={})
 		
-		relpath = "/api/v2/non_existent_guid/neighbours_within/12/with_quality_cutoff/0.5/in_format/2"
+		relpath = "/api/v2/non_existent_guid/neighbours_within/12/with_quality_cutoff/0.5/in_format/1"
 		res = do_GET(relpath)
 
 		self.assertTrue(isjson(content = res.content))
@@ -1392,7 +1399,7 @@ class test_neighbours_within_5(unittest.TestCase):
 		res = do_POST(relpath, payload={})
 		
 		
-		relpath = "/api/v2/non_existent_guid/neighbours_within/12/in_format/2"
+		relpath = "/api/v2/non_existent_guid/neighbours_within/12/in_format/1"
 		res = do_GET(relpath)
 		print(res)
 		self.assertTrue(isjson(content = res.content))
@@ -1455,11 +1462,9 @@ class test_neighbours_within_6(unittest.TestCase):
 		search_paths = ["/api/v2/{0}/neighbours_within/1",
 						"/api/v2/{0}/neighbours_within/1/with_quality_cutoff/0.5",
 						"/api/v2/{0}/neighbours_within/1/with_quality_cutoff/0.5/in_format/1",
-						"/api/v2/{0}/neighbours_within/1/with_quality_cutoff/0.5/in_format/2",
 						"/api/v2/{0}/neighbours_within/1/with_quality_cutoff/0.5/in_format/3",
 						"/api/v2/{0}/neighbours_within/1/with_quality_cutoff/0.5/in_format/4",
 						"/api/v2/{0}/neighbours_within/1/in_format/1",
-						"/api/v2/{0}/neighbours_within/1/in_format/2",
 						"/api/v2/{0}/neighbours_within/1/in_format/3",
 						"/api/v2/{0}/neighbours_within/1/in_format/4"
 						]

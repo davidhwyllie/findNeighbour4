@@ -21,6 +21,10 @@ fi
 # set sentry url for bug tracking
 FN_SENTRY_URL="https://49ebb508a10f428aaf82f9e1b6b11def@sentry.io/110110"
 
+# startup catwalk server - need to tet whther it is running
+#nohup /home/phe.gov.uk/david.wyllie/catwalk/src/cw_server --instance_name test --reference_name ../reference/TB-ref.fasta --reference_filepath ../reference/TB-ref.fasta --mask_name ../reference/TB-exclude-adaptive.txt --mask_filepath ../reference/TB-exclude-adaptive.txt --max_distance 20 > nohup_catwalk.out &
+
+
 echo "Starting server"
 nohup pipenv run python3 findNeighbour4-server.py $1 > nohup_server.out &
 echo "Starting dbmanager"

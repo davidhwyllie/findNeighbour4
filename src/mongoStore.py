@@ -834,14 +834,9 @@ class fn3persistence():
                                                     returned_data=[otherGuid, reported_fields['dist']]
                             
                                                 elif returned_format == 2:
-                                                    returned_data=[otherGuid,
-                                                                   reported_fields['dist'],
-                                                                   reported_fields['N_just1'],
-                                                                   reported_fields['N_just2'],
-                                                                   reported_fields['N_either']
-                                                                  ]
+                                                    raise NotImplementedError("format 2 is no longer supported")
                                                 elif returned_format == 3:
-                                                        returned_data = otherGuid
+                                                    returned_data = otherGuid
                                                 
                                                 elif returned_format == 4:
                                                     returned_data={'guid':otherGuid, 'snv':reported_fields['dist']}
@@ -931,8 +926,9 @@ class Test_SeqMeta_guid2neighbour_8(unittest.TestCase):
                 
                 res1 = p.guid2neighbours('srcguid',returned_format=1)
                 self.assertEqual(5, len(res1['neighbours']))
-                res2 = p.guid2neighbours('srcguid',returned_format=2)
-                self.assertEqual(5, len(res2['neighbours']))
+                with self.assertRaises(NotImplementedError):
+                    res2 = p.guid2neighbours('srcguid',returned_format=2)
+
                 res3 = p.guid2neighbours('srcguid',returned_format=3)
                 self.assertEqual(5, len(res3['neighbours']))
                 res4 = p.guid2neighbours('srcguid',returned_format=4)
@@ -943,11 +939,12 @@ class Test_SeqMeta_guid2neighbour_7(unittest.TestCase):
         def runTest(self):
                 p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
                 p.guid2neighbour_add_links("srcguid",{'guid1':{'dist':12}, 'guid2':{'dist':0}, 'guid3':{'dist':3}, 'guid4':{'dist':4}, 'guid5':{'dist':5}})
-                
-                res1 = p.guid2neighbours('srcguid')
+                with self.assertRaises(NotImplementedError):
+                    res1 = p.guid2neighbours('srcguid', returned_format=2)
+                res1 = p.guid2neighbours('srcguid', returned_format=1)
                 self.assertEqual(5, len(res1['neighbours']))
                 p.guid2neighbour_repack(guid='srcguid')
-                res2 = p.guid2neighbours('srcguid')
+                res2 = p.guid2neighbours('srcguid', returned_format=1)
                 self.assertEqual(5, len(res2['neighbours']))                
 
 class Test_SeqMeta_guid2neighbour_6(unittest.TestCase):

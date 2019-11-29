@@ -14,6 +14,12 @@ import os
 import psutil
 import uuid
 
+class CatWalkServerInsertError(Exception):
+    """ insert failed """
+    def __init__(self, expression, message):
+        self.expression= expression
+        self.message =message
+
 class CatWalkServerDidNotStartError(Exception):
     """ the catwalk server did not start """
     def __init__(self, expression, message):
@@ -28,10 +34,19 @@ class CatWalkBinaryNotAvailableError(Exception):
 
 class CatWalk():
     """ start, stop, and communicate with a CatWalk server"""
-    def __init__(self, cw_binary_filepath, reference_name, reference_filepath, mask_filepath, max_distance, bind_host="localhost", bind_port=5000):
+    def __init__(self, cw_binary_filepath, reference_name, reference_filepath, mask_filepath, max_distance, bind_host="localhost", bind_port=5000, identity_token=None):
         """
         Start the catwalk process in the background, if it not running.
+        Parameters:
+        cw_binary_filepath
+        reference_name
+        reference_filepath
+        mask_filepath
+        max_distance
+        bind_host
+        bind_port
 
+        identity_token: a string identifying the process.  If not provided, a guid is generated
         """
        
         no_catwalk_exe_message = """
@@ -44,6 +59,10 @@ in either
 .env    - a file in the same directory as the PipFile, if you are using a virtual environment.
           This file is not committed into the repository, so you'll have to create it once in your installation.
 """
+        # if cw_binary_filepath is "", we regard it as not specified (None)
+        if cw_binary_filepath == "": 
+            cw_binary_filepath = None   
+ 
         # if cw_binary_filepath is None, we check the env. variable CW_BINARY_FILEPATH and use that if present.
         if cw_binary_filepath is None:
             if 'CW_BINARY_FILEPATH' in os.environ:
@@ -52,6 +71,7 @@ in either
                 raise CatWalkBinaryNotAvailableError(expression = None, message = no_catwalk_exe_message)
         if not os.path.exists(cw_binary_filepath):
                 raise FileNotFoundError(expression=  None, message = "Was provided a cw_binary_filepath, but there is no file there {0}".format(cw_binary_filepath))
+
         # store parameters
         self.bind_host = bind_host
         self.bind_port = bind_port
@@ -61,7 +81,11 @@ in either
         self.mask_filepath = mask_filepath
         self.max_distance = max_distance
         self.reference_name = reference_name
-        self.instance_name = "CatWalk-SNV-{0}-PORT-{1}-{2}".format(self.max_distance, self.bind_port,         str(uuid.uuid1()))
+        self.instance_stem = "CatWalk-SNV-{0}-PORT-{1}".format(self.max_distance, self.bind_port)
+        if identity_token is None:
+            identity_token = str(uuid.uuid1())
+        self.instance_name = "{0}-{1}".format(self.instance_stem, identity_token)
+
         # start up if not running
         if not self.server_is_running():
             self.start()
@@ -91,9 +115,12 @@ in either
         logging.info("Attempting startup of CatWalk server : {0}".format(cmd))       
         os.system(cmd)
 
-        time.sleep(2)
-        if self.info() is None:
+        time.sleep(1)
+        info = self.info()
+        if info is None:
             raise CatWalkServerDidNotStartError()
+        else:
+            logging.info("Catwalk server running: {0}".format(info))
  
     def stop(self):
         """ stops the catwalk server launched by this process, if running.  The process is identified by a uuid, so only one catwalk server will be shut down. """
@@ -121,13 +148,14 @@ in either
 
         The json dict must have all keys: ACGTN, even if they're empty
         """
-        print("ABOUT TO POST AT ","{0}/add_sample_from_refcomp".format(self.cw_url))
         r = requests.post("{0}/add_sample_from_refcomp".format(self.cw_url),
                       json={ "name": name,
                              "refcomp": json.dumps(refcomp),
                              "keep": True }
                      )
         r.raise_for_status()
+        if not r.status_code in [200,201]:
+            raise CatWalkServerInsertError(message = "Failed to insert {0}; return code was {1}".format(guid, result)) 
         return r.status_code
 
     def neighbours(self, name):
@@ -144,7 +172,6 @@ in either
         r = requests.get("{0}/list_samples".format(self.cw_url))
         r.raise_for_status()
         return r.json()
-
 
 
 # unit testings
@@ -190,20 +217,29 @@ class test_cw_2(test_cw):
     """ tests insert  
          """
     def runTest(self):
-
-        payload1 = {'A':[1000,1001,1002], 'G':[], 'T':[], 'C':[], 'N':[20000,20001,20002]}
-        payload2 = {'A':[1003,1004,1005], 'G':[], 'T':[], 'C':[], 'N':[20000,20001,20002]}
+        # two sequences are similar to each other
+        payload1 = {'A':[100000,100001,100002], 'G':[], 'T':[], 'C':[], 'N':[20000,20001,20002]}
+        payload2 = {'A':[100003,100004,100005], 'G':[], 'T':[], 'C':[], 'N':[20000,20001,20002]}
+        # one is 10000 nt different
+        payload3 = {'A':list(range(110000,120000)), 'G':[], 'T':[], 'C':[], 'N':[20000,20001,20002]}
         res = self.cw.add_sample_from_refcomp('guid1',payload1)
-        self.assertEqual(res, 200)
-
-        res = self.cw.add_sample_from_refcomp('guid2',payload1)
-        self.assertEqual(res, 200)
-
-        res = self.cw.add_sample_from_refcomp('guid2',payload1)     # insert twice
         self.assertEqual(res, 201)
 
-        self.assertEqual(self.cw.neighbours('guid1'),[('guid2',0)])      
-        self.assertEqual(self.cw.neighbours('guid2'),[('guid1',0)])      
+        res = self.cw.add_sample_from_refcomp('guid2',payload2)
+        self.assertEqual(res, 201)
+
+        res = self.cw.add_sample_from_refcomp('guid2',payload2)     # insert twice
+        self.assertEqual(res, 200)
+
+        res = self.cw.add_sample_from_refcomp('guid3',payload3)     # insert once
+        self.assertEqual(res, 201)
+
+        self.assertEqual(self.cw.neighbours('guid1'),[('guid2',6)])      
+        self.assertEqual(self.cw.neighbours('guid2'),[('guid1',6)])      
+        self.assertEqual(self.cw.neighbours('guid3'),[])        # should be empty
+
+        with self.assertRaises(requests.exceptions.HTTPError):
+            res = self.cw.neighbours('guid4')        # should raise 404
 
 class test_cw_3(test_cw):
     """ tests list_samples

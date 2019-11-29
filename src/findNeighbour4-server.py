@@ -2,7 +2,10 @@
 """ 
 A server providing relatedness information for bacterial genomes via a Restful API.
 
-Implemented in pure Python3, it uses in-memory data storage backed by MongoDb.
+Implemented in python3, it uses 
+* in-memory data storage backed by MongoDb.
+* optionally, a compiled free standing relatedness engine, CatWalk.
+
 It loads configuration from a config file, which must be set in production.
 
 If no config file is provided, it will run in  'testing' mode with the  parameters
@@ -288,6 +291,7 @@ class findNeighbour4():
 		self.debugMode = cfg['DEBUGMODE']
 		self.maxNs = cfg['MAXN_STORAGE']
 		self.snpCeiling = cfg['SNPCEILING']
+		self.preComparer_parameters = cfg['PRECOMPARER_PARAMETERS']
 		self.maxn_prop_default = cfg['MAXN_PROP_DEFAULT']
 		self.clustering_settings = cfg['CLUSTERING']
 		
@@ -323,13 +327,13 @@ class findNeighbour4():
 			app.logger.info("set up clustering access object {0}".format(clustering_name))
 			
 		# initialise hybridComparer, which manages in-memory reference compressed data
-		# preComparer_parameters will be read from disc
+		# preComparer_parameters will be read from disc 
 		self.hc = hybridComparer(reference=self.reference,
 							maxNs=self.maxNs,
 							snpCeiling= self.snpCeiling,
 							excludePositions=self.excludePositions,
-							preComparer_parameters={},
-                    		PERSIST=self.PERSIST)
+							preComparer_parameters=self.preComparer_parameters,
+                    					PERSIST=self.PERSIST)
 		
 		app.logger.info("In-RAM data store set up.")
 		
@@ -370,7 +374,6 @@ class findNeighbour4():
 		else:
 			print("Deleting existing data and restarting")
 			self.PERSIST._delete_existing_data()
-			time.sleep(2) # let the database recover
 			self._load_in_memory_data()
 
 	def server_monitoring_store(self, message="No message supplied", guid=None):
@@ -404,8 +407,8 @@ class findNeighbour4():
 		config_settings['clustering_settings']= self.clustering_settings
 
 		# store precomparer settings
-		if len(self.CONFIG['PRECOMPARER_PARAMETERS'])>0:
-			self.PERSIST.config_store('preComparer', self.CONFIG['PRECOMPARER_PARAMETERS'])
+		#if len(self.CONFIG['PRECOMPARER_PARAMETERS'])>0:
+		self.PERSIST.config_store('preComparer', self.CONFIG['PRECOMPARER_PARAMETERS'])
 
 		# load the excluded bases
 		excluded=set()
@@ -463,7 +466,7 @@ class findNeighbour4():
 				self.write_semaphore.release()                  # release the write semaphore
 				app.logger.exception("Error raised on persisting {0}".format(guid))
 				app.logger.exception(e)
-				capture_exception(e)
+				capture_exception(e)		# log what happened in Sentry
 				# Rollback anything which could leave system in an inconsistent state
 				# remove the guid from RAM is the only step necessary
 				self.hc.remove(guid)	
@@ -524,7 +527,7 @@ class findNeighbour4():
 			returns links either as
 			format 1 [[otherGuid, distance]]
 			or as
-			format 2 [[otherGuid, distance, N_just1, N_just2, N_either]]
+			format 2 [[otherGuid, distance, N_just1, N_just2, N_either]] [LEGACY - disabled - will yield NotImplementedError]
 			or as
 			format 3 [otherGuid, otherGuid2, otherGuid3]
 			or as
@@ -764,7 +767,7 @@ def raise_error(component, token):
 def construct_msa(guids, output_format, what):
 	
 	""" constructs multiple sequence alignment for guids
-		and returns in one of 'fasta' 'json-fasta', 'html', 'json' or 'json-records' format.
+		and returns in one of 'fasta' 'json-fasta', 'html', 'json' or 'json-records','interactive' format.
 		
 		what is one of 'N','M','N_or_M'
 	
@@ -773,6 +776,7 @@ def construct_msa(guids, output_format, what):
 	this_token = fn.ms.get_token(what, False, guids)		# no outgroup, guids
 	msa_result = fn.ms.load(this_token)				# recover any stored version
 	if msa_result is None:
+		logging.info("Asked to recover MSA id = {0} but it did not exist.  Recomputing this".format(this_token))
 		msa_result = fn.hc.multi_sequence_alignment(guids=guids, uncertain_base_type=what)		# make it
 		fn.ms.persist(this_token, msa_result)
 	
@@ -782,6 +786,8 @@ def construct_msa(guids, output_format, what):
 		return make_response(json.dumps({'fasta':msa_result.msa_fasta()}))
 	elif output_format == 'html':
 		return make_response(msa_result.msa_html())
+	elif output_format == 'interactive':
+		return make_response(msa_result.msa_interactive_depiction())
 	elif output_format == 'json':
 		return make_response(json.dumps(msa_result.serialise()))
 	elif output_format == 'json-records':
@@ -883,7 +889,8 @@ def msa_guids():
 	html
 	json-fasta
 	fasta
-	
+	interactive
+
 	Valid values for what are
 	N
 	M
@@ -902,10 +909,10 @@ def msa_guids():
 			what = 'N'		# default to N
 		if not what in ['N','M','N_or_M']:
 			abort(404, 'what must be one of N M N_or_M, not {0}'.format(what))
-		if not output_format in ['html','json','fasta', 'json-fasta', 'json-records']:
-			abort(404, 'output_format must be one of html, json, json-records or fasta not {0}'.format(output_format))
+		if not output_format in ['html','json','fasta', 'json-fasta', 'json-records','interactive']:
+			abort(404, 'output_format must be one of html, json, json-records, interactive or fasta not {0}'.format(output_format))
 	else:
-		abort(501, 'output_format and guids are not present in the POSTed data {0}'.format(data_keys))
+		abort(405, 'output_format and guids are not present in the POSTed data {0}'.format(data_keys))
 	
 	# check guids
 	try:
@@ -917,7 +924,7 @@ def msa_guids():
 	missing_guids =  guids - valid_guids
 	if len(missing_guids)>0:
 		capture_message("asked to perform multiple sequence alignment with the following missing guids: {0}".format(missing_guids))		
-		abort(501, "asked to perform multiple sequence alignment with the following missing guids: {0}".format(missing_guids))
+		abort(405, "asked to perform multiple sequence alignment with the following missing guids: {0}".format(missing_guids))
 	
 	# data validation complete.  construct outputs
 	return construct_msa(guids, output_format, what)
@@ -1480,10 +1487,10 @@ def neighbours_within(guid, threshold, **kwargs):
 		returned_format = kwargs['returned_format']
 		
 	# validate input
-	if not returned_format in set([1,2,3,4]):
-		abort(500, "Invalid format requested, must be 1, 2, 3 or 4.")
+	if not returned_format in set([1,3,4]):
+		abort(422, "Invalid format requested, must be 1, 3 or 4.  Format 2 has been deprecated.")
 	if not ( 0 <= cutoff  and cutoff <= 1):
-		abort(500, "Invalid cutoff requested, must be between 0 and 1")
+		abort(422, "Invalid cutoff requested, must be between 0 and 1")
 		
 	try:
 		result = fn.neighbours_within_filter(guid, threshold, cutoff, returned_format)

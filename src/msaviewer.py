@@ -49,6 +49,7 @@ class SimulateSequenceData():
         for seq_id in range(nSeqs):
             seq_name = "seq_{0}".format(seq_id)
             msa_dict[seq_name]= {'aligned_seq':self.mutate_seq(seq, iupac=True)}
+            msa_dict[seq_name]['aligned_mseq'] = msa_dict[seq_name]['aligned_seq']
             msa_dict[seq_name]['alignN'] = sum([bool(x=='N') for x in msa_dict[seq_name]['aligned_seq']])
             msa_dict[seq_name]['alignM'] = sum([bool(x in ['R','Y','S','M','K']) for x in msa_dict[seq_name]['aligned_seq']])
             msa_dict[seq_name]['alignN_or_M'] = msa_dict[seq_name]['alignN']+msa_dict[seq_name]['alignM']
@@ -125,7 +126,7 @@ class DepictMSA():
            # sort
 
            # ensure sequences are upper case
-           self.df['aligned_seq'] = [x.upper() for x in self.df['aligned_seq'].tolist()]        # ensure uppercase
+           self.df['aligned_mseq'] = [x.upper() for x in self.df['aligned_mseq'].tolist()]        # ensure uppercase
 
            # store number of sequences and alignment width
            self.nSeqs = len(self.df.index)
@@ -133,11 +134,11 @@ class DepictMSA():
                self.align_width=0
            else:
                first_seq_name = self.df.index.tolist()[0] 
-               self.align_width = len(self.df.loc[first_seq_name, 'aligned_seq'])
+               self.align_width = len(self.df.loc[first_seq_name, 'aligned_mseq'])
         
            # compute composition of sequences
            self.composition = collections.Counter()
-           for seq in self.df['aligned_seq'].tolist():
+           for seq in self.df['aligned_mseq'].tolist():
                for nucl in list(seq):
                    self.composition.update(nucl)
 
@@ -212,7 +213,7 @@ class DepictMSA():
            gx = xx.ravel()
            gy = yy.flatten()
            h = 1/self.nSeqs
-           nucl = [i for s in self.df['aligned_seq'].tolist() for i in s]
+           nucl = [i for s in self.df['aligned_mseq'].tolist() for i in s]
 
            # create a dataframe and link to colours           
            perBase = pd.DataFrame.from_dict({'x':gx, 'y':gy, 'nucl':nucl})

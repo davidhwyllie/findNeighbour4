@@ -29,6 +29,7 @@ networkit = "*"
 cython = "*"
 seaborn = "*"
 openpyxl = "*"
+faker = "*"
 
 [requires]
 python_version = "3.6"

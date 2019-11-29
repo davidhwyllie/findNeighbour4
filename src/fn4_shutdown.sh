@@ -12,27 +12,47 @@ else
 fi
 
 if [ -f $1 ]; then
-    echo "startup script exists."
+    echo "config file exists."
 else
-    echo "The startup script was not found."
+    echo "The config file was not found."
     exit 1
 fi
 
-# set sentry url for bug tracking
-FN_SENTRY_URL="https://49ebb508a10f428aaf82f9e1b6b11def@sentry.io/110110"
 
-echo "Shutdown planned. processes running are:"
-ps -x | grep ".py $1"
+echo "Shutdown planned. Targeted processes currently running are:"
+echo "--------------------"	
+ps -x | grep ".[p]y $1"
 echo "--------------------"
 echo "Stopping server"
 pkill -f "findNeighbour4-server.py $1" 
 echo  "Stopping dbmanager"
-pkill -f "python3 findNeighbour4-dbmanager.py $1" 
+pkill -f "findNeighbour4-dbmanager.py $1" 
 echo "Stopping monitor"
-pkill -f "python3 findNeighbour4-monitor.py $1" 
+pkill -f "findNeighbour4-monitor.py $1" 
 echo "Stopping clustering"
-pkill -f "python3 findNeighbour4-clustering.py $1" 
+pkill -f "findNeighbour4-clustering.py $1" 
 
-echo "Shutdown attempted.  see below: there should be no processes running "
-ps -x | grep ".py $1"
+echo "Shutdown attempted.  see below: there should be no findNeighbour processes running "
+echo "Targeted processes still running are as follows:"
 echo "--------------------"
+ps -x | grep ".[p]y $1"
+echo "--------------------"
+
+echo "Targeting any CatWalk server operating on the relevant port"
+BIND_PORT=`cat $1 | grep -o -P '(?<=bind_port":).*(?=, )'`
+BIND_PORT_LENGTH=${#BIND_PORT}
+if [ "$BIND_PORT_LENGTH" -eq 4 ]
+then
+   echo "Examination of the config file indicates a CatWalk server may be running on port $BIND_PORT"
+   echo "--------------------"
+   ps -x | grep "bind_port $BIND_PORT"
+   echo "--------------------"
+   echo "Stopping any CatWalk process .."
+   pkill -f "bind_port $BIND_PORT"
+   echo "Shutdown attempted.  see below; there should be no catWalk process running on $BIND_PORT"
+   echo "--------------------"
+   ps -x | grep "bind_port $BIND_PORT"
+   echo "--------------------"
+fi
+echo "Shutdown completed"
+

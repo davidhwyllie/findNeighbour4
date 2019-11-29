@@ -17,7 +17,7 @@ fastadir = os.path.join('..','demos','AA041','fasta')
 outputdir = os.path.join('..','demos','AA041','output')
 
 # instantiate client
-fn3c = fn3Client("http://127.0.0.1:5021")      # expects operation on local host; pass baseurl if somewhere else.
+fn3c = fn3Client("http://127.0.0.1:5031")      # expects operation on local host; config file runs server on port 31.
 
 # names of the clustering algorithms
 clusters=fn3c.clustering()

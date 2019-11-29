@@ -23,7 +23,7 @@ from scipy.stats import binom_test
 import pandas as pd
 from collections import Counter
 from mongoStore import fn3persistence
-from preComparer_cw import preComparer		# catwalk enabled
+from preComparer import preComparer		# catwalk enabled
 from identify_sequence_set import IdentifySequenceSet
 from msa import MSAResult
 
@@ -43,10 +43,9 @@ class hybridComparer():
                     maxNs,
                     snpCeiling,
                     excludePositions=set(),
-                    preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5},
+                    preComparer_parameters={},
                     PERSIST=UNITTEST_MONGOCONN,
-                    unittesting=False,
-					enable_catwalk=False
+                    unittesting=False
 
                 ):
 
@@ -72,19 +71,18 @@ class hybridComparer():
 	    selection_cutoff: (int)
         snp distances more than this are not of interest epidemiologically and are not reported
 
-        uncertain_base (str): one of 'M', 'N', or 'M_or_N'
+        uncertain_base (str): one of 'M', 'N', or 'N_or_M'
         which bases to regard as uncertain in the computation.  Default to M.
-        if 'M_or_N', will store all us and Ns and will give the same result as the seqComparer module.
+        if 'N_or_M', will store all us and Ns and will give the same result as the seqComparer module.
 
         over_selection_cutoff_ignore_factor:
         SNP distances more than over_selection_cutoff_ignore_factor * selection_cutoff do not need to be further analysed.  For example, if a SNP cutoff was 20, and over_selection_cutoff_ignore_factor is 5, we can safely consider with SNV distances > 100 (=20*5) as being unrelated.
 
-		
+        catWalk_parameters:  parameters for catWalk function.  If empty {}, catWalk is not run.		
         PERSIST: either a mongo connection string, or an instance of fn3persistence
 
         unittesting: if True, will remove any stored data from the associated database [Careful!]
-		enable_catwalk: if True, will use the catwalk relatedness engine.  If false, does the same calculation slower using python.
-        David Wyllie, September 2019
+       David Wyllie, September 2019
   
         - to run unit tests, do
         python3 -m unittest hybridComparer
@@ -133,11 +131,8 @@ class hybridComparer():
             # store them, if any are supplied
             if len(preComparer_parameters.keys())>0:
                 self.PERSIST.config_store('preComparer', preComparer_parameters)
-        if enable_catwalk:
-            self.pc = preComparer(**preComparer_parameters, catwalk_reference =self.reference)
-        else:
-            self.pc = preComparer(**preComparer_parameters, catwalk_reference =None)
 
+        self.pc = preComparer(**preComparer_parameters)
         # update preComparer parameters
         self.update_precomparer_parameters()
 
@@ -225,9 +220,9 @@ class hybridComparer():
         mcompare_result = self.mcompare(guid)		# compare guid against all
 
         for i,item in enumerate(mcompare_result['neighbours']): 	# all against all
-            (guid1,guid2,dist,n1,n2,nboth, N1pos, N2pos, Nbothpos) = item
+            (guid1,guid2,dist) = item
             if not guid1==guid2:
-                link = {'dist':dist,'n1':n1,'n2':n2,'nboth':nboth}
+                link = {'dist':dist}
             if dist is not None:
                 if link['dist'] <= self.snpCeiling:
                     links[guid2]=link			
@@ -294,32 +289,42 @@ class hybridComparer():
         # mcompare using preComparer
         candidate_guids = set()
 
+        neighbours = []
+        exact_comparison = False
         for match in self.pc.mcompare(guid, guids):
-            if not match['no_retest']:
-                candidate_guids.add(match['guid2'])
+
+            if self.pc.distances_are_exact:		# then the precomparer is computing an exact distance
+                exact_comparison = True
+                if match['dist'] <= self.snpCeiling:
+
+                    neighbours.append([match['guid1'],match['guid2'],match['dist']])
+            else:						# the precomparer is computing an estimated distance, and more detailed comparison is needed.
+                if not match['no_retest']:
+                    candidate_guids.add(match['guid2'])
 
         t2= datetime.datetime.now()
 
-        guids = list(set(guids))       
-        sampleCount = len(guids)
-        neighbours = []
-        
-        # load guid
-        load_time =0 
-        seq1 = self.load(guid)
-        for key2 in candidate_guids:
-            if not guid==key2:
-                l1 = datetime.datetime.now()
-                seq2 = self.load(key2)
-                l2 = datetime.datetime.now()
-                i4 = l2-l1
-                load_time = load_time + i4.total_seconds()
-                comparison = self.countDifferences(guid,key2,seq1,seq2,cutoff = self.snpCeiling)   
-                if comparison is not None:      # is is none if one of the samples is invalid
-                    
-                    (guid1,guid2,dist,n1,n2,nboth, N1pos, N2pos, Nbothpos)= comparison 
-                    if dist < self.snpCeiling:
-                        neighbours.append([guid1,guid2,dist,n1,n2,nboth,N1pos, N2pos, Nbothpos])
+        if not exact_comparison:
+        	# need to do second phase computation to determine neighbours
+            guids = list(set(guids))       
+            sampleCount = len(guids)
+
+            # load guid
+            load_time =0 
+            seq1 = self.load(guid)
+            for key2 in candidate_guids:
+                if not guid==key2:
+                    l1 = datetime.datetime.now()
+                    seq2 = self.load(key2)
+                    l2 = datetime.datetime.now()
+                    i4 = l2-l1
+                    load_time = load_time + i4.total_seconds()
+                    comparison = self.countDifferences(guid,key2,seq1,seq2,cutoff = self.snpCeiling)   
+                    if comparison is not None:      # is is none if one of the samples is invalid
+
+                        (guid1,guid2,dist)= comparison 
+                        if dist <= self.snpCeiling:
+                            neighbours.append([guid1,guid2,dist])
 
         t3= datetime.datetime.now()
         i1 = t2-t1
@@ -338,8 +343,8 @@ class hybridComparer():
             rate2 = 0
             rate3 = 0
 
-        timings = {'preComparer_msec_per_comparison':rate1, 'seqComparer_msec_per_comparison':rate2, 'preCompared':n1, 'candidates':n2, 'matches':len(neighbours),'total_sec':i3.total_seconds(),'seqComparer_msec_per_sequence_loaded':rate3}
-      
+        timings = {'preComparer_msec_per_comparison':rate1, 'seqComparer_msec_per_comparison':rate2, 'preCompared':n1, 'candidates':n2, 'matches':len(neighbours),'total_sec':i3.total_seconds(),'seqComparer_msec_per_sequence_loaded':rate3,'catWalk_enabled':self.pc.catWalk_enabled,'preComparer_distances_are_exact':self.pc.distances_are_exact}
+        
         return({'neighbours':neighbours, 'timings':timings})
         
     def summarise_stored_items(self):
@@ -492,10 +497,9 @@ class hybridComparer():
         if nDiff<=cutoff:
             seq1_uncertain = seq1['N'] | set(seq1['M'].keys())
             seq2_uncertain = seq2['N'] | set(seq2['M'].keys())
-            (n1, n2, nboth, N1pos, N2pos, Nbothpos) = self._setStats(seq1_uncertain, seq2_uncertain)
-            return((key1, key2, nDiff, n1,n2,nboth, N1pos, N2pos, Nbothpos))
+            return((key1, key2, nDiff))
         else:
-            return((key1, key2, nDiff, None, None, None, None, None, None))
+            return((key1, key2, nDiff))
 
     def compressed_sequence_hash(self, compressed_sequence):
         """ returns a string containing a hash of a compressed object.
@@ -639,14 +643,14 @@ e
         which is expected_expected_N/M the length of sequence.
         if expected_p1 is supplied, then such sampling does not occur.
         
-        uncertain_base_type: the kind of base which is to be analysed, either N,M, or M_or_N
+        uncertain_base_type: the kind of base which is to be analysed, either N,M, or N_or_M
         outgroup: the outgroup sample, if any.  Not used in computations, but stored in the output
 
         Output: 
         A MSAResult object.
 
         Statistical approach:
-        A key use of the function is to compute statistics comparing the frequency of mixed (N,N,M_or_N) bases between variant bases in the alignment, and whose which are not.
+        A key use of the function is to compute statistics comparing the frequency of mixed (N,N,N_or_M) bases between variant bases in the alignment, and whose which are not.
         This includes statistical testing of mixed base frequencies.
 
         The p values reported are derived from exact, one-sided binomial tests as implemented in python's scipy.stats.binom_test().
@@ -861,11 +865,15 @@ e
         # step 4: determine the sequences of all bases.
         ordered_variant_positions = sorted(list(variant_positions))
         guid2seq = {}
+        guid2mseq={}
         guid2msa_seq={}
+        guid2msa_mseq={}
         for guid in valid_guids:
             guid2seq[guid]=[]
-            for position in ordered_variant_positions:
+            guid2mseq[guid]=[]
+            for position in ordered_variant_positions:  # positions of variation
                 this_base = self.reference[position]
+                this_base_m = self.reference[position]
                 for base in ['A','C','T','G','N','M']:
                     if not base == 'M':
                         positions = self.seqProfile[guid][base]
@@ -874,8 +882,13 @@ e
 
                     if position in positions:
                         this_base = base
-                guid2seq[guid].append(this_base)
+                        this_base_m = base
+                        if base == 'M':
+                            this_base_m = self.seqProfile[guid]['M'][position]
+                guid2seq[guid].append(this_base)        # include M for mix if present
+                guid2mseq[guid].append(this_base_m)     # include iupac code for mix
             guid2msa_seq[guid] = ''.join(guid2seq[guid])
+            guid2msa_mseq[guid] = ''.join(guid2mseq[guid])
         
         # step 5: determine the expected_p2 at the ordered_variant_positions:
         expected_N2 = self.estimate_expected_unk_sites(sites=set(ordered_variant_positions), unk_type = uncertain_base_type)
@@ -969,7 +982,11 @@ e
             df1 = pd.DataFrame.from_dict(guid2msa_seq, orient='index')
             df1.columns=['aligned_seq']
             df1['aligned_seq_len'] = len(ordered_variant_positions)
+              
+            df1_iupac = pd.DataFrame.from_dict(guid2msa_mseq, orient='index')
+            df1_iupac.columns=['aligned_mseq']
             
+          
             df2n = pd.DataFrame.from_dict(guid2all['N'], orient='index')
             df2n.columns=['allN']
             df3n = pd.DataFrame.from_dict(guid2align['N'], orient='index')
@@ -1005,7 +1022,8 @@ e
             df12.columns=['expected_proportion4']
             df12['what_tested'] = uncertain_base_type
             
-            df = df1.merge(df2n, left_index=True, right_index=True)
+            df = df1.merge(df1_iupac, left_index=True, right_index=True)
+            df = df.merge(df2n, left_index=True, right_index=True)
             df = df.merge(df3n, left_index=True, right_index=True)
             df = df.merge(df2m, left_index=True, right_index=True)
             df = df.merge(df3m, left_index=True, right_index=True)
@@ -1056,7 +1074,7 @@ class test_hybridComparer_update_preComparer_settings(unittest.TestCase):
         sc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
                        snpCeiling =10, 
-                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5},
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}},
                        unittesting=True)
 
         n=0
@@ -1075,8 +1093,6 @@ class test_hybridComparer_update_preComparer_settings(unittest.TestCase):
 
         sc.PERSIST.config_store('preComparer',preComparer_settings)
 
-
-      
 class test_hybridComparer_mcompare(unittest.TestCase):
     """ tests mcompare """
     def runTest(self):
@@ -1085,7 +1101,7 @@ class test_hybridComparer_mcompare(unittest.TestCase):
         sc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
                        snpCeiling =10,
-                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5},
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}},
                        unittesting=True)
         
         sc.PERSIST._delete_existing_data()
@@ -1112,7 +1128,7 @@ class test_hybridComparer_summarise_stored_items(unittest.TestCase):
         sc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
                        snpCeiling =10,                       
-                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5},
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5,'catWalk_parameters':{}},
                        unittesting=True)
         # need > 30 sequences
         originals = ['AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
@@ -1139,7 +1155,7 @@ class test_hybridComparer_48(unittest.TestCase):
         sc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
                        snpCeiling =10,                        
-                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5},
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}},
                        unittesting=True)
         # need > 30 sequences
         originals = ['AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
@@ -1164,7 +1180,7 @@ class test_hybridComparer_47c(unittest.TestCase):
         sc=hybridComparer( maxNs = 8,
                        reference=refSeq,
                        snpCeiling =10,                        
-                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5},
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}},
                        unittesting=True)
         # need > 30 sequences
         originals = ['AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
@@ -1184,7 +1200,7 @@ class test_hybridComparer_47c(unittest.TestCase):
         msa= sc.multi_sequence_alignment(guid_names[0:8], expected_p1=0.995)      
         # there's variation at positions 0,1,2,3
         self.assertTrue(isinstance(msa, MSAResult))
-        expected_cols = set(['what_tested','aligned_seq','aligned_seq_len','aligned_seq_len','allN','alignN','allM','alignM','allN_or_M','alignN_or_M','p_value1','p_value2','p_value3', 'p_value4', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3','expected_proportion4'])
+        expected_cols = set(['what_tested','aligned_seq','aligned_mseq','aligned_seq_len','aligned_seq_len','allN','alignN','allM','alignM','allN_or_M','alignN_or_M','p_value1','p_value2','p_value3', 'p_value4', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3','expected_proportion4'])
         self.assertEqual(set(msa.df.columns.values),expected_cols)
 
         self.assertEqual(len(msa.df.index),8)
@@ -1208,7 +1224,7 @@ class test_hybridComparer_47b2(unittest.TestCase):
         sc=hybridComparer( maxNs = 6,
                        reference=refSeq,
                        snpCeiling =10,                        
-                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5},
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}},
                        unittesting=True)
         # need > 30 sequences
         originals = ['AAACGY','CCCCGY','TTTCGY','GGGGGY','NNNCGY','ACTCGY', 'TCTQGY','AAACGY','CCCCGY','TTTCGY','GGGGGY','NNNCGY','ACTCGY', 'TCTNGY',
@@ -1239,7 +1255,7 @@ class test_hybridComparer_47b2(unittest.TestCase):
         self.assertEqual(msa.variant_positions,[0,1,2,3])
         
         # there's variation at positions 0,1,2,3
-        expected_cols = set(['what_tested','aligned_seq','aligned_seq_len','aligned_seq_len','allN','alignN','allM','alignM','allN_or_M','alignN_or_M','p_value1','p_value2','p_value3', 'p_value4', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3','expected_proportion4'])
+        expected_cols = set(['what_tested','aligned_seq','aligned_mseq','aligned_seq_len','aligned_seq_len','allN','alignN','allM','alignM','allN_or_M','alignN_or_M','p_value1','p_value2','p_value3', 'p_value4', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3','expected_proportion4'])
  
 
         self.assertEqual(set(msa.df.columns.values),expected_cols)
@@ -1258,7 +1274,7 @@ class test_hybridComparer_47b(unittest.TestCase):
         sc=hybridComparer( maxNs = 6,
                        reference=refSeq,
                        snpCeiling =10,                        
-                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5},
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}},
                        unittesting=True)
         # need > 30 sequences
         originals = ['AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN','AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN',
@@ -1289,7 +1305,7 @@ class test_hybridComparer_47b(unittest.TestCase):
         self.assertEqual(msa.variant_positions,[0,1,2,3])
         
         # there's variation at positions 0,1,2,3
-        expected_cols = set(['what_tested','aligned_seq','aligned_seq_len','aligned_seq_len','allN','alignN','allM','alignM','allN_or_M','alignN_or_M','p_value1','p_value2','p_value3', 'p_value4', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3','expected_proportion4'])
+        expected_cols = set(['what_tested','aligned_seq','aligned_mseq','aligned_seq_len','aligned_seq_len','allN','alignN','allM','alignM','allN_or_M','alignN_or_M','p_value1','p_value2','p_value3', 'p_value4', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3','expected_proportion4'])
  
         self.assertEqual(set(msa.df.columns.values),expected_cols)
         self.assertEqual(len(msa.df.index),8)
@@ -1306,7 +1322,7 @@ class test_hybridComparer_estimate_expected_unk(unittest.TestCase):
         sc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
                        snpCeiling =10,                        
-                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5},
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}},
                        unittesting=True)
         n=0
         originals = [ 'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN' ]
@@ -1339,7 +1355,7 @@ class test_hybridComparer_estimate_expected_unk_sites(unittest.TestCase):
         sc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
                        snpCeiling =10,                        
-                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5},
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}},
                        unittesting=True)
         n=0
         originals = [ 'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN' ]
@@ -1363,7 +1379,7 @@ class test_hybridComparer_estimate_expected_unk_sites(unittest.TestCase):
         sc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
                        snpCeiling =10,                        
-                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5},
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}},
                        unittesting=True)
         n=0
         originals = [ 'AAACGM','CCCCGM','TTTCGM','GGGGGM','MMMCGM','ACTCGM', 'TCTMGM' ]
@@ -1390,7 +1406,7 @@ class test_hybridComparer_45a(unittest.TestCase):
         sc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
                        snpCeiling =10,                        
-                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5},
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}},
                        unittesting=True)
         originals = [ 'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN' ]
         guid_names = []
@@ -1420,7 +1436,7 @@ class test_hybridComparer_45b(unittest.TestCase):
         sc=hybridComparer( maxNs = 6,
                        reference=refSeq,
                        snpCeiling =10,                        
-                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5},
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5,'catWalk_parameters':{}},
                        unittesting=True)
         
         originals = [ 'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTGGN' ]
@@ -1460,7 +1476,7 @@ class test_hybridComparer_3(unittest.TestCase):
 class test_hybridComparer_3b(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
-        sc=hybridComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq )
+        sc=hybridComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq, )
         retVal=sc.compress(sequence='ACTQ')
         self.assertEqual(retVal,{'G': set([]), 'A': set([]), 'C': set([]), 'T': set([]), 'N': set([]), 'M':{3:'Q'}, 'invalid':0})
 class test_hybridComparer_3c(unittest.TestCase):
@@ -1546,7 +1562,7 @@ class test_hybridComparer_16(unittest.TestCase):
         
         seq1 = sc.compress('AAAA')
         seq2 = sc.compress('CCCC')
-        self.assertEqual(sc.countDifferences('k1','k2',seq1, seq2),('k1','k2',4,0,0,0, set(), set(), set()))
+        self.assertEqual(sc.countDifferences('k1','k2',seq1, seq2),('k1','k2',4))
 class test_hybridComparer_16b(unittest.TestCase):
     """ tests the comparison of two sequences where both differ from the reference. """
     def runTest(self):   
@@ -1558,7 +1574,7 @@ class test_hybridComparer_16b(unittest.TestCase):
         
         seq1 = sc.compress('AAAA')
         seq2 = sc.compress('RRCC')
-        self.assertEqual(sc.countDifferences('k1','k2',seq1,seq2),('k1','k2',2,0,2,2, set(), {0,1}, {0,1}))
+        self.assertEqual(sc.countDifferences('k1','k2',seq1,seq2),('k1','k2',2))
 class test_hybridComparer_16c(unittest.TestCase):
     """ tests the comparison of two sequences where both differ from the reference. """
     def runTest(self):   
@@ -1570,7 +1586,7 @@ class test_hybridComparer_16c(unittest.TestCase):
         
         seq1 = sc.compress('AAAA')
         seq2 = sc.compress('RRNN')
-        self.assertEqual(sc.countDifferences('k1','k2',seq1,seq2),('k1','k2',0,0,4,4,set(), {0,1,2,3}, {0,1,2,3}))
+        self.assertEqual(sc.countDifferences('k1','k2',seq1,seq2),('k1','k2',0))
 class test_hybridComparer_17(unittest.TestCase):
     """ tests the comparison of two sequences where one is invalid """
     def runTest(self):   
@@ -1609,7 +1625,6 @@ class test_hybridComparer_18(unittest.TestCase):
         self.assertEqual(len(res), 0)
 
 
-
 class test_hybridComparer_saveload3(unittest.TestCase):
     def runTest(self):
         refSeq='ACTGGG'
@@ -1624,8 +1639,8 @@ class test_hybridComparer_saveload3(unittest.TestCase):
         self.assertEqual(len(sc.pc.seqProfile.keys()),1)    # one entry in the preComparer     
 
         compressedObj =sc.compress(sequence='ACTTTT')
-        with self.assertRaises(KeyError):
-            sc.persist(compressedObj, 'one' )     
+        sc.persist(compressedObj, 'one' )  		    # should succeed, but add nothing   
+        self.assertEqual(len(sc.pc.seqProfile.keys()),1)    # one entry in the preComparer     
  
         compressedObj =sc.compress(sequence='ACTTTA')
         sc.persist(compressedObj, 'two' )     
@@ -1856,17 +1871,118 @@ class test_hybridComparer_51(unittest.TestCase):
             guid_names.append(this_guid)
 
         self.assertEqual(len(sc.pc.seqProfile.keys()),7)
-
-
         refSeq='GGGGGG'
         sc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
                        snpCeiling =10)
         
         sc.repopulate_sample(n=7)      # defaults to 100
-
         self.assertEqual(len(sc.pc.seqProfile.keys()),7)
 
 
+class test_hybridComparer_52(unittest.TestCase):
+	""" tests catwalk with uncertain_base = M"""
+	def runTest(self):
+		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+		with open(inputfile, 'rt') as f:
+			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):
+					refSeq = str(record.seq)               
+					originalseq = list(str(record.seq))
+		hc=hybridComparer( maxNs = 1e8,
+                       reference=refSeq,
+                       snpCeiling =10,
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{'cw_binary_filepath':None,'reference_name':"H37RV",'reference_filepath':inputfile,'mask_filepath':"../reference/TB-exclude-adaptive.txt"}},
+                       unittesting=True)
+        
+		hc.PERSIST._delete_existing_data()      
 
+
+		inserted_guids = ['guid_ref']
+		obj = hc.compress(refSeq)
+		hc.persist(obj,'guid_ref')
+
+		for k in [0,1]:
+			for i in [0,1,2]:
+				guid_to_insert = "msa2_{1}_guid_{0}".format(k*100+i,k)
+				inserted_guids.append(guid_to_insert)
+				muts = 0
+				seq = originalseq.copy()			
+				# make  mutations 
+				if k==1:
+					for j in range(1000000,1000010):		# make 10 mutants at position 1m
+						mutbase =j
+						ref = seq[mutbase]
+						if not ref == 'T':
+							seq[mutbase] = 'T'
+						if not ref == 'A':
+							seq[mutbase] = 'A'
+						muts+=1
+	
+
+				seq = ''.join(seq)
+				obj = hc.compress(seq)
+				hc.persist(obj, guid_to_insert)			
+
+		self.assertEqual(hc.pc.guids(), set(inserted_guids))
   
+		for guid in inserted_guids:
+			res = hc.mcompare(guid)
+			self.assertEqual(res['timings']['catWalk_enabled'], True)
+			self.assertEqual(res['timings']['preComparer_distances_are_exact'],False)
+			self.assertTrue(res['timings']['candidates']>0)
+	
+
+class test_hybridComparer_53(unittest.TestCase):
+	""" tests catwalk with uncertain_base = N_or_M"""
+	def runTest(self):
+		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+		with open(inputfile, 'rt') as f:
+			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):
+					refSeq = str(record.seq)               
+					originalseq = list(str(record.seq))
+		hc=hybridComparer( maxNs = 1e8,
+                       reference=refSeq,
+                       snpCeiling =10,
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'N_or_M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{'cw_binary_filepath':None,'reference_name':"H37RV",'reference_filepath':inputfile,'mask_filepath':"../reference/TB-exclude-adaptive.txt"}},
+                       unittesting=True)
+        
+		hc.PERSIST._delete_existing_data()      
+
+
+		inserted_guids = ['guid_ref']
+		obj = hc.compress(refSeq)
+		hc.persist(obj,'guid_ref')
+
+		for k in [0,1]:
+			for i in [0,1,2]:
+				guid_to_insert = "msa2_{1}_guid_{0}".format(k*100+i,k)
+				inserted_guids.append(guid_to_insert)
+				muts = 0
+				seq = originalseq.copy()			
+				# make  mutations 
+				if k==1:
+					for j in range(1000000,1000010):		# make 10 mutants at position 1m
+						mutbase =j
+						ref = seq[mutbase]
+						if not ref == 'T':
+							seq[mutbase] = 'T'
+						if not ref == 'A':
+							seq[mutbase] = 'A'
+						muts+=1
+	
+
+				seq = ''.join(seq)
+				obj = hc.compress(seq)
+				hc.persist(obj, guid_to_insert)			
+
+		self.assertEqual(hc.pc.guids(), set(inserted_guids))
+  
+		for guid in inserted_guids:
+			res = hc.mcompare(guid)
+			#print(res['timings'])
+			self.assertEqual(res['timings']['catWalk_enabled'], True)
+			self.assertEqual(res['timings']['preComparer_distances_are_exact'],True)
+			self.assertTrue(res['timings']['candidates']==0)
+			self.assertTrue(res['timings']['matches']>0)
+			
+		
