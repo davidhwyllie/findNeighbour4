@@ -34,7 +34,7 @@ class CatWalkBinaryNotAvailableError(Exception):
 
 class CatWalk():
     """ start, stop, and communicate with a CatWalk server"""
-    def __init__(self, cw_binary_filepath, reference_name, reference_filepath, mask_filepath, max_distance, bind_host="localhost", bind_port=5000, identity_token=None):
+    def __init__(self, cw_binary_filepath, reference_name, reference_filepath, mask_filepath, max_distance, bind_host, bind_port, identity_token=None, unittesting = False):
         """
         Start the catwalk process in the background, if it not running.
         Parameters:
@@ -47,6 +47,7 @@ class CatWalk():
         bind_port
 
         identity_token: a string identifying the process.  If not provided, a guid is generated
+        unittesting: if True, will shut down and restart (empty) any catwalk on creation
         """
        
         no_catwalk_exe_message = """
@@ -87,6 +88,9 @@ in either
         self.instance_name = "{0}-{1}".format(self.instance_stem, identity_token)
 
         # start up if not running
+        if unittesting and self.server_is_running():
+            self.stop_all()     # removes any data from server  and any other running cws
+
         if not self.server_is_running():
             self.start()
 
@@ -148,11 +152,13 @@ in either
 
         The json dict must have all keys: ACGTN, even if they're empty
         """
-        r = requests.post("{0}/add_sample_from_refcomp".format(self.cw_url),
-                      json={ "name": name,
+
+        # note particular of creating json, but catwalk accepts this (refcomp has to be in '')
+        payload = { "name": name,
                              "refcomp": json.dumps(refcomp),
                              "keep": True }
-                     )
+
+        r = requests.post("{0}/add_sample_from_refcomp".format(self.cw_url),json=payload)
         r.raise_for_status()
         if not r.status_code in [200,201]:
             raise CatWalkServerInsertError(message = "Failed to insert {0}; return code was {1}".format(guid, result)) 
@@ -187,7 +193,9 @@ class test_cw(unittest.TestCase):
                     reference_name="H37RV",
                     reference_filepath="../reference/TB-ref.fasta",
                     mask_filepath="../reference/TB-exclude-adaptive.txt",
-                    max_distance=20)
+                    max_distance=20,
+                    bind_host='localhost',
+                    bind_port=5000)
 
         # stop the server if it is running
         self.cw.stop_all()

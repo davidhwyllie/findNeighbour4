@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+import os, io, glob, gzip
 import unittest
 import copy
 import pycw_client
@@ -7,6 +7,10 @@ import json
 import logging
 import requests
 from pycw_client import CatWalk
+from Bio import SeqIO
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+from Bio.Alphabet import generic_nucleotide
 
 class preComparer():
     """ compares reference compressed sequences.  
@@ -27,10 +31,10 @@ class preComparer():
 
     """
     def __init__(self,                    
-                    selection_cutoff = 20,
-                    over_selection_cutoff_ignore_factor = 5,
-                    uncertain_base = 'M',  
-                    catWalk_parameters = {},                  
+                    selection_cutoff,
+                    over_selection_cutoff_ignore_factor,
+                    uncertain_base,  
+                    catWalk_parameters = {} ,              
                     **kwargs
                 ):
 
@@ -61,7 +65,6 @@ class preComparer():
         mask_filepath : path to a mask file, which consists of zero indexed positions to exclude
         bind_host: the host the catwalk is running on
         bind_port: the port the catwalk is running on
-
         An example would look like:
                         catWalk_parameters ={'cw_binary_filepath':None,
                         'reference_name':"h37rv", 
@@ -90,6 +93,7 @@ class preComparer():
         # initialise data structures
         self._refresh()
         self.catWalk = None
+
         # if catWalk specified, startup the catWalk server
         if len(catWalk_parameters)>0:       # we use catWalk
             catWalk_parameters['max_distance'] = self.over_selection_cutoff_ignore_factor * selection_cutoff
@@ -98,7 +102,7 @@ class preComparer():
             logging.info("CatWalk server started, operating with uncertain bases representing {0}".format(self.uncertain_base))
         self.catWalk_parameters = catWalk_parameters
 
-        if self.catWalk is None:
+        if self.catWalk is None:		#no catwalk
             logging.info("Catwalk is not running, using python-based set operations with uncertain bases representing {0}".format(self.uncertain_base))
             self.catWalk_enabled = False
         self.distances_are_exact = (self.uncertain_base == 'N_or_M')
@@ -191,39 +195,39 @@ class preComparer():
         # create a smaller object to store.
         smaller_obj = {}
         for item in ['A','C','G','T']:
-            try:
-                smaller_obj[item] = copy.deepcopy(obj[item])
-            except KeyError:
-                pass        # if it doesn't exist, that's OK	
+            smaller_obj[item] = copy.deepcopy(obj[item])
 
-        # store uncertain bases - either us, Ns, or both
+        # store uncertain bases - either Us, Ns, or both
         # if there are no M or N keys, add them
         if not 'N' in obj.keys():
                 obj['N']=set()
         if not 'M' in obj.keys():
-                obj['M']=set()
+                obj['Ms']=set()
         else:
-                obj['M']=set(obj['M'].keys())       # make a set of the positions of us
+                obj['Ms']=set(obj['M'].keys())       # make a set of the positions of us
 
         if self.uncertain_base == 'M':
-            obj['U']=obj['M']
+            obj['U']=obj['Ms']
         elif self.uncertain_base == 'N':
             obj['U']=obj['N']
         elif self.uncertain_base == 'N_or_M':
-            obj['U']=obj['N'].union(obj['M'])
+            obj['U']=obj['N'].union(obj['Ms'])
         else:
             raise KeyError("Invalid uncertain_base: got {0}".format(self.uncertain_base))
 
         # add the uncertain bases to the smaller object for storage
         smaller_obj['U']=copy.deepcopy(obj['U'])
-        key_mapping= {'A':'A','C':'C','G':'G','T':'T','U':'N'} # catwalk uses N, not U, for unknown.
+        key_mapping= {'A':'A','C':'C','G':'G','T':'T','U':'N'} # catwalk uses N, not U, for unknown. map specifies this.
         if self.catWalk_enabled:
             if not isinvalid:       # we only store valid sequences in catWalk
                 to_catwalk = {}
                 for key in smaller_obj.keys():                    
-                    to_catwalk[key_mapping[key]]=list(smaller_obj[key])
+                    to_catwalk[key_mapping[key]]=list(smaller_obj[key])     # make a dictionary for catwalk
 
-                self.catWalk.add_sample_from_refcomp(guid, to_catwalk) 
+                info_message = f"""Loading into catWalk: {guid}.  Uncertain_base is {self.uncertain_base}, encoded as N for cw.  A:{len(to_catwalk['A'])};C:{len(to_catwalk['C'])};G:{len(to_catwalk['G'])};T:{len(to_catwalk['T'])};N:{len(to_catwalk['N'])}""" 
+                
+                print(info_message)
+                self.catWalk.add_sample_from_refcomp(guid, to_catwalk)  # add it
            
             self.seqProfile[guid]={'invalid':obj['invalid']}      # that's all we store in python if catWalk is in use
  
@@ -406,35 +410,16 @@ class preComparer():
             raise KeyError("{0} not present in preComparer".format(key1))
         if not key2 in self.seqProfile.keys():
             raise KeyError("{0} not present in preComparer".format(key2))
-
-	    # compute us in non-reference positions
-        try:	
-            u1 = set(list(self.seqProfile[key1]['U']))
-        except KeyError:
-            u1 = set()
-        try:
-    	    u2 = set(list(self.seqProfile[key2]['U']))
-        except KeyError:
-            u2 = set()
-
-        us = u1 | u2
-	    
+ 
         # compute positions which differ;
         nDiff=0
 
         differing_positions = set()
         for nucleotide in ['C','G','A','T']:
-
-            # we do not consider differences relative to the reference if the other nucleotide is an M
-            nonU_seq1=self.seqProfile[key1][nucleotide]-us
-            nonU_seq2=self.seqProfile[key2][nucleotide]-us
-            differing_positions = differing_positions | (nonU_seq1 ^ nonU_seq2)
-            
-        us= differing_positions.intersection(us)
-        n_us = len(us)
-
-        dist = len(differing_positions)       # number of positions varying
-        return dist
+            nonU_seq1=self.seqProfile[key1][nucleotide]-self.seqProfile[key2]['U']
+            nonU_seq2=self.seqProfile[key2][nucleotide]-self.seqProfile[key1]['U']
+            differing_positions = differing_positions | (nonU_seq1 ^ nonU_seq2)           
+        return len(differing_positions)       # number of positions varying
 
  
 
@@ -443,16 +428,7 @@ class test_preComparer_1(unittest.TestCase):
     def runTest(self):
         # initialise comparer
         sc=preComparer(  selection_cutoff = 20,
-                    over_selection_cutoff_ignore_factor= 5)
-
-class test_preComparer_1a(unittest.TestCase):
-    """ tests __init__ method with catwalk"""
-    def runTest(self):
-        # initialise comparer
-        sc=preComparer(  selection_cutoff = 20,
-                    over_selection_cutoff_ignore_factor= 5,
-                    catWalk_url = "AAAAAAAA")
-
+                    over_selection_cutoff_ignore_factor= 5, uncertain_base='M')
 
 class test_preComparer_1b(unittest.TestCase):
     """ tests check_operating_parameters method"""
@@ -478,7 +454,7 @@ class test_preComparer_2(unittest.TestCase):
     """ tests storage """
     def runTest(self):
         # initialise comparer
-        sc=preComparer(  selection_cutoff = 20)
+        sc=preComparer(  selection_cutoff = 20, uncertain_base='M',over_selection_cutoff_ignore_factor = 5)
         obj = {'A':set([1,2,3,4])}
         sc.persist(obj,'guid1')
         self.assertEqual(sc.composition['guid1']['A'],4)
@@ -493,7 +469,7 @@ class test_preComparer_2a(unittest.TestCase):
     """ tests storage """
     def runTest(self):
         # initialise comparer
-        sc=preComparer(  selection_cutoff = 20,                         
+        sc=preComparer(  selection_cutoff = 20, uncertain_base='M',over_selection_cutoff_ignore_factor = 5,                         
                         catWalk_parameters ={'cw_binary_filepath':None,
                         'reference_name':"h37rv", 
                         'reference_filepath':"../reference/TB-ref.fasta", 
@@ -514,7 +490,7 @@ class test_preComparer_3(unittest.TestCase):
     """ tests storage of invalid samples """
     def runTest(self):
         
-        sc=preComparer(  selection_cutoff = 20)
+        sc=preComparer(  selection_cutoff = 20, uncertain_base='M',over_selection_cutoff_ignore_factor = 5)
         obj = {'A':set([1,2,3,4]), 'invalid':1}
         sc.persist(obj,'guid1')
         self.assertEqual(sc.composition['guid1']['A'],4)
@@ -565,7 +541,7 @@ class test_preComparer_3a(unittest.TestCase):
     """ tests storage of invalid samples """
     def runTest(self):
         
-        sc=preComparer(  selection_cutoff = 20, 
+        sc=preComparer(  selection_cutoff = 20, uncertain_base='M',over_selection_cutoff_ignore_factor = 5,
                          catWalk_parameters ={'cw_binary_filepath':None,
                         'reference_name':"h37rv", 
                         'reference_filepath':"../reference/TB-ref.fasta", 
@@ -622,8 +598,7 @@ class test_preComparer_4(unittest.TestCase):
     """ tests reporting of server status """
     def runTest(self):
         # initialise comparer
-        sc=preComparer(  selection_cutoff = 20,
-                    over_selection_cutoff_ignore_factor = 5)
+        sc=preComparer(  selection_cutoff = 20, uncertain_base='M',over_selection_cutoff_ignore_factor = 5)
         res1 = sc.summarise_stored_items()
         self.assertEqual({'server|pcstat|nSeqs': 0 }, res1)
 
@@ -636,13 +611,12 @@ class test_preComparer_4a(unittest.TestCase):
     """ tests reporting of server status """
     def runTest(self):
         # initialise comparer
-        sc=preComparer(  selection_cutoff = 20,
-                    over_selection_cutoff_ignore_factor = 5, catWalk_parameters ={'cw_binary_filepath':None,
+        sc=preComparer(  selection_cutoff = 20, uncertain_base='M',over_selection_cutoff_ignore_factor = 5, catWalk_parameters ={'cw_binary_filepath':None,
                         'reference_name':"h37rv", 
                         'reference_filepath':"../reference/TB-ref.fasta", 
                         'mask_filepath':"../reference/TB-exclude-adaptive.txt", 
                         'bind_host':"127.0.0.1", 
-                        'bind_port':5000})
+                        'bind_port':5000, 'unittesting':True})
         res1 = sc.summarise_stored_items()
         self.assertEqual(res1['server|pcstat|nSeqs'], 0 )
         self.assertEqual(res1['server|catwalk|mask_name'], "../reference/TB-exclude-adaptive.txt" )
@@ -651,8 +625,7 @@ class test_preComparer_5(unittest.TestCase):
     """ tests comparison """
     def runTest(self):
         
-        sc=preComparer(  selection_cutoff = 20,
-                    over_selection_cutoff_ignore_factor = 5)
+        sc=preComparer(  selection_cutoff = 20, uncertain_base='M',over_selection_cutoff_ignore_factor = 5)
        
         obj = {'A':set([1,2,3,4]), 'invalid':0}
         sc.persist(obj,'guid2')
@@ -667,8 +640,7 @@ class test_preComparer_6(unittest.TestCase):
     """ tests comparison """
     def runTest(self):
         
-        sc=preComparer(  selection_cutoff = 20,
-                    over_selection_cutoff_ignore_factor = 5)
+        sc=preComparer(  selection_cutoff = 20, uncertain_base='M',over_selection_cutoff_ignore_factor = 5)
        
         obj = {'A':set([1,2,3,4]), 'invalid':0}
         sc.persist(obj,'guid2')
@@ -682,9 +654,7 @@ class test_preComparer_7(unittest.TestCase):
     """ tests comparison """
     def runTest(self):
         
-        sc=preComparer(  selection_cutoff = 20,
-                    over_selection_cutoff_ignore_factor = 5   
-                    )
+        sc=preComparer(  selection_cutoff = 20, uncertain_base='M',over_selection_cutoff_ignore_factor = 5)
        
         obj = {'A':set([1,2,3,4]), 'invalid':0}
         sc.persist(obj,'guid2')
@@ -703,8 +673,7 @@ class test_preComparer_8(unittest.TestCase):
     """ tests comparison """
     def runTest(self):
         
-        sc=preComparer(  selection_cutoff = 20,
-                    over_selection_cutoff_ignore_factor = 5)
+        sc=preComparer(  selection_cutoff = 20, uncertain_base='M',over_selection_cutoff_ignore_factor = 5)
        
         obj = {'A':set([1,2,3,4]), 'invalid':0}
         sc.persist(obj,'guid2')
@@ -725,8 +694,7 @@ class test_preComparer_9(unittest.TestCase):
     """ tests mcompare """
     def runTest(self):
         
-        sc=preComparer(  selection_cutoff = 20,
-                    over_selection_cutoff_ignore_factor = 5)
+        sc=preComparer(selection_cutoff = 20, uncertain_base='M',over_selection_cutoff_ignore_factor = 5)
        
         obj = {'A':set([1,2,3,4]), 'invalid':0}
         sc.persist(obj,'guid2')
@@ -744,8 +712,7 @@ class test_preComparer_9a(unittest.TestCase):
     """ tests mcompare """
     def runTest(self):
         #print("Starting precomparer")
-        sc=preComparer(  selection_cutoff = 20,
-                    over_selection_cutoff_ignore_factor = 5, 
+        sc=preComparer(  selection_cutoff = 20, uncertain_base='M',over_selection_cutoff_ignore_factor = 5,
                     catWalk_parameters ={'cw_binary_filepath':None,
                         'reference_name':"h37rv", 
                         'reference_filepath':"../reference/TB-ref.fasta", 
@@ -770,8 +737,7 @@ class test_preComparer_10(unittest.TestCase):
     """ tests comparison """
     def runTest(self):
         
-        sc=preComparer(  selection_cutoff = 20,
-                    over_selection_cutoff_ignore_factor = 5)
+        sc=preComparer(selection_cutoff = 20, uncertain_base='M',over_selection_cutoff_ignore_factor = 5)
        
         obj = {'invalid':1}
         sc.persist(obj,'guid2')
@@ -783,4 +749,148 @@ class test_preComparer_10(unittest.TestCase):
         res = sc.persist(obj,'guid2')     # should return results for the previously stored guid2
 
         self.assertEqual(res, 1)
+
+class test_preComparer_11(unittest.TestCase):
+    """ compares catwalk vs python comparisons with real data """
+    def compress(self, sequence, reference):
+        """ reads a string sequence and extracts position - genome information from it.
+        returns a dictionary consisting of zero-indexed positions of non-reference bases.
+        does not use a mask, in this toy example.
+        
+        """
+        if not len(sequence)==len(reference):
+            raise TypeError("sequence must of the same length as reference; seq is {0} and ref is {1}".format(len(sequence),len(reference)))
+        if len(reference)==0:
+            raise TypeError("reference cannot be of zero length")
+               
+        # we consider - characters to be the same as N
+        sequence=sequence.replace('-','N')
+        
+        # we only record differences relative to to refSeq.
+        # anything the same as the refSeq is not recorded.
+        # a dictionary, M, records the mixed base calls.
+        diffDict={ 'A':set([]),'C':set([]),'T':set([]),'G':set([]),'N':set([]), 'M':{}}        
+        for i in range(len(sequence)):                  # no mask: consider all sequences
+            if not sequence[i]==reference[i]:           # if it's not reference
+                if sequence[i] in ['A','C','T','G','N']:
+                    diffDict[sequence[i]].add(i)        # if it's a definitively called base
+                else:
+                    # we regard it as a code representing a mixed base.  we store the results in a dictionary
+                    diffDict['M'][i] = sequence[i]
+                 
+        diffDict['invalid']=0
+        return(diffDict)
+
+    def read_fasta_file(self, fastafile):
+        """ reads the content of a fasta file into memory.
+        returns a dictionary {seqid:(first part of defline), seq:(nucleic acid), content:(entire file content)}.
+        Supports both .gz and uncompressed files transparently.
+        Does not support multi-fasta files.  Will raise an error if such are detected.
+        """
+        # first determine whether it is a .gz file or not; read into RAM.
+        if fastafile.endswith('.gz'):
+            # we decompress it on the fly.
+            with gzip.open(fastafile,'r') as f:
+                content = f.read().decode('utf-8')
+        else:
+            with open(fastafile, 'rt') as f:
+                content = f.read()
+        
+        # use BioPython3 SeqIO library to read the file.      
+        nFiles = 0 
+        with io.StringIO(content) as f:
+           for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):
+               nFiles +=1
+               if nFiles > 1:       # that's a multifasta, and we don't support that
+                    raise ValueError("Multifasta file is present in {0}.  Multifasta files are not supported".format(fastafile))
+               else:
+                    res = {'seq': str(record.seq), 'seqid':str(record.id), 'content':content }
+                    return(res)
+        raise IOError("no content parsed from result of length {0}".format(len(content)))
+
+
+    def runTest(self):
+        """ do comparison between cw and standard snv computation methods """
+
+        uncertain_base = 'N_or_M'        # consider Ns or Ms as unknown. (cw calls these 'N')
+        selection_cutoff = 5000000
+        print("#1 is running conventional python based comparisons with {0} snv cutoff".format(selection_cutoff))
+        print("#1 is using catwalk with {0} snv cutoff".format(selection_cutoff))
+        sc1=preComparer(  selection_cutoff =selection_cutoff,
+                    over_selection_cutoff_ignore_factor = 1, uncertain_base=uncertain_base)
+
+        sc2=preComparer(  selection_cutoff = selection_cutoff,
+                    over_selection_cutoff_ignore_factor = 1, uncertain_base = uncertain_base,
+                    catWalk_parameters ={'cw_binary_filepath':None,
+                        'reference_name':"h37rv", 
+                        'reference_filepath':"../reference/TB-ref.fasta", 
+                        'mask_filepath':"../reference/nil.txt", 
+                        'bind_host':"127.0.0.1", 
+                        'bind_port':5000, 
+                        'unittesting':True})
+       
+        # define directory where the fastas are
+        fastadir = os.path.join('..','demos','AC587','fasta')
+
+        reference = self.read_fasta_file("../reference/TB-ref.fasta")['seq']
+
+        # we load randomly selected guids 
+        guids = list()
+        for i,fastafile in enumerate(sorted(glob.glob(os.path.join(fastadir, 'test', '*.mfasta.gz')))):
+            guid = os.path.basename(fastafile).replace('.mfasta.gz','')
+            guids.append(guid)
+            seq = self.read_fasta_file(fastafile)['seq']
+            rc = self.compress(seq,reference)
+            
+            # add to both
+            sc1.persist(rc,guid)
+            sc2.persist(rc,guid)
+
+            if i>5:
+                break
+
+        # get neighbours of all
+        snpcmp_1 = {}
+        snpcmp_2 = {}
+        distrib_1 = list(range(20+1))
+        distrib_2 = list(range(20+1))
+        for i,guid in enumerate(guids):
+            for res in sc1.mcompare(guid):
+                if res['dist']<=selection_cutoff:
+                    snpcmp_1["{0} vs {1}".format(guid,res['guid2'])]=res['dist']
+                if res['dist']<=20:
+                    distrib_1[res['dist']]+=1
+
+        for i,guid in enumerate(guids):
+            for res in sc2.mcompare(guid):
+                if res['dist']<=selection_cutoff:
+                   snpcmp_2["{0} vs {1}".format(guid,res['guid2'])]=res['dist'] 
+                if res['dist']<=20:
+                   distrib_2[res['dist']]+=1
+
+        print(1,distrib_1)
+        print(2,distrib_2)
+        if distrib_1==distrib_2:
+            print("Distributions are the same")
+        else:
+            print("Fail: distributions differ")
+
+        if not set(snpcmp_1.keys())==set(snpcmp_2.keys()):
+            print("FAIL: pairs identified differ")
+        print("Examining {0} pairs, comparing both methods; will report any discrepancies".format(len(snpcmp_1)))
+        failures =0
+        for key in sorted(snpcmp_1.keys()):     # compare results for both methods
+            try:
+                if not snpcmp_1[key] == snpcmp_2[key]:
+                    print("FAIL: Distances differ for ",key, snpcmp_1[key] , snpcmp_2[key])
+                    failures +=1
+            except KeyError:
+                    print("FAIL: Pair ",key, "is not present (likely >20) in snpcmp_2.  Python distance is ",snpcmp_1[key])
+                    failures +=1
+        print('Finished, failures = {0}'.format(failures))
+        self.assertEqual(failures, 0)
+
+
+
+         
 

@@ -40,7 +40,6 @@ import progressbar
 
 from Bio import SeqIO
 from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import generic_nucleotide
 from sentry_sdk import capture_message, capture_exception
 from sentry_sdk.integrations.flask import FlaskIntegration
@@ -79,6 +78,7 @@ Checks for new sequences are conducted once per minute.
 """)
 	parser.add_argument('path_to_config_file', type=str, action='store', nargs='?',
 						help='the path to the configuration file', default=''  )
+	parser.add_argument('--rebuild_clusters_debug', 						help='delete existing, and rebuild, clusters.  Only for use in a debug setting', action='store_true')
 	args = parser.parse_args()
 	
 	# an example config file is default_test_config.json
@@ -130,32 +130,37 @@ Checks for new sequences are conducted once per minute.
 	print("Connecting to backend data store")
 	try:
 			PERSIST=fn3persistence(dbname = CONFIG['SERVERNAME'],
-								   connString=CONFIG['FNPERSISTENCE_CONNSTRING'],
-								   debug=0
+				connString=CONFIG['FNPERSISTENCE_CONNSTRING'],
+				debug=0
 								   )  # if in debug mode wipes all data.  This is not what is wanted here, even if we are using unittesting database
 
 	except Exception as e:
 			logger.exception("Error raised on creating persistence object")
 			raise
 
-
+	if args.rebuild_clusters_debug:
+		logger.warning("Wiped existing clustering data as --rebuild_clusters_debug is set")
+		PERSIST._delete_existing_clustering_data()
 	################################# clustering #############################################
 	# open PERSIST and hybridComparer object used by all samples
-	
+	# this is only used for data access and msa.
+	# inserts are not allowed
 	hc = hybridComparer(reference=CONFIG['reference'],
 		maxNs=CONFIG['MAXN_STORAGE'],
 		snpCeiling=  CONFIG['SNPCEILING'],
 		excludePositions=CONFIG['excluded'],
 		preComparer_parameters=CONFIG['PRECOMPARER_PARAMETERS'],
-		PERSIST=PERSIST)
+		PERSIST=PERSIST,
+		disable_insertion = True)
 
 	# get a clustering object's settings
+	print("Creating clustering objects ...")
 	clusterers = {}
 	for clustering_name in CONFIG['CLUSTERING'].keys():
 		clustering_setting = CONFIG['CLUSTERING'][clustering_name]
 		
 
-		mpmc = MixPOREMixtureChecker(hc, **clustering_setting) 
+		mpmc = MixPOREMixtureChecker(hc, **clustering_setting) 	# uses hybridComparer to load samples and compute msas
 
 		# check update adds remaining guids
 
@@ -166,7 +171,11 @@ Checks for new sequences are conducted once per minute.
 				    serialisation=None,
 				    parameters= clustering_setting,
 				    name = clustering_name)
-
+		## DIAGNOSTICAL ONLY
+		df= pd.DataFrame.from_dict(clusterers[clustering_name].centrality(), orient='index')
+		if len(df.index)>0:
+			print("SAMPLES/CENTRALITY",len(df.index),np.mean(df['degree_centrality']))
+		## END OF DIAGNOSTICS
 	# now iterate - on a loop
 	while True:
 		whitelist= set()
@@ -197,6 +206,7 @@ Checks for new sequences are conducted once per minute.
 			for i,guids in enumerate(cluster_contents):
 	
 				bar.update(i+1)
+				# token identifies cluster contents, nature of analysis, and outgroup
 				token = ms.get_token(malr.parameters['uncertain_base_type'],False, guids)			
 				if len(guids)>2:
 					whitelist.add(token)		# we need to retain this msa, if it exists

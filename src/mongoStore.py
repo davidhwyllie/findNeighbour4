@@ -103,7 +103,8 @@ class fn3persistence():
                                          'refcompressedseq.chunks','refcompressedseq.files',
                                          'clusters.chunks','clusters.files',
                                          'msa.chunks','msa.files']
-            
+            self.expected_clustering_collections = [ 'clusters.chunks','clusters.files',
+                                         'msa.chunks','msa.files']
             self.max_neighbours_per_document = max_neighbours_per_document
             self.server_monitoring_min_interval_msec = server_monitoring_min_interval_msec
             self.previous_server_monitoring_data = {}
@@ -112,6 +113,7 @@ class fn3persistence():
             # delete any pre-existing data if we are in debug mode.
             if debug == 2:
                 self.logger.warning("Debug mode operational [DEBUG={0}]; deleting all data from collections.".format(debug))
+                self._delete_existing_clustering_data()
                 self._delete_existing_data()
 
                 self.max_neighbours_per_document =2             # used for unittests
@@ -187,7 +189,13 @@ class fn3persistence():
             """ deletes existing data from the databases """
             for collection in self.expected_collections:
                 self.db[collection].delete_many({})
-                
+
+        def _delete_existing_clustering_data(self):
+            """ deletes any clustering data from the databases """
+            for collection in self.expected_clustering_collections:
+                self.db[collection].delete_many({})
+
+                 
         def first_run(self):
             """ if there is no config entry, it is a first-run situation """
             if self.db.config.find_one({'_id':'config'}) is None:

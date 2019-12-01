@@ -45,7 +45,8 @@ class hybridComparer():
                     excludePositions=set(),
                     preComparer_parameters={},
                     PERSIST=UNITTEST_MONGOCONN,
-                    unittesting=False
+                    unittesting=False,
+                    disable_insertion = False
 
                 ):
 
@@ -88,7 +89,7 @@ class hybridComparer():
         python3 -m unittest hybridComparer
         """
         
-     
+        
         # reference based compression relative to reference 'compressed_sequence' have keys as follows:
  		
         self.compressed_sequence_keys = set(['invalid','A','C','G','T', 'N', 'M'])  
@@ -132,11 +133,14 @@ class hybridComparer():
             if len(preComparer_parameters.keys())>0:
                 self.PERSIST.config_store('preComparer', preComparer_parameters)
 
+
+        # store whether any insertion is necessary
+        self.disable_insertion = disable_insertion
+        if self.disable_insertion:
+            preComparer_parameters['catWalk_parameters']={}     # no catwalk
+
         self.pc = preComparer(**preComparer_parameters)
-        # update preComparer parameters
-        self.update_precomparer_parameters()
-
-
+            
     def repopulate_sample(self, n=100):
         """ saves a sample of reference compressed objects in the precomparer,
             for the purpose of assessing sequence composition etc.
@@ -199,6 +203,11 @@ class hybridComparer():
                 {'Sequencing':{'Instrument':'MiSeq','Library':'Nextera'}}
   
             """
+
+        # check that insertion is allowed
+        if self.disable_insertion:
+            raise NotImplementedError("Persistence is not permitted via this hybridComparer")
+
         # check preComparer settings are up to date
         self.update_precomparer_parameters()
 
@@ -1985,4 +1994,25 @@ class test_hybridComparer_53(unittest.TestCase):
 			self.assertTrue(res['timings']['candidates']==0)
 			self.assertTrue(res['timings']['matches']>0)
 			
-		
+class test_hybridComparer_54(unittest.TestCase):
+	""" tests catwalk with insertion disabled (catwalk should not start)"""
+	def runTest(self):
+		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+		with open(inputfile, 'rt') as f:
+			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):
+					refSeq = str(record.seq)               
+					originalseq = list(str(record.seq))
+		hc=hybridComparer( maxNs = 1e8,
+                       reference=refSeq,
+                       snpCeiling =10,
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'N_or_M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{'cw_binary_filepath':None,'reference_name':"H37RV",'reference_filepath':inputfile,'mask_filepath':"../reference/TB-exclude-adaptive.txt"}},
+                       unittesting=True,
+                       disable_insertion=True)
+		self.assertFalse(hc.pc.catWalk_enabled)
+
+		inserted_guids = ['guid_ref']
+		obj = hc.compress(refSeq)
+		with self.assertRaises(NotImplementedError):
+			hc.persist(obj,'guid_ref')
+
+	

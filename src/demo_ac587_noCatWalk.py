@@ -17,7 +17,7 @@ fastadir = os.path.join('..','demos','AC587','fasta')
 outputdir = os.path.join('..','demos','AC587','output')
 
 # instantiate client
-fn3c = fn3Client("http://localhost:5033")      # expects operation on local host; pass baseurl if somewhere else.
+fn3c = fn3Client("http://localhost:5042")      # expects operation on local host; pass baseurl if somewhere else.
 
 # names of the clustering algorithms
 clusters=fn3c.clustering()

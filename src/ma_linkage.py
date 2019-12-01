@@ -169,7 +169,11 @@ class MixPOREMixtureChecker(MixtureChecker):
         self.uncertain_base_type = uncertain_base_type
         self.max_seqs_mixpore =max_seqs_mixpore
 
-        # we need to load enough samples into the hybridComparer to do reliable composition based computations.  The hybridcomparer doesn't contain all the sequences, and doesn't need to, but it does need to contain enough to compute composition data used by msa().
+        # we need to load enough samples into the hybridComparer to do reliable composition based computations.  The hybridcomparer doesn't contain all the sequences, and doesn't need to, but it does need to contain enough to compute composition data used by msa().  Important: the hybridComparer must have disable_insertion = True, to avoid possible conflicts with different catwalks.
+
+        #if not self.hc.disable_insertion:
+        #    raise NotImplementedError("Cannot use a hybridComparer with insertion enabled ")
+
         self.ensure_composition()
 
     def ensure_composition(self):
@@ -469,12 +473,13 @@ class MixtureAwareLinkage():
                 self.snv_threshold = snv_threshold
                 self.g = nk.graph.Graph(weighted=False, directed=False, n=0)    # empty graph
                 self.cc = nk.components.ConnectedComponents(self.g)
-                self.dc = nk.centrality.DegreeCentrality(self.g, normalized=False, ignoreSelfLoops=True)
+
             else: 
                 self._deserialise_from_dict(serialisation)
+
         else:
             self._deserialise_from_dict(serialisation)
-
+        self.dc = nk.centrality.DegreeCentrality(self.g, normalized=False, ignoreSelfLoops=True)
     def name2meta(self):
         """ returns the guid to metadata (including mixture and if appropriate clustering data) information as a pandas dataframe.
             there is one row per guid.
@@ -627,6 +632,7 @@ class MixtureAwareLinkage():
             self._name2node[guid]=nu
             self._node2name[nu]=guid
         self.cc = nk.components.ConnectedComponents(self.g)  # object for finding components
+
         self.cluster()
         return
 
@@ -697,8 +703,10 @@ class MixtureAwareLinkage():
         for i,guid in enumerate(guids_to_add):
             bar.update(i+1)
             neighbours = self.PERSIST.guid2neighbours(guid, returned_format=1)['neighbours']
+
             neighbours = sorted(neighbours, key = lambda x: int(x[1]))
             neighbours = [x for x in neighbours if x[0] in existing_guids and x[1]<=self.snv_threshold]        # only consider links to existing guids
+            print(neighbours)
             self._name2meta[guid]['nneighbours'] = len(neighbours)
             if len(neighbours)>0:		# we don't assess samples with zero edges
     	        guids_potentially_requiring_evaluation.add(guid)
@@ -707,15 +715,22 @@ class MixtureAwareLinkage():
         bar.finish()
 
         print("Counting neighbours")
-        bar = progressbar.ProgressBar(max_value=len(guids_potentially_requiring_evaluation-guids_to_add))
+        to_evaluate = guids_potentially_requiring_evaluation-guids_to_add
+        bar = progressbar.ProgressBar(max_value=len(to_evaluate))
         
         # record the number of neighbours for each of these updated guids.  This is useful for analytics later, although it is not actually required for this process.
-        for i,guid in enumerate(guids_potentially_requiring_evaluation-guids_to_add):
+        print("SNV threshold",self.snv_threshold)
+        print("Existing guids n=",len(existing_guids))
+        print("Guids potentially requiring evaluation n=",len(guids_potentially_requiring_evaluation))
+        print("To add guids n=",len(guids_to_add))
+        print("To evaluate, n=",len(to_evaluate))
+        for i,guid in enumerate(to_evaluate):
             bar.update(i+1)
             neighbours = self.PERSIST.guid2neighbours(guid, returned_format=1)['neighbours']
             neighbours = sorted(neighbours, key = lambda x: int(x[1]))
             neighbours = [x for x in neighbours if x[0] in existing_guids and x[1]<=self.snv_threshold]        # only consider links to existing guids
             self._name2meta[guid]['nneighbours'] = len(neighbours)
+            print("NEIGHBOURS FOUND: ",guid, len(neighbours))
         bar.finish()
 
        # remove anything known to be mixed from what needs to be mixture checked.
@@ -946,6 +961,8 @@ class MixtureAwareLinkage():
         centrality = self.dc.run().scores()
         # determine non-zero centralitiy
         nz_centrality = [x for x in centrality if x>0]
+        if len(nz_centrality)==0:       # no data
+            return {}
         mad = scipy.stats.median_absolute_deviation(nz_centrality)
         if mad < 1:
             mad = 1     # lower bound on mad is 1 
@@ -1816,6 +1833,7 @@ class test_MIXCHECK_1(unittest.TestCase):
                 excludePositions=CONFIG['excluded'],
                 preComparer_parameters=CONFIG['PRECOMPARER_PARAMETERS'],
                 PERSIST=PERSIST)
+
      
             mpmc = MixPOREMixtureChecker(hc, **clustering_setting) 
 
