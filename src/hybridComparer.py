@@ -563,8 +563,8 @@ e
         
         if not unk_type in ['N', 'M', 'N_or_M']:
             raise KeyError("unk_type can be one of 'N' 'M' 'N_or_M'")
-
-        composition = pd.DataFrame.from_dict(self.pc.composition, orient='index')       # preComparer maintains a composition list
+        current_composition = copy.copy(self.pc.composition)	         # can be changed by flask, so duplicate it
+        composition = pd.DataFrame.from_dict(current_composition, orient='index')       # preComparer maintains a composition list
         composition.drop(exclude_guids, inplace=True)                                   # remove the ones we want to exclude
 
         if len(composition) == 0:
@@ -1083,7 +1083,7 @@ class test_hybridComparer_update_preComparer_settings(unittest.TestCase):
 
         sc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
-                       snpCeiling =10, 
+                       snpCeiling =10,
                        preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}},
                        unittesting=True)
 
@@ -1469,12 +1469,12 @@ class test_hybridComparer_1(unittest.TestCase):
     """ test init """
     def runTest(self):
         refSeq='ACTG'
-        sc=hybridComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq)
+        sc=hybridComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq,preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}})
         self.assertEqual(sc.reference,refSeq)     
 class test_hybridComparer_2(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
-        sc=hybridComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq)
+        sc=hybridComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq,preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}})
         with self.assertRaises(TypeError):
             retVal=sc.compress(sequence='AC')
 class test_hybridComparer_3(unittest.TestCase):
@@ -1486,13 +1486,13 @@ class test_hybridComparer_3(unittest.TestCase):
 class test_hybridComparer_3b(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
-        sc=hybridComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq, )
+        sc=hybridComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq,preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}} )
         retVal=sc.compress(sequence='ACTQ')
         self.assertEqual(retVal,{'G': set([]), 'A': set([]), 'C': set([]), 'T': set([]), 'N': set([]), 'M':{3:'Q'}, 'invalid':0})
 class test_hybridComparer_3c(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
-        sc=hybridComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq )
+        sc=hybridComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq,preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}}, )
         retVal=sc.compress(sequence='NYTQ')
         self.assertEqual(retVal,{'G': set([]), 'A': set([]), 'C': set([]), 'T': set([]), 'N': set([0]), 'M':{1:'Y',3:'Q'}, 'invalid':0})
 class test_hybridComparer_4(unittest.TestCase):
@@ -1505,14 +1505,14 @@ class test_hybridComparer_4(unittest.TestCase):
 class test_hybridComparer_5(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
-        sc=hybridComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq)
+        sc=hybridComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq, preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}})
         retVal=sc.compress(sequence='ACT-')
         self.assertEqual(retVal,{'G': set([]), 'A': set([]), 'C': set([]), 'T': set([]), 'N': set([3]), 'M':{}, 'invalid':0})         
 class test_hybridComparer_6(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
 
-        sc=hybridComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq)
+        sc=hybridComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq, preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}})
 
         retVal=sc.compress(sequence='TCT-')
         self.assertEqual(retVal,{'G': set([]), 'A': set([]), 'C': set([]), 'T': set([0]), 'N': set([3]), 'M':{}, 'invalid':0})
@@ -1528,7 +1528,7 @@ class test_hybridComparer_6b(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
 
-        sc=hybridComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq)
+        sc=hybridComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq, preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}})
         originals = [ 'AAAA','CCCC','TTTT','GGGG','NNNN','ACTG','ACTC', 'TCTN','NYTQ','QRST']
         for original in originals:
 
@@ -1541,7 +1541,7 @@ class test_hybridComparer_6c(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
 
-        sc=hybridComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq, unittesting=True)
+        sc=hybridComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq, preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}}, unittesting=True)
         originals = [ 'NNNN']
         for original in originals:
 
@@ -1553,7 +1553,7 @@ class test_hybridComparer_6d(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
 
-        sc=hybridComparer( maxNs = 3, snpCeiling = 20,reference=refSeq, unittesting=True)
+        sc=hybridComparer( maxNs = 3, snpCeiling = 20,reference=refSeq, preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}}, unittesting=True)
         originals = [ 'NNNN']
         for original in originals:
 
@@ -1568,7 +1568,7 @@ class test_hybridComparer_16(unittest.TestCase):
         refSeq='ACTG'
         sc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
-                       snpCeiling =10, unittesting=True)
+                       snpCeiling =10, preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}},unittesting=True)
         
         seq1 = sc.compress('AAAA')
         seq2 = sc.compress('CCCC')
@@ -1580,7 +1580,7 @@ class test_hybridComparer_16b(unittest.TestCase):
         refSeq='ACTG'
         sc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
-                       snpCeiling =10, unittesting=True)
+                       snpCeiling =10, preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}},unittesting=True)
         
         seq1 = sc.compress('AAAA')
         seq2 = sc.compress('RRCC')
@@ -1592,7 +1592,8 @@ class test_hybridComparer_16c(unittest.TestCase):
         refSeq='ACTG'
         sc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
-                       snpCeiling =10, unittesting=True)
+                       snpCeiling =10, unittesting=True,
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}})
         
         seq1 = sc.compress('AAAA')
         seq2 = sc.compress('RRNN')
@@ -1604,8 +1605,9 @@ class test_hybridComparer_17(unittest.TestCase):
         refSeq='ACTG'
         sc=hybridComparer( maxNs = 3,
                        reference=refSeq,
-                       snpCeiling =10, unittesting=True)
-        
+                       snpCeiling =10, unittesting=True,
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}})
+                                
         seq1 = sc.compress('AAAA')
         seq2 = sc.compress('NNNN')
         self.assertEqual(sc.countDifferences('k1','k2',seq1,seq2),None)
@@ -1618,6 +1620,7 @@ class test_hybridComparer_18(unittest.TestCase):
         sc=hybridComparer( maxNs = 3,
                        reference=refSeq,
                        snpCeiling =10,
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}},
                        unittesting=True)
         
         seq1 = sc.compress('AAAA')
@@ -1661,7 +1664,7 @@ class test_hybridComparer_saveload3(unittest.TestCase):
 class test_hybridComparer_remove_all(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
-        sc=hybridComparer( maxNs = 1e8, snpCeiling = 20, reference=refSeq)
+        sc=hybridComparer( maxNs = 1e8, snpCeiling = 20, reference=refSeq, preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}})
         compressedObj =sc.compress(sequence='ACTT')
         sc.persist(compressedObj, 'one' )     
         sc_obj=sc.load(guid='one' )
@@ -1692,7 +1695,7 @@ class test_hybridComparer_24(unittest.TestCase):
     def runTest(self):
         
         refSeq=                     'ACTGTTAATTTTTTTTTGGGGGGGGGGGGAA'
-        sc=hybridComparer(maxNs = 1e8, snpCeiling = 20,reference=refSeq)
+        sc=hybridComparer(maxNs = 1e8, snpCeiling = 20,reference=refSeq, preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}})
 
         retVal=sc.compress(sequence='ACTGTTAANNNNNNNNTGGGGGGGGGGGGAA')
         self.assertEqual(retVal,{ 'G': set([]), 'A': set([]), 'C': set([]), 'T': set([]), 'M':{}, 'N': set([8,9,10,11,12,13,14,15]), 'invalid':0})
@@ -1704,7 +1707,7 @@ class test_hybridComparer_29(unittest.TestCase):
     def runTest(self):
         
         refSeq=                             'ACTGTTAATTTTTTTTTGGGGGGGGGGGGAA'
-        sc=hybridComparer(maxNs = 1e8, snpCeiling = 20,reference=refSeq)
+        sc=hybridComparer(maxNs = 1e8, snpCeiling = 20,reference=refSeq,preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}})
         compressedObj1=sc.compress(sequence='GGGGTTAANNNNNNNNNGGGGGAAAAGGGAA')
         compressedObj2=sc.compress(sequence='ACTGTTAATTTTTTTTTNNNNNNNNNNNNNN')
         (n1,n2,nall,rv1,rv2,retVal) =sc._setStats(compressedObj1['N'],compressedObj2['N'])
@@ -1744,7 +1747,7 @@ class test_hybridComparer_37(unittest.TestCase):
         
         # default exclusion file
         refSeq='ACTG'
-        sc=hybridComparer( maxNs = 1e8, reference=refSeq, snpCeiling =1)
+        sc=hybridComparer( maxNs = 1e8, reference=refSeq, snpCeiling =1, preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}})
         self.assertEqual( sc.excluded_hash(), 'Excl 0 nt [d751713988987e9331980363e24189ce]')
 
 class test_hybridComparer_38(unittest.TestCase):
@@ -1753,7 +1756,7 @@ class test_hybridComparer_38(unittest.TestCase):
         
         # no exclusion file
         refSeq='ACTG'
-        sc=hybridComparer( maxNs = 1e8, reference=refSeq, snpCeiling =1)
+        sc=hybridComparer( maxNs = 1e8, reference=refSeq, snpCeiling =1, preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}})
         self.assertEqual( sc.excluded_hash(), 'Excl 0 nt [d751713988987e9331980363e24189ce]')
  
 class test_hybridComparer_40(unittest.TestCase):
@@ -1762,7 +1765,7 @@ class test_hybridComparer_40(unittest.TestCase):
 
         # generate compressed sequences
         refSeq='ACTG'
-        sc=hybridComparer( maxNs = 1e8, reference=refSeq, snpCeiling =10)
+        sc=hybridComparer( maxNs = 1e8, reference=refSeq, snpCeiling =10, preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}})
         compressed_sequence = sc.compress(sequence='TTAA')
 
         res = sc.compressed_sequence_hash(compressed_sequence)
@@ -1781,7 +1784,8 @@ class test_hybridComparer_45(unittest.TestCase):
                     originalseq = list(str(record.seq))
         sc=hybridComparer( maxNs = 1e8,
                            reference=record.seq,
-                           snpCeiling =100)
+                           snpCeiling =100, 
+                           preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}})
         n_pre =  0          
         guids_inserted = list()			
         for i in range(1,4):        #40
@@ -1832,7 +1836,7 @@ class test_hybridComparer_47(unittest.TestCase):
         refSeq='GGGGGGGGGGGG'
         sc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
-                       snpCeiling =10)
+                       snpCeiling =10, preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}})
         with self.assertRaises(ZeroDivisionError):
             sc.raise_error("token")
 
@@ -1844,7 +1848,7 @@ class test_hybridComparer_50(unittest.TestCase):
         refSeq='GGGGGGGGGGGG'
         sc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
-                       snpCeiling =10)
+                       snpCeiling =10, preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}})
   
         res = sc.estimate_expected_proportion([])
         self.assertTrue(res is None)
@@ -1868,7 +1872,7 @@ class test_hybridComparer_51(unittest.TestCase):
         refSeq='GGGGGG'
         sc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
-                       snpCeiling =10)
+                       snpCeiling =10, preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}})
         
         originals = [ 'AAACGN','CCCCGN','TTTCGN','GGGGGN','NNNCGN','ACTCGN', 'TCTNGN' ]
         guid_names = []
@@ -1884,7 +1888,7 @@ class test_hybridComparer_51(unittest.TestCase):
         refSeq='GGGGGG'
         sc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
-                       snpCeiling =10)
+                       snpCeiling =10, preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}})
         
         sc.repopulate_sample(n=7)      # defaults to 100
         self.assertEqual(len(sc.pc.seqProfile.keys()),7)
@@ -1901,7 +1905,7 @@ class test_hybridComparer_52(unittest.TestCase):
 		hc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
                        snpCeiling =10,
-                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{'cw_binary_filepath':None,'reference_name':"H37RV",'reference_filepath':inputfile,'mask_filepath':"../reference/TB-exclude-adaptive.txt"}},
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{'bind_port':5999, 'bind_host':'localhost','cw_binary_filepath':None,'reference_name':"H37RV",'reference_filepath':inputfile,'mask_filepath':"../reference/TB-exclude-adaptive.txt"}},
                        unittesting=True)
         
 		hc.PERSIST._delete_existing_data()      
@@ -1953,7 +1957,7 @@ class test_hybridComparer_53(unittest.TestCase):
 		hc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
                        snpCeiling =10,
-                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'N_or_M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{'cw_binary_filepath':None,'reference_name':"H37RV",'reference_filepath':inputfile,'mask_filepath':"../reference/TB-exclude-adaptive.txt"}},
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'N_or_M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{'bind_port':5999, 'bind_host':'localhost','cw_binary_filepath':None,'reference_name':"H37RV",'reference_filepath':inputfile,'mask_filepath':"../reference/TB-exclude-adaptive.txt"}},
                        unittesting=True)
         
 		hc.PERSIST._delete_existing_data()      
@@ -2006,7 +2010,7 @@ class test_hybridComparer_54(unittest.TestCase):
 		hc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
                        snpCeiling =10,
-                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'N_or_M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{'cw_binary_filepath':None,'reference_name':"H37RV",'reference_filepath':inputfile,'mask_filepath':"../reference/TB-exclude-adaptive.txt"}},
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'N_or_M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{'bind_port':5999, 'bind_host':'localhost','cw_binary_filepath':None,'reference_name':"H37RV",'reference_filepath':inputfile,'mask_filepath':"../reference/TB-exclude-adaptive.txt"}},
                        unittesting=True,
                        disable_insertion=True)
 		self.assertFalse(hc.pc.catWalk_enabled)
