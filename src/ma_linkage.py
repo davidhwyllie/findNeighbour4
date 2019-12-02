@@ -698,7 +698,7 @@ class MixtureAwareLinkage():
         # now prepare to examine for mixtures, recording degree for each node.
         existing_guids = self.guids()
         guids_potentially_requiring_evaluation = set()
-        print("listing guids which need re-evaluating") 
+        #print("listing guids which need re-evaluating") 
         bar = progressbar.ProgressBar(max_value=len(guids_to_add))
         for i,guid in enumerate(guids_to_add):
             bar.update(i+1)
@@ -706,7 +706,7 @@ class MixtureAwareLinkage():
 
             neighbours = sorted(neighbours, key = lambda x: int(x[1]))
             neighbours = [x for x in neighbours if x[0] in existing_guids and x[1]<=self.snv_threshold]        # only consider links to existing guids
-            print(neighbours)
+            
             self._name2meta[guid]['nneighbours'] = len(neighbours)
             if len(neighbours)>0:		# we don't assess samples with zero edges
     	        guids_potentially_requiring_evaluation.add(guid)
@@ -714,23 +714,23 @@ class MixtureAwareLinkage():
     	        guids_potentially_requiring_evaluation.add(neighbour[0])
         bar.finish()
 
-        print("Counting neighbours")
+        #print("Counting neighbours")
         to_evaluate = guids_potentially_requiring_evaluation-guids_to_add
         bar = progressbar.ProgressBar(max_value=len(to_evaluate))
         
         # record the number of neighbours for each of these updated guids.  This is useful for analytics later, although it is not actually required for this process.
-        print("SNV threshold",self.snv_threshold)
-        print("Existing guids n=",len(existing_guids))
-        print("Guids potentially requiring evaluation n=",len(guids_potentially_requiring_evaluation))
-        print("To add guids n=",len(guids_to_add))
-        print("To evaluate, n=",len(to_evaluate))
+        #print("SNV threshold",self.snv_threshold)
+        #print("Existing guids n=",len(existing_guids))
+        #print("Guids potentially requiring evaluation n=",len(guids_potentially_requiring_evaluation))
+        #print("To add guids n=",len(guids_to_add))
+        #print("To evaluate, n=",len(to_evaluate))
         for i,guid in enumerate(to_evaluate):
             bar.update(i+1)
             neighbours = self.PERSIST.guid2neighbours(guid, returned_format=1)['neighbours']
             neighbours = sorted(neighbours, key = lambda x: int(x[1]))
             neighbours = [x for x in neighbours if x[0] in existing_guids and x[1]<=self.snv_threshold]        # only consider links to existing guids
             self._name2meta[guid]['nneighbours'] = len(neighbours)
-            print("NEIGHBOURS FOUND: ",guid, len(neighbours))
+            
         bar.finish()
 
        # remove anything known to be mixed from what needs to be mixture checked.

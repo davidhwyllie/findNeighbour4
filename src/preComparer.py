@@ -226,7 +226,7 @@ class preComparer():
 
                 info_message = f"""Loading into catWalk: {guid}.  Uncertain_base is {self.uncertain_base}, encoded as N for cw.  A:{len(to_catwalk['A'])};C:{len(to_catwalk['C'])};G:{len(to_catwalk['G'])};T:{len(to_catwalk['T'])};N:{len(to_catwalk['N'])}""" 
                 
-                print(info_message)
+                #print(info_message)
                 self.catWalk.add_sample_from_refcomp(guid, to_catwalk)  # add it
            
             self.seqProfile[guid]={'invalid':obj['invalid']}      # that's all we store in python if catWalk is in use

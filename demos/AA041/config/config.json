@@ -4,7 +4,7 @@
 "INPUTREF":"../reference/TB-ref.fasta",
 "EXCLUDEFILE":"../reference/TB-exclude-adaptive.txt",
 "DEBUGMODE":0,
-"SERVERNAME":"fn4_ac587",      
+"SERVERNAME":"fn4_aa041_cw_cl",      
 "FNPERSISTENCE_CONNSTRING":"mongodb://localhost",
 "MAXN_STORAGE":130000,
 "MAXN_PROP_DEFAULT":0.80,

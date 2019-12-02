@@ -138,6 +138,7 @@ class hybridComparer():
         self.disable_insertion = disable_insertion
         if self.disable_insertion:
             preComparer_parameters['catWalk_parameters']={}     # no catwalk
+            logging.info("HybridComparer is running in read-only mode")
 
         self.pc = preComparer(**preComparer_parameters)
             

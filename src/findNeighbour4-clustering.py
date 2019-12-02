@@ -139,8 +139,9 @@ Checks for new sequences are conducted once per minute.
 			raise
 
 	if args.rebuild_clusters_debug:
-		logger.warning("Wiped existing clustering data as --rebuild_clusters_debug is set")
+		logger.warning("Wiping existing clustering data as --rebuild_clusters_debug is set")
 		PERSIST._delete_existing_clustering_data()
+		logger.warning("Wiped existing clustering data")
 	################################# clustering #############################################
 	# open PERSIST and hybridComparer object used by all samples
 	# this is only used for data access and msa.

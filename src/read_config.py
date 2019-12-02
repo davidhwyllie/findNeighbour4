@@ -72,7 +72,7 @@ class ReadConfig():
                 CONFIG=f.read()
 
         except FileNotFoundError:
-            raise FileNotFoundError("Passed a positional parameter, which should be a CONFIG file name; tried to open a config file at {0} but it does not exist ".format(sys.argv[1]))
+            raise FileNotFoundError("Passed a positional parameter, which should be a CONFIG file name; tried to open a config file at {0} but it does not exist ".format(configFile))
 
         if isinstance(CONFIG, str):
             CONFIG=json.loads(CONFIG)	# assume JSON string; convert.
