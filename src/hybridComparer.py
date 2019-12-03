@@ -855,17 +855,19 @@ e
                      nrps[position]=set()             # then we generate a set of bases at this position                   
                   nrps[position].add(base)            # either way add the current non-reference base there
                   
-        # step 2: for the non-reference called positions, check if there's a reference base there.
+        # step 2: for the non-reference called positions, 
+	    # record whether there's a reference base there.
         for guid in valid_guids:
-            for position in nrps.keys():
+            for position in nrps.keys():		
                 psn_accounted_for  = 0
                 for base in ['A','C','T','G']:
                     if position in self.seqProfile[guid][base]:
                         psn_accounted_for = 1
-                if psn_accounted_for ==0 :
-                    # it is reference; this guid has no record of a variant base at this position, so it must be reference.
-                    nrps[position].add(self.reference[position])
-                 
+                if psn_accounted_for ==0:	# no record of non-ref seq here
+                    if not (position in self.seqProfile[guid]['N'] or position in self.seqProfile[guid]['M'].keys()):  # not M or N so non-reference
+                        # it is reference; this guid has no record of a variant base at this position, so it must be reference.
+                        nrps[position].add(self.reference[position])	# add reference psn
+                     
         # step 3: find those which have multiple bases at a position
         variant_positions = set()
         for position in nrps.keys():
@@ -1180,6 +1182,44 @@ class test_hybridComparer_48(unittest.TestCase):
             sc.persist(c, guid=this_guid)
             guid_names.append(this_guid)
 
+class test_hybridComparer_47b3(unittest.TestCase):
+    """ tests generation of a multisequence alignment with
+        testing for the correct selection of non-variant bases"""
+    def runTest(self):
+        # generate compressed sequences
+        refSeq='GGGGGG'
+        sc=hybridComparer( maxNs = 6,
+                       reference=refSeq,
+                       snpCeiling =10,                        
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}},
+                       unittesting=True)
+        originals = ['AAACGR','CCCCGY','TTTCGN','RGGGGN','YNNCGN','ACTCGN', 'TCTNGN','AAACNN','CCCCNN']
+
+        # there's variation at positions 0,1,2,3
+        #'AAACGR'
+        #'CCCCGY',
+        #'TTTCGN'
+        #'GGGGGN'
+        #'RNNCGN'
+        #'YCTCGN'
+        #'TCTNGN'
+        #'AAACNN'
+        #'CCCCNN',
+        guid_names = []
+        n=0
+        for original in originals:
+            n+=1
+            c = sc.compress(original)
+            this_guid = "{0}".format(original )
+            sc.persist(c, guid=this_guid)
+            guid_names.append(this_guid)
+
+        msa =  sc.multi_sequence_alignment(guid_names[0:8])
+
+        self.assertEqual(msa.variant_positions,[0,1,2,3])
+        for i,ix in enumerate(msa.df.index):
+            self.assertEqual(ix[:6], originals[i])  # the sequence id is the sequence 
+            self.assertEqual(msa.df.loc[ix,'aligned_mseq'], originals[i][:4])       # first 4 
 class test_hybridComparer_47c(unittest.TestCase):
     """ tests generation of a multisequence alignment with
         testing for the proportion of Ns.

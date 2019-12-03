@@ -195,7 +195,7 @@ class test_cw(unittest.TestCase):
                     mask_filepath="../reference/TB-exclude-adaptive.txt",
                     max_distance=20,
                     bind_host='localhost',
-                    bind_port=5000)
+                    bind_port=5999)
 
         # stop the server if it is running
         self.cw.stop_all()

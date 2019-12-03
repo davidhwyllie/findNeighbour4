@@ -74,7 +74,6 @@ import psutil
 from NucleicAcid import NucleicAcid
 from mongoStore import fn3persistence
 from hybridComparer import hybridComparer	
-from clustering import snv_clustering
 from guidLookup import guidSearcher  		# fast lookup of first part of guids
 from ma_linkage import MixtureAwareLinkageResult
 from msa import MSAStore

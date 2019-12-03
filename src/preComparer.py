@@ -71,7 +71,7 @@ class preComparer():
                         'reference_filepath':"../reference/TB-ref.fasta", 
                         'mask_filepath':"../reference/TB-exclude-adaptive.txt", 
                         'bind_host':"127.0.0.1", 
-                        'bind_port':5000}
+                        'bind_port':5999}
                     
     Catwalk also requires additional parameters,  These are supplied:
         max_distance : maximum distance to report.  Catwalk does not store distances, so high distances can be requested, albeit at the cost of slightly slower computation.  max_distance is set to over_select_cutoff_ignore_factor * selection_cutoff.
@@ -475,7 +475,7 @@ class test_preComparer_2a(unittest.TestCase):
                         'reference_filepath':"../reference/TB-ref.fasta", 
                         'mask_filepath':"../reference/TB-exclude-adaptive.txt", 
                         'bind_host':"127.0.0.1", 
-                        'bind_port':5000})
+                        'bind_port':5999})
         obj = {'A':set([1,2,3,4])}
         sc.persist(obj,'guid1')
         self.assertEqual(sc.composition['guid1']['A'],4)
@@ -547,7 +547,7 @@ class test_preComparer_3a(unittest.TestCase):
                         'reference_filepath':"../reference/TB-ref.fasta", 
                         'mask_filepath':"../reference/TB-exclude-adaptive.txt", 
                         'bind_host':"127.0.0.1", 
-                        'bind_port':5000})
+                        'bind_port':5999})
         obj = {'A':set([1,2,3,4]), 'invalid':1}
         sc.persist(obj,'guid1')
         self.assertEqual(sc.composition['guid1']['A'],4)
@@ -616,7 +616,7 @@ class test_preComparer_4a(unittest.TestCase):
                         'reference_filepath':"../reference/TB-ref.fasta", 
                         'mask_filepath':"../reference/TB-exclude-adaptive.txt", 
                         'bind_host':"127.0.0.1", 
-                        'bind_port':5000, 'unittesting':True})
+                        'bind_port':5999, 'unittesting':True})
         res1 = sc.summarise_stored_items()
         self.assertEqual(res1['server|pcstat|nSeqs'], 0 )
         self.assertEqual(res1['server|catwalk|mask_name'], "../reference/TB-exclude-adaptive.txt" )
@@ -718,7 +718,7 @@ class test_preComparer_9a(unittest.TestCase):
                         'reference_filepath':"../reference/TB-ref.fasta", 
                         'mask_filepath':"../reference/TB-exclude-adaptive.txt", 
                         'bind_host':"127.0.0.1", 
-                        'bind_port':5000})
+                        'bind_port':5999})
        
         obj = {'A':set([1,2,3,4]), 'invalid':0}
         #print("persisting")
@@ -826,7 +826,7 @@ class test_preComparer_11(unittest.TestCase):
                         'reference_filepath':"../reference/TB-ref.fasta", 
                         'mask_filepath':"../reference/nil.txt", 
                         'bind_host':"127.0.0.1", 
-                        'bind_port':5000, 
+                        'bind_port':5999, 
                         'unittesting':True})
        
         # define directory where the fastas are
