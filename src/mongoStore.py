@@ -393,11 +393,11 @@ class fn3persistence():
                     self.msa.delete(msa_token)
 
 
-        def cluster_store(self, clustering_setting, obj):
+        def cluster_store(self, clustering_key, obj):
                 """ stores the clustering object obj.  retains previous version.  To clean these up, call cluster_delete_legacy.
 
                     obj: a dictionary to store
-                    clustering_setting: the name of the clustering, e.g. TBSNP12
+                    clustering_key: the name of the clustering, e.g. TBSNP12-graph
 
                     Returns: 
                     current cluster version
@@ -416,66 +416,91 @@ class fn3persistence():
                         raise TypeError("Can only store dictionary objects, not {0}".format(type(dict)))
                 json_repr = json.dumps(obj, cls=NPEncoder).encode('utf-8')
                 with io.BytesIO(json_repr) as f:
-                        id = self.clusters.put(f, filename=clustering_setting)
+                        id = self.clusters.put(f, filename=clustering_key)
                         return id       # this is the current cluster version
 
-        def cluster_read(self, clustering_setting):
+        def cluster_read(self, clustering_key):
                 """ loads object from clusters collection corresponding to the most recent version of 
-                the clustering, saved with filename = 'clustering_setting'.
+                the clustering, saved with filename = 'clustering_key'.
                 """
                 
-                cursor = self.clusters.find({'filename':clustering_setting}).sort('uploadDate',-1).limit(1)
+                cursor = self.clusters.find({'filename':clustering_key}).sort('uploadDate',-1).limit(1)
                 for res in cursor:
                     json_repr = json.loads(res.read().decode('utf-8'))
                     return json_repr
                 # nothing there
                 return None
 
-        def cluster_read_update(self, clustering_setting, current_cluster_version):
+        def cluster_read_update(self, clustering_key, current_cluster_version):
                 """ loads object from clusters collection corresponding to the most recent version
-                    of the clustering, saved with filename = 'clustering_setting'.
+                    of the clustering, saved with filename = 'clustering_key'.
                     it will read only if the current version is different from current_cluster_version; other wise, it returns None
                     It is assumed object is a dictionary"""
-                latest_version = self.cluster_latest_version(clustering_setting)
+                latest_version = self.cluster_latest_version(clustering_key)
                 if latest_version == current_cluster_version:
                     # no update
                     return None
                 else:
-                    return self.cluster_read(clustering_setting)
+                    return self.cluster_read(clustering_key)
  
-        def cluster_latest_version(self, clustering_setting):
+        def cluster_latest_version(self, clustering_key):
                 """ returns id of latest version """
-                cursor = self.clusters.find({'filename':clustering_setting}).sort('uploadDate',-1).limit(1)
+                cursor = self.clusters.find({'filename':clustering_key}).sort('uploadDate',-1).limit(1)
                 for res in cursor:
                     return res._id
                 return None
 
-        def cluster_versions(self, clustering_setting):
-                """ lists ids and storage dates corresponding to versions of clustering identifed by clustering_setting.
+        def cluster_keys(self, clustering_name=None):
+                """ lists  clustering keys beginning with clustering_name.  If clustering_name is none, all clustering keys are returned.
+                    
+                """
+                
+                cursor = self.clusters.find({})
+                filenames = set()
+                retVal=[]
+                for res in cursor:     
+                    filenames.add(res.filename)
+                
+                if clustering_name is not None:     # only report keys starting with clustering_name
+                    retVal = [x for x in sorted(filenames) if x.startswith(clustering_name)]
+                else:
+                    retVal = list(sorted(filenames))
+                return retVal
+
+        def cluster_versions(self, clustering_key):
+                """ lists ids and storage dates corresponding to versions of clustering identifed by clustering_key.
                     the newest version is first.
                 """
                 
-                cursor = self.clusters.find({'filename':clustering_setting}).sort('uploadDate',-1)
+                cursor = self.clusters.find({'filename':clustering_key}).sort('uploadDate',-1)
                 retVal=[]
                 for res in cursor:
                     
                     retVal.append(res._id)
                 return retVal
 
-        def cluster_delete_all(self, clustering_setting):
-                """ delete all clustering objects, including the latest version, stored at clustering_setting
+        def cluster_delete_all(self, clustering_key):
+                """ delete all clustering objects, including the latest version, stored under clustering_key
                 """
-                ids = self.cluster_versions(clustering_setting)
+                ids = self.cluster_versions(clustering_key)
                 for this_id in ids:
                     self.clusters.delete(this_id)
 
-        def cluster_delete_legacy(self, clustering_setting):
-                """ delete all clustering objects, except latest version, stored at clustering_setting
+        def cluster_delete_legacy_by_key(self, clustering_key):
+                """ delete all clustering objects, except latest version, stored with key clustering_key
                 """
-                ids = self.cluster_versions(clustering_setting)
+                ids = self.cluster_versions(clustering_key)
                 ids = ids[1:]
-                for this_id in ids:
+                for i,this_id in enumerate(ids):
+                    logging.info("Removing historical data for {0} {1} / {2}".format(clustering_key, i, len(ids)))
                     self.clusters.delete(this_id)
+
+        def cluster_delete_legacy(self, clustering_name):
+                """ delete all clustering objects, except latest version, stored with  clustering_name
+                """
+                clustering_keys = self.cluster_keys(clustering_name=clustering_name)
+                for clustering_key in clustering_keys:
+                    self.cluster_delete_legacy_by_key(clustering_key)
 
         def refcompressedseq_store(self, guid, obj):
                 """ stores the pickled object obj with guid guid.
@@ -1355,6 +1380,9 @@ class Test_Clusters(unittest.TestCase):
                 payload1 = {'one':1, 'two':2}
                 x= p.cluster_store('cl1', payload1)
 
+                payload1b = {'2_one':1, '2_two':2}
+                y = p.cluster_store('cl2', payload1b)
+
                 self.assertIsNotNone(p.cluster_latest_version('cl1'))
                 clv = p.cluster_latest_version('cl1')
                 self.assertEqual(x, clv)
@@ -1367,6 +1395,12 @@ class Test_Clusters(unittest.TestCase):
                 payload3 = {'one':10, 'two':20}
                 p.cluster_store('cl1', payload3)       # this is now the latest version
 
+                payload4 = {'2-one':10, '2-two':20}
+                p.cluster_store('cl2', payload4)       # this is now the latest version
+
+                self.assertEqual(p.cluster_keys(), ['cl1','cl2'])
+                self.assertEqual(p.cluster_keys(clustering_name='cl1'), ['cl1'])
+
                 self.assertEqual(2, len(p.cluster_versions('cl1')))
                 self.assertNotEqual(clv,p.cluster_latest_version('cl1'))
                 self.assertIsNotNone(p.cluster_read_update('cl1',clv))
@@ -1374,13 +1408,16 @@ class Test_Clusters(unittest.TestCase):
                 payload4 = p.cluster_read('cl1')   
                 self.assertEqual(payload4, payload3)
                
-                p.cluster_delete_legacy('cl1')
+                p.cluster_delete_legacy_by_key('cl1')
 
                 self.assertEqual(1, len(p.cluster_versions('cl1')))
 
                 p.cluster_delete_all('cl1')
 
                 self.assertEqual(0, len(p.cluster_versions('cl1')))
+                self.assertEqual(2, len(p.cluster_versions('cl2')))
+                p.cluster_delete_legacy_by_key('cl2')
+                self.assertEqual(1, len(p.cluster_versions('cl2')))
           
 class Test_MSA(unittest.TestCase):
         """ tests saving and recovery of dictionaries to MSA"""

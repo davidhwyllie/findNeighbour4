@@ -172,11 +172,8 @@ Checks for new sequences are conducted once per minute.
 				    serialisation=None,
 				    parameters= clustering_setting,
 				    name = clustering_name)
-		## DIAGNOSTICAL ONLY
-		df= pd.DataFrame.from_dict(clusterers[clustering_name].centrality(), orient='index')
-		if len(df.index)>0:
-			print("SAMPLES/CENTRALITY",len(df.index),np.mean(df['degree_centrality']))
-		## END OF DIAGNOSTICS
+		clusterers[clustering_name].remove_legacy()
+		
 	# now iterate - on a loop
 	while True:
 		whitelist= set()
@@ -223,8 +220,8 @@ Checks for new sequences are conducted once per minute.
 			# store the output
 			clusterers[clustering_name].persist(what='graph')
 			clusterers[clustering_name].persist(what='output')
-
-		# cleanup anything we don't need
+			clusterers[clustering_name].remove_legacy()		# remove old versions
+		# cleanup anything we don't need, inlcuding old clustering versions and msas
 		ms.unpersist(whitelist=whitelist)
 		logger.info("Cleanup complete.  Stored data on {0} MSAs; Built {1} new clusters".format(len(whitelist), nbuilt))
 	

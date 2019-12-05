@@ -541,12 +541,15 @@ class MixtureAwareLinkage():
 
         return retVal       
 
-    def persist(self, what ):
+    def persist(self, what):
         """ stores a serialisation of either the clustering graph itself, or the output in the Mongo db.  
 
             what is one of 'graph' or 'output'
             Will store the serialisation in the clusters collection, using the key
             {name}-{what}
+
+            Note: will not remove old versions
+            call .remove_legacy() to do this.
 
         """
         if self.PERSIST is None:
@@ -559,7 +562,13 @@ class MixtureAwareLinkage():
         else:
             raise ValueError("what must be one of graph, output")
         self.PERSIST.cluster_store(storage_key, serialisation)
+
         return
+
+    def remove_legacy(self):
+        """ removes any legacy versions of clustering.  
+            This is a good idea because otherwise every time a clustering is performed, a new version will be stored (which happens routinely) and old ones retained (which is not normally relevant): while an audit trail may be helpful during development, this in general undesirable as very large amounts of disc space (hundreds of gigabytes) can readily be consumed """
+        self.PERSIST.cluster_delete_legacy(self.name)
 
     def _recover_serialisation(self):
         """ reads a serialisation of  the clustering graph from the Mongo db.  
@@ -1793,7 +1802,7 @@ class Test_MAL_20(unittest.TestCase):
 
         m.persist(what='graph')
         m.persist(what='output')
-
+        m.remove_legacy()
         # reload from persistence
         m = MixtureAwareLinkage(PERSIST=p, MIXCHECK = TestMixtureChecker(), snv_threshold=20,
                                     mixed_sample_management = 'include', parameters={'Param1':1,'Param2':2,'snv_threshold':12,'uncertain_base_type':'M'}, name='MAL_20')
@@ -1827,12 +1836,14 @@ class test_MIXCHECK_1(unittest.TestCase):
                    )
             PERSIST._delete_existing_data()
 
-            hc = hybridComparer(reference=CONFIG['reference'],
+            hc = hybridComparer(
+                reference=CONFIG['reference'],
                 maxNs=CONFIG['MAXN_STORAGE'],
                 snpCeiling=  CONFIG['SNPCEILING'],
                 excludePositions=CONFIG['excluded'],
                 preComparer_parameters=CONFIG['PRECOMPARER_PARAMETERS'],
-                PERSIST=PERSIST)
+                PERSIST=PERSIST
+                )
 
      
             mpmc = MixPOREMixtureChecker(hc, **clustering_setting) 
