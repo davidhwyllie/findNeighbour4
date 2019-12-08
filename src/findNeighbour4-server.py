@@ -897,6 +897,7 @@ def msa_guids():
 	"""
 
 	# validate input
+	valid_output_formats =  ['html','json','fasta', 'json-fasta', 'json-records','interactive']
 	request_payload = request.form.to_dict()
 	if 'output_format' in request_payload.keys() and 'guids' in request_payload.keys():
 		guids = request_payload['guids'].split(';')		# coerce both guid and seq to strings
@@ -908,8 +909,8 @@ def msa_guids():
 			what = 'N'		# default to N
 		if not what in ['N','M','N_or_M']:
 			abort(404, 'what must be one of N M N_or_M, not {0}'.format(what))
-		if not output_format in ['html','json','fasta', 'json-fasta', 'json-records','interactive']:
-			abort(404, 'output_format must be one of html, json, json-records, interactive or fasta not {0}'.format(output_format))
+		if not output_format in valid_output_formats:
+			abort(404, 'output_format must be one of {0}  not {1}'.format(valid_output_formats,output_format))
 	else:
 		abort(405, 'output_format and guids are not present in the POSTed data {0}'.format(data_keys))
 	
@@ -938,6 +939,7 @@ def msa_guids_by_cluster(clustering_algorithm, cluster_id, output_format):
 	json-records
 	fasta
 	html
+	interactive
 	"""
 	
 	# validate input	
@@ -947,8 +949,8 @@ def msa_guids_by_cluster(clustering_algorithm, cluster_id, output_format):
 		# no clustering algorithm of this type
 		return make_response(tojson("no clustering algorithm {0}".format(clustering_algorithm)), 404)
 		
-	if not output_format in ['html','json','json-records','json-fasta', 'fasta']:
-		abort(422, 'output_format must be one of html, json, json-records fasta not {0}'.format(output_format))
+	if not output_format in ['html','json','json-records','json-fasta', 'fasta','interactive']:
+		abort(422, 'output_format must be one of html, json, json-records, fasta, interactive not {0}'.format(output_format))
 
 	# check guids
 	res = fn.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)

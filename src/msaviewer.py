@@ -10,9 +10,14 @@ from Bio.Seq import Seq
 from Bio import AlignIO, SeqIO
 
 from bokeh.plotting import figure, save, output_file
-from bokeh.models import ColumnDataSource, Plot, Grid, Range1d, Span
+from bokeh.models import ColumnDataSource, Plot, Grid, Range1d, Span, Panel, Tabs
 from bokeh.models.glyphs import Text, Rect
-from bokeh.layouts import gridplot
+from bokeh.models.widgets import Div, Button
+from bokeh.models.widgets import DataTable, DateFormatter, TableColumn
+from bokeh.models.callbacks import CustomJS
+from bokeh.events import ButtonClick
+
+from bokeh.layouts import grid
 from bokeh.embed import file_html
 from bokeh.plotting import show
 from bokeh.resources import CDN
@@ -139,9 +144,19 @@ class DepictMSA():
            # compute composition of sequences
            self.composition = collections.Counter()
            for seq in self.df['aligned_mseq'].tolist():
-               for nucl in list(seq):
+              for nucl in list(seq):
                    self.composition.update(nucl)
 
+           # compute composition of sequences
+           self.compositions = {}
+           for ix in self.df.index:
+               seq = self.df.at[ix,'aligned_seq']
+               self.compositions[ix]=collections.Counter()
+               for nucl in list(seq):
+                   self.compositions[ix].update(nucl)
+           self.compositions = pd.DataFrame.from_dict(self.compositions, orient='index')
+           self.compositions['msa_id'] = self.compositions.index
+           self.compositions.fillna(0, inplace=True)
            # check iupac character composition.  The keys of the valid_characters dictionary
            # reflect whether all iupac characters are expected.
            valid_characters = {False:set(['A','C','G','T','M','N','-']),
@@ -197,15 +212,60 @@ class DepictMSA():
                                         'height':1/n_mapped_nucleotides,
                                         'nucl':nucl, 
                                         'component':mapped_to, 
-                                        'fill_colour':clrs[mapped_to]
+                                        'full_fill_colour':clrs[mapped_to],
+                                        'limited_fill_colour':clrs[mapped_to],                                        
+                                        'is_mixed':len(base2base[nucl])>1
                                         }
+                   if len(base2base[nucl])>1:
+                          rectangle_map[ix]['limited_fill_colour']='yellow'     # all mixed positions yellow
+                   rectangle_map[ix]['fill_colour']=rectangle_map[ix]['limited_fill_colour']     # all mixed positions yellow
+ 
            self.rectangles = pd.DataFrame.from_dict(rectangle_map, orient='index')
 
-       def render_msa(self):
+           # compute fasta
+           fasta_str = []
+           for ix in self.df.index:
+               fasta_str.append(">"+ix)
+               fasta_str.append(self.df.at[ix,'aligned_mseq'])
+           self.fasta = "<br>".join(fasta_str)
+
+       def render_msa(self, cluster_name=None):
            """ depict msa """
            # prepare view
-           # https://dmnfarrell.github.io/bioinformatics/bokeh-sequence-aligner
+           if cluster_name is None:
+               cluster_name = ""
+               
+           info = Div(text="Cluster {0} with {1} variant bases in alignment".format(cluster_name, self.align_width))
+           
+           # fasta
+           div = Div(text=self.fasta)
+           p1 = Panel(child=div, title = "Fasta")
 
+
+           # table of compositions
+           comp_source = ColumnDataSource(self.compositions)
+           target_columns = self.compositions.columns.to_list()
+           columns = []
+           for item in target_columns:
+               columns.append(TableColumn(field=item, title=item))
+           data_table = DataTable(source=comp_source, columns=columns, width=1000, height =500)
+           pC = Panel(child=data_table, title = 'Composition')
+
+    
+           # table of base counts and and -logp values
+           grid_source = ColumnDataSource(self.df)
+           target_columns = ['Surname','Forename','Patient_id','msa_id','mlp_value1','mlp_value2','mlp_value3','mlp_value4','alignN','allN','alignM','allM','alignN_or_M','allN_or_M']
+           columns = []
+           for item in target_columns:
+               if item in self.df.columns:
+                    columns.append(TableColumn(field=item, title=item))
+           data_table = DataTable(source=grid_source, columns=columns, width=1000, height =500)
+           p0 = Panel(child=data_table, title = 'Summary')
+           
+           # grid
+           
+           # https://dmnfarrell.github.io/bioinformatics/bokeh-sequence-aligner
+ 
            # create a one-base per row data frame laying out the positions of each character in the msa
            x = np.arange(0,self.align_width)
            y = np.arange(0,self.nSeqs)      #self.df.index.tolist()
@@ -218,7 +278,7 @@ class DepictMSA():
            # create a dataframe and link to colours           
            perBase = pd.DataFrame.from_dict({'x':gx, 'y':gy, 'nucl':nucl})
            to_depict = perBase.merge(self.rectangles, how='left', left_on='nucl', right_on='nucl')
-           no_color_assigned = to_depict[to_depict['fill_colour'].isnull()]
+           no_color_assigned = to_depict[to_depict['full_fill_colour'].isnull()]
 
            # sanity check: everything should be mapped to a colour.
            if len(no_color_assigned.index)>0:
@@ -278,7 +338,37 @@ class DepictMSA():
                p.add_layout(divide_sequence)
 
            p.add_glyph(source, rects)
-           g = gridplot([[p]], toolbar_location='right')
+
+           callback1 = CustomJS(args=dict(source=source),
+                                code=""" var data = source.data;
+           console.log('Clicked callback 1')
+           x = data['full_fill_colour'];
+           y = data['fill_colour'];
+           for (i = 0; i < x.length; i++) {
+              y[i] = x[i];
+           }
+           source.change.emit();
+           """)
+           callback2 = CustomJS(args=dict(source=source),
+                                code=""" var data = source.data;
+           console.log('Clicked callback 1')
+           x = data['limited_fill_colour'];
+           y = data['fill_colour'];
+           for (i = 0; i < x.length; i++) {
+              y[i] = x[i];
+           }
+           source.change.emit();
+           """)
+           button1 = Button(label="Show mixed bases' components", button_type="success")
+           button2 = Button(label="Show mixed bases in yellow", button_type="success")
+                     
+           button1.js_on_event(ButtonClick, callback1)
+           button2.js_on_event(ButtonClick, callback2)
+ 
+           p2 = Panel(child = grid([[button1,button2],p]), title='Image')
+           # add text stating name of cluster and alignment width
+           g = grid([info,Tabs(tabs=[p0, pC, p1, p2 ]) ])
+           #doc = Tabs(tabs=[p0, p1, p2 ])
            html = file_html(g, CDN, "Multisequence alignment")
 
            return html
@@ -331,6 +421,7 @@ class Test_DepictMSA_1(unittest.TestCase):
         self.assertIsInstance(dep_msa.composition, collections.Counter)
         self.assertIsInstance(dep_msa.rectangles, pd.DataFrame)
         retVal = dep_msa.render_msa()
+
         self.assertIsInstance(retVal, str)
 
         retVal = dep_msa.render_msa()
@@ -360,3 +451,4 @@ class Test_DepictMSA_1(unittest.TestCase):
         self.assertIsInstance(retVal, str)
         self.assertTrue('</html>' in retVal)
         
+
