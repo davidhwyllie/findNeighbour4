@@ -126,13 +126,10 @@ class DepictMSA():
                    new_identifiers.append(" ".join(new_id))
 
                self.df['msa_id']=new_identifiers
-               self.df.sort_values(by='p_value3', inplace=True, ascending=True)
-               self.df.set_index('msa_id', drop=True, inplace=True)
-           # sort
 
            # ensure sequences are upper case
            self.df['aligned_mseq'] = [x.upper() for x in self.df['aligned_mseq'].tolist()]        # ensure uppercase
-           self.df['y_order']=list(range(len(self.df.index)))
+         
            # store number of sequences and alignment width
            self.nSeqs = len(self.df.index)
            if self.nSeqs==0:     # no data
@@ -155,8 +152,17 @@ class DepictMSA():
                for nucl in list(seq):
                    self.compositions[ix].update(nucl)
            self.compositions = pd.DataFrame.from_dict(self.compositions, orient='index')
-           self.compositions['msa_id'] = self.compositions.index
            self.compositions.fillna(0, inplace=True)
+           for compulsory_column in ['A','C','G','T']:
+                if not compulsory_column in self.compositions.columns.tolist():
+                    self.compositions[compulsory_column]=0
+           self.df = self.df.merge(self.compositions, left_index=True,right_index=True)
+           self.compositions['msa_id'] = self.compositions.index
+ 
+           self.df.sort_values(by=['p_value3','A','C','G','T'], inplace=True, ascending=False)  # sort by mixture detection statistic
+           self.df.set_index('msa_id', drop=True, inplace=True)
+           self.df['y_order']=list(range(len(self.df.index)))
+    
            # check iupac character composition.  The keys of the valid_characters dictionary
            # reflect whether all iupac characters are expected.
            valid_characters = {False:set(['A','C','G','T','M','N','-']),
@@ -256,7 +262,7 @@ class DepictMSA():
            if cluster_name is None:
                cluster_name = ""
                
-           info = Div(text="Cluster {0} with {1} sequences and {2} variant bases in alignment. {3}".format(cluster_name, len(self.df.index), self.align_width, self.df['p_value3']))
+           info = Div(text="Cluster {0} with {1} sequences and {2} variant bases in alignment. ".format(cluster_name, len(self.df.index), self.align_width))
            
            # fasta
            div = Div(text=self.fasta)
@@ -352,7 +358,8 @@ class DepictMSA():
                # configure y-axis labels
                p.yaxis.ticker = y_ticks
                p.yaxis.major_label_overrides = y_tick_relabelling
-               
+               p.yaxis.major_label_text_font = 'Courier'
+
                # configure x-axis labels
                if self.positions_analysed is not None:
                    p.xaxis.ticker = x_ticks
@@ -419,10 +426,12 @@ class DepictMSA():
                        
                else:
                    qq_plot = Div(text = "Positions of variant bases were not supplied.")
+
                p2 = Panel(child = grid([qq_plot, select, [button1,button2],p]), title='Interactive MSA')
                # add text stating name of cluster and alignment width
-           g = grid([info,Tabs(tabs=[p2, p0, pC, p1]) ])
+               g = grid([info,Tabs(tabs=[p2, p0, pC, p1]) ])
            html = file_html(g, CDN, "Multisequence alignment")
+
            return html
 
 class Test_SimulateSequenceData_1(unittest.TestCase):
