@@ -969,7 +969,7 @@ def msa_guids_by_cluster(clustering_algorithm, cluster_id, output_format):
 		if len(df.index)==0:
 			return make_response(
 				json.dumps(
-					{'status':'No samples exist for {0} and cluster {1}.  Overall, {2} samples are clustered.'.format(clustering_algorithm, cluster_id, nSamples)}
+					{'status':'No samples exist for {0} and cluster {1}.  The systems has clustered {2} samples into other clusters'.format(clustering_algorithm, cluster_id, nSamples)}
 					)
 				)
 		msa_result = construct_msa(df['guid'].tolist(), what=fn.clustering[clustering_algorithm].uncertain_base_type, output_format= output_format)	
