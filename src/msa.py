@@ -11,7 +11,7 @@ from msaviewer import DepictMSA
 
 class MSAStore():
     """ stores multisequence alignments, both in ram and in a database """
-    def __init__(self, PERSIST, in_ram_persistence_time=3600):
+    def __init__(self, PERSIST, in_ram_persistence_time=60):
         """ sets up an MSA cache, which stores MSAs on disc and in ram 
             PERSIST is an fn3persistence object
             in_ram_persistence_time the time MSAs are cached in ram, in seconds"""
