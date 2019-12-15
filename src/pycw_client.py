@@ -164,10 +164,13 @@ in either
             raise CatWalkServerInsertError(message = "Failed to insert {0}; return code was {1}".format(guid, result)) 
         return r.status_code
 
-    def neighbours(self, name):
-        """ get neighbours
+    def neighbours(self, name, distance=None):
+        """ get neighbours.  neighbours are recomputed on demand.
+	if distance is not supplied, self.max_distance is used.
         """
-        r = requests.get("{0}/neighbours/{1}".format(self.cw_url, name))
+        if distance is None:
+            distance = self.max_distance
+        r = requests.get("{0}/neighbours/{1}/{2}".format(self.cw_url, name, distance))
         r.raise_for_status()
         j = r.json()
         return [(sample_name, int(distance_str)) for (sample_name, distance_str) in j]
@@ -228,7 +231,8 @@ class test_cw_2(test_cw):
         # two sequences are similar to each other
         payload1 = {'A':[100000,100001,100002], 'G':[], 'T':[], 'C':[], 'N':[20000,20001,20002]}
         payload2 = {'A':[100003,100004,100005], 'G':[], 'T':[], 'C':[], 'N':[20000,20001,20002]}
-        # one is 10000 nt different
+        
+# one is 10000 nt different
         payload3 = {'A':list(range(110000,120000)), 'G':[], 'T':[], 'C':[], 'N':[20000,20001,20002]}
         res = self.cw.add_sample_from_refcomp('guid1',payload1)
         self.assertEqual(res, 201)
@@ -245,6 +249,10 @@ class test_cw_2(test_cw):
         self.assertEqual(self.cw.neighbours('guid1'),[('guid2',6)])      
         self.assertEqual(self.cw.neighbours('guid2'),[('guid1',6)])      
         self.assertEqual(self.cw.neighbours('guid3'),[])        # should be empty
+
+        self.assertEqual(self.cw.neighbours('guid1', distance=7),[('guid2',6)])        # should be guid2
+        self.assertEqual(self.cw.neighbours('guid1', distance=6),[('guid2',6)])        # should be guid2
+        self.assertEqual(self.cw.neighbours('guid1', distance=5),[])        # should be empty
 
         with self.assertRaises(requests.exceptions.HTTPError):
             res = self.cw.neighbours('guid4')        # should raise 404
