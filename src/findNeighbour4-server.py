@@ -453,8 +453,10 @@ class findNeighbour4():
 			cleaned_dna=self.objExaminer.nucleicAcidString.decode()
 			refcompressedsequence =self.hc.compress(cleaned_dna)          # compress it and store it in RAM
 			self.server_monitoring_store(message='Compression complete',guid=guid)
-			self.write_semaphore.acquire()				    # addition should be an atomic operation
-			
+			# addition should be an atomic operation, in which all the component complete or do not complete.
+			# we use a semaphore to do this.
+
+			self.write_semaphore.acquire()				    
 			try:
 				loginfo = self.hc.persist(refcompressedsequence, 
 						guid,
@@ -472,8 +474,8 @@ class findNeighbour4():
 				app.logger.warning("Guid {0}  removed from preComparer due to error {0}".format(guid))
 				abort(503,e)		# the mongo server may be refusing connections, or busy.  This is observed occasionally in real-world use
 				
-			# release semaphore
-			self.write_semaphore.release()                  # release the write semaphore
+			self.write_semaphore.release()                  # release the write semaphore.  This is never reached in the flask setting if abort() is executed
+
 			app.logger.info("Insert succeeded {0}".format(guid))
 			for info in loginfo:
 				app.logger.info(info)		# performance info
