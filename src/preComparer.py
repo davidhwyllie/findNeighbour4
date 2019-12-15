@@ -319,7 +319,7 @@ class preComparer():
         neighbours = []
         if self.catWalk_enabled:
 
-            sample_neighbours= self.catWalk.neighbours(guid)
+            sample_neighbours= self.catWalk.neighbours(guid, self.catWalk_parameters['max_distance'])
             for (neighbour, dist) in sample_neighbours:
                 if neighbour in guids:      # in theory catwalk can contain specimens which we don't know about
                     res = {'guid1':guid, 'guid2':neighbour, 'dist':dist}
