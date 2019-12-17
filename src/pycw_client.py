@@ -117,6 +117,7 @@ in either
 
         cmd = f"nohup {cw_binary_filepath} --instance_name {instance_name}  --bind_host {self.bind_host} --bind_port {self.bind_port} --reference_name {self.reference_name} --reference_filepath {reference_filepath} --mask_name {mask_filepath} --mask_filepath {mask_filepath} --max_distance {self.max_distance} > cw_server_nohup.out &"
         logging.info("Attempting startup of CatWalk server : {0}".format(cmd))       
+
         os.system(cmd)
 
         time.sleep(1)

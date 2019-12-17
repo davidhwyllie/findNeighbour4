@@ -128,7 +128,7 @@ Checks for new sequences are conducted once per minute.
 	########################### prepare to launch server ####################################
 	# construct the required global variables
 	
-	print("Connecting to backend data store")
+	logger.info("Connecting to backend data store")
 	try:
 			PERSIST=fn3persistence(dbname = CONFIG['SERVERNAME'],
 				connString=CONFIG['FNPERSISTENCE_CONNSTRING'],
@@ -143,10 +143,14 @@ Checks for new sequences are conducted once per minute.
 		logger.warning("Wiping existing clustering data as --rebuild_clusters_debug is set")
 		PERSIST._delete_existing_clustering_data()
 		logger.warning("Wiped existing clustering data")
+	else:
+		logger.info("Working with existing data ... ")
+
 	################################# clustering #############################################
 	# open PERSIST and hybridComparer object used by all samples
 	# this is only used for data access and msa.
 	# inserts are not allowed
+	logger.info("Building hybridComparer object")
 	hc = hybridComparer(reference=CONFIG['reference'],
 		maxNs=CONFIG['MAXN_STORAGE'],
 		snpCeiling=  CONFIG['SNPCEILING'],
@@ -156,7 +160,7 @@ Checks for new sequences are conducted once per minute.
 		disable_insertion = True)
 
 	# get a clustering object's settings
-	print("Creating clustering objects ...")
+	logger.info("Creating clustering objects ...")
 	clusterers = {}
 	clusternomenclature = {}
 	clusternameassigner= {}
@@ -166,7 +170,7 @@ Checks for new sequences are conducted once per minute.
 		mpmc = MixPOREMixtureChecker(hc, **clustering_setting) 	# uses hybridComparer to load samples and compute msas
 
 		# check update adds remaining guids
-
+		logger.info("Creating clustering object {0}".format(clustering_name))
 		clusterers[clustering_name] = MixtureAwareLinkage(PERSIST=PERSIST, 
 				    MIXCHECK = mpmc,
 				    mixed_sample_management = clustering_setting['mixed_sample_management'], 
@@ -175,7 +179,7 @@ Checks for new sequences are conducted once per minute.
 				    parameters= clustering_setting,
 				    name = clustering_name)
 		clusterers[clustering_name].remove_legacy()		# remove any old versions
-		print("Created clustering object",clustering_name)
+		logger.info("Created clustering object {0}".format(clustering_name))
 		# if applicable, make a cluster nomenclature object;
 		if 'cluster_nomenclature_method' in clusterers[clustering_name].parameters:
 			# we are instructed to do cluster naming
@@ -183,13 +187,13 @@ Checks for new sequences are conducted once per minute.
 				cluster_nomenclature_method = clusterers[clustering_name].parameters['cluster_nomenclature_method'],
 				existing_labels = clusterers[clustering_name].existing_labels())
 			clusternameassigner[clustering_name] = ClusterNameAssigner(clusternomenclature[clustering_name])
-			print("Created name assigner", clustering_name,"with method ", clusterers[clustering_name].parameters['cluster_nomenclature_method'])
+			logger.info("Created name assigner {0} with method {1}".format(clustering_name, clusterers[clustering_name].parameters['cluster_nomenclature_method']))
 		
 	# now iterate - on a loop
 	while True:
 		whitelist= set()
 		nbuilt=0
-		for clustering_name in CONFIG['CLUSTERING'].keys():
+		for clustering_name in CONFIG['CLUSTERING'].keys():			# DEBUG
 			clustering_setting = CONFIG['CLUSTERING'][clustering_name]
 			clusterers[clustering_name].update()	
 			clusterers[clustering_name].cluster()
@@ -197,10 +201,13 @@ Checks for new sequences are conducted once per minute.
 			# if applicable, generate and store cluster labels
 			if 'cluster_nomenclature_method' in clusterers[clustering_name].parameters:
 				# we are instructed to do cluster naming
+				cluster2guid = clusterers[clustering_name].cluster2names
+				previous_guid2cluster_label = clusterers[clustering_name].guid2cluster_labels()
 				clusterid2clusterlabel = clusternameassigner[clustering_name].assign_new_clusternames(
 								clusterid2guid = clusterers[clustering_name].cluster2names,
 								previous_guid2cluster_label = clusterers[clustering_name].guid2cluster_labels()
 							)
+
 				clusterers[clustering_name].apply_cluster_labels(clusterid2clusterlabel)
 				
 
