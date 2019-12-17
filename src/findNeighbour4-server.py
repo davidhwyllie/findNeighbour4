@@ -1407,11 +1407,13 @@ def clusters2cnt(clustering_algorithm, cluster_id = None):
 			abort(404, "no cluster {1} exists for algorithm {0}".format(clustering_algorithm, cluster_id))
 			
 	d= pd.DataFrame.from_records(res)
-	
+	print(d)
+	labels = d[['cluster_id','cluster_label']].drop_duplicates()
+
 	try:
 		df = pd.crosstab(d['cluster_id'],d['is_mixed'])
 		df = df.add_prefix('is_mixed_')
-		df['cluster_id']=df.index
+		df = labels.merge(df,  how='left', left_on='cluster_id', right_index=True)
 		summary = json.loads(df.to_json(orient='records'))
 		detail  = json.loads(d.to_json(orient='records'))
 		#print(request.url, request.url.endswith('summary'), request.url.endswith('members'))

@@ -407,7 +407,7 @@ class MixtureAwareLinkageResult():
                 
             for cluster_id in self.guid2cluster[guid]['cluster_id']:
                 try:
-                    clusterlabel = self._clusterid2clusterlabel[cluster_id]
+                    clusterlabel = self._clusterid2clusterlabel[cluster_id]['cluster_label']
                 except KeyError:
                     clusterlabel = '-'
                 if (after_change_id is None) or (change_id > after_change_id):

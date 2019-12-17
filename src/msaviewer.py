@@ -280,8 +280,9 @@ class DepictMSA():
 
     
            # table of base counts and and -logp values
+           self.df['sample_id'] = self.df.index.tolist()
            grid_source = ColumnDataSource(self.df)
-           target_columns = ['Surname','Forename','Patient_id','msa_id','p_value1','p_value2','p_value3','p_value4','alignN','allN','alignM','allM','alignN_or_M','allN_or_M']
+           target_columns = ['Surname','Forename','Patient_id','sample_id','p_value1','p_value2','p_value3','p_value4','alignN','allN','alignM','allM','alignN_or_M','allN_or_M']
            columns = []
            for item in target_columns:
                if item in self.df.columns:
