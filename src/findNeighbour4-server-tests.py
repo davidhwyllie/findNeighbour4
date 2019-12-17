@@ -756,7 +756,7 @@ class test_clusters_sample(unittest.TestCase):
 			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
 					seq = str(record.seq)
 
-		print("Adding TB reference sequence of {0} bytes".format(len(seq)))
+		#print("Adding TB reference sequence of {0} bytes".format(len(seq)))
 		self.assertEqual(len(seq), 4411532)		# check it's the right sequence
 
 		relpath = "/api/v2/insert"
@@ -770,7 +770,7 @@ class test_clusters_sample(unittest.TestCase):
 		res = do_GET(relpath)
 		guids_loaded = json.loads(res.content.decode('utf-8'))
 		n_post = len(guids_loaded)
-		print("*** GUIDS LOADED ", guids_loaded)
+		#print("*** GUIDS LOADED ", guids_loaded)
 		self.assertEqual(n_pre+1, n_post)
 		
 		relpath = "/api/v2/{0}/clusters".format(guid_to_insert)
@@ -784,7 +784,7 @@ class test_clusters_sample(unittest.TestCase):
 		res = do_GET(relpath)
 		guids_loaded = json.loads(res.content.decode('utf-8'))
 		n_post = len(guids_loaded)
-		print("*** GUIDS RELOADED ", guids_loaded)
+		#print("*** GUIDS RELOADED ", guids_loaded)
 		self.assertEqual(n_pre+1, n_post)
 			
 		relpath = "/api/v2/{0}/clusters".format(guid_to_insert)
@@ -794,8 +794,8 @@ class test_clusters_sample(unittest.TestCase):
 		self.assertTrue(isjson(content = res.content))
 		cluster_list = res.content.decode('utf-8')
 		info = json.loads(cluster_list)
-		print("CLUSTERINFO",info)
-		self.assertEqual(len(info),3)
+		#print("CLUSTERINFO",info)
+		self.assertEqual(len(info),4)
 
 class test_clusters_what(unittest.TestCase):
 	""" tests implementation of 'what' value, stored in clustering results object"""
@@ -860,7 +860,7 @@ class test_algorithms(unittest.TestCase):
 		res = do_GET(relpath)
 		self.assertEqual(res.status_code, 200)
 		retDict = json.loads(str(res.text))
-		self.assertEqual(set(retDict['algorithms']), set(['SNV12_ignore', 'SNV12_include','SNV12_exclude']))
+		self.assertEqual(set(retDict['algorithms']), set(['SNV12_ignore', 'SNV12_include','SNV12_exclude','SNV12_include_n']))
 
 
 class test_what_tested(unittest.TestCase):

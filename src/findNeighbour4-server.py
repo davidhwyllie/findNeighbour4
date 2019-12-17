@@ -1357,10 +1357,10 @@ def g2c(clustering_algorithm, change_id=None):
 		fn.clustering[clustering_algorithm].refresh()
 		
 	except KeyError:
-		app.logging.info("No algorithm {0}".format(clustering_algorithm))
+		app.logger.info("No algorithm {0}".format(clustering_algorithm))
 		abort(404, "no clustering algorithm {0}".format(clustering_algorithm))
 	except AttributeError:
-		app.logging.info("Never ran {0}".format(clustering_algorithm))
+		app.logger.info("Never ran {0}".format(clustering_algorithm))
 		abort(421, "never ran clustering algorithm {0}".format(clustering_algorithm))
 
 	res = fn.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = change_id)		

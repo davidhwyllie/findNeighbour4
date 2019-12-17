@@ -56,6 +56,7 @@ from ma_linkage import MixtureAwareLinkage,MixPOREMixtureChecker, MixtureAwareLi
 from msa import MSAStore
 from hybridComparer import hybridComparer
 from read_config import ReadConfig
+from clusternomenclature import ClusterNameAssigner, ClusterNomenclature
 
 if __name__ == '__main__':
 
@@ -78,7 +79,7 @@ Checks for new sequences are conducted once per minute.
 """)
 	parser.add_argument('path_to_config_file', type=str, action='store', nargs='?',
 						help='the path to the configuration file', default=''  )
-	parser.add_argument('--rebuild_clusters_debug', 						help='delete existing, and rebuild, clusters.  Only for use in a debug setting', action='store_true')
+	parser.add_argument('--rebuild_clusters_debug', help='delete existing, and rebuild, clusters.  Only for use in a debug setting', action='store_true')
 	args = parser.parse_args()
 	
 	# an example config file is default_test_config.json
@@ -157,10 +158,11 @@ Checks for new sequences are conducted once per minute.
 	# get a clustering object's settings
 	print("Creating clustering objects ...")
 	clusterers = {}
+	clusternomenclature = {}
+	clusternameassigner= {}
 	for clustering_name in CONFIG['CLUSTERING'].keys():
 		clustering_setting = CONFIG['CLUSTERING'][clustering_name]
 		
-
 		mpmc = MixPOREMixtureChecker(hc, **clustering_setting) 	# uses hybridComparer to load samples and compute msas
 
 		# check update adds remaining guids
@@ -172,7 +174,16 @@ Checks for new sequences are conducted once per minute.
 				    serialisation=None,
 				    parameters= clustering_setting,
 				    name = clustering_name)
-		clusterers[clustering_name].remove_legacy()
+		clusterers[clustering_name].remove_legacy()		# remove any old versions
+		print("Created clustering object",clustering_name)
+		# if applicable, make a cluster nomenclature object;
+		if 'cluster_nomenclature_method' in clusterers[clustering_name].parameters:
+			# we are instructed to do cluster naming
+			clusternomenclature[clustering_name] = ClusterNomenclature(
+				cluster_nomenclature_method = clusterers[clustering_name].parameters['cluster_nomenclature_method'],
+				existing_labels = clusterers[clustering_name].existing_labels())
+			clusternameassigner[clustering_name] = ClusterNameAssigner(clusternomenclature[clustering_name])
+			print("Created name assigner", clustering_name,"with method ", clusterers[clustering_name].parameters['cluster_nomenclature_method'])
 		
 	# now iterate - on a loop
 	while True:
@@ -182,13 +193,22 @@ Checks for new sequences are conducted once per minute.
 			clustering_setting = CONFIG['CLUSTERING'][clustering_name]
 			clusterers[clustering_name].update()	
 			clusterers[clustering_name].cluster()
-			clusterers[clustering_name].persist(what='graph')
-			clusterers[clustering_name].persist(what='output')
+
+			# if applicable, generate and store cluster labels
+			if 'cluster_nomenclature_method' in clusterers[clustering_name].parameters:
+				# we are instructed to do cluster naming
+				clusterid2clusterlabel = clusternameassigner[clustering_name].assign_new_clusternames(
+								clusterid2guid = clusterers[clustering_name].cluster2names,
+								previous_guid2cluster_label = clusterers[clustering_name].guid2cluster_labels()
+							)
+				clusterers[clustering_name].apply_cluster_labels(clusterid2clusterlabel)
+				
 
 			malr = MixtureAwareLinkageResult(PERSIST=PERSIST, name=clustering_name)   
+
 			ms = MSAStore(PERSIST=PERSIST, in_ram_persistence_time=60)		# persist 60 seconds
 			# estimate expected:
-			estimated_unk = hc.estimate_expected_unk(sample_size=100, unk_type= malr.parameters['uncertain_base_type'])
+			estimated_unk = hc.estimate_expected_unk(sample_size=100, unk_type= clusterers[clustering_name].parameters['uncertain_base_type'])
 			if estimated_unk is not None:
 				estimated_p1 = estimated_unk / (len(hc.reference)-len(hc.excluded))
 			else:	
@@ -221,7 +241,7 @@ Checks for new sequences are conducted once per minute.
 			clusterers[clustering_name].persist(what='graph')
 			clusterers[clustering_name].persist(what='output')
 			clusterers[clustering_name].remove_legacy()		# remove old versions
-		# cleanup anything we don't need, inlcuding old clustering versions and msas
+		# cleanup anything we don't need, including old clustering versions and msas
 		ms.unpersist(whitelist=whitelist)
 		logger.info("Cleanup complete.  Stored data on {0} MSAs; Built {1} new clusters".format(len(whitelist), nbuilt))
 	

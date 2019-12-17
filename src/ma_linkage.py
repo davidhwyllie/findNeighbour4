@@ -32,12 +32,15 @@ class MockPersistence():
 
         it also supports an isMixed() method, which is used for simulating whether a sample is mixed or not.
     """
+    def cluster_delete_legacy(self, name):
+        """ delete any legacy data in the mock persistence store """
+        pass
+        return
 
     def __init__(self, n_guids:int):
         """ starts up a MockPersistence object; generates a set of pairwise links compatible with n_guids being part of a set of similar sequences. """
         self.latest_version = 0
         self.latest_version_behaviour = 'increment'
-        self.g = nk.generators.ClusteredRandomGraphGenerator(n_guids, int(n_guids/2), 1, 0).generate()
 
         self.node2name = {}
         self.name2node = {}
@@ -45,6 +48,7 @@ class MockPersistence():
         self.node2clusterid = {}
         self._guid2neighbours={}
         self.store = {}
+        self.g = nk.generators.ClusteredRandomGraphGenerator(n_guids, int(n_guids/2), 1, 0).generate()
         for x in self.g.nodes():
             new_guid = str(uuid.uuid4())
             self.node2name[x] = new_guid
@@ -225,6 +229,8 @@ class MixtureAwareLinkageResult():
         mixed_sample_management
         mixture_criterion
         cutoff
+        cluster_nomenclature_method
+
     Parameters also include the following:
     .clustering_time
     .refresh_time
@@ -301,6 +307,7 @@ class MixtureAwareLinkageResult():
         expected_keys = set(['parameters',
                              'clustering_time',
                              'guid2clustermeta',
+                             'clusterid2clusterlabel',
                              'name'])
         if not set(serialisation.keys()) == expected_keys:
             raise KeyError("Expected keys are not present in serialisation output: {0} vs {1}".format(set(serialisation.keys()), expected_keys))
@@ -308,6 +315,7 @@ class MixtureAwareLinkageResult():
         self.parameters = serialisation['parameters']
         self.refresh_time = datetime.datetime.now().isoformat()
         self.guid2cluster = serialisation['guid2clustermeta']
+        self._clusterid2clusterlabel = self._dictkey2int(serialisation['clusterid2clusterlabel'])
     
         self.uncertain_base_type = self.parameters['uncertain_base_type']
         self.snv_threshold = self.parameters['snv_threshold']
@@ -333,6 +341,7 @@ class MixtureAwareLinkageResult():
         self.parameters = {'note':'No data found'}
         self.refresh_time = datetime.datetime.now().isoformat()
         self.guid2cluster = {}
+        self._clusterid2clusterlabel = {}
         self.uncertain_base_type = "?"
         self.snv_threshold = None
         self.current_version_load_time = datetime.datetime.now()
@@ -371,7 +380,18 @@ class MixtureAwareLinkageResult():
             return False
         else:
             return mix
-
+    def _dictkey2string(self, outputdict):
+        """ converts the keys of a dictionary from int to string """
+        retVal = {}
+        for key in outputdict:
+            retVal[str(key)] = outputdict[key]
+        return retVal
+    def _dictkey2int(self, outputdict):
+        """ converts the keys of a dictionary from  string to int """
+        retVal = {}
+        for key in outputdict:
+            retVal[int(key)] = outputdict[key]
+        return retVal
     def clusters2guidmeta(self, after_change_id=None):
         """ returns a cluster -> guid mapping """
         
@@ -386,19 +406,27 @@ class MixtureAwareLinkageResult():
                     change_id =  self.guid2cluster[guid]['mix_detected_at_change_id']
                 
             for cluster_id in self.guid2cluster[guid]['cluster_id']:
+                try:
+                    clusterlabel = self._clusterid2clusterlabel[cluster_id]
+                except KeyError:
+                    clusterlabel = '-'
                 if (after_change_id is None) or (change_id > after_change_id):
-                    retVal.append({'guid':guid, 'cluster_id':cluster_id,'change_id':change_id, 'is_mixed':is_mixed})
+                    retVal.append({'guid':guid, 'cluster_id':cluster_id, 'cluster_label':clusterlabel, 'change_id':change_id, 'is_mixed':is_mixed})
         return retVal
  
 class MixtureAwareLinkage():
-    """ joins samples (identified by guids) which are less than some SNP cutoff apart, but handle mixtures.
+    """ joins samples (identified by guids) which are less than some SNP cutoff apart, but handles mixtures.
+        The clusters generated are identified by integer cluster_ids; these cluster_ids are not guaranteed to be stable.
+        This class does not generate stable identifiers (which we call cluster_labels); however, it allows these to be set using the set_cluster_labels
+        method, and does persist them with the cluster in an atomic manner.
 
-        Mixtures are not computed by this class; they are computed externally.
+        Mixtures are not computed by this class; they are computed by an external class which is provided to this class to use.
 
-        The implementation ignores mixtures and uses an in-memory graph.  An undirected graph is constructed where an edge represents a pairwise distance less than cutoff.  A connected component represents a cluster.  
+        The implementation initially (optionally) ignores mixed samples and uses an in-memory graph.  An undirected graph is constructed where an edge represents a pairwise distance less than cutoff.  A connected component represents a cluster.  Optionally, mixed samples are subsequently added to these clusters.
 
         This implementation has very high capacity- it has been tested with up to 100 million samples and about 3 billion edges.  
         However, to reduce the number of edges, the class can reduce edges if edge numbers become large.   The simplify() method does this.  This isn't called automatically at present.
+
         It preserves the connectedness of samples in a cluster, but reduces the number of edges markedly (for tb data, by about 95%).  After simplification, statistics such as betweenness, centrality and degree cannot be meaningfully applied to the resulting graph, but we don't need to do this.
     """
 
@@ -458,7 +486,8 @@ class MixtureAwareLinkage():
         self.mixed_sample_management = mixed_sample_management
         self.parameters = parameters        # 
         self.name=name
-
+        self._clusterid2clusterlabel = {}  # a dictionary of the type {1:{'cluster_label':'AA0041'}}
+    
         start_afresh = False
         if serialisation is None:
             if self.PERSIST is None:
@@ -493,9 +522,45 @@ class MixtureAwareLinkage():
         
         return res
 
+    def guid2cluster_labels(self):
+        """ List the labelled clusters in which guids belong.  If no labels for the cluster have
+            been assigned, none will be listed.  Clusters will only be included if at least two 
+            cluster members exist.
+
+            Parameters:
+            None
+
+            Returns:
+            For guids in clusters of size at least 2, returns a dictionary of the type
+            {'guid1':['AA001','AA002'], 'guid2':['AA003','AA004']} """
+        retVal = {}
+        for cl in self.cluster2names.keys():
+            if cl in self._clusterid2clusterlabel.keys():
+                members = self.cluster2names[cl]['guids']
+                if len(members)>=2:
+                    for guid in members:
+                        try:
+                            retVal[guid]=set()
+                        except KeyError:
+                            pass
+                        retVal[guid].add(self._clusterid2clusterlabel[cl]['cluster_label'])
+            for guid in retVal:
+                retVal[guid] = list(retVal[guid])
+        return retVal
+                    
+    def existing_labels(self):
+        """ returns a list of the existing cluster labels """
+        existing_labels = set()
+        for labels in self._clusterid2clusterlabel.values():
+            existing_labels.add(labels['cluster_label'])
+        return list(sorted(existing_labels))
 
     def guid2clustermeta(self):
-        """ returns a guid to metadata lookup (including mixture and if appropriate clustering data) information as a pandas dataframe.
+        """ Parameters:
+            None 
+
+            Returns
+a guid to metadata lookup (including mixture and if appropriate clustering data) information as a pandas dataframe.
             one guid can exist in more than one cluster.
             if guid aa1234 is in clusters 1 and 2, there are two rows added"""
         res = pd.DataFrame.from_dict(self._name2meta, orient='index')
@@ -537,10 +602,22 @@ class MixtureAwareLinkage():
                   '_node2name':self._node2name,
                   '_name2meta':self._name2meta,
                   'mixed_sample_management':self.mixed_sample_management,
-                  'parameters':self.parameters}
+                  'parameters':self.parameters,
+                  'clusterid2clusterlabel':self._dictkey2string(self._clusterid2clusterlabel)}
 
         return retVal       
-
+    def _dictkey2string(self, outputdict):
+        """ converts the keys of a dictionary from int to string """
+        retVal = {}
+        for key in outputdict:
+            retVal[str(key)] = outputdict[key]
+        return retVal
+    def _dictkey2int(self, outputdict):
+        """ converts the keys of a dictionary from  string to int """
+        retVal = {}
+        for key in outputdict:
+            retVal[int(key)] = outputdict[key]
+        return retVal
     def persist(self, what):
         """ stores a serialisation of either the clustering graph itself, or the output in the Mongo db.  
 
@@ -594,20 +671,20 @@ class MixtureAwareLinkage():
             self.snv_threshold # integer
             self.g  # regenerated from nodes and edges
             self._node2name # dictionary
-
+            self._clusterid2clusterlabel,
+ 
             The following are regenerated on load:
                 self._name2node = {}
 
                 self.cc = nk.components.ConnectedComponents(self.g) # this is an object, and is not serialisable
-
-                # the below, which are set by cluster()
+               # the below, which are set by cluster()
                 self.clustered_at_change_id = None
                 self.cluster2names= {}
                 self.name2cluster = {}
         """
 
         # test the dictionary passed has the expected keys
-        if not set(sdict.keys()) == set(['snv_threshold','parameters','name','_name2meta','mixed_sample_management','is_simplified','mixed_sample_management','_edges','_node2name', '_name2meta']):
+        if not set(sdict.keys()) == set(['snv_threshold','parameters','name','_name2meta','mixed_sample_management','is_simplified','mixed_sample_management','_edges','_node2name', '_name2meta','clusterid2clusterlabel']):
             raise KeyError("Dictionary passed does not have the right keys: got {0}".format(sdict.keys()))
 
         # create a new graph from serialisation
@@ -617,6 +694,8 @@ class MixtureAwareLinkage():
         self.mixed_sample_management = sdict['mixed_sample_management']
         self.parameters= sdict['parameters']
         self.name= sdict['name']
+        self._clusterid2clusterlabel= self._dictkey2int(sdict['clusterid2clusterlabel'])
+ 
         # make new graph
         old_node2name = dict(zip([int(x) for x in sdict['_node2name'].keys()],sdict['_node2name'].values()))        # keys are integers
         node_order = sorted([int(x) for x in  old_node2name.keys()])        # order added
@@ -1139,6 +1218,7 @@ class MixtureAwareLinkage():
 
             The following are serialised:
                     guid2clustermeta
+                    clusterid2clusterlabel
                     parameters : a dictionary, which may include
                             snv_threshold
                             uncertain_base_type
@@ -1150,8 +1230,57 @@ class MixtureAwareLinkage():
 
         """
  
-        return {'name':self.name, 'parameters':self.parameters, 'clustering_time':datetime.datetime.now().isoformat(), 'guid2clustermeta':self.guid2clustermeta().to_dict(orient='index')}
-        
+        return {
+            'name':self.name, 
+            'parameters':self.parameters, 
+            'clustering_time':datetime.datetime.now().isoformat(),
+            'clusterid2clusterlabel':self._dictkey2string(self._clusterid2clusterlabel), 
+            'guid2clustermeta':self.guid2clustermeta().to_dict(orient='index')
+        }
+    
+    def apply_cluster_labels(self, cl2label):
+        """ sets to lookup between the internal integer cluster_id and an externally supplied, stable cluster_label (such as AA041).
+            Internally, the lookup is held in _clusterid2clusterlabel.
+            
+            Parameters: 
+                cl2label, a dictionary of the form {x}:{'cluster_label':'AA041'}
+                    where x is a cluster_id, and AA041 is the name of the cluster.
+
+            The code runs the following checks:
+            - the cluster_labels supplied are unique, and  map 1:1 to a cluster_id
+            - the cluster_ids supplied all exist.
+            - the values supplied are dictionaries with a 'cluster_label' key
+
+            Application of the supplied cluster labels replaces previous entries.
+        """
+
+        # check: we have been supplied a dictionary of the right format.
+        if not isinstance(cl2label, dict):
+            raise ValueError("Must supply a dictionary, not a {0}".format(type(cl2label)))
+
+        for cluster_id in cl2label.keys():
+            label_dict = cl2label[cluster_id]
+            if not isinstance(label_dict, dict):
+                raise ValueError("Must supply a dictionary, not a {0} as the value of cl2label".format(type(cl2label)))
+            if not 'cluster_label' in label_dict.keys():
+                raise KeyError("cluster_label must be a key; got {0}".format(label_dict))
+
+        # checks: 1:1 mapping of cluster_id to cluster_labels;
+        cluster_labels = set([x['cluster_label'] for x in cl2label.values()])
+        cluster_ids = set(cl2label.keys())
+        if not len(cluster_ids) == len(cluster_labels):
+            # there is not a 1:1 mapping between cluster_id and cluster_label
+            raise KeyError("There is not a 1:1 mapping between cluster_ids and cluster_labels. In _labels but not in _ids:  {0} ; in _ids but not in _labels {1)".format(cluster_labels-cluster_ids, cluster_ids-cluster_labels))
+
+        # check: all clusters exist
+        non_referenced_cluster_ids = cluster_ids - set(self.cluster2names.keys())
+        if not non_referenced_cluster_ids == set([]):      # all clusterids exist 
+            raise KeyError("Not all clusterids exist; missing ones are :{0}".format(non_referenced_cluster_ids))          
+
+        # apply the labels
+        self._clusterid2clusterlabel = cl2label
+
+     
     def raise_error(self,token):
         """ raises a ZeroDivisionError, with token as the message.
         useful for unit tests of error logging """
@@ -1410,7 +1539,7 @@ class Test_MAL_11(unittest.TestCase):
         m.update()
         
         retVal = m.serialise()
-        self.assertEqual(set(retVal.keys()), set(['parameters','is_simplified','name','snv_threshold','mixed_sample_management','_edges','_node2name','_name2meta']))
+        self.assertEqual(set(retVal.keys()), set(['clusterid2clusterlabel','parameters','is_simplified','name','snv_threshold','mixed_sample_management','_edges','_node2name','_name2meta']))
 
         retVal2 = m.to_dict()       # synonym
         self.assertEqual(retVal, retVal2)
@@ -1450,7 +1579,7 @@ class Test_MAL_12(unittest.TestCase):
         #print("Done",datetime.datetime.now())
          
         retVal = m.serialise()
-        self.assertEqual(set(retVal.keys()), set(['snv_threshold','name','parameters','is_simplified','_edges','mixed_sample_management','_node2name','_name2meta']))
+        self.assertEqual(set(retVal.keys()), set(['clusterid2clusterlabel','snv_threshold','name','parameters','is_simplified','_edges','mixed_sample_management','_node2name','_name2meta']))
 
         # test jsonification round trip
         json_repr = json.dumps(retVal)
@@ -1796,18 +1925,78 @@ class Test_MAL_20(unittest.TestCase):
         guids_to_add = list(p.guids())    
         m.update()
 
-        
         # check output after clustering
         m.cluster()   
 
         m.persist(what='graph')
         m.persist(what='output')
         m.remove_legacy()
+
         # reload from persistence
         m = MixtureAwareLinkage(PERSIST=p, MIXCHECK = TestMixtureChecker(), snv_threshold=20,
                                     mixed_sample_management = 'include', parameters={'Param1':1,'Param2':2,'snv_threshold':12,'uncertain_base_type':'M'}, name='MAL_20')
         self.assertEqual(m.guids(),p.guids())
 
+        self.assertEqual(m.guid2cluster_labels(), {})       # no labels assigned
+
+        # apply labels; make some up
+        cl2label = {}
+        expected_labels = list()
+        for cl in m.cluster2names:
+            if len(m.cluster2names[cl]['guids'])>1:
+                new_label = 'LABEL-{0}'.format(cl)
+                cl2label[cl] = {'cluster_label':new_label}
+                expected_labels.append(new_label)
+
+        # apply the labels
+        m._clusterid2clusterlabel = cl2label
+
+        # check they are used correctly
+
+        for guid in m.guid2cluster_labels():
+            self.assertEqual("LABEL-{0}".format(m.name2cluster[guid]['cluster_id'][0]),m.guid2cluster_labels()[guid][0])
+        self.assertEqual(m.existing_labels(), expected_labels)
+        # check that the labels get persisted
+        m.persist(what='graph')
+        m.persist(what='output')
+        m.remove_legacy()
+
+        # reload from persistence
+        m = MixtureAwareLinkage(PERSIST=p, MIXCHECK = TestMixtureChecker(), snv_threshold=20,
+                                    mixed_sample_management = 'include', parameters={'Param1':1,'Param2':2,'snv_threshold':12,'uncertain_base_type':'M'}, name='MAL_20')
+
+        # test that the guid2cluster maps are the same
+        self.assertEqual(m._clusterid2clusterlabel, cl2label)
+
+        # test apply_cluster_labels()
+        # check update adds remaining guids
+        m = MixtureAwareLinkage(PERSIST=p, MIXCHECK = TestMixtureChecker(), snv_threshold=20,
+                                    mixed_sample_management = 'include', parameters={'Param1':1,'Param2':2,'snv_threshold':12,'uncertain_base_type':'M'}, name='MAL_20_v2')
+        guids_to_add = list(p.guids())    
+        m.update()
+
+        # check output after clustering
+        m.cluster()   
+    
+        # there are no labels
+        self.assertEqual(m.guid2cluster_labels(), {})       # no labels assigned
+
+
+        # apply labels; make some up
+        cl2label = {}
+        for cl in m.cluster2names:
+            if len(m.cluster2names[cl]['guids'])>1:
+                cl2label[cl] = {'cluster_label':'LABEL-{0}'.format(cl)}
+
+        # apply the labels
+        m.apply_cluster_labels(cl2label)
+
+        # check they are used correctly
+        for guid in m.guid2cluster_labels():
+            #print(guid, m.name2cluster[guid]['cluster_id'][0], m.guid2cluster_labels()[guid])
+            self.assertEqual("LABEL-{0}".format(m.name2cluster[guid]['cluster_id'][0]),m.guid2cluster_labels()[guid][0])
+ 
+        
 class test_Raise_error(unittest.TestCase):
     """ tests raise_error"""
     def runTest(self):
