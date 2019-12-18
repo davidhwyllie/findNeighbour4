@@ -1410,37 +1410,39 @@ def clusters2cnt(clustering_algorithm, cluster_id = None):
 			abort(404, "no cluster {1} exists for algorithm {0}".format(clustering_algorithm, cluster_id))
 			
 	d= pd.DataFrame.from_records(res)
-	print(d)
-	labels = d[['cluster_id','cluster_label']].drop_duplicates()
+	if len(d.index) == 0:		# no data; first run setting
+		retVal = {"summary":[], "members":[]}
+	else:
+		labels = d[['cluster_id','cluster_label']].drop_duplicates()
 
-	try:
-		df = pd.crosstab(d['cluster_id'],d['is_mixed'])
-		df = df.add_prefix('is_mixed_')
-		df = labels.merge(df,  how='left', left_on='cluster_id', right_index=True)
-		summary = json.loads(df.to_json(orient='records'))
-		detail  = json.loads(d.to_json(orient='records'))
-		#print(request.url, request.url.endswith('summary'), request.url.endswith('members'))
-		if cluster_id is not None:
-			retVal = {"summary":summary, "members":detail}
-		elif request.url.endswith('clusters'):
-			retVal = {"summary":summary, "members":detail}			
-		elif request.url.endswith('summary'):
-			retVal = {"summary":summary}
-		elif request.url.endswith('members'):
-			retVal = {"members":detail}
-		else:
-			abort(404, "url not recognised: "+request.url)
-	except (KeyError, AttributeError):  # no data
-		if cluster_id is not None:
-			retVal = {"summary":[], "members":[]}
-		elif request.url.endswith('clusters'):
-			retVal = {"summary":[], "members":[]}			
-		elif request.url.endswith('summary'):
-			retVal = {"summary":[]}
-		elif request.url.endswith('members'):
-			retVal = {"members":[]}
-		else:
-			abort(404, "url not recognised: "+request.url)
+		try:
+			df = pd.crosstab(d['cluster_id'],d['is_mixed'])
+			df = df.add_prefix('is_mixed_')
+			df = labels.merge(df,  how='left', left_on='cluster_id', right_index=True)
+			summary = json.loads(df.to_json(orient='records'))
+			detail  = json.loads(d.to_json(orient='records'))
+			#print(request.url, request.url.endswith('summary'), request.url.endswith('members'))
+			if cluster_id is not None:
+				retVal = {"summary":summary, "members":detail}
+			elif request.url.endswith('clusters'):
+				retVal = {"summary":summary, "members":detail}			
+			elif request.url.endswith('summary'):
+				retVal = {"summary":summary}
+			elif request.url.endswith('members'):
+				retVal = {"members":detail}
+			else:
+				abort(404, "url not recognised: "+request.url)
+		except (KeyError, AttributeError):  # no data
+			if cluster_id is not None:
+				retVal = {"summary":[], "members":[]}
+			elif request.url.endswith('clusters'):
+				retVal = {"summary":[], "members":[]}			
+			elif request.url.endswith('summary'):
+				retVal = {"summary":[]}
+			elif request.url.endswith('members'):
+				retVal = {"members":[]}
+			else:
+				abort(404, "url not recognised: "+request.url)
 
 	return make_response(tojson(retVal))
 
