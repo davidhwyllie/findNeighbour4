@@ -236,7 +236,7 @@ class findNeighbour4():
 		self.PERSIST=PERSIST
 		
 		# set up an MSA store
-		self.ms = MSAStore(PERSIST=PERSIST)
+		self.ms = MSAStore(PERSIST=PERSIST, in_ram_persistence_time=300)		# max time to store msas
 
 		# check input
 		if isinstance(CONFIG, str):
@@ -519,6 +519,9 @@ class findNeighbour4():
 	
 	def server_memory_usage(self, max_reported=None):
 		""" reports recent server memory activity """
+
+		# record the current status
+		self.server_monitoring_store(message="Server memory usage requested", guid=None)
 		if max_reported is None:
 			max_reported =100		# a default
 		return self.PERSIST.recent_server_monitoring(max_reported= max_reported)
