@@ -739,11 +739,12 @@ class test_clusters_sample(unittest.TestCase):
 		# what happens if there is nothing there
 		relpath = "/api/v2/non_existent_guid/clusters"
 		res = do_GET(relpath)
-		self.assertEqual(res.status_code, 404)
+		self.assertEqual(res.status_code, 200)
 		self.assertTrue(isjson(content = res.content))
-		info = json.loads(res.content.decode('utf-8'))
-		self.assertEqual(type(info), dict)
 		
+		info = json.loads(res.content.decode('utf-8'))
+		self.assertEqual(type(info), list)
+		self.assertEqual(info, [])
 		# add one
 		relpath = "/api/v2/guids"
 		res = do_GET(relpath)
@@ -775,7 +776,9 @@ class test_clusters_sample(unittest.TestCase):
 		
 		relpath = "/api/v2/{0}/clusters".format(guid_to_insert)
 		res = do_GET(relpath)
-		self.assertEqual(res.status_code, 404)		# clustering hasn't happened yet
+		self.assertEqual(res.status_code, 200)		# clustering hasn't happened yet
+		info = json.loads(res.content.decode('utf-8'))
+		self.assertEqual(info, [])
 
 		# Do clustering
 		os.system("pipenv run python3 findNeighbour4-clustering.py")
@@ -796,6 +799,7 @@ class test_clusters_sample(unittest.TestCase):
 		info = json.loads(cluster_list)
 		#print("CLUSTERINFO",info)
 		self.assertEqual(len(info),4)
+		print(info)
 
 class test_clusters_what(unittest.TestCase):
 	""" tests implementation of 'what' value, stored in clustering results object"""

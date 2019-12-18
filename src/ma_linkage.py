@@ -296,7 +296,7 @@ class MixtureAwareLinkageResult():
   
     def _recover_serialisation(self):
         """ reads a serialisation of  the clustering output from the Mongo db.  
-
+cluster
         """
 
         if self.PERSIST is None:
@@ -374,7 +374,11 @@ class MixtureAwareLinkageResult():
                 clusterlabel = self._clusterid2clusterlabel[cluster_id]['cluster_label']
             except KeyError:
                 clusterlabel = '-'
-            retVal.append({'cluster_id':cluster_id, 'cluster_label':clusterlabel})
+            retVal.append({'clustering_algorithm':self.name,
+                           'guid':guid,
+                           'cluster_id':cluster_id, 
+                           'cluster_label':clusterlabel,
+                           'cluster_loadtime':self.current_version_load_time.isoformat()})
         return retVal
 
     def is_mixed(self, guid, reportUnknownAsFalse=True):
@@ -2139,7 +2143,8 @@ class Test_MALR_1(unittest.TestCase):
             res = malr.guid2clusters(guid)
             for item in res:
                 keys = set(item.keys())
-                self.assertEqual(keys, set(['cluster_id','cluster_label']))
+                print(res)
+                self.assertEqual(keys, set(['cluster_id','cluster_label','cluster_loadtime']))
             self.assertIsNotNone(res)       # should all be clustered
         for guid in p.guids():
             res = malr.is_mixed(guid)

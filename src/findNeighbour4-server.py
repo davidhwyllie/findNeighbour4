@@ -1236,24 +1236,18 @@ def exist_sample(guid, **kwargs):
 
 @app.route('/api/v2/<string:guid>/clusters', methods=['GET'])
 def clusters_sample(guid):
-	""" returns clusters in which a sample resides """
+	""" returns clusters in which a sample resides.  if the sample is not clustered, returns an empty list. """
 
 	clustering_algorithms = sorted(fn.clustering.keys())
 	retVal=[]
 	for clustering_algorithm in clustering_algorithms:
 		fn.clustering[clustering_algorithm].refresh()
-		res = fn.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)
-		for item in res:	
-			if item['guid']==guid:
-				item['clustering_algorithm']=clustering_algorithm
+		res = fn.clustering[clustering_algorithm].guid2clusters(guid)
+		if res is not None:
+			for item in res:
 				retVal.append(item)
-	if len(retVal)==0:
-		abort(404, "No clustering information for guid {0}".format(guid))
-	else:
-		return make_response(tojson(retVal))
 
-
-
+	return make_response(tojson(retVal))
 
 @app.route('/api/v2/<string:guid>/annotation', methods=['GET'])
 def annotations_sample(guid):
