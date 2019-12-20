@@ -782,8 +782,12 @@ def construct_msa(guids, output_format, what):
 	if msa_result is None:
 		logging.info("Asked to recover MSA id = {0} but it did not exist.  Recomputing this".format(this_token))
 		msa_result = fn.hc.multi_sequence_alignment(guids=guids, uncertain_base_type=what)		# make it
-		fn.ms.persist(this_token, msa_result)
-	
+
+		# this may fail if all the samples are invalid
+		if msa_result is not None:
+			fn.ms.persist(this_token, msa_result)
+		else abort(406,"no sequences of adequate quality exist")
+
 	if   output_format == 'fasta':
 		return make_response(msa_result.msa_fasta())
 	elif output_format == 'json-fasta':
@@ -955,7 +959,7 @@ def msa_guids_by_cluster(clustering_algorithm, cluster_id, output_format):
 		return make_response(tojson("no clustering algorithm {0}".format(clustering_algorithm)), 404)
 		
 	if not output_format in ['html','json','json-records','json-fasta', 'fasta','interactive']:
-		abort(422, 'output_format must be one of html, json, json-records, fasta, interactive not {0}'.format(output_format))
+		abort(404, 'not available: output_format must be one of html, json, json-records, fasta, interactive not {0}'.format(output_format))
 
 	# check guids
 	res = fn.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = None)
