@@ -17,18 +17,18 @@ It has the following features:
 * Tracks memory usage, logging to database, during routine operation.
 * Allow attachment of arbitrary metadata to each sequence, but the front end for this is not implemented.
 
-Compared with findNeighbour3, its predecessor it works about 30 x faster and uses about 5% of the RAM.  
-This is achieved using a 'preComparer' - a module which stores only definite variation from the reference, initially ignoring uncertain ('N') calls.  The preComparer, given correct settings, can (at least of the TB sequences) successfully and rapidly identify distant samples which do not need the more expensive pairwise computation including Ns to be performed.  The code committed includes preComparer settings optimised for the PHE TB pipeline output, but a python module to autoderive suitable settings from arbitrary data is also provided.   
+Compared with findNeighbours 2 and 3, it works much faster (>100x faster inserts) and uses about 5% of the RAM.  
+This is achieved using using a compiled component, CatWalk, to store and compare sequences.  The component was developed by Denis Volk in nim, about which more details of this will be provided in the future.  findNeighbour4 also offers the option to use additional optimisations, including using a two stage comparison initially ignoring uncertain ('N') calls.  
 
 It was produced as part of the [Modernising Medical Microbiology](http://modmedmicro.nsms.ox.ac.uk/) initiative, together with [Public Health England](https://www.gov.uk/government/organisations/public-health-england).
 
 # Front end
-There is a front end, *findNeighbour3 monitor*.  (this also works with findNeighbour4; the API of the two servers is identical).    Although not required to run or use findNeighbour4 effectively, it helps to visualise server status and supports ad hoc queries.  In particular, it allows selecting and browsing of samples and clusters of samples in the server, including multisequence alignment, mixture detection, and depiction of their relationships.  
+There is a front end, *findNeighbour4 monitor*.  (this also works with findNeighbour4; the API of the two servers is identical).    Although not required to run or use findNeighbour4 effectively, it helps to visualise server status and supports ad hoc queries.  In particular, it allows selecting and browsing of samples and clusters of samples in the server, including multisequence alignment, mixture detection, and depiction of their relationships.  
 
 Note that the findNeighbour4 startup script (fn4_startup.sh) does not startup the web front end.  The web front end startup script requires root priviledges (loads and runs a docker image) but the findNeighbour4 server does not.
 
-![findNeighbour3 monitor example page](https://davidhwyllie.github.io/FNMFINDNEIGHBOUR3/img/startup.PNG)  
-The *findNeighbour3 monitor* is easy to use and to install.  See [details](doc/frontend.md).  
+![findNeighbour4 monitor example page](https://davidhwyllie.github.io/FNMFINDNEIGHBOUR3/img/startup.PNG)  
+The *findNeighbour4 monitor* is easy to use and to install.  See [details](doc/frontend.md).  
 findNeighbour4 itself is accessed by [web services](doc/rest-routes.md). In general, these return json objects.
 
 # Implementation and Requirements
@@ -52,15 +52,15 @@ This depends on the kind of sequences stored.  For *M. tuberculosis*:
 * an M20 EC2 instance (currently USD 0.22/hr) with 4G RAM and 20G disc storage will manage about 100,000 samples.
 
 # Comparison with findNeighbour2
-findNeighbour3 is a development of [findNeighbour2](https://github.com/davidhwyllie/findNeighbour2).
-findNeighbour3's RESTful API is backwards compatible with that of findNeighbour2, but offers increased functionality.  
+findNeighbour4 is a development of [findNeighbour2](https://github.com/davidhwyllie/findNeighbour2).
+findNeighbour4's RESTful API is backwards compatible with that of findNeighbour2, but offers increased functionality.  
 There are the following other differences:
-* It uses additional compression (*double delta*), resulting in it needing about 30-50% of the memory required by findNeighbour2.
+* It uses much less RAM and is much faster, due to use of a specialised CatWalk component, and other changes.  
 * It uses mongodb, not relational databases, for persistent storage.
 * Queries are much faster for large numbers of samples
 * It performs clustering.
 * It is 'mixture-aware' and implements an approach for detecting mixed samples.
-* Dependencies on linux-specific packages have been removed.
+* Clustering requires the linux specific *networkit* library.
 * It does not use any storage in a filesystem, except for logging.
 * Internally, it has been refactored into four components, managing the web server, in-memory storage, on-disc storage, and clustering.
 * It is only accessible via a RESTful endpoint.  The xmlrpc API included with findNeighbour2 has been removed.
