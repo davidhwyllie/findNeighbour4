@@ -80,6 +80,10 @@ class MockPersistence():
         """ returns all guids (sequence identifiers) in the network """
         return set(self.name2node.keys())
 
+    def guids_valid(self):   
+        """ returns all guids (sequence identifiers) in the network , which are assumed to be valid"""
+        return set(self.name2node.keys())
+
     def guid2neighbours(self, guid:str, returned_format:int=1)->dict:
         """ returns neighbours of a guid in type 1 format [[guid1, snvdist1], [guid2, snvdist2], ...]
         
@@ -197,7 +201,8 @@ class MixPOREMixtureChecker(MixtureChecker):
         if len(neighbours)>1:		# need 2 or more to apply mixpore
             neighbours_analysed = neighbours[:self.max_seqs_mixpore]	# take up to specific number
             to_msa = neighbours_analysed.copy()
-            to_msa.append([guid,0])			
+            to_msa.append([guid,0])	
+		
             guids_to_msa = [x[0] for x in to_msa]
             msa_result = self.hc.multi_sequence_alignment(guids_to_msa,  uncertain_base_type=self.uncertain_base_type)
             res = msa_result.df.loc[guid].to_dict()
@@ -317,7 +322,6 @@ cluster
         self.refresh_time = datetime.datetime.now().isoformat()
         self.guid2cluster = serialisation['guid2clustermeta']
         self._clusterid2clusterlabel = self._dictkey2int(serialisation['clusterid2clusterlabel'])
-    
         self.uncertain_base_type = self.parameters['uncertain_base_type']
         self.snv_threshold = self.parameters['snv_threshold']
         # compute change_id
@@ -652,6 +656,7 @@ a guid to metadata lookup (including mixture and if appropriate clustering data)
             serialisation = self.serialise_output()
         else:
             raise ValueError("what must be one of graph, output")
+
         self.PERSIST.cluster_store(storage_key, serialisation)
 
         return
@@ -743,9 +748,9 @@ a guid to metadata lookup (including mixture and if appropriate clustering data)
         return set(self._name2node.keys())
 
     def update(self)->int:
-        """ adds any guids which are in PERSIST but not in the MixtureAwareLinkage object to the graph"""
-        all_guids = self.PERSIST.guids()
-        guids_to_add = all_guids-self.guids()
+        """ adds any valid guids which are in PERSIST but not in the MixtureAwareLinkage object to the graph"""
+        valid_guids = self.PERSIST.guids_valid()
+        guids_to_add = valid_guids-self.guids()
         return self.add(guids_to_add)
 
     def add_sample(self, guid)->int:
@@ -1292,6 +1297,7 @@ a guid to metadata lookup (including mixture and if appropriate clustering data)
             raise KeyError("Not all clusterids exist; missing ones are :{0}".format(non_referenced_cluster_ids))          
 
         # apply the labels
+        #print("applying label",cl2label)
         self._clusterid2clusterlabel = cl2label
 
      
@@ -2060,7 +2066,7 @@ class test_MIXCHECK_1(unittest.TestCase):
 
             # add fake data
             guids_inserted = list()			
-            for i in range(1,10):
+            for i in range(1,4):
                 #print("Inserting",i)
 
                 seq = list(str(CONFIG['reference']))
@@ -2072,42 +2078,44 @@ class test_MIXCHECK_1(unittest.TestCase):
                     is_mixed = False
                     guid_to_insert = "nomix_{0}".format(i)	
         
-                # make i mutations at position 500,000
+                # make 5 mutations at position 500,000
 
                 offset = 700000
                 for j in range(i+5):
                     mutbase = offset+j
                     ref = seq[mutbase]
                     if is_mixed == False:
-                        if not i % 2 ==0:
+                        if i % 2 ==0:
                             if not ref == 'T':
                                 seq[mutbase] = 'T'
-                            if not ref == 'A':
+                            else:
                                 seq[mutbase] = 'A'
-                        else:
+                        elif i % 2 ==1:
                             if not ref == 'C':
                                 seq[mutbase] = 'C'
-                            if not ref == 'G':
+                            else:
                                 seq[mutbase] = 'G'
-                    if is_mixed == True:
-                        seq[mutbase] = 'M'					
+                    else:
+                         seq[mutbase] = 'M'					
                 seq = ''.join(seq)
-                #print(i,guid_to_insert, seq[699995:700020])
+                print(i,guid_to_insert, seq[699995:700020])
                 guids_inserted.append(guid_to_insert)
                 obj = hc.compress(seq)	
                 loginfo = hc.persist(obj, guid_to_insert)
-
+                #print(loginfo)
             # test the mixporemixture checker.
             for guid in guids_inserted:
                 res = mpmc.is_mixed(guid)
                 #print(guid, res)
-                #self.assertEqual("mixed" in guid, res['is_mixed'])      # should identify all mixed guids 
+                self.assertEqual("mixed" in guid, res['is_mixed'])      # should identify all mixed guids 
 
             m.update()
             m.cluster()
 
             res = m.name2meta()
+            #print(res)
             for guid in res.index:
+
                 self.assertEqual("mixed" in guid, res.at[guid,'is_mixed'])      # should identify all mixed guids              
                 
                 # check whether it's what we expect
@@ -2143,8 +2151,8 @@ class Test_MALR_1(unittest.TestCase):
             res = malr.guid2clusters(guid)
             for item in res:
                 keys = set(item.keys())
-                print(res)
-                self.assertEqual(keys, set(['cluster_id','cluster_label','cluster_loadtime']))
+
+                self.assertEqual(keys, set(['clustering_algorithm','guid','cluster_id','cluster_label','cluster_loadtime']))
             self.assertIsNotNone(res)       # should all be clustered
         for guid in p.guids():
             res = malr.is_mixed(guid)

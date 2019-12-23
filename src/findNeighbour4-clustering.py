@@ -70,16 +70,23 @@ Example usage:
 ============== 
 
 ## does not require findNeighbour4-server to be running
+Minimal example:
 python findNeighbour4-clustering.py ../config/myConfigFile.json	 
+
+# Relabel clusters
+nohup pipenv run python3 findNeighbour4-clustering.py ../phe_dev/config_phe_dev.json --rebuild_clusters_debug --label_clusters_using=../reference/guid2cluster.xlsx &
 
 if a config file is not provided, it will run (as does findNeighbour4-server) is debug mode: it will run once, and then terminate.  This is useful for unit testing.  If a config file is specified, the clustering will  run until terminated.  
 
 Checks for new sequences are conducted once per minute.
 
+
+
 """)
 	parser.add_argument('path_to_config_file', type=str, action='store', nargs='?',
 						help='the path to the configuration file', default=''  )
 	parser.add_argument('--rebuild_clusters_debug', help='delete existing, and rebuild, clusters.  Only for use in a debug setting', action='store_true')
+	parser.add_argument('--label_clusters_using', help='label clusters based on existing membership, as in the two column excel file referred to.  The program will stop after the initial run if this option is used, and will need to be restarted without this option to function normally', action='store')
 	args = parser.parse_args()
 	
 	# an example config file is default_test_config.json
@@ -95,9 +102,11 @@ Checks for new sequences are conducted once per minute.
 			configFile = os.path.join('..','config','default_test_config.json')
 			debugmode = True
 			warnings.warn("No config file name supplied ; using a configuration ('default_test_config.json') suitable only for testing, not for production. ")
+
 	rc = ReadConfig()
 	CONFIG = rc.read_config(configFile)
-	
+
+
 	########################### SET UP LOGGING #####################################  
 	# create a log file if it does not exist.
 	print("Starting logging")
@@ -125,7 +134,28 @@ Checks for new sequences are conducted once per minute.
 			logger.info("Launching communication with Sentry bug-tracking service")
 			sentry_sdk.init(CONFIG['SENTRY_URL'], integrations=[FlaskIntegration()])
 
-	########################### prepare to launch server ####################################
+	########################### read file containing labels, if it exists ##########
+	relabel = False  
+	if args.label_clusters_using is not None:
+		if os.path.exists(args.label_clusters_using):
+			print("File of cluster labels {0} exists; reading it".format(args.label_clusters_using))
+			label_df = pd.read_excel(args.label_clusters_using)
+			relabel= True
+			existing_labels = set()
+			# set column headers
+			label_df.columns = ['original_label','guid']
+			# drop anything which empty labels
+			label_df.dropna(inplace=True)
+			label_df['label'] = [x[:5] for x in label_df['original_label']]
+			previous_guid2cluster_label = {}
+			for ix in label_df.index:
+				existing_labels.add(label_df.at[ix,'label'])
+				previous_guid2cluster_label[label_df.at[ix,'guid']] = [label_df.at[ix,'label']]
+			existing_labels = list(existing_labels)
+			logging.info("Relabelling samples based on existing labels. In existing data, {0} guids have {1} labels".format(len(previous_guid2cluster_label),len(existing_labels)))
+
+
+	########################### prepare to start clustering ####################################
 	# construct the required global variables
 	
 	logger.info("Connecting to backend data store")
@@ -182,10 +212,14 @@ Checks for new sequences are conducted once per minute.
 		logger.info("Created clustering object {0}".format(clustering_name))
 		# if applicable, make a cluster nomenclature object;
 		if 'cluster_nomenclature_method' in clusterers[clustering_name].parameters:
+			if not relabel:		# otherwise, we use the labels provided to us
+				existing_labels = clusterers[clustering_name].existing_labels()
+			else:
+				logging.info("Using pre-supplied existing labels")
 			# we are instructed to do cluster naming
 			clusternomenclature[clustering_name] = ClusterNomenclature(
 				cluster_nomenclature_method = clusterers[clustering_name].parameters['cluster_nomenclature_method'],
-				existing_labels = clusterers[clustering_name].existing_labels())
+				existing_labels = existing_labels)
 			clusternameassigner[clustering_name] = ClusterNameAssigner(clusternomenclature[clustering_name])
 			logger.info("Created name assigner {0} with method {1}".format(clustering_name, clusterers[clustering_name].parameters['cluster_nomenclature_method']))
 		
@@ -202,15 +236,22 @@ Checks for new sequences are conducted once per minute.
 			if 'cluster_nomenclature_method' in clusterers[clustering_name].parameters:
 				# we are instructed to do cluster naming
 				cluster2guid = clusterers[clustering_name].cluster2names
-				previous_guid2cluster_label = clusterers[clustering_name].guid2cluster_labels()
+				if not relabel:		# then we use the existing labels as our source, otherwise we use the labels already computed
+					previous_guid2cluster_label = clusterers[clustering_name].guid2cluster_labels()
+				else:
+					logging.info("Using pre-supplied guid to cluster lookup")
 				clusterid2clusterlabel = clusternameassigner[clustering_name].assign_new_clusternames(
 								clusterid2guid = clusterers[clustering_name].cluster2names,
-								previous_guid2cluster_label = clusterers[clustering_name].guid2cluster_labels()
+								previous_guid2cluster_label = previous_guid2cluster_label
 							)
-
 				clusterers[clustering_name].apply_cluster_labels(clusterid2clusterlabel)
 				
+			# store the output
+			clusterers[clustering_name].persist(what='graph')
+			clusterers[clustering_name].persist(what='output')
+			clusterers[clustering_name].remove_legacy()		# remove old versions
 
+			# read the result 
 			malr = MixtureAwareLinkageResult(PERSIST=PERSIST, name=clustering_name)   
 
 			ms = MSAStore(PERSIST=PERSIST, in_ram_persistence_time=60)		# persist 60 seconds
@@ -244,16 +285,14 @@ Checks for new sequences are conducted once per minute.
 					
 			bar.finish()
 
-			# store the output
-			clusterers[clustering_name].persist(what='graph')
-			clusterers[clustering_name].persist(what='output')
-			clusterers[clustering_name].remove_legacy()		# remove old versions
+
 		# cleanup anything we don't need, including old clustering versions and msas
 		ms.unpersist(whitelist=whitelist)
 		logger.info("Cleanup complete.  Stored data on {0} MSAs; Built {1} new clusters".format(len(whitelist), nbuilt))
 	
 		if debugmode:
 			exit(0)
-
+		if relabel:
+			exit(0)
 		logger.info("Waiting 60 seconds")
 		time.sleep(60)

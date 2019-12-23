@@ -202,7 +202,7 @@ class hybridComparer():
                 {namespace:{key:value,...}
                 e.g.
                 {'Sequencing':{'Instrument':'MiSeq','Library':'Nextera'}}
-  
+                The persistence will store a validity key 'invalid' in the annotations DNAQuality namespace, overwriting if it exists.
             """
 
         # check that insertion is allowed
@@ -242,7 +242,13 @@ class hybridComparer():
         # insert any links found, and the datetime we added the statement.
         self.PERSIST.guid2neighbour_add_links(guid=guid,  targetguids=links)
 
-# add any annotations
+        # make sure the invalid annotation is set correctly
+        if 'DNAQuality' in annotations.keys():
+            annotations['DNAQuality']['invalid'] = is_invalid
+        else:
+            annotations['DNAQuality'] = {'invalid':is_invalid}
+
+        # add all annotations
         if annotations is not None:
             for nameSpace in annotations.keys():
                 self.PERSIST.guid_annotate(guid=guid, nameSpace=nameSpace, annotDict=annotations[nameSpace])
@@ -437,13 +443,12 @@ class hybridComparer():
                     # we regard it as a code representing a mixed base.  we store the results in a dictionary
                     diffDict['M'][i] = sequence[i]
                  
-        # check how many Ns   
+        # check how many Ns 
         if len(diffDict['N'])+len(diffDict['M'].keys())>self.maxNs:
             # we store it, but not with sequence details if is invalid
             diffDict={'invalid':1}
         else:
             diffDict['invalid']=0
-            
         return(diffDict)
             
     def _setStats(self, i1, i2):
@@ -1997,7 +2002,7 @@ class test_hybridComparer_53(unittest.TestCase):
 		hc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
                        snpCeiling =10,
-                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'N_or_M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{'bind_port':5999, 'bind_host':'localhost','cw_binary_filepath':None,'reference_name':"H37RV",'reference_filepath':inputfile,'mask_filepath':"../reference/TB-exclude-adaptive.txt"}},
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'N_or_M', 'over_selection_cutoff_ignore_factor':1, 'catWalk_parameters':{'bind_port':5999, 'bind_host':'localhost','cw_binary_filepath':None,'reference_name':"H37RV",'reference_filepath':inputfile,'mask_filepath':"../reference/TB-exclude-adaptive.txt"}},
                        unittesting=True)
         
 		hc.PERSIST._delete_existing_data()      
@@ -2015,28 +2020,30 @@ class test_hybridComparer_53(unittest.TestCase):
 				seq = originalseq.copy()			
 				# make  mutations 
 				if k==1:
-					for j in range(1000000,1000010):		# make 10 mutants at position 1m
+					for j in range(500000,500005):		# make 5 mutants at position 500000k
 						mutbase =j
 						ref = seq[mutbase]
 						if not ref == 'T':
 							seq[mutbase] = 'T'
-						if not ref == 'A':
+						else: 
 							seq[mutbase] = 'A'
 						muts+=1
 	
 
 				seq = ''.join(seq)
 				obj = hc.compress(seq)
+				print(guid_to_insert, muts)
 				hc.persist(obj, guid_to_insert)			
 
 		self.assertEqual(hc.pc.guids(), set(inserted_guids))
   
 		for guid in inserted_guids:
 			res = hc.mcompare(guid)
-			#print(res['timings'])
+			print(guid, res['timings'])
 			self.assertEqual(res['timings']['catWalk_enabled'], True)
 			self.assertEqual(res['timings']['preComparer_distances_are_exact'],True)
 			self.assertTrue(res['timings']['candidates']==0)
+			self.assertEqual(res['timings']['preCompared'],len(inserted_guids))
 			self.assertTrue(res['timings']['matches']>0)
 			
 class test_hybridComparer_54(unittest.TestCase):

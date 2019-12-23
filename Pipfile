@@ -30,6 +30,7 @@ cython = "*"
 seaborn = "*"
 openpyxl = "*"
 faker = "*"
+xlrd = "*"
 
 [requires]
 python_version = "3.6"
