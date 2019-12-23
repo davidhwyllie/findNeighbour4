@@ -1992,7 +1992,9 @@ class test_hybridComparer_52(unittest.TestCase):
 	
 
 class test_hybridComparer_53(unittest.TestCase):
-	""" tests catwalk with uncertain_base = N_or_M"""
+	""" tests catwalk with uncertain_base = N_or_M.
+		cf. preComparer test 11, which tests python vs. catwalk methods.
+"""
 	def runTest(self):
 		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
 		with open(inputfile, 'rt') as f:
@@ -2042,7 +2044,7 @@ class test_hybridComparer_53(unittest.TestCase):
 			print(guid, res['timings'])
 			self.assertEqual(res['timings']['catWalk_enabled'], True)
 			self.assertEqual(res['timings']['preComparer_distances_are_exact'],True)
-			self.assertTrue(res['timings']['candidates']==0)
+			self.assertTrue(res['timings']['candidates']==0)		# doesn't report these
 			self.assertEqual(res['timings']['preCompared'],len(inserted_guids))
 			self.assertTrue(res['timings']['matches']>0)
 			
