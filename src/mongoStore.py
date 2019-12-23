@@ -129,8 +129,12 @@ class fn3persistence():
  
             # create indices on msa; note will do nothing if index already exists
             ix3 = pymongo.IndexModel([("filename",pymongo.ASCENDING),("uploadDate", pymongo.ASCENDING)], name='filename_date')
-            self.db['msa.files'].create_indexes([ix3])            
- 
+            self.db['msa.files'].create_indexes([ix3]) 
+           
+            # create indices on guid2meta, allowing recovery of valid and invalid specimens rapidly.
+            ix4 = pymongo.IndexModel([("sequence_meta.DNAQuality.invalid", pymongo.ASCENDING)], name='guid_valid')
+            self.db['guid2meta'].create_indexes([ix4]) 
+       
         def summarise_stored_items(self):
             """ counts how many sequences exist of various types """
             retVal = {}
@@ -415,6 +419,7 @@ class fn3persistence():
                 if not isinstance(obj, dict):
                         raise TypeError("Can only store dictionary objects, not {0}".format(type(dict)))
                 json_repr = json.dumps(obj, cls=NPEncoder).encode('utf-8')
+
                 with io.BytesIO(json_repr) as f:
                         id = self.clusters.put(f, filename=clustering_key)
                         return id       # this is the current cluster version
@@ -561,7 +566,31 @@ class fn3persistence():
             
             retVal = [x['_id'] for x in self.db.guid2meta.find({}, {'_id':1})]
             return(set(retVal))
+ 
+        def _guids_selected_by_validity(self, validity):
+            """ returns  registered guids, selected on their validity
+
+                0 = guid is valid
+                1 = guid is invalid
+
+            """
+            if not validity in [0,1]:
+                raise ValueError("Validity must be 0 or 1, not {0}".format(validity))
+
+            retVal = [x['_id'] for x in self.db.guid2meta.find({"sequence_meta.DNAQuality.invalid":validity}, {'_id':1})]
+            return(set(retVal))
         
+        def guids_valid(self):
+            """ return all registered valid guids.  
+
+                Validity is determined by the contents of the DNAQuality.invalid field, on which there is an index """
+            return self._guids_selected_by_validity(0)
+        def guids_invalid(self):
+            """ return all invalid guids 
+
+                Validity is determined by the contents of the DNAQuality.invalid field, on which there is an index """
+            return self._guids_selected_by_validity(1)
+
         def guid_exists(self, guid):
             """ checks the presence of a single guid """
             
@@ -571,6 +600,27 @@ class fn3persistence():
             else:
                 return True
         
+        def guid_valid(self, guid):
+            """ checks the validity of a single guid 
+
+            Parameters:
+            guid: the sequence identifier
+
+            Returns
+            -1   The guid does not exist
+            0    The guid exists and the sequence is valid
+            1    The guid exists and the sequence is invalid
+            -2    The guid exists, but there is no DNAQuality.valid key"""
+            
+            res = self.db.guid2meta.find_one({'_id':guid},{'sequence_meta':1})
+            if res is None:
+                return -1
+            else:
+
+                try:
+                    return int(res['sequence_meta']['DNAQuality']['invalid'])
+                except KeyError:
+                    return -2
         def guid_quality_check(self,guid,cutoff):
          """ Checks whether the quality of one guid exceeds the cutoff.
          
@@ -1159,6 +1209,61 @@ class Test_SeqMeta_guid_exists_1(unittest.TestCase):
         self.assertEqual(res, True)
         res = p.guid_exists(-1)
         self.assertEqual(res, False)
+
+class Test_SeqMeta_guid_valid_1(unittest.TestCase):
+    """ tests insert of new data item and validity check""" 
+    def runTest(self): 
+        p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
+        
+        guid = "valid"
+        namespace= 'DNAQuality'
+        payload = {'invalid':0}
+        res = p.guid_annotate(guid= guid, nameSpace=namespace, annotDict = payload)
+        guid = "invalid"
+        namespace= 'DNAQuality'
+        payload = {'invalid':1}
+        res = p.guid_annotate(guid= guid, nameSpace=namespace, annotDict = payload)
+        guid = "missing"
+        namespace= 'DNAQuality'
+        payload = {'N':1}
+        res = p.guid_annotate(guid= guid, nameSpace=namespace, annotDict = payload)
+        
+        res = p.guid_valid("valid")
+        self.assertEqual(res, 0)
+        res = p.guid_valid("invalid")
+        self.assertEqual(res, 1)
+        res = p.guid_valid("missing")
+        self.assertEqual(res, -2)
+        res = p.guid_valid("noguid")
+        self.assertEqual(res, -1)
+
+class Test_SeqMeta_guid_valid_2(unittest.TestCase):
+    """ tests insert of new data item and validity check""" 
+    def runTest(self): 
+        p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
+        
+        guid = "valid1"
+        namespace= 'DNAQuality'
+        payload = {'invalid':0}
+        res = p.guid_annotate(guid= guid, nameSpace=namespace, annotDict = payload)
+        guid = "valid2"
+        namespace= 'DNAQuality'
+        payload = {'invalid':0}
+        res = p.guid_annotate(guid= guid, nameSpace=namespace, annotDict = payload)
+       
+        guid = "invalid"
+        namespace= 'DNAQuality'
+        payload = {'invalid':1}
+        res = p.guid_annotate(guid= guid, nameSpace=namespace, annotDict = payload)
+        guid = "missing"
+        namespace= 'DNAQuality'
+        payload = {'N':1}
+        res = p.guid_annotate(guid= guid, nameSpace=namespace, annotDict = payload)
+        
+        res = p.guids_valid()
+        self.assertEqual(res, set(['valid1','valid2']))
+        res = p.guids_invalid()
+        self.assertEqual(res, set(['invalid']))
         
 class Test_SeqMeta_guid_annotate_2(unittest.TestCase):
     """ tests update of existing data item with same namespace""" 

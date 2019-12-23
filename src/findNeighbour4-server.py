@@ -487,10 +487,38 @@ class findNeighbour4():
 			return "Guid {0} is already present".format(guid)
 			
 	def exist_sample(self,guid):
-		""" determine whether the sample exists in RAM"""
+		""" determine whether the sample exists in the system.
+
+		The test requires that the guid is in the database, which occurs on sample addition.
+
+		Parameters:
+		guid: the sequence identifier
+
+		Returns:
+		either True, or False
+		"""
 		
 		## this call measures presence on disc
 		return self.PERSIST.guid_exists(guid)
+
+	def validity_sample(self,guid):
+		""" determine whether the sample exists in RAM
+
+		Parameters:
+		guid: the sequence identifier
+
+		Returns:
+
+		    -1   The guid does not exist
+		    0    The guid exists and the sequence is valid
+		    1    The guid exists and the sequence is invalid
+		    -2    The guid exists, but there is no DNAQuality.valid key
+
+		Results < 0 will  represent errors if the guid is known to exist
+		"""
+		
+		## this call measures presence on disc
+		return self.PERSIST.guid_valid(guid)
 
 	def server_time(self):
 		""" returns the current server time """
@@ -593,6 +621,10 @@ class findNeighbour4():
 	
 	def get_all_guids(self):
 		return self.PERSIST.guids()
+	def get_all_valid_guids(self):
+		return self.PERSIST.guids_valid()
+	def get_all_invalid_guids(self):
+		return self.PERSIST.guids_invalid()
 	
 	def guids_with_quality_over(self,cutoff=0.66):
 		rs=self.PERSIST.guid2propACTG_filtered(float(cutoff))
@@ -786,7 +818,8 @@ def construct_msa(guids, output_format, what):
 		# this may fail if all the samples are invalid
 		if msa_result is not None:
 			fn.ms.persist(this_token, msa_result)
-		else abort(406,"no sequences of adequate quality exist")
+		else:
+			 abort(406,"no sequences of adequate quality exist")
 
 	if   output_format == 'fasta':
 		return make_response(msa_result.msa_fasta())
@@ -925,7 +958,7 @@ def msa_guids():
 	
 	# check guids
 	try:
-		valid_guids= fn.get_all_guids()
+		valid_guids= fn.get_all_valid_guids()
 	except Exception as e:
 		capture_exception(e)
 		abort(500, e)
@@ -933,7 +966,7 @@ def msa_guids():
 	missing_guids =  guids - valid_guids
 	if len(missing_guids)>0:
 		capture_message("asked to perform multiple sequence alignment with the following missing guids: {0}".format(missing_guids))		
-		abort(405, "asked to perform multiple sequence alignment with the following missing guids: {0}".format(missing_guids))
+		abort(405, "asked to perform multiple sequence alignment with the following missing or invalid guids: {0}".format(missing_guids))
 	
 	# data validation complete.  construct outputs
 	return construct_msa(guids, output_format, what)
@@ -1164,6 +1197,25 @@ def get_all_guids(**debug):
 		abort(500, e)
 	return(make_response(tojson(result)))
 
+@app.route('/api/v2/valid_guids', methods=['GET'])
+def get_valid_guids(**debug):
+	""" returns all present, valid guids.  other params, if included, is ignored."""
+	try:
+		result = list(fn.get_all_valid_guids())
+	except Exception as e:
+		capture_exception(e)
+		abort(500, e)
+	return(make_response(tojson(result)))
+
+@app.route('/api/v2/invalid_guids', methods=['GET'])
+def get_invalid_guids(**debug):
+	""" returns all present, but invalid, guids.  other params, if included, is ignored."""
+	try:
+		result = list(fn.get_all_invalid_guids())
+	except Exception as e:
+		capture_exception(e)
+		abort(500, e)
+	return(make_response(tojson(result)))
 
 @app.route('/api/v2/guids_with_quality_over/<float:cutoff>', methods=['GET'])
 @app.route('/api/v2/guids_with_quality_over/<int:cutoff>', methods=['GET'])
@@ -1226,7 +1278,12 @@ def annotations(**kwargs):
 @app.route('/api/v2/<string:guid>/exists', methods=['GET'])
 def exist_sample(guid, **kwargs):
 	""" checks whether a guid exists.
-	reference and method are ignored."""
+
+	Parameters:
+		guid: the sequence identifier
+	Returns:
+		True or False
+	"""
 	
 	try:
 		result = fn.exist_sample(guid)
@@ -1237,6 +1294,28 @@ def exist_sample(guid, **kwargs):
 		
 	return make_response(tojson(result))
 
+@app.route('/api/v2/<string:guid>/valid', methods=['GET'])
+def valid_sample(guid, **kwargs):
+	""" checks whether a guid is valid.
+
+	Parameters:
+		guid: the sequence identifier
+	Returns:
+
+		    -1   The guid does not exist
+		    0    The guid exists and the sequence is valid
+		    1    The guid exists and the sequence is invalid
+		    -2    The guid exists, but there is no DNAQuality.valid key
+	"""
+	
+	try:
+		result = fn.validity_sample(guid)
+		
+	except Exception as e:
+		capture_exception(e)
+		abort(500, e)
+		
+	return make_response(tojson(result))
 
 @app.route('/api/v2/<string:guid>/clusters', methods=['GET'])
 def clusters_sample(guid):
@@ -1250,6 +1329,7 @@ def clusters_sample(guid):
 		if res is not None:
 			for item in res:
 				retVal.append(item)
+				print(item)
 
 	return make_response(tojson(retVal))
 

@@ -145,7 +145,7 @@ def render_markdown(md_file):
 
 	
 class test_reset(unittest.TestCase):
-	""" tests route /api/v2/reset
+	""" tests route /api/v2/reset and /guids
 	"""
 	def runTest(self):
 		relpath = "/api/v2/guids"
@@ -180,6 +180,85 @@ class test_reset(unittest.TestCase):
 		self.assertTrue(n_post>0)
 		self.assertTrue(n_post_reset==0)
 
+class test_guids(unittest.TestCase):
+	""" tests routes  /guids, /valid_guids and /invalid_guids 
+	"""
+	def runTest(self):
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+
+		relpath = "/api/v2/guids"
+		res = do_GET(relpath)
+		self.assertEqual(0, len(json.loads(str(res.text))))		# get all the guids
+		
+		guid_to_insert = "valid"
+		
+		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+		with open(inputfile, 'rt') as f:
+			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+					seq = str(record.seq)
+		
+		relpath = "/api/v2/insert"
+		res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
+		
+		seq2= ''.join("N"*len(seq))
+		guid_to_insert = "invalid"
+		res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq2})
+
+		
+		relpath = "/api/v2/guids"
+		res = do_GET(relpath)
+		self.assertEqual(set(['valid','invalid']),set(json.loads(str(res.text))))		# get all the guids
+		
+		relpath = "/api/v2/valid_guids"
+		res = do_GET(relpath)
+		self.assertEqual(set(['valid']),set(json.loads(str(res.text))))		# get all the guids
+	
+		relpath = "/api/v2/invalid_guids"
+		res = do_GET(relpath)
+		self.assertEqual(set(['invalid']),set(json.loads(str(res.text))))		# get all the guids
+	
+class test_guid_validity(unittest.TestCase):
+	""" tests routes  /validity_guids 
+	"""
+	def runTest(self):
+		relpath = "/api/v2/reset"
+		res = do_POST(relpath, payload={})
+
+		relpath = "/api/v2/guids"
+		res = do_GET(relpath)
+		self.assertEqual(0, len(json.loads(str(res.text))))		# get all the guids
+		
+		guid_to_insert = "valid_guid"
+		
+		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+		with open(inputfile, 'rt') as f:
+			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+					seq = str(record.seq)
+		
+		relpath = "/api/v2/insert"
+		res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
+		
+		seq2= ''.join("N"*len(seq))
+		guid_to_insert = "invalid_guid"
+		res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq2})
+
+		
+		relpath = "/api/v2/invalid_guid/valid"
+		res = do_GET(relpath)
+		valid_code = json.loads(str(res.text))		
+		self.assertEqual(valid_code, 1)
+
+			
+		relpath = "/api/v2/valid_guid/valid"
+		res = do_GET(relpath)
+		valid_code = json.loads(str(res.text))		
+		self.assertEqual(valid_code, 0)
+
+		relpath = "/api/v2/missing_guid/valid"
+		res = do_GET(relpath)
+		valid_code = json.loads(str(res.text))		
+		self.assertEqual(valid_code, -1)
 class test_cl2network(unittest.TestCase):
 	"""  tests return of a change_id number from clustering engine"""
 	def runTest(self):
@@ -835,10 +914,10 @@ class test_clusters_what(unittest.TestCase):
 		# what happens if there is nothing there
 		relpath = "/api/v2/non_existent_guid/clusters"
 		res = do_GET(relpath)
-		self.assertEqual(res.status_code, 404)
+
 		self.assertTrue(isjson(content = res.content))
 		info = json.loads(res.content.decode('utf-8'))
-		self.assertEqual(type(info), dict)
+		self.assertEqual(info, [])
 		
 		
 class test_annotation_sample(unittest.TestCase):
