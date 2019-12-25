@@ -19,6 +19,7 @@ It will repack up to 10 samples per run
 import os
 import sys
 import logging
+import logging.handlers
 import warnings
 import sys
 import pymongo
@@ -36,16 +37,16 @@ from mongoStore import fn3persistence
 
 # only used for unit testing
 import unittest
-			
+            
 def repack(guids):
-	""" generates a smaller and faster representation in the persistence store
-	for the guids in the list. optional"""
-	if guids is None:
-		guids = PERSIST.guids()  # all the guids
-	for this_guid in guids:
-		logger.debug("Repacking {0}".format(this_guid))
-		PERSIST.guid2neighbour_repack(this_guid)
-		
+    """ generates a smaller and faster representation in the persistence store
+    for the guids in the list. optional"""
+    if guids is None:
+        guids = PERSIST.guids()  # all the guids
+    for this_guid in guids:
+        logger.debug("Repacking {0}".format(this_guid))
+        PERSIST.guid2neighbour_repack(this_guid)
+        
 
 # startup
 if __name__ == '__main__':
@@ -73,9 +74,9 @@ if __name__ == '__main__':
                 raise FileNotFoundError("Passed one parameter, which should be a CONFIG file name; tried to open a config file at {0} but it does not exist ".format(sys.argv[1]))
 
         if isinstance(CONFIG, str):
-                CONFIG=json.loads(CONFIG)	# assume JSON string; convert.
+                CONFIG=json.loads(CONFIG)   # assume JSON string; convert.
 
-        # check CONFIG is a dictionary	
+        # check CONFIG is a dictionary  
         if not isinstance(CONFIG, dict):
                 raise KeyError("CONFIG must be either a dictionary or a JSON string encoding a dictionary.  It is: {0}".format(CONFIG))
         
@@ -104,7 +105,9 @@ if __name__ == '__main__':
         logger = logging.getLogger()
         logger.setLevel(loglevel)
         logfile = os.path.join(logdir, "dbmanager-{0}".format(os.path.basename(CONFIG['LOGFILE'])))
-        file_handler = logging.FileHandler(logfile)
+        print("Logging to {0} with rotation".format(logfile))
+        file_handler = logging.handlers.RotatingFileHandler(logfile, mode = 'a', maxBytes = 1e7, backupCount = 7)
+ 
         formatter = logging.Formatter( "%(asctime)s | %(pathname)s:%(lineno)d | %(funcName)s | %(levelname)s | %(message)s ")
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
@@ -146,9 +149,9 @@ if __name__ == '__main__':
         logging.info("Connecting to backend data store")
         try:
              PERSIST=fn3persistence(dbname = CONFIG['SERVERNAME'],
-									connString=CONFIG['FNPERSISTENCE_CONNSTRING'],
-									debug=CONFIG['DEBUGMODE'],
-									server_monitoring_min_interval_msec = CONFIG['SERVER_MONITORING_MIN_INTERVAL_MSEC'])
+                                    connString=CONFIG['FNPERSISTENCE_CONNSTRING'],
+                                    debug=CONFIG['DEBUGMODE'],
+                                    server_monitoring_min_interval_msec = CONFIG['SERVER_MONITORING_MIN_INTERVAL_MSEC'])
         except Exception as e:
              logger.exception("Error raised on creating persistence object")
              if e.__module__ == "pymongo.errors":
@@ -177,7 +180,7 @@ if __name__ == '__main__':
              if nModified == 0:
                      # everything has been packed
                      logger.info("Nothing found to repack.  Waiting 60s .. ")
-                     time.sleep(60)	# recheck in 1 minute
-		 
+                     time.sleep(60) # recheck in 1 minute
+         
 
 

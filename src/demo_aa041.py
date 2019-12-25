@@ -11,48 +11,48 @@ import datetime
 import pandas as pd
 from fn3client import fn3Client
 
+if __name__ == '__main__':
+    # define directory where the fastas are
+    fastadir = os.path.join('..','demos','AA041','fasta')
+    outputdir = os.path.join('..','demos','AA041','output')
 
-# define directory where the fastas are
-fastadir = os.path.join('..','demos','AA041','fasta')
-outputdir = os.path.join('..','demos','AA041','output')
+    # instantiate client
+    fn3c = fn3Client("http://127.0.0.1:5031")      # expects operation on local host; config file runs server on port 5031 for cw version and 5041 for python version.
 
-# instantiate client
-fn3c = fn3Client("http://127.0.0.1:5031")      # expects operation on local host; config file runs server on port 5031 for cw version and 5041 for python version.
+    # names of the clustering algorithms
+    clusters=fn3c.clustering()
 
-# names of the clustering algorithms
-clusters=fn3c.clustering()
+    existing_guids = set(fn3c.guids())
+    clustering_created = False
+    print("There are {0} existing guids".format(len(existing_guids)))
+    # add control fasta files.  The system evaluates the %N in terms of the population existing
+    # we load 50 randomly selected guids as controls
 
-existing_guids = set(fn3c.guids())
-clustering_created = False
-print("There are {0} existing guids".format(len(existing_guids)))
-# add control fasta files.  The system evaluates the %N in terms of the population existing
-# we load 50 randomly selected guids as controls
-
-for i,fastafile in enumerate(glob.glob(os.path.join(fastadir, 'control','*.mfasta.gz'))):
-    guid = "ctrl_"+os.path.basename(fastafile).replace('.mfasta.gz','')
-    seq = fn3c.read_fasta_file(fastafile)['seq']
-    if not guid in existing_guids:
+    for i,fastafile in enumerate(glob.glob(os.path.join(fastadir, 'control','*.mfasta.gz'))):
+        guid = "ctrl_"+os.path.basename(fastafile).replace('.mfasta.gz','')
+        seq = fn3c.read_fasta_file(fastafile)['seq']
+        if not guid in existing_guids:
         fn3c.insert(guid=guid,seq=seq)
         result= 'inserted'
-    else:
+        else:
         result = 'exists, skipped re-insert'
-    print("Controls",datetime.datetime.now(), i, guid, result)
+        print("Controls",datetime.datetime.now(), i, guid, result)
 
-for i,fastafile in enumerate(sorted(glob.glob(os.path.join(fastadir, 'test', '*.mfasta.gz')))):
-    
-    guid = os.path.basename(fastafile).replace('.mfasta.gz','')
-    read_failed = False
-    try:
+    for i,fastafile in enumerate(sorted(glob.glob(os.path.join(fastadir, 'test', '*.mfasta.gz')))):
+        
+        guid = os.path.basename(fastafile).replace('.mfasta.gz','')
+        read_failed = False
+        try:
         seq = fn3c.read_fasta_file(fastafile)['seq']
-    except IOError:
+        except IOError:
         read_failed = True
-    
-    if not read_failed:    
+        
+        if not read_failed:    
         if not guid in existing_guids:
             fn3c.insert(guid=guid,seq=seq)
             result= 'inserted'
-    print("Test",datetime.datetime.now(), i, guid, result)
+        print("Test",datetime.datetime.now(), i, guid, result)
           
 
-print("Finished")
+    print("Finished")
 

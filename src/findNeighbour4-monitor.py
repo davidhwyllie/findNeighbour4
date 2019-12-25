@@ -5,6 +5,7 @@
 import os
 import sys
 import logging
+import logging.handlers
 import warnings
 import pymongo
 import pandas as pd
@@ -81,7 +82,9 @@ if __name__ == '__main__':
         # configure logging object
         logger = logging.getLogger()
         logger.setLevel(loglevel)       
-        file_handler = logging.FileHandler("dbmanager-{0}".format(os.path.basename(CONFIG['LOGFILE'])))
+        logfile = os.path.join(logdir, "monitor-{0}".format(os.path.basename(CONFIG['LOGFILE'])))
+        print("Logging to {0} with rotation".format(logfile))
+        file_handler = logging.handlers.RotatingFileHandler(logfile, mode = 'a', maxBytes = 1e7, backupCount = 7)
         formatter = logging.Formatter( "%(asctime)s | %(pathname)s:%(lineno)d | %(funcName)s | %(levelname)s | %(message)s ")
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
