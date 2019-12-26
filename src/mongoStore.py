@@ -134,7 +134,19 @@ class fn3persistence():
             # create indices on guid2meta, allowing recovery of valid and invalid specimens rapidly.
             ix4 = pymongo.IndexModel([("sequence_meta.DNAQuality.invalid", pymongo.ASCENDING)], name='guid_valid')
             self.db['guid2meta'].create_indexes([ix4]) 
-       
+
+            # create index on server_monitoring insert times
+            ix5 = pymongo.IndexModel([('context|time|time_now', pymongo.ASCENDING)])
+            self.db['server_monitoring'].create_indexes([ix5])
+
+        def delete_server_monitoring_entries(self, before_seconds):
+            """ deletes server monitoring entries more than before_seconds ago """
+            now = datetime.datetime.now()
+            earliest_allowed = now - datetime.timedelta(seconds = before_seconds)
+            earliest_allowed_str = str(earliest_allowed)
+            self.db['server_monitoring'].delete_many( {  "context|time|time_now" : { "$gt" : earliest_allowed_str } } )
+
+            
         def summarise_stored_items(self):
             """ counts how many sequences exist of various types """
             retVal = {}
@@ -1000,7 +1012,21 @@ class Test_Server_Monitoring_3(unittest.TestCase):
                 res = p.recent_server_monitoring(100)
                 self.assertEqual(len(res),2)
                 self.assertTrue(isinstance(res,list))
-                              
+
+class Test_Server_Monitoring_4(unittest.TestCase):
+        """ checks whether delete_server_monitoring_entries"""
+        def runTest(self):
+                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2, server_monitoring_min_interval_msec= 2000)
+                retVal = p.server_monitoring_store(message='one')  # should insert
+                self.assertEqual(retVal, True)
+                res = p.recent_server_monitoring(100)
+                self.assertEqual(len(res),1)
+                self.assertTrue(isinstance(res,list))
+                time.sleep(2)                   # seconds
+                p.delete_server_monitoring_entries(1)
+                res = p.recent_server_monitoring(100)
+                self.assertEqual(len(res),0)
+                self.assertTrue(isinstance(res,list))               
 class Test_SeqMeta_guid2neighbour_8(unittest.TestCase):
         """ tests guid2neighboursOf"""
         def runTest(self):

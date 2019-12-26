@@ -55,7 +55,7 @@ if __name__ == '__main__':
         # an example config file is default_test_config.json
                
         ############################ LOAD CONFIG ######################################
-        print("findNeighbour3-dbmanager server .. reading configuration file.")
+        print("findNeighbour4-dbmanager server .. reading configuration file.")
 
         max_batch_size = 100
 
@@ -159,6 +159,9 @@ if __name__ == '__main__':
                  raise        
         while True:
              nModified = 0
+             print("Removing old server monitor entries.. ")
+             PERSIST.delete_server_monitoring_entries(self, before_seconds= (3600 * 24 * 14))        # 14 days
+             
              to_update = set()
              # does this guid have any singleton guid2neighbour records which need compressing
              print("Gathering guids for update .. ")
