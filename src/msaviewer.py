@@ -79,7 +79,7 @@ class SimulateSequenceData():
 
 class DepictMSA():
        """ depicts a multi sequence alignment """
-       def __init__(self, msar_df, iupac=None, positions_analysed=None, identify_sequence_by=None, max_elements_in_plot=200000):
+       def __init__(self, msar_df, iupac=None, positions_analysed=None, identify_sequence_by=None, max_elements_in_plot=300000):
            """ loads an MSA result object's dataframe.
 
                parameters:
@@ -265,8 +265,8 @@ class DepictMSA():
            info = Div(text="Cluster {0} with {1} sequences and {2} variant bases in alignment. ".format(cluster_name, len(self.df.index), self.align_width))
            
            # fasta
-           div = Div(text=self.fasta)
-           p1 = Panel(child=div, title = "Fasta")
+           d = Div(text=self.fasta)
+           p1 = Panel(child=d, title = "Fasta")
 
 
            # table of compositions
@@ -276,7 +276,7 @@ class DepictMSA():
            for item in target_columns:
                columns.append(TableColumn(field=item, title=item))
            data_table = DataTable(source=comp_source, columns=columns, width=1200, height =500)
-           pC = Panel(child=data_table, title = 'Composition')
+           pC = Panel(child=data_table, title = 'Composition of variant bases')
 
     
            # table of base counts and and -logp values
@@ -292,7 +292,8 @@ class DepictMSA():
            
            # grid - provided it is not too large
            if self.nSeqs * self.align_width > self.max_elements_in_plot:
-               g = Div(text = "The alignment is too large to show with {0} elements.  A maximum of {1} elements are allowed.  The cutoff, which is in place for performance reasons, can be altered by setting max_elements_in_plot when constructing a MSAViewer object.".format(self.nSeqs * self.align_width , self.max_elements_in_plot))
+               d = Div(text = "The alignment is too large to show with {0} elements.  A maximum of {1} elements are allowed.  The cutoff, which is in place for performance reasons, can be altered by setting max_elements_in_plot when constructing a MSAViewer object.".format(self.nSeqs * self.align_width , self.max_elements_in_plot))
+               p2 = Panel(child = d, title='No interactive MSA')
            else:          
                # create graphical view of msa.  cf. https://dmnfarrell.github.io/bioinformatics/bokeh-sequence-aligner
      
@@ -430,9 +431,9 @@ class DepictMSA():
 
                p2 = Panel(child = grid([qq_plot, select, [button1,button2],p]), title='Interactive MSA')
                # add text stating name of cluster and alignment width
-               g = grid([info,Tabs(tabs=[p2, p0, pC, p1]) ])
+           g = grid([info,Tabs(tabs=[p2, p0, pC, p1]) ])
            html = file_html(g, CDN, "Multisequence alignment")
-
+           # show(g)
            return html
 
 class Test_SimulateSequenceData_1(unittest.TestCase):
@@ -520,4 +521,8 @@ class Test_DepictMSA_1(unittest.TestCase):
         self.assertIsInstance(retVal, str)
         self.assertTrue('</html>' in retVal)
         
+        dep_msa = DepictMSA(msa, identify_sequence_by = ['Surname','Forename'], max_elements_in_plot=20)
+        retVal = dep_msa.render_msa()
+        self.assertIsInstance(retVal, str)
+        self.assertTrue('</html>' in retVal)
 
