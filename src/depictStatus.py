@@ -29,9 +29,10 @@ class MakeHumanReadable():
         """ creats a new converter """
         self.tag2readable = {
             "content|activity|guid":"sequence identifier",
-            "server|mstat|":"memory",
-            "server|pcstat|n":"in-memory sequences (preComparer, no N) ",
-            "server|scstat|n":"in-memory sequences (seqComparer, incl. N) ",
+            "server|mstat|":"fn4 memory",
+            "server|catwalk|":"catwalk comparison engine ",
+            "server|pcstat|n":"in-memory sequences (preComparer) ",
+            "server|scstat|n":"in-memory sequences (seqComparer) ",
             "interval":"Interval between events (seconds) ",
             "dstats|guid2neighbour|": "db, guid2neighbour collection (stores similar sequence pairs), ",
             "dstats|guid2meta|": "db, guid2metadata collection (stores meta data about sequences), ",
@@ -232,6 +233,7 @@ class DepictServerStatus():
             pass
         # create intervals & a column data source
         self._create_cds(to_data_tag)
+        
     def most_recent_guids(self, data_tag, n = 10):
         """ returns the most recent nGuids guids from the dataset defined by data_tag 
         
@@ -427,16 +429,22 @@ class test_logfile(unittest.TestCase):
         # no parameters except SNV threshold
         dss = DepictServerStatus()
         self.assertEqual(dss.logfile_tail(None), 'No Log file was specified.')
-        self.assertEqual(dss.logfile_tail('nonexistent_file'), 'Log file specified does not exist.')
-        res = dss.logfile_tail(os.path.join("..","testdata","monitoring","logfile_small.log"))        
+
+        dss = DepictServerStatus(logfile='nonexisting_file')
+        self.assertEqual(dss.logfile_tail(), 'No log file exists')
+
+        dss = DepictServerStatus(logfile=os.path.join("..","testdata","monitoring","logfile_small.log"))        
+        res = dss.logfile_tail()        
         self.assertTrue("2018-10-30 12:02:09,964" in res)    
-        res = dss.logfile_tail(os.path.join("..","testdata","monitoring","logfile_big.log"))
+
+        dss = DepictServerStatus(logfile=os.path.join("..","testdata","monitoring","logfile_big.log"))
+        res = dss.logfile_tail()
         self.assertTrue("2018-11-02 10:33:41,831" in res)    
  
 class test_depict_1(unittest.TestCase):
     def runTest(self):
         """ tests depiction """
-        inputfile = os.path.join("..","testdata","monitoring","m1000.json")
+        inputfile = os.path.join("..","testdata","monitoring","m50.json")
         with open(inputfile,'rt') as f:
             res = json.load(f)
             
@@ -468,15 +476,15 @@ class test_depict_1(unittest.TestCase):
 
         doc = Tabs(tabs=[tab_server, tab_memory, tab_g2n, tab_g2m, tab_sm, tab_rserver, tab_rmemory])
 
-        show(doc)
+        #show(doc)
         
 class test_tail(unittest.TestCase):
     def runTest(self):
         """ tests tailing of a file """
         
         # no parameters except SNV threshold
-        dss = DepictServerStatus()
-        res = dss.logfile_tail(os.path.join("..","testdata","monitoring","logfile_big.log"), 100)
+        dss = DepictServerStatus(logfile = os.path.join("..","testdata","monitoring","logfile_big.log"))
+        res = dss.logfile_tail(100)
         self.assertTrue("2018-11-02 10:33:41,831" in res)    
  
         ## snippet to be removed to main file
@@ -486,4 +494,4 @@ class test_tail(unittest.TestCase):
         tab1 = Panel(child=div, title='Log tail')        
         doc = tabs = Tabs(tabs=[ tab1 ])
 
-        show(doc)
+        #show(doc)
