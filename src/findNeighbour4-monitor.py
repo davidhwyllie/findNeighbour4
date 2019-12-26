@@ -33,9 +33,7 @@ if __name__ == '__main__':
         # an example config file is default_test_config.json
                
         ############################ LOAD CONFIG ######################################
-        print("findNeighbour4-dbmanager server .. reading configuration file.")
-
-        max_batch_size = 100
+        print("findNeighbour4-monitor .. reading configuration file.")
 
         if len(sys.argv) == 2:
                 configFile = sys.argv[1]
@@ -105,9 +103,9 @@ if __name__ == '__main__':
         # This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuration file.
         if os.environ.get("FNPERSISTENCE_CONNSTRING") is not None:
                 CONFIG["FNPERSISTENCE_CONNSTRING"] = os.environ.get("FNPERSISTENCE_CONNSTRING")
-                print("Set connection string to mongodb from environment variable")
+                logger.info("Set connection string to mongodb from environment variable")
         else:
-                print("Using connection string to mongodb from configuration file.")
+                logger.info("Using connection string to mongodb from configuration file.")
         
         
         # determine whether a FN_SENTRY_URL environment variable is present,
@@ -115,9 +113,9 @@ if __name__ == '__main__':
         # This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuraton file.
         if os.environ.get("FN_SENTRY_URL") is not None:
                 CONFIG["SENTRY_URL"] = os.environ.get("FN_SENTRY_URL")
-                print("Set Sentry connection string from environment variable")
+                logger.info("Set Sentry connection string from environment variable")
         else:
-                print("Using Sentry connection string from configuration file.")
+                logger.info("Using Sentry connection string from configuration file.")
                 
                 
         #########################  CONFIGURE HELPER APPLICATIONS ######################
