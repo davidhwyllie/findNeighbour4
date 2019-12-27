@@ -36,9 +36,9 @@ class ClusterNameAssigner():
 
 
         # for each cluster, determine the majority previous call,
-        # non implemented option: weighting non-mixed samples (which can only belong in one cluster) over mixed ones, which can belong in >1 cluster.
         recommended_cluster_label={}
         for cluster_id in clusterid2guid:
+
             legacy_cluster_labels=[]
             if len(clusterid2guid[cluster_id]['guids'])>1:       # we don't note clusterids for clusters of size 1
 
@@ -57,14 +57,14 @@ class ClusterNameAssigner():
                                                                  # the counter delivers these as tuples in descending order
                 n_most_common = len(most_common)
                 if n_most_common >= 1:
-                    most_common = min(most_common)   # if there is more than one common example, we take the smallest/ earliest sample  
+                    most_common = min(most_common)               # if there is more than one common example, we take the smallest/ earliest sample  
  
                 elif n_most_common==0:       # none provided
                     most_common = self.CLUSTERNOMENCLATURE.new_label()
 
                 recommended_cluster_label[cluster_id]= {'cluster_label':most_common}
 
-        # now check whether the recommended new names are unique to the clusters: in SQL:
+        # now check whether the recommended cluster labels are unique to the clusters: in SQL:
         # select cluster_id, count(recommended_cluster_label) group by cluster_id having count(distinct recommended_cluster_labels)>1
 
         df = pd.DataFrame.from_dict(recommended_cluster_label, orient='index')
@@ -74,9 +74,21 @@ class ClusterNameAssigner():
         df['cluster_id']=df.index.to_list()
         cnts = df['cluster_id'].groupby(df['cluster_label']).agg(['count'])
         df = df.merge(cnts, left_on='cluster_label', right_on = 'cluster_label')
+
+        # we sort this by cluster_label, count.  The intention is that the earliest cluster labels, which are the smallest alphabetically,
+        # and the largest clusters, will be encountered first and will not change.  By contrast, smaller clusters may be renamed if necessary.
+        df = df.sort_values(['cluster_label', 'count'], ascending=[True, False])
+
+        already_used = set()
         for ix in df.index:
             if df.at[ix,'count']>1:
-                df.at[ix,'cluster_label'] = self.CLUSTERNOMENCLATURE.new_label(from_existing = df.at[ix,'cluster_label'])
+                if df.at[ix,'cluster_label'] in already_used:       # we have used that label
+                    new_label = self.CLUSTERNOMENCLATURE.new_label(from_existing = df.at[ix,'cluster_label'])
+                    df.at[ix,'cluster_label'] = new_label
+                else:
+                    # no change needed, but if we encounter this cluster label again, then we will need to reassign this label as it's not unique.
+                    pass
+            already_used.add(df.at[ix,'cluster_label'])
             recommended_cluster_label[df.at[ix,'cluster_id']] = {'cluster_label':df.at[ix,'cluster_label']}
       
         return recommended_cluster_label
@@ -391,7 +403,6 @@ class Test_ClusterNameAssigner_1(unittest.TestCase):
         """ test cluster name assigner """
         def runTest(self):
             n = ClusterNomenclature(cluster_nomenclature_method='TB')
-
             cna = ClusterNameAssigner(n)
             previous_guid2cluster_label = {'a':['AA001'],'b':['AA001'],'e':['AB001'],'f':['AB001']}
             clusterid2guid={1:{'guids':['a','b','c','d']}, 2:{'guids':['e','f']}}
@@ -404,11 +415,12 @@ class Test_ClusterNameAssigner_1(unittest.TestCase):
             self.assertEqual(retVal, {1: {'cluster_label':'AA001'}, 2: {'cluster_label':'AA002'}})      # generate new names
 
             cna = ClusterNameAssigner(n)
-            previous_guid2cluster_label = {'a':['AA001'],'b':['AA001'],'e':['AA001'],'f':['AA001']}
-            clusterid2guid={1:{'guids':['a','b','c','d']}, 2:{'guids':['e','f']}}
-            retVal = cna.assign_new_clusternames(clusterid2guid = clusterid2guid, previous_guid2cluster_label=previous_guid2cluster_label)
-            self.assertEqual(retVal, {1: {'cluster_label': 'AA001v1'}, 2: {'cluster_label': 'AA001v2'}})  # generate new names from previous onesr
+            previous_guid2cluster_label = {'a':['AA001'],'b':['AA001'],'e':['AA001'],'f':['AA001'],'g':['AA002'],'h':['AA002']}
+            clusterid2guid={1:{'guids':['a','b','c','d']}, 2:{'guids':['e','f']}, 3:{'guids':['g','h']}}
 
+            retVal = cna.assign_new_clusternames(clusterid2guid = clusterid2guid, previous_guid2cluster_label=previous_guid2cluster_label)
+            expected_result = {1: {'cluster_label': 'AA001'}, 2: {'cluster_label': 'AA001v1'}, 3: {'cluster_label':'AA002'}}
+            self.assertEqual(retVal, expected_result)  # generate new names from previous ones, keeping one unchanged and without altering irrelevant clusters
 
         
 
