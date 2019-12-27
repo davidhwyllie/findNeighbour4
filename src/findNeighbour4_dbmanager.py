@@ -8,7 +8,7 @@ Its use is not essential, but running this software will
 * consequently, reduce the index size
 * make the database more scalable.
 
-The main operation this software provides is to repack the database from a format in which there is one document per cell in the snp matrix
+36The main operation this software provides is to repack the database from a format in which there is one document per cell in the snp matrix
 to one in which there is one document per row (or, if the matrix is very big, to a small number or rows)
 
 It is designed to be run from the command line by a scheduler, such as cron.
@@ -160,7 +160,7 @@ if __name__ == '__main__':
         while True:
              nModified = 0
              print("Removing old server monitor entries.. ")
-             PERSIST.delete_server_monitoring_entries(self, before_seconds= (3600 * 24 * 14))        # 14 days
+             PERSIST.delete_server_monitoring_entries(before_seconds= (3600 * 24 * 14))        # 14 days
              
              to_update = set()
              # does this guid have any singleton guid2neighbour records which need compressing
