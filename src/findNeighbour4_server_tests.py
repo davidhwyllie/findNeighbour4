@@ -6,10 +6,10 @@ See documentation for full details of its functionality.
 There are unit tests for it.  To run them:
 
 # starting a test RESTFUL server
-pipenv run python3 findNeighbour4-server.py
+pipenv run python3 findNeighbour4_server.py
 
 # And then (e.g. in a different terminal) launching unit tests with
-pipenv run python3 -m unittest findNeighbour4-server-tests.py
+pipenv run python3 -m unittest findNeighbour4_server-tests.py
 """
  
 
@@ -305,7 +305,7 @@ class test_cl2network(unittest.TestCase):
 
         # run the clustering engine.
 
-        os.system("pipenv run python3 findNeighbour4-clustering.py")
+        os.system("pipenv run python3 findNeighbour4_clustering.py")
 
         # do tests
         relpath = "/api/v2/clustering/SNV12_ignore/cluster_ids"
@@ -498,7 +498,7 @@ class test_msa_2(unittest.TestCase):
 
         # Do clustering
         print("Doing clustering")
-        os.system("pipenv run python3 findNeighbour4-clustering.py")
+        os.system("pipenv run python3 findNeighbour4_clustering.py")
                 
         relpath = "/api/v2/clustering/SNV12_ignore/guids2clusters"
         res = do_GET(relpath)
@@ -859,7 +859,7 @@ class test_clusters_sample(unittest.TestCase):
         self.assertEqual(info, [])
 
         # Do clustering
-        os.system("pipenv run python3 findNeighbour4-clustering.py")
+        os.system("pipenv run python3 findNeighbour4_clustering.py")
 
         relpath = "/api/v2/guids"
         res = do_GET(relpath)
@@ -908,7 +908,7 @@ class test_clusters_what(unittest.TestCase):
         self.assertEqual(info, 'Guid {0} inserted.'.format(guid_to_insert))
 
         # Do clustering
-        os.system("pipenv run python3 findNeighbour4-clustering.py")
+        os.system("pipenv run python3 findNeighbour4_clustering.py")
         
         # what happens if there is nothing there
         relpath = "/api/v2/non_existent_guid/clusters"
@@ -975,7 +975,7 @@ class test_what_tested(unittest.TestCase):
 
 
         # Do clustering
-        os.system("pipenv run python3 findNeighbour4-clustering.py")
+        os.system("pipenv run python3 findNeighbour4_clustering.py")
     
 
 
@@ -1046,7 +1046,7 @@ class test_clusters2cnt(unittest.TestCase):
 
 
         # Do clustering
-        os.system("pipenv run python3 findNeighbour4-clustering.py")
+        os.system("pipenv run python3 findNeighbour4_clustering.py")
     
 
         
@@ -1149,7 +1149,7 @@ class test_g2ca(unittest.TestCase):
         self.assertEqual(info, 'Guid {0} inserted.'.format(guid_to_insert))
 
         # Do clustering
-        os.system("pipenv run python3 findNeighbour4-clustering.py")
+        os.system("pipenv run python3 findNeighbour4_clustering.py")
         
         relpath = "/api/v2/clustering/SNV12_ignore/guids2clusters"
 

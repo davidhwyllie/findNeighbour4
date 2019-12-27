@@ -3,7 +3,7 @@ assumes a findNeighbour4 server is running, with the connection string stated in
 
 An example command doing this would be (starting from /src)
 
-pipenv run python3 findNeighbour4-server.py ../demos/AC587/config/config_cl.json
+pipenv run python3 findNeighbour4_server.py ../demos/AC587/config/config_cl.json
 
 The test performs clustering.
 """
@@ -64,20 +64,20 @@ if __name__ == '__main__':
     # command line usage.  Pass the location of a config file as a single argument.
     parser = argparse.ArgumentParser(
         formatter_class= argparse.RawTextHelpFormatter,
-        description="""Runs findNeighbour4-clustering, a findNeighbour4 component.
+        description="""Runs findNeighbour4_clustering, a findNeighbour4 component.
                                      
 
 Example usage: 
 ============== 
 
-## does not require findNeighbour4-server to be running
+## does not require findNeighbour4_server to be running
 Minimal example:
-python findNeighbour4-clustering.py ../config/myConfigFile.json  
+python findNeighbour4_clustering.py ../config/myConfigFile.json  
 
 # Relabel clusters
-nohup pipenv run python3 findNeighbour4-clustering.py ../phe_dev/config_phe_dev.json --rebuild_clusters_debug --label_clusters_using=../reference/guid2cluster.xlsx &
+nohup pipenv run python3 findNeighbour4_clustering.py ../phe_dev/config_phe_dev.json --rebuild_clusters_debug --label_clusters_using=../reference/guid2cluster.xlsx &
 
-if a config file is not provided, it will run (as does findNeighbour4-server) is debug mode: it will run once, and then terminate.  This is useful for unit testing.  If a config file is specified, the clustering will  run until terminated.  
+if a config file is not provided, it will run (as does findNeighbour4_server) is debug mode: it will run once, and then terminate.  This is useful for unit testing.  If a config file is specified, the clustering will  run until terminated.  
 
 Checks for new sequences are conducted once per minute.
 

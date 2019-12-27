@@ -1,30 +1,52 @@
-#!/usr/bin/env python3
-""" produces depictions of server activity, based on findNeighbour monitoring data """
+ #!/usr/bin/env python
+""" 
+findNeighbour3 is a server providing relatedness information for bacterial genomes via a Restful API.
 
+This application optimises the database which findNeighbour3 uses, in the background.
+Its use is not essential, but running this software will
+* reduce the number of documents
+* consequently, reduce the index size
+* make the database more scalable.
+
+The main operation this software provides is to repack the database from a format in which there is one document per cell in the snp matrix
+to one in which there is one document per row (or, if the matrix is very big, to a small number or rows)
+
+It is designed to be run from the command line by a scheduler, such as cron.
+It will repack up to 10 samples per run
+"""
+ 
 # import libraries
 import os
 import sys
 import logging
 import logging.handlers
 import warnings
+import sys
 import pymongo
-import pandas as pd
-import numpy as np
 import pathlib
 import sentry_sdk
 import json
 import time
 import random
-import dateutil.parser
-import datetime
-import unittest
-from bokeh.embed import file_html
-from bokeh.plotting import show
-from bokeh.resources import CDN
 
-# fn3 storage module
+# logging
+from logging.config import dictConfig
+
+# reference based compression, storage and clustering modules
 from mongoStore import fn3persistence
-from depictStatus import MakeHumanReadable, DepictServerStatus
+
+# only used for unit testing
+import unittest
+            
+def repack(guids):
+    """ generates a smaller and faster representation in the persistence store
+    for the guids in the list. optional"""
+    if guids is None:
+        guids = PERSIST.guids()  # all the guids
+    for this_guid in guids:
+        logger.debug("Repacking {0}".format(this_guid))
+        PERSIST.guid2neighbour_repack(this_guid)
+        
 
 # startup
 if __name__ == '__main__':
@@ -33,7 +55,9 @@ if __name__ == '__main__':
         # an example config file is default_test_config.json
                
         ############################ LOAD CONFIG ######################################
-        print("findNeighbour4-monitor .. reading configuration file.")
+        print("findNeighbour4_dbmanager server .. reading configuration file.")
+
+        max_batch_size = 100
 
         if len(sys.argv) == 2:
                 configFile = sys.argv[1]
@@ -50,9 +74,9 @@ if __name__ == '__main__':
                 raise FileNotFoundError("Passed one parameter, which should be a CONFIG file name; tried to open a config file at {0} but it does not exist ".format(sys.argv[1]))
 
         if isinstance(CONFIG, str):
-                CONFIG=json.loads(CONFIG)	# assume JSON string; convert.
+                CONFIG=json.loads(CONFIG)   # assume JSON string; convert.
 
-        # check CONFIG is a dictionary	
+        # check CONFIG is a dictionary  
         if not isinstance(CONFIG, dict):
                 raise KeyError("CONFIG must be either a dictionary or a JSON string encoding a dictionary.  It is: {0}".format(CONFIG))
         
@@ -67,7 +91,7 @@ if __name__ == '__main__':
         # create a log file if it does not exist.
         print("Starting logging")
         logdir = os.path.dirname(CONFIG['LOGFILE'])
-        pathlib.Path(os.path.dirname(CONFIG['LOGFILE'])).mkdir(parents=True, exist_ok=True)
+        pathlib.Path(os.path.dirname(logdir)).mkdir(parents=True, exist_ok=True)
 
         # set up logger
         loglevel=logging.INFO
@@ -79,10 +103,11 @@ if __name__ == '__main__':
 
         # configure logging object
         logger = logging.getLogger()
-        logger.setLevel(loglevel)       
-        logfile = os.path.join(logdir, "monitor-{0}".format(os.path.basename(CONFIG['LOGFILE'])))
+        logger.setLevel(loglevel)
+        logfile = os.path.join(logdir, "dbmanager-{0}".format(os.path.basename(CONFIG['LOGFILE'])))
         print("Logging to {0} with rotation".format(logfile))
         file_handler = logging.handlers.RotatingFileHandler(logfile, mode = 'a', maxBytes = 1e7, backupCount = 7)
+ 
         formatter = logging.Formatter( "%(asctime)s | %(pathname)s:%(lineno)d | %(funcName)s | %(levelname)s | %(message)s ")
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
@@ -103,54 +128,62 @@ if __name__ == '__main__':
         # This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuration file.
         if os.environ.get("FNPERSISTENCE_CONNSTRING") is not None:
                 CONFIG["FNPERSISTENCE_CONNSTRING"] = os.environ.get("FNPERSISTENCE_CONNSTRING")
-                logger.info("Set connection string to mongodb from environment variable")
+                print("Set connection string to mongodb from environment variable")
         else:
-                logger.info("Using connection string to mongodb from configuration file.")
-        
-        
+                print("Using connection string to mongodb from configuration file.")
+
         # determine whether a FN_SENTRY_URL environment variable is present,
         # if so, the value of this will take precedence over any values in the config file.
         # This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuraton file.
         if os.environ.get("FN_SENTRY_URL") is not None:
                 CONFIG["SENTRY_URL"] = os.environ.get("FN_SENTRY_URL")
-                logger.info("Set Sentry connection string from environment variable")
+                print("Set Sentry connection string from environment variable")
         else:
-                logger.info("Using Sentry connection string from configuration file.")
-                
-                
+                print("Using Sentry connection string from configuration file.")      
         #########################  CONFIGURE HELPER APPLICATIONS ######################
 
 
         ########################  START Operations ###################################
-        logger.info("Preparing to produce visualisations")
+        logger.info("Collecting samples for repacking")
 
-        print("Connecting to backend data store at {0}".format(CONFIG['SERVERNAME']))
+        logging.info("Connecting to backend data store")
         try:
              PERSIST=fn3persistence(dbname = CONFIG['SERVERNAME'],
-									connString=CONFIG['FNPERSISTENCE_CONNSTRING'],
-									debug=CONFIG['DEBUGMODE'],
-									server_monitoring_min_interval_msec = CONFIG['SERVER_MONITORING_MIN_INTERVAL_MSEC'])
+                                    connString=CONFIG['FNPERSISTENCE_CONNSTRING'],
+                                    debug=CONFIG['DEBUGMODE'],
+                                    server_monitoring_min_interval_msec = CONFIG['SERVER_MONITORING_MIN_INTERVAL_MSEC'])
         except Exception as e:
              logger.exception("Error raised on creating persistence object")
              if e.__module__ == "pymongo.errors":
                  logger.info("Error raised pertains to pyMongo connectivity")
-                 raise
-        dss1 = DepictServerStatus(logfile= CONFIG['LOGFILE'],
-                                    server_url=CONFIG['IP'],
-                                    server_port=CONFIG['REST_PORT'],
-                                    server_description=CONFIG['DESCRIPTION'])
+                 raise        
         while True:
-            insert_data = PERSIST.recent_server_monitoring(selection_field="context|info|message", selection_string="About to insert", max_reported=500)
-            recent_data = PERSIST.recent_server_monitoring(selection_field="content|activity|whatprocess", selection_string="server", max_reported=100)
-            page_content = dss1.make_report(insert_data, recent_data)
-            for item in page_content.keys():       
-                html = file_html(page_content[item], CDN, item)
-                PERSIST.monitor_store(item, html) 
- 
-                #with open("test.html",'wt') as f:
-                #    f.write(html)
+             nModified = 0
+             print("Removing old server monitor entries.. ")
+             PERSIST.delete_server_monitoring_entries(self, before_seconds= (3600 * 24 * 14))        # 14 days
              
-            time.sleep(120)	# rerun in 2 minutes
+             to_update = set()
+             # does this guid have any singleton guid2neighbour records which need compressing
+             print("Gathering guids for update .. ")
+             for res in PERSIST.db.guid2neighbour.find({'rstat':'s'}):                   
+                 to_update.add(res['guid'])
+                 if len(to_update)>max_batch_size:
+                     break
+             to_update = list(to_update)
+             random.shuffle(to_update)
+             for guid in to_update:
+                     logger.info("Repacking {0}".format(guid))
+                     repack([guid])
+                     nModified += 1
 
+                     # log database size
+                     db_summary = PERSIST.summarise_stored_items()
+                     PERSIST.server_monitoring_store(what='dbManager', message="Repack one", guid=guid, content=db_summary)
+
+             if nModified == 0:
+                     # everything has been packed
+                     logger.info("Nothing found to repack.  Waiting 60s .. ")
+                     time.sleep(60) # recheck in 1 minute
+         
 
 

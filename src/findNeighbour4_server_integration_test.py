@@ -3,7 +3,7 @@ assumes a findNeighbour4 server is running, with the connection string stated in
 
 An example command doing this would be (starting from /src)
 
-pipenv run python3 findNeighbour4-server.py ../demos/AC587/config/config_nocl.json
+pipenv run python3 findNeighbour4_server.py ../demos/AC587/config/config_nocl.json
 
 The test loads the server with data from the AC587 test data
 and compares the SNP distances and links with those from a seqComparer
@@ -15,7 +15,7 @@ import os
 import glob
 import datetime
 import pandas as pd
-from fn3client import fn3Client
+from fn4client import fn4Client
 from seqComparer import seqComparer
 from preComparer import preComparer
 from Bio import SeqIO
@@ -34,7 +34,7 @@ if __name__ == '__main__':
         fastadir = os.path.join('..','demos','AC587','fasta')
 
         # instantiate findNeighbour client
-        fn3c = fn3Client()      # expects operation on local host; pass baseurl if somewhere else.
+        fn4c = fn4Client()      # expects operation on local host; pass baseurl if somewhere else.
 
         # instantiate seqComparer
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"
@@ -62,15 +62,15 @@ if __name__ == '__main__':
                             "probN_inflation_factor":3,
                             "n_positions_examined":3812800})
         # reset server
-        fn3c.reset()
+        fn4c.reset()
 
         # add fasta files to both server and seqComparer instance.  
         guids = set()
         for i,fastafile in enumerate(glob.glob(os.path.join(fastadir, 'controls','*.mfasta.gz'))):
             guid = os.path.basename(fastafile).replace('.mfasta.gz','')
-            seq = fn3c.read_fasta_file(fastafile)['seq']
+            seq = fn4c.read_fasta_file(fastafile)['seq']
             print("Controls",datetime.datetime.now(), i, guid)
-            fn3c.insert(guid=guid,seq=seq)
+            fn4c.insert(guid=guid,seq=seq)
             
             obj = sc.compress(seq)
             sc.persist(obj, guid)
@@ -79,10 +79,10 @@ if __name__ == '__main__':
          
         for i,fastafile in enumerate(sorted(glob.glob(os.path.join(fastadir, 'test', '*.mfasta.gz')))):
             guid = os.path.basename(fastafile).replace('.mfasta.gz','')
-            seq = fn3c.read_fasta_file(fastafile)['seq']
+            seq = fn4c.read_fasta_file(fastafile)['seq']
             if not guid in guids:   # not already entered
                 print("Test",datetime.datetime.now(), i, guid)
-                fn3c.insert(guid=guid,seq=seq)
+                fn4c.insert(guid=guid,seq=seq)
              
                 obj = sc.compress(seq)
                 if obj['invalid']==0:
@@ -97,7 +97,7 @@ if __name__ == '__main__':
         nFailed =0
         distances = {}
         for guid in guids:
-            distances[guid] = fn3c.guid2neighbours(guid, threshold=20, quality_cutoff=0.85, timeout =None)  
+            distances[guid] = fn4c.guid2neighbours(guid, threshold=20, quality_cutoff=0.85, timeout =None)  
         for res in sc.distmat(half=True):       # problem is with distance measurement, not with storage
             neighbours = distances[res[0]]
             pc_result = pc.compare(res[0],res[1])
