@@ -31,6 +31,10 @@ seaborn = "*"
 openpyxl = "*"
 faker = "*"
 xlrd = "*"
+sphinx = "*"
+recommonmark = "*"
+ete3 = "*"
+pyvolve = "*"
 
 [requires]
 python_version = "3.6"

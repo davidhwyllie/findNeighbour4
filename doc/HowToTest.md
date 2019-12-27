@@ -19,7 +19,6 @@ You may need to install pip3 with: ```sudo apt-get install python3-pip```
 Note, Ubuntu 18 users, there is a [known issue](https://github.com/pypa/pipenv/issues/2122) and you may need to unisntall pip first, e.g.  
 ```sudo python3 -m pip uninstall pip && sudo apt install python3-pip --reinstall```
 
-Now see how to install dependencies [recommended method](dependencies.md) uses a virtual environment.  
 
 Database backend
 ----------------
@@ -27,46 +26,39 @@ The server requires a mongodb database to work.
 [These instructions](mongoinstall.md) describe installation of mongodb.
 This server has been tested both with a local mongodb database and with a free cloud instance of mongodb, Mongo Atlas.
 
-
-Protocol for configuring a clean Linux ubuntu 14.04 instance
+Clone git repository
 -----------------------
-
-Note: **at present this has not been tested with findneighbour3, only findNeighbour2.**
-```
-sudo apt-get update  
-sudo apt-get upgrade  
-sudo apt-get install git  
-sudo apt-get install python3  
-sudo apt-get install -y python3-pip --force-yes  
-sudo apt-get install build-essential libssl-dev libffi-dev python3-dev  
-sudo apt-get install python3-numpy  
-```
-
 Optionally, set a proxy: inform git of the proxy's location, depending whether there is one:
 ```git config --global http.proxy http://[ip of proxy]```
 
-Then clone repository:
-```git clone https://github.com/davidhwyllie/findNeighbour3.git```
+Clone repository:
+```git clone https://github.com/davidhwyllie/findNeighbour4.git```
 
 After this, please follow the below steps.
 
-Virtual environments
---------------------
+Virtual environments and dependencies
+-------------------------------------
 It is recommended, but not essential, to use a virtual environment.
-This [section](dependencies.md) describes how to set this up.
+A pipenv Pipfile is provided which specifies dependencies.  See also [section](dependencies.md).
+
 To run with a virtual environment, preface command with ```pipenv run ..```
 e.g.
-```pipenv run python3 findNeighbour3-server.py```.
+```pipenv run python3 findNeighbour4_server.py```.
 
 The below commands will run without a virtual environment if relevant packages are installed at a machine level.   
 
-Start the server
------------------
-To start the server, go to the findNeighbour3 *src* folder and run the command:  
-```python3 findNeighbour3-server.py```  
+To start the server
+-------------------
+The easiest way to start the server is go to the findNeighbour4 *src* folder and run the command:  
+```./fn4_startup.sh {configfile}```  where {configfile} is the path to a configuration file. 
+This will launch the server, database monitor, server monitor, and clustering systems.
 
-Note: This application doesn't work with python2, so be sure to use python 3.
+However, in a first run setting you can check it starts manually
+```pipenv run python3 findNeighbour4_server.py```
+
+Note: This application doesn't work with python2, so be sure to use python 3.  It also won't work on Windows, because the clustering system uses linux-specific packages.  These packages (networkit) are supposed to be compatible with WSL, but we have not tested this.
 This will try to start the webserver with a default configuration, in debug mode.  
+
 **Important**: *Debug mode means, amongst other things, that all existing data will be wiped on server restart.  This is good for testing, but not in most other settings.  You need to edit the config file (see below) for your needs.*
 
 If the server fails to start, it's probably due to one of the following:
@@ -75,12 +67,12 @@ If the server fails to start, it's probably due to one of the following:
 
 The more general form for starting the server is:
 ```
-nohup python3 findNeighbour3-server.py {configfile.json} &  
+nohup python3 findNeighbour4_server.py {configfile.json} &  
 ```
 or, if using a virtual environment
 
 ```
-nohup pipenv run python3 findNeighbour3-server.py {configfile.json} &  
+nohup pipenv run python3 findNeighbour4_server.py {configfile.json} &  
 ```  
 
 If {configfile.json} is omitted, then it will use a default config file, config/default_test_config.json.  This is suitable for unit testing, and other kinds of one-off tests. It expects a mongodb running on localhost on the default port.
@@ -92,29 +84,36 @@ A warning is emitted if the server is running with this default configuration.
 Unit tests
 ----------
 
+Do not run unit tests on a production server with findNeighbour server instances running.
+Unit tests may shut down any running CatWalk servers, which may cause running findNeighbour server instances to fail.
+
+Automated testing of everything can be performed with
 ```
-# you can test the internal classes used by findNeighbour3; all should pass if a mongodb server is operational on local host
+.\unittest_all.sh
+```
+
+If you wish to run unittests individually, you can do 
+```
+# you can test the internal classes used by findNeighbour4; all should pass if a mongodb server is operational on local host
 python3 -m unittest  NucleicAcid
-python3 -m unittest  seqComparer  
-python3 -m unittest  clustering  
 python3 -m unittest  mongoStore   # requires mongodb server on localhost
 ```
 
-With a virtual environment, do 
+etc or with a virtual environment, do 
 ```
 pipenv run python3 -m unittest  NucleicAcid seqComparer clustering mongoStore
 ```
 
-More complex testing requires a findNeighbour3 server running.  Note that unit tests don't start the server. You will need to do.  After this, you can run unit tests.  
+More complex testing requires a findNeighbour4 server running.  Note that unit tests don't start the server. You will need to do.  After this, you can run unit tests.  
 
 ```
 # starting a test RESTFUL server
-nohup python3 findNeighbour3-server.py &
+nohup python3 findNeighbour4_server.py &
 ```
 or if using a virtual environment 
 ```
 # starting a test RESTFUL server
-nohup pipenv run python3 findNeighbour3-server.py &
+nohup pipenv run python3 findNeighbour4_server.py &
 ```  
 
 And then (e.g. in a different terminal, in windows) launching unit tests as below.
@@ -123,18 +122,18 @@ Do not run unittests against a production server.
 In the below configuration, the unittests will run against a
 separate instance of the server used for debugging, called 'fn3_unittesting'
 ```
-python3 -m unittest findNeighbour3-server 
+python3 -m unittest findNeighbour4_server 
 ```
 or 
 ```
-pipenv run python3 -m unittest findNeighbour3-server 
+pipenv run python3 -m unittest findNeighbour4_server 
 ```
 
 All tests should pass.
 Now kill the webserver
 
 ```
-ps -x | grep findNeighbour3-server
+ps -x | grep findNeighbour4_server
 # kill  servers:
 kill -9 <pid>
 ```
@@ -150,7 +149,7 @@ see [here](demos.md)
 Using the web server
 --------------------
 You need to start the web server with a sensible configuration, e.g. something like
-```nohup python3 findNeighbour3-server.py config/tbproduction.json & ```
+```nohup python3 findNeighbour4_server.py config/tbproduction.json & ```
 
 The parameter is a json file containing a number of important parameters:
 ```
@@ -284,9 +283,9 @@ Benchmarking
 To follow.  The machine used to do the benchmarking was as follows:
 
 
-Multiple instances of findNeighbour3
+Multiple instances of findNeighbour4
 ----------------------------------------
-You can run multiple instances of findNeighbour3 (e.g. multiple different organisms) on the same physical server.
+You can run multiple instances of findNeighbour4 (e.g. multiple different organisms) on the same physical server.
 However, you cannot run multiple instances on the same port.
 The API is not parameterised by 'instance' or 'organism' etc.
 * One port, one server, one config file.
@@ -303,25 +302,18 @@ Ensuring the services restart with the server
 =============================================
 (thanks to Hemanth M for this)
 
-* create a file “start_fn3” in /etc/init.d which runs a shell script as below, 
+* create a file “fn4_start.sh” in /etc/init.d which runs a shell script as below, 
 ```
 #!/bin/sh -e
-su -l <entity_under_which_server_runs> -c "sh <directory>/startup_fn3.sh"
+su -l <entity_under_which_server_runs> -c "sh <directory>/fn4_startup.sh {configfile.json} {options}"
 ```
 
 The shell script, located in <directory> in turn starts the required web services:
 
-```
-#!/bin/bash
-cd <directory into which project cloned>/src
-nohup python3 findNeighbour3-server.py <options> &
-
-```
-
-Run the following to change the file permissions of the script and init.d file 
-sudo chmod +x /etc/init.d/startup_fn3.sh
+Note: set file permissions of the script and init.d file, e.g.
+sudo chmod +x /etc/init.d/fn4_start.sh
 
 Update the run levels to start our script at boot, by running the following command.
-sudo update-rc.d /etc/init.d/startup_fn3.sh defaults
+sudo update-rc.d /etc/init.d/fn4_start.sh defaults
 
 Test the changes by restarting the server.
