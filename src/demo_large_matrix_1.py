@@ -25,7 +25,7 @@ from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import generic_nucleotide
-from fn3client import fn3Client
+from fn4client import fn4Client
 
 if __name__ == '__main__':
     
@@ -59,16 +59,16 @@ if __name__ == '__main__':
     seqbases = list(seq)        # a list with one nt per element.
 
     print("opening connection to fn3 server")
-    fn3c = fn3Client(baseurl = "http://127.0.0.1:5020")
+    fn4c = fn4Client(baseurl = "http://127.0.0.1:5020")
 
     # determine all masked positions
-    excluded_positions = fn3c.nucleotides_excluded()
+    excluded_positions = fn4c.nucleotides_excluded()
     # we can mutate any positions which are not masked
     available_positions = sorted(list(set(range(len(seq)))-set(excluded_positions['excluded_nt'])))
     print("There are {0} available positions to mutate".format(len(available_positions)))
    
     # determine how many samples there are currently in the server.
-    nSamples = len(fn3c.guids())
+    nSamples = len(fn4c.guids())
     print("There are {0} existing guids.  Adding more ..".format(nSamples))
 
     # create output file with header line
@@ -107,7 +107,7 @@ if __name__ == '__main__':
             # add
             print("Inserting", guid, "(samples in this batch = ",nAdded_this_batch,"); will pause every ",pause_after)
             stime1 = datetime.datetime.now()
-            resp = fn3c.insert(guid=guid, seq=mutseq)
+            resp = fn4c.insert(guid=guid, seq=mutseq)
             print("Insert yielded status code {0}".format(resp.status_code))
 
             etime1 = datetime.datetime.now()
@@ -116,10 +116,10 @@ if __name__ == '__main__':
             # recover neighbours of guid
             stime2 = datetime.datetime.now()
             # check it exists
-            if not fn3c.guid_exists(guid):
+            if not fn4c.guid_exists(guid):
                 print("Guid {0} was not inserted".format(guid))   
             else:
-                neighbours = fn3c.guid2neighbours(guid, threshold=10000000)
+                neighbours = fn4c.guid2neighbours(guid, threshold=10000000)
                 etime2 = datetime.datetime.now()
                 delta2 = etime2 - stime2
                 print("Recovered {1} neighbours of {0}".format(guid, len(neighbours)))            

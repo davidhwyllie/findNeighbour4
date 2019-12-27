@@ -43,13 +43,13 @@ FN_SENTRY_URL="https://49ebb508a10f428aaf82f9e1b6b11def@sentry.io/110110"
 
 if [ $NOHUP_LOGGING -eq 1 ]; then
 	echo "Starting server"
-	nohup pipenv run python3 findNeighbour4-server.py $1 > ${LOGDIR}nohup_fn4_server_${MD5CHECKSUM}.out &
+	nohup pipenv run python3 findNeighbour4_server.py $1 > ${LOGDIR}nohup_fn4_server_${MD5CHECKSUM}.out &
 	echo "Starting dbmanager"
-	nohup pipenv run python3 findNeighbour4-dbmanager.py $1 > ${LOGDIR}nohup_fn4_dbmanager_${MD5CHECKSUM}.out &
+	nohup pipenv run python3 findNeighbour4_dbmanager.py $1 > ${LOGDIR}nohup_fn4_dbmanager_${MD5CHECKSUM}.out &
 	echo "Starting monitor"
-	nohup pipenv run python3 findNeighbour4-monitor.py $1 > ${LOGDIR}nohup_fn4_monitor_${MD5CHECKSUM}.out &
+	nohup pipenv run python3 findNeighbour4_monitor.py $1 > ${LOGDIR}nohup_fn4_monitor_${MD5CHECKSUM}.out &
 	echo "Starting clustering"
-	nohup pipenv run python3 findNeighbour4-clustering.py $1 > ${LOGDIR}nohup_fn4_clustering_${MD5CHECKSUM}.out &
+	nohup pipenv run python3 findNeighbour4_clustering.py $1 > ${LOGDIR}nohup_fn4_clustering_${MD5CHECKSUM}.out &
         sleep 1
 	echo "Startup complete.  Output files containing STDOUT and STDERR output are being written to $LOGDIR."
 	echo "Server processes make their own logs; retaining the STDOUT and STDERR of the server processes should not be necessary, although we do so currently for debugging purposes.  This will yield very large log files in production.  In a production system, you should either (i) use .fn4_startup.sh {LOGFILE} NO_NOHUP_LOGGING  (recommended) or (2) arrange log rotation of the nohup output using the linux logrotate command, see: https://support.rackspace.com/how-to/understanding-logrotate-utility/"
@@ -57,13 +57,13 @@ if [ $NOHUP_LOGGING -eq 1 ]; then
 else
 
 	echo "Starting server"
-	nohup pipenv run python3 findNeighbour4-server.py $1 > /dev/null &
+	nohup pipenv run python3 findNeighbour4_server.py $1 > /dev/null &
 	echo "Starting dbmanager"
-	nohup pipenv run python3 findNeighbour4-dbmanager.py $1 > /dev/null &
+	nohup pipenv run python3 findNeighbour4_dbmanager.py $1 > /dev/null &
 	echo "Starting monitor"
-	nohup pipenv run python3 findNeighbour4-monitor.py $1 > /dev/null &
+	nohup pipenv run python3 findNeighbour4_monitor.py $1 > /dev/null &
 	echo "Starting clustering"
-	nohup pipenv run python3 findNeighbour4-clustering.py $1 > /dev/null &
+	nohup pipenv run python3 findNeighbour4_clustering.py $1 > /dev/null &
         sleep 1
 	echo "Startup complete.  Autorotating server log files are being written to $LOGDIR. Nohup output is not retained.  This is the recommended production arrangement, as large log files do not have to be managed external to findNeighbour4."
 

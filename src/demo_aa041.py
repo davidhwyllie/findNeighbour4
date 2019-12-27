@@ -9,7 +9,7 @@ import os
 import glob
 import datetime
 import pandas as pd
-from fn3client import fn3Client
+from fn4client import fn4Client
 
 if __name__ == '__main__':
     # define directory where the fastas are
@@ -17,12 +17,12 @@ if __name__ == '__main__':
     outputdir = os.path.join('..','demos','AA041','output')
 
     # instantiate client
-    fn3c = fn3Client("http://127.0.0.1:5031")      # expects operation on local host; config file runs server on port 5031 for cw version and 5041 for python version.
+    fn4c = fn4Client("http://127.0.0.1:5031")      # expects operation on local host; config file runs server on port 5031 for cw version and 5041 for python version.
 
     # names of the clustering algorithms
-    clusters=fn3c.clustering()
+    clusters=fn4c.clustering()
 
-    existing_guids = set(fn3c.guids())
+    existing_guids = set(fn4c.guids())
     clustering_created = False
     print("There are {0} existing guids".format(len(existing_guids)))
     # add control fasta files.  The system evaluates the %N in terms of the population existing
@@ -30,12 +30,12 @@ if __name__ == '__main__':
 
     for i,fastafile in enumerate(glob.glob(os.path.join(fastadir, 'control','*.mfasta.gz'))):
         guid = "ctrl_"+os.path.basename(fastafile).replace('.mfasta.gz','')
-        seq = fn3c.read_fasta_file(fastafile)['seq']
+        seq = fn4c.read_fasta_file(fastafile)['seq']
         if not guid in existing_guids:
-        fn3c.insert(guid=guid,seq=seq)
-        result= 'inserted'
+            fn4c.insert(guid=guid,seq=seq)
+            result= 'inserted'
         else:
-        result = 'exists, skipped re-insert'
+            result = 'exists, skipped re-insert'
         print("Controls",datetime.datetime.now(), i, guid, result)
 
     for i,fastafile in enumerate(sorted(glob.glob(os.path.join(fastadir, 'test', '*.mfasta.gz')))):
@@ -43,14 +43,14 @@ if __name__ == '__main__':
         guid = os.path.basename(fastafile).replace('.mfasta.gz','')
         read_failed = False
         try:
-        seq = fn3c.read_fasta_file(fastafile)['seq']
+            seq = fn4c.read_fasta_file(fastafile)['seq']
         except IOError:
-        read_failed = True
+            read_failed = True
         
         if not read_failed:    
-        if not guid in existing_guids:
-            fn3c.insert(guid=guid,seq=seq)
-            result= 'inserted'
+            if not guid in existing_guids:
+                fn4c.insert(guid=guid,seq=seq)
+                result= 'inserted'
         print("Test",datetime.datetime.now(), i, guid, result)
           
 

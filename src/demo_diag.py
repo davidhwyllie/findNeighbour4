@@ -5,18 +5,18 @@ import os
 import glob
 import datetime
 import pandas as pd
-from fn3client import fn3Client
+from fn4client import fn4Client
 
 if __name__ == '__main__':
     # instantiate clients; should contain same data
-    fn3c_1 = fn3Client("http://localhost:5032")      
-    fn3c_2 = fn3Client("http://localhost:5042")      
+    fn4c_1 = fn4Client("http://localhost:5032")      
+    fn4c_2 = fn4Client("http://localhost:5042")      
 
-    print("Server 1 is : ",fn3c_1.server_time())
-    print("Server 2 is : ",fn3c_2.server_time())
+    print("Server 1 is : ",fn4c_1.server_time())
+    print("Server 2 is : ",fn4c_2.server_time())
 
-    guids1 = set(fn3c_1.guids())
-    guids2 = set(fn3c_2.guids())
+    guids1 = set(fn4c_1.guids())
+    guids2 = set(fn4c_2.guids())
 
     # are they different?
     different = guids1 ^ guids2
@@ -30,13 +30,13 @@ if __name__ == '__main__':
     distrib_1 = list(range(20+1))
     distrib_2 = list(range(20+1))
     for i,guid in enumerate(same):
-        for guid2,dist_1 in fn3c_1.guid2neighbours(guid, threshold=20):
+        for guid2,dist_1 in fn4c_1.guid2neighbours(guid, threshold=20):
             if guid2 in same:
                 snpcmp_1["{0}|{1}".format(guid,guid2)]=dist_1 
                 distrib_1[dist_1]+=1
 
     for i,guid in enumerate(same):
-        for guid2,dist_2 in fn3c_2.guid2neighbours(guid, threshold=20):
+        for guid2,dist_2 in fn4c_2.guid2neighbours(guid, threshold=20):
             if guid2 in same:
                snpcmp_2["{0}|{1}".format(guid,guid2)]=dist_2 
                distrib_2[dist_2]+=1
@@ -65,8 +65,8 @@ if __name__ == '__main__':
 
 
     # get clusters
-    cl1 = fn3c_1.clusters("SNV12_include")
-    cl2 = fn3c_2.clusters("SNV12_include")
+    cl1 = fn4c_1.clusters("SNV12_include")
+    cl2 = fn4c_2.clusters("SNV12_include")
 
     # get guids mentioned in clusters
     g1 = set(cl1['guid'])

@@ -10,7 +10,7 @@ import os
 import glob
 import datetime
 import pandas as pd
-from fn3client import fn3Client
+from fn4client import fn4Client
 
 if __name__ == '__main__':
     # define directory where the fastas are
@@ -18,25 +18,25 @@ if __name__ == '__main__':
     outputdir = os.path.join('..','demos','AC587','output')
 
     # instantiate client
-    fn3c = fn3Client("http://localhost:5042")      # expects operation on local host; pass baseurl if somewhere else.
+    fn4c = fn4Client("http://localhost:5042")      # expects operation on local host; pass baseurl if somewhere else.
 
     # names of the clustering algorithms
-    clusters=fn3c.clustering()
+    clusters=fn4c.clustering()
 
     # add control fasta files.  The system evaluates the %N in terms of the population existing
     # we load 40 randomly selected guids as controls
 
     for i,fastafile in enumerate(glob.glob(os.path.join(fastadir, 'controls','*.mfasta.gz'))):
         guid = os.path.basename(fastafile).replace('.mfasta.gz','')
-        seq = fn3c.read_fasta_file(fastafile)['seq']
+        seq = fn4c.read_fasta_file(fastafile)['seq']
         print("Controls",datetime.datetime.now(), i, guid)
-        fn3c.insert(guid=guid,seq=seq)
+        fn4c.insert(guid=guid,seq=seq)
      
      
     for i,fastafile in enumerate(sorted(glob.glob(os.path.join(fastadir, 'test', '*.mfasta.gz')))):
         guid = os.path.basename(fastafile).replace('.mfasta.gz','')
-        seq = fn3c.read_fasta_file(fastafile)['seq']
+        seq = fn4c.read_fasta_file(fastafile)['seq']
         print("Test",datetime.datetime.now(), i, guid)
-        fn3c.insert(guid=guid,seq=seq)
+        fn4c.insert(guid=guid,seq=seq)
         
     print("Finished")

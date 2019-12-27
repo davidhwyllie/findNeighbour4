@@ -9,7 +9,7 @@ import datetime
 import pandas as pd
 import argparse
 import json
-from fn3client import fn3Client
+from fn4client import fn4Client
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -41,12 +41,12 @@ if __name__ == '__main__':
     # instantiate client
     baseurl = "http://{0}:{1}".format(CONFIG['IP'],CONFIG['REST_PORT'])
     print("Contacting fn3 server on ",baseurl)
-    fn3c = fn3Client(baseurl=baseurl)      # expects operation on local host; pass baseurl if somewhere else.
+    fn4c = fn4Client(baseurl=baseurl)      # expects operation on local host; pass baseurl if somewhere else.
 
     # names of the clustering algorithms
-    clusters=fn3c.clustering()
+    clusters=fn4c.clustering()
 
-    existing_guids = set(fn3c.guids())
+    existing_guids = set(fn4c.guids())
     clustering_created = False
 
     print("There are {0} existing guids".format(len(existing_guids)))
@@ -56,13 +56,13 @@ if __name__ == '__main__':
         guid = os.path.basename(fastafile).replace('.fasta','')
         read_failed = False
         try:
-            seq = fn3c.read_fasta_file(fastafile)['seq']
+            seq = fn4c.read_fasta_file(fastafile)['seq']
         except IOError:
             read_failed = True
         
         if not read_failed:    
             if not guid in existing_guids:
-                fn3c.insert(guid=guid,seq=seq)
+                fn4c.insert(guid=guid,seq=seq)
                 result= 'inserted'
             else:
                 result = 'exists, skipped re-insert'
@@ -72,9 +72,9 @@ if __name__ == '__main__':
     print("Recovering clustering data")
     clustering_created = False
     for clustering_algorithm in clusters['algorithms']:
-        change_id = fn3c.change_id(clustering_algorithm)['change_id']
+        change_id = fn4c.change_id(clustering_algorithm)['change_id']
         print("There were {0} changes with pipeline {1}".format(change_id, clustering_algorithm))
-        df = fn3c.guids2clusters(clustering_algorithm, after_change_id=0) 
+        df = fn4c.guids2clusters(clustering_algorithm, after_change_id=0) 
         df['clustering_algorithm']=clustering_algorithm
         if not clustering_created:
            clustering_df = df
@@ -85,7 +85,7 @@ if __name__ == '__main__':
         clustering_df.to_csv(os.path.join(outputdir, "clustering_{0}.csv".format(description)))
 
     print("Recovering memory usage history")
-    df = fn3c.server_memory_usage(nrows=int(100000000))
+    df = fn4c.server_memory_usage(nrows=int(100000000))
     df.to_csv(os.path.join(outputdir, "memoryusage_{0}.csv".format(description)))
 
 

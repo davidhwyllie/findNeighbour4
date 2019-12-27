@@ -9,7 +9,7 @@ import os
 import glob
 import datetime
 import pandas as pd
-from fn3client import fn3Client
+from fn4client import fn4Client
 
 if __name__ == '__main__':
     ### Modify this line to reflect where the fasta files are 
@@ -17,9 +17,9 @@ if __name__ == '__main__':
     fastadir = os.path.join('/srv','data','mixfiles','mfasta')
 
     # instantiate client
-    fn3c = fn3Client("http://localhost:5027")      # expects operation on local host; pass baseurl if somewhere else.
+    fn4c = fn4Client("http://localhost:5027")      # expects operation on local host; pass baseurl if somewhere else.
 
-    existing_guids = set(fn3c.guids())
+    existing_guids = set(fn4c.guids())
     clustering_created = False
     print("There are {0} existing guids".format(len(existing_guids)))
     nSkipped = 0
@@ -30,12 +30,12 @@ if __name__ == '__main__':
         if not guid in existing_guids:
             read_failed = False
             try:
-                seq = fn3c.read_fasta_file(fastafile)['seq']
+                seq = fn4c.read_fasta_file(fastafile)['seq']
             except IOError:
                 read_failed = True
             
             if not read_failed: 
-                fn3c.insert(guid=guid,seq=seq)
+                fn4c.insert(guid=guid,seq=seq)
                 result= 'inserted'
             else:
                 result = 'read file failed (likely corruption; need to regenerate); attempting deletion'

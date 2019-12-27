@@ -8,8 +8,8 @@ Unit testing:
 * launch a test server
 python findNeighbour3-server.py
 
-* run fn3Client unit tests
-python -m unittest fn3client
+* run fn4Client unit tests
+python -m unittest fn4client
 """
 
 import glob
@@ -41,7 +41,7 @@ from Bio.Alphabet import generic_nucleotide
 # used for unittesting
 import uuid
 
-class fn3Client():
+class fn4Client():
     """ python3 API to the findNeighbour3-server REST endpoint.
     
         All endpoints are supported.
@@ -245,7 +245,7 @@ class fn3Client():
         else:            
             return res.content
         
-    def msa(self, guids, output_format = 'json', what='N', timeout=None):
+    def msa(self, guids, output_format = 'json-records', what='N', timeout=None):
         """ performs msa
         
         valid values for 'what', which determines how the p-values are computed, are
@@ -256,9 +256,9 @@ class fn3Client():
         guidstring = ';'.join(guids)
         payload = {'guids':guidstring,'output_format':output_format, 'what':what}
         res = self.post('/api/v2/multiple_alignment/guids', payload = payload, timeout= timeout)
-        if output_format=='json':
-            retDict = self._decode(res)
-            return pd.DataFrame.from_dict(retDict, orient='index')          
+        if output_format=='json-records':
+            retList = self._decode(res)
+            return pd.DataFrame.from_records(retList)          
         else:            
             return res.content
         
@@ -309,193 +309,193 @@ class fn3Client():
 # these are focused around testing the client, not comprehensively testing the function of the server.
 # to do the latter, run the unittests in findNeighbour3-server.
 
-class test_fn3_client_init1(unittest.TestCase):
+class test_fn4_client_init1(unittest.TestCase):
     def runTest(self):
-        """ initialise an fn3 object.  Will unittest against localhost mongodb server on 5020 """
-        fn3c =fn3Client()         # expect success
+        """ initialise an fn4 object.  Will unittest against localhost mongodb server on 5020 """
+        fn4c =fn4Client()         # expect success
 
-class test_fn3_client_init2(unittest.TestCase):
+class test_fn4_client_init2(unittest.TestCase):
     def runTest(self):
-        """ initialise an fn3 client, against mongodb which doesn't exist """
+        """ initialise an fn4 client, against mongodb which doesn't exist """
         with self.assertRaises(Exception):
-            fn3c =fn3Client(baseurl = 'http://example.com')         # expect failure as URL doesn't exist
+            fn4c =fn4Client(baseurl = 'http://example.com')         # expect failure as URL doesn't exist
         
-class test_fn3_client_mirror(unittest.TestCase):
+class test_fn4_client_mirror(unittest.TestCase):
     def runTest(self):
         """ tests mirror function - which just sends back the POSTed payload """
-        fn3c =fn3Client()         # expect failure as URL doesn't exist
+        fn4c =fn4Client()         # expect failure as URL doesn't exist
         sent_payload = {'guid':'g1','seq':"ACTG"}
            
-        retVal = fn3c.mirror(payload = sent_payload)
+        retVal = fn4c.mirror(payload = sent_payload)
         self.assertEqual(retVal, sent_payload)
-class test_fn3_client_guids(unittest.TestCase):
+class test_fn4_client_guids(unittest.TestCase):
     def runTest(self):
         """ tests guids"""
-        fn3c =fn3Client()         # expect failure as URL doesn't exist    
-        retVal = fn3c.guids()
+        fn4c =fn4Client()         # expect failure as URL doesn't exist    
+        retVal = fn4c.guids()
         self.assertEqual(type(retVal),list)
-class test_fn3_client_annotations(unittest.TestCase):
+class test_fn4_client_annotations(unittest.TestCase):
     def runTest(self):
         """ tests guids"""
-        fn3c =fn3Client()         # expect failure as URL doesn't exist    
-        retVal = fn3c.annotations()
+        fn4c =fn4Client()         # expect failure as URL doesn't exist    
+        retVal = fn4c.annotations()
         self.assertEqual(type(retVal),pd.DataFrame)
-class test_fn3_client_clustering(unittest.TestCase):
+class test_fn4_client_clustering(unittest.TestCase):
     def runTest(self):
         """ tests guids"""
-        fn3c =fn3Client()         # expect failure as URL doesn't exist    
-        retVal = fn3c.clustering()
+        fn4c =fn4Client()         # expect failure as URL doesn't exist    
+        retVal = fn4c.clustering()
         self.assertEqual(type(retVal),dict)
       
-class test_fn3_client_server_memory_usage(unittest.TestCase):
+class test_fn4_client_server_memory_usage(unittest.TestCase):
     def runTest(self):
         """ tests guids"""
-        fn3c =fn3Client()         # expect failure as URL doesn't exist    
-        retVal = fn3c.server_memory_usage()
+        fn4c =fn4Client()         # expect failure as URL doesn't exist    
+        retVal = fn4c.server_memory_usage()
         self.assertEqual(type(retVal),pd.DataFrame)
-class test_fn3_client_exists(unittest.TestCase):
+class test_fn4_client_exists(unittest.TestCase):
     def runTest(self):
         """ tests guid/exists"""
-        fn3c =fn3Client()         # expect failure as URL doesn't exist    
-        retVal = fn3c.guid_exists("no")
+        fn4c =fn4Client()         # expect failure as URL doesn't exist    
+        retVal = fn4c.guid_exists("no")
         self.assertEqual(retVal,False)
-class test_fn3_client_masked_sequence(unittest.TestCase):
+class test_fn4_client_masked_sequence(unittest.TestCase):
     def runTest(self):
         """ tests guid/exists"""
-        fn3c =fn3Client()         # expect failure as URL doesn't exist
-        retVal = fn3c.sequence("no")
+        fn4c =fn4Client()         # expect failure as URL doesn't exist
+        retVal = fn4c.sequence("no")
         self.assertEqual(retVal,None)
-class test_fn3_client_config(unittest.TestCase):
+class test_fn4_client_config(unittest.TestCase):
     def runTest(self):
         """ tests server_config endpoint """
-        fn3c =fn3Client()         # expect failure as URL doesn't exist
-        retVal = fn3c.server_config()
+        fn4c =fn4Client()         # expect failure as URL doesn't exist
+        retVal = fn4c.server_config()
         self.assertTrue('INPUTREF' in retVal.keys())
-class test_fn3_client_server_time(unittest.TestCase):
+class test_fn4_client_server_time(unittest.TestCase):
     def runTest(self):
         """ tests server_time endpoint """
-        fn3c =fn3Client()         # expect failure as URL doesn't exist
-        retVal = fn3c.server_time()
+        fn4c =fn4Client()         # expect failure as URL doesn't exist
+        retVal = fn4c.server_time()
         self.assertTrue('server_time' in retVal.keys())
-class test_fn3_client_nucleotides_excluded(unittest.TestCase):
+class test_fn4_client_nucleotides_excluded(unittest.TestCase):
     def runTest(self):
         """ tests server_time endpoint """
-        fn3c =fn3Client()         # expect failure as URL doesn't exist
-        retVal = fn3c.nucleotides_excluded()
+        fn4c =fn4Client()         # expect failure as URL doesn't exist
+        retVal = fn4c.nucleotides_excluded()
         self.assertTrue(type(retVal), list)
-class test_fn3_client_guids_and_examination_times(unittest.TestCase):
+class test_fn4_client_guids_and_examination_times(unittest.TestCase):
     def runTest(self):
         """ tests server_time endpoint """
-        fn3c =fn3Client()         # expect failure as URL doesn't exist
-        retVal = fn3c.guids_and_examination_times()
+        fn4c =fn4Client()         # expect failure as URL doesn't exist
+        retVal = fn4c.guids_and_examination_times()
         self.assertTrue(type(retVal), list)
-class test_fn3_client_insert_fasta_1(unittest.TestCase):
+class test_fn4_client_insert_fasta_1(unittest.TestCase):
     def runTest(self):
         """ initialise a gapi object """
-        fn3c =fn3Client()         # expect success
-        res = fn3c.read_fasta_file(fastafile = os.path.join("..","testdata", "fasta", "t1.fasta" ))
+        fn4c =fn4Client()         # expect success
+        res = fn4c.read_fasta_file(fastafile = os.path.join("..","testdata", "fasta", "t1.fasta" ))
         
         self.assertEqual(res['content'][0], '>')
         self.assertEqual(res['seqid'],'t1')
         self.assertEqual(res['seq'][0:5],'NNNNN')
         self.assertEqual(len(res['seq']), 4411532)
-class test_fn3_client_insert_fasta_2(unittest.TestCase):
+class test_fn4_client_insert_fasta_2(unittest.TestCase):
     def runTest(self):
         
-        fn3c =fn3Client()         # expect success
-        res = fn3c.read_fasta_file(fastafile = os.path.join("..","testdata", "fasta", "t1.fasta" ))
+        fn4c =fn4Client()         # expect success
+        res = fn4c.read_fasta_file(fastafile = os.path.join("..","testdata", "fasta", "t1.fasta" ))
         seq1 = res['seq']
-        res = fn3c.read_fasta_file(fastafile = os.path.join("..","testdata", "fasta", "t2.fasta" ))
+        res = fn4c.read_fasta_file(fastafile = os.path.join("..","testdata", "fasta", "t2.fasta" ))
         seq2 = res['seq']
 
         uuid1 = uuid.uuid1().hex
         uuid2 = uuid.uuid1().hex
         
-        fn3c.insert(uuid1, seq1)
-        fn3c.insert(uuid2, seq2)
+        fn4c.insert(uuid1, seq1)
+        fn4c.insert(uuid2, seq2)
         
-        self.assertTrue(uuid1 in fn3c.guids())
-        self.assertTrue(uuid2 in fn3c.guids())
+        self.assertTrue(uuid1 in fn4c.guids())
+        self.assertTrue(uuid2 in fn4c.guids())
         
-        res1 = fn3c.guids_with_quality_over(0.25)
-        res2 = fn3c.guids_with_quality_over(1.1)
+        res1 = fn4c.guids_with_quality_over(0.25)
+        res2 = fn4c.guids_with_quality_over(1.1)
         
         self.assertTrue(len(res1)>0)
         self.assertEqual(len(res2),0)
         
-class test_fn3_client_change_id(unittest.TestCase):
+class test_fn4_client_change_id(unittest.TestCase):
     def runTest(self):
         
-        fn3c =fn3Client()         # expect success
-        res = fn3c.read_fasta_file(fastafile = os.path.join("..","testdata", "fasta", "t1.fasta" ))
+        fn4c =fn4Client()         # expect success
+        res = fn4c.read_fasta_file(fastafile = os.path.join("..","testdata", "fasta", "t1.fasta" ))
         seq1 = res['seq']
-        res = fn3c.read_fasta_file(fastafile = os.path.join("..","testdata", "fasta", "t2.fasta" ))
+        res = fn4c.read_fasta_file(fastafile = os.path.join("..","testdata", "fasta", "t2.fasta" ))
         seq2 = res['seq']
 
         uuid1 = uuid.uuid1().hex
         uuid2 = uuid.uuid1().hex
         
-        fn3c.insert(uuid1, seq1)
+        fn4c.insert(uuid1, seq1)
         
-        clustering = fn3c.clustering()
-        c1 = fn3c.change_id(clustering['algorithms'][0])
-        fn3c.insert(uuid2, seq2)
-        c2 = fn3c.change_id(clustering['algorithms'][0])
+        clustering = fn4c.clustering()
+        c1 = fn4c.change_id(clustering['algorithms'][0])
+        fn4c.insert(uuid2, seq2)
+        c2 = fn4c.change_id(clustering['algorithms'][0])
                
-        self.assertTrue(uuid1 in fn3c.guids())
-        self.assertTrue(uuid2 in fn3c.guids())
+        self.assertTrue(uuid1 in fn4c.guids())
+        self.assertTrue(uuid2 in fn4c.guids())
 
-        self.assertTrue(c1['change_id']<c2['change_id'])
-class test_fn3_client_msa(unittest.TestCase):
+        self.assertTrue(c1['change_id']==c2['change_id'])       # only updates on clustering
+class test_fn4_client_msa(unittest.TestCase):
     def runTest(self):
         
-        fn3c =fn3Client()         # expect success
-        res = fn3c.read_fasta_file(fastafile = os.path.join("..","testdata", "fasta", "t1.fasta" ))
+        fn4c =fn4Client()         # expect success
+        res = fn4c.read_fasta_file(fastafile = os.path.join("..","testdata", "fasta", "t1.fasta" ))
         seq1 = res['seq']
-        res = fn3c.read_fasta_file(fastafile = os.path.join("..","testdata", "fasta", "t2.fasta" ))
+        res = fn4c.read_fasta_file(fastafile = os.path.join("..","testdata", "fasta", "t2.fasta" ))
         seq2 = res['seq']
 
         uuid1 = uuid.uuid1().hex
         uuid2 = uuid.uuid1().hex
         uuid3 = uuid.uuid1().hex
-        fn3c.insert(uuid1, seq1)
-        fn3c.insert(uuid2, seq2)
-        fn3c.insert(uuid3, seq1)
-        res = fn3c.msa([uuid1,uuid2,uuid3])
+        fn4c.insert(uuid1, seq1)
+        fn4c.insert(uuid2, seq2)
+        fn4c.insert(uuid3, seq1)
+        res = fn4c.msa([uuid1,uuid2,uuid3])
+        
         self.assertTrue(isinstance(res, pd.DataFrame))
   
-class test_fn3_client_guids2clusters(unittest.TestCase):
+class test_fn4_client_guids2clusters(unittest.TestCase):
     
     """ tests various endpoints to do with clustering """
     def runTest(self):
         
-        fn3c =fn3Client()         # expect success
-        res = fn3c.read_fasta_file(fastafile = os.path.join("..","testdata", "fasta", "t1.fasta" ))
+        fn4c =fn4Client()         # expect success
+        res = fn4c.read_fasta_file(fastafile = os.path.join("..","testdata", "fasta", "t1.fasta" ))
         seq1 = res['seq']
-        res = fn3c.read_fasta_file(fastafile = os.path.join("..","testdata", "fasta", "t2.fasta" ))
+        res = fn4c.read_fasta_file(fastafile = os.path.join("..","testdata", "fasta", "t2.fasta" ))
         seq2 = res['seq']
 
         uuid1 = uuid.uuid1().hex
         uuid2 = uuid.uuid1().hex
         uuid3 = uuid.uuid1().hex
-        fn3c.insert(uuid1, seq1)
+        fn4c.insert(uuid1, seq1)
         
-        clustering = fn3c.clustering()
-        c1 = fn3c.change_id(clustering['algorithms'][0])
-        fn3c.insert(uuid2, seq2)
-        c2 = fn3c.change_id(clustering['algorithms'][0])            
-        fn3c.insert(uuid3, seq2)
-        c3 = fn3c.change_id(clustering['algorithms'][0])
+        clustering = fn4c.clustering()
+        c1 = fn4c.change_id(clustering['algorithms'][0])
+        fn4c.insert(uuid2, seq2)
+        c2 = fn4c.change_id(clustering['algorithms'][0])            
+        fn4c.insert(uuid3, seq2)
+        c3 = fn4c.change_id(clustering['algorithms'][0])
        
-        self.assertTrue(uuid1 in fn3c.guids())
-        self.assertTrue(uuid2 in fn3c.guids())
-        self.assertTrue(uuid3 in fn3c.guids())
+        self.assertTrue(uuid1 in fn4c.guids())
+        self.assertTrue(uuid2 in fn4c.guids())
+        self.assertTrue(uuid3 in fn4c.guids())
 
-        self.assertTrue(c1['change_id']<c2['change_id'])
 
         # recover clustering
-        res1 = fn3c.guids2clusters(clustering['algorithms'][0])
-        res2 = fn3c.guids2clusters(clustering['algorithms'][0], after_change_id = c2['change_id'])
+        res1 = fn4c.guids2clusters(clustering['algorithms'][0])
+        res2 = fn4c.guids2clusters(clustering['algorithms'][0], after_change_id = c2['change_id'])
 
         self.assertTrue(isinstance(res1, pd.DataFrame))
         self.assertTrue(isinstance(res2, pd.DataFrame))
@@ -506,54 +506,49 @@ class test_fn3_client_guids2clusters(unittest.TestCase):
             cluster_ids.add(res1.loc[ix, 'cluster_id'])
         
         # check clusters endpoint
-        res3 = fn3c.clusters(clustering['algorithms'][0])
+        res3 = fn4c.clusters(clustering['algorithms'][0])
         self.assertTrue(isinstance(res3, pd.DataFrame))
-        res4 = fn3c.cluster_members(clustering['algorithms'][0])
+        res4 = fn4c.cluster_members(clustering['algorithms'][0])
         self.assertTrue(isinstance(res4, pd.DataFrame))
-        res5 = fn3c.cluster_summary(clustering['algorithms'][0])
+        res5 = fn4c.cluster_summary(clustering['algorithms'][0])
         self.assertTrue(isinstance(res5, pd.DataFrame))
-        res6 = fn3c.cluster_ids(clustering['algorithms'][0])
+        res6 = fn4c.cluster_ids(clustering['algorithms'][0])
         self.assertTrue(isinstance(res6, list))
         self.assertTrue(set(res6)==cluster_ids)  # same results both ways
         
         # recover neighbours
-        res = fn3c.guid2neighbours(guid= uuid1, threshold = 250)
+        res = fn4c.guid2neighbours(guid= uuid1, threshold = 250)
         self.assertTrue(isinstance(res, list))
 
-        res = fn3c.guid2neighbours(guid= uuid1, threshold = 250, quality_cutoff = 0.7)
+        res = fn4c.guid2neighbours(guid= uuid1, threshold = 250, quality_cutoff = 0.7)
         self.assertTrue(isinstance(res, list))
 
-        # check msa_cluster
-        msa = fn3c.msa_cluster(clustering['algorithms'][0],min(cluster_ids),'json')
+        
 
-        self.assertTrue(isinstance(msa, pd.DataFrame))
-        msa = fn3c.msa_cluster(clustering['algorithms'][0],min(cluster_ids),'fasta')
-
-
-class test_fn3_client_network(unittest.TestCase):
+class test_fn4_client_network(unittest.TestCase):
     """ tests network generation """
     def runTest(self):
         
-        fn3c =fn3Client()         # expect success
-        res = fn3c.read_fasta_file(fastafile = os.path.join("..","testdata", "fasta", "t1.fasta" ))
+        fn4c =fn4Client()         # expect success
+        res = fn4c.read_fasta_file(fastafile = os.path.join("..","testdata", "fasta", "t1.fasta" ))
         seq1 = res['seq']
-        res = fn3c.read_fasta_file(fastafile = os.path.join("..","testdata", "fasta", "t2.fasta" ))
+        res = fn4c.read_fasta_file(fastafile = os.path.join("..","testdata", "fasta", "t2.fasta" ))
         seq2 = res['seq']
 
         uuid1 = uuid.uuid1().hex
         uuid2 = uuid.uuid1().hex
         uuid3 = uuid.uuid1().hex
-        fn3c.insert(uuid1, seq1)
-        fn3c.insert(uuid2, seq2)
-        fn3c.insert(uuid3, seq2)
+        fn4c.insert(uuid1, seq1)
+        fn4c.insert(uuid2, seq2)
+        fn4c.insert(uuid3, seq2)
 
-        clustering = fn3c.clustering()
+        clustering = fn4c.clustering()
         self.assertTrue('algorithms' in clustering.keys())
         
         for algorithm in clustering['algorithms']:
-            cluster_ids = fn3c.cluster_ids(algorithm)
+            cluster_ids = fn4c.cluster_ids(algorithm)
             for cluster_id in cluster_ids:
-                network = fn3c.network(algorithm, cluster_id)
+                network = fn4c.network(algorithm, cluster_id)
                 #print(network.keys())
                 #print(algorithm, network['nNodes'], network['nEdges'])
                 #print(network['elements'])
