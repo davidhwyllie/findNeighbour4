@@ -20,6 +20,7 @@ from identify_sequence_set import IdentifySequenceSet
 from hybridComparer import hybridComparer
 from read_config import ReadConfig
 from mongoStore import fn3persistence
+from pycw_client import CatWalk
 
 class MockPersistence():
     """ simulates the fnPersistence class which provides access to findNeighbour stored data;
@@ -245,7 +246,7 @@ class MixtureAwareLinkageResult():
     .change_id
 
     It is a lightweight; all it does is load relevant data from the clustering collection in mongo, perform limited & rapid rearrangement (to allow fast indexed access) and exposes it.
-    The class does not itself do any clustering; it uses data written into the database by findNeighbour4-clustering in order to provide clustering information to front end services. 
+    The class does not itself do any clustering; it uses data written into the database by findNeighbour4_clustering in order to provide clustering information to front end services. 
     """
 
     def __init__(self, serialisation=None, PERSIST=None, name='Test'):
@@ -2045,6 +2046,20 @@ class test_MIXCHECK_1(unittest.TestCase):
                    )
             PERSIST._delete_existing_data()
 
+            # empty any test catwalk server
+            cw = CatWalk(
+                    cw_binary_filepath=None,
+                    reference_name="H37RV",
+                    reference_filepath="../reference/TB-ref.fasta",
+                    mask_filepath="../reference/TB-exclude-adaptive.txt",
+                    max_distance=20,
+                    bind_host='localhost',
+                    bind_port=5999)
+
+            # stop the server if it is running
+            cw.stop_all()
+            self.assertFalse(cw.server_is_running())
+
             hc = hybridComparer(
                 reference=CONFIG['reference'],
                 maxNs=CONFIG['MAXN_STORAGE'],
@@ -2131,6 +2146,7 @@ class Test_MALR_1(unittest.TestCase):
     """ tests MixtureAwareLinkageResults"""
     def runTest(self):
 
+
         # generate something to analyse
         n_guids = 10  
         p = MockPersistence(n_guids = n_guids)
@@ -2187,7 +2203,7 @@ class Test_MALR_1(unittest.TestCase):
         self.assertEqual(len(res), len(p.guids()))
 
 
-	    # load an empty or missing data set
+	# load an empty or missing data set
         malr = MixtureAwareLinkageResult(PERSIST=p, name='nodata')
         self.assertTrue(isinstance(malr.change_id, int))
         self.assertTrue(isinstance(malr.guids(), set))
@@ -2199,7 +2215,7 @@ class Test_MALR_1(unittest.TestCase):
         self.assertEqual(len(res), 0)
 
 
-	    # load an empty or missing data set
+	# load an empty or missing data set
         p.latest_version_behaviour='nochange'       # don't increment version
 
         malr = MixtureAwareLinkageResult(PERSIST=p, name='test')

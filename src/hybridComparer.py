@@ -23,7 +23,7 @@ from scipy.stats import binom_test
 import pandas as pd
 from collections import Counter
 from mongoStore import fn3persistence
-from preComparer import preComparer		# catwalk enabled
+from preComparer import preComparer     # catwalk enabled
 from identify_sequence_set import IdentifySequenceSet
 from msa import MSAResult
 
@@ -33,7 +33,7 @@ from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import generic_nucleotide
-
+from pycw_client import CatWalk
 # connection to mongodb on localhost; used for unittesting
 UNITTEST_MONGOCONN = "mongodb://localhost"
 
@@ -68,8 +68,8 @@ class hybridComparer():
         excludePositions contains a zero indexed set of bases which should not be considered at all in the sequence comparisons.  Any bases which are always N should be added to this set.  Not doing so will substantially degrade the algorithm's performance.
 
         preComparer_parameters: parameters passed to the preComparer.  Used to judge which sequences do not need further analysis.
-	    Must include the following:
-	    selection_cutoff: (int)
+        Must include the following:
+        selection_cutoff: (int)
         snp distances more than this are not of interest epidemiologically and are not reported
 
         uncertain_base (str): one of 'M', 'N', or 'N_or_M'
@@ -79,7 +79,7 @@ class hybridComparer():
         over_selection_cutoff_ignore_factor:
         SNP distances more than over_selection_cutoff_ignore_factor * selection_cutoff do not need to be further analysed.  For example, if a SNP cutoff was 20, and over_selection_cutoff_ignore_factor is 5, we can safely consider with SNV distances > 100 (=20*5) as being unrelated.
 
-        catWalk_parameters:  parameters for catWalk function.  If empty {}, catWalk is not run.		
+        catWalk_parameters:  parameters for catWalk function.  If empty {}, catWalk is not run.     
         PERSIST: either a mongo connection string, or an instance of fn3persistence
 
         unittesting: if True, will remove any stored data from the associated database [Careful!]
@@ -91,7 +91,7 @@ class hybridComparer():
         
         
         # reference based compression relative to reference 'compressed_sequence' have keys as follows:
- 		
+        
         self.compressed_sequence_keys = set(['invalid','A','C','G','T', 'N', 'M'])  
 
         # snp distances more than this will not be reported
@@ -225,17 +225,17 @@ class hybridComparer():
 
         # add links
         links={}
-        loginfo=["inserted {0} into precomparer; is_invalid = {1}".format(guid, is_invalid)]	
+        loginfo=["inserted {0} into precomparer; is_invalid = {1}".format(guid, is_invalid)]    
 
-        mcompare_result = self.mcompare(guid)		# compare guid against all
+        mcompare_result = self.mcompare(guid)       # compare guid against all
 
-        for i,item in enumerate(mcompare_result['neighbours']): 	# all against all
+        for i,item in enumerate(mcompare_result['neighbours']):     # all against all
             (guid1,guid2,dist) = item
             if not guid1==guid2:
                 link = {'dist':dist}
             if dist is not None:
                 if link['dist'] <= self.snpCeiling:
-                    links[guid2]=link			
+                    links[guid2]=link           
 
         ## now persist in database.
 
@@ -309,19 +309,19 @@ class hybridComparer():
         exact_comparison = False
         for match in self.pc.mcompare(guid, guids):
 
-            if self.pc.distances_are_exact:		# then the precomparer is computing an exact distance
+            if self.pc.distances_are_exact:     # then the precomparer is computing an exact distance
                 exact_comparison = True
                 if match['dist'] <= self.snpCeiling:
 
                     neighbours.append([match['guid1'],match['guid2'],match['dist']])
-            else:						# the precomparer is computing an estimated distance, and more detailed comparison is needed.
+            else:                       # the precomparer is computing an estimated distance, and more detailed comparison is needed.
                 if not match['no_retest']:
                     candidate_guids.add(match['guid2'])
 
         t2= datetime.datetime.now()
 
         if not exact_comparison:
-        	# need to do second phase computation to determine neighbours
+            # need to do second phase computation to determine neighbours
             guids = list(set(guids))       
             sampleCount = len(guids)
 
@@ -486,7 +486,7 @@ class hybridComparer():
         Ms (uncertain bases) are ignored in snp computations.
     
 
-	    """
+        """
         #  if cutoff is not specified, we use snpCeiling
         if cutoff is None:
             cutoff = self.snpCeiling
@@ -568,7 +568,7 @@ e
         
         if not unk_type in ['N', 'M', 'N_or_M']:
             raise KeyError("unk_type can be one of 'N' 'M' 'N_or_M'")
-        current_composition = copy.copy(self.pc.composition)	         # can be changed by flask, so duplicate it
+        current_composition = copy.copy(self.pc.composition)             # can be changed by flask, so duplicate it
         composition = pd.DataFrame.from_dict(current_composition, orient='index')       # preComparer maintains a composition list
         composition.drop(exclude_guids, inplace=True)                                   # remove the ones we want to exclude
 
@@ -628,6 +628,7 @@ e
         for guid in to_test:
 
             obj = self.PERSIST.refcompressedsequence_read(guid)
+            
             try:
                 N_sites = set(obj['N']).intersection(sites)
             except KeyError:
@@ -706,9 +707,9 @@ e
         reported as None.
              
         ## TEST 3: 
-	tests whether the proportion of Ns in the alignment is greater
+    tests whether the proportion of Ns in the alignment is greater
         than in the bases not in the alignment, for this sequence.  
-	This is the test published.
+    This is the test published.
         
         ## TEST 4:  
         tests whether the proportion of Ns in the alignment  for this sequence
@@ -861,17 +862,17 @@ e
                   nrps[position].add(base)            # either way add the current non-reference base there
                   
         # step 2: for the non-reference called positions, 
-	    # record whether there's a reference base there.
+        # record whether there's a reference base there.
         for guid in valid_guids:
-            for position in nrps.keys():		
+            for position in nrps.keys():        
                 psn_accounted_for  = 0
                 for base in ['A','C','T','G']:
                     if position in self.seqProfile[guid][base]:
                         psn_accounted_for = 1
-                if psn_accounted_for ==0:	# no record of non-ref seq here
+                if psn_accounted_for ==0:   # no record of non-ref seq here
                     if not (position in self.seqProfile[guid]['N'] or position in self.seqProfile[guid]['M'].keys()):  # not M or N so non-reference
                         # it is reference; this guid has no record of a variant base at this position, so it must be reference.
-                        nrps[position].add(self.reference[position])	# add reference psn
+                        nrps[position].add(self.reference[position])    # add reference psn
                      
         # step 3: find those which have multiple bases at a position
         variant_positions = set()
@@ -916,7 +917,7 @@ e
         else:
             expected_p2 = expected_N2 / len(ordered_variant_positions)
 
-		    
+            
         
         # step 6: perform Binomial tests on all samples
         if len(valid_guids)>0:
@@ -1697,7 +1698,7 @@ class test_hybridComparer_saveload3(unittest.TestCase):
         self.assertEqual(len(sc.pc.seqProfile.keys()),1)    # one entry in the preComparer     
 
         compressedObj =sc.compress(sequence='ACTTTT')
-        sc.persist(compressedObj, 'one' )  		    # should succeed, but add nothing   
+        sc.persist(compressedObj, 'one' )           # should succeed, but add nothing   
         self.assertEqual(len(sc.pc.seqProfile.keys()),1)    # one entry in the preComparer     
  
         compressedObj =sc.compress(sequence='ACTTTA')
@@ -1832,7 +1833,7 @@ class test_hybridComparer_45(unittest.TestCase):
                            snpCeiling =100, 
                            preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}})
         n_pre =  0          
-        guids_inserted = list()			
+        guids_inserted = list()         
         for i in range(1,4):        #40
             
             seq = originalseq
@@ -1841,7 +1842,7 @@ class test_hybridComparer_45(unittest.TestCase):
                 guid_to_insert = "mixed_{0}".format(n_pre+i)
             else:
                 is_mixed = False
-                guid_to_insert = "nomix_{0}".format(n_pre+i)	
+                guid_to_insert = "nomix_{0}".format(n_pre+i)    
             # make i mutations at position 500,000
             
             offset = 500000
@@ -1856,20 +1857,20 @@ class test_hybridComparer_45(unittest.TestCase):
                     if not ref == 'A':
                         seq[mutbase] = 'A'
                 if is_mixed == True:
-                        seq[mutbase] = 'N'					
+                        seq[mutbase] = 'N'                  
             seq = ''.join(seq)
             
             if i % 11 == 0:
                 seq = badseq        # invalid
                 
-            guids_inserted.append(guid_to_insert)			
+            guids_inserted.append(guid_to_insert)           
             if not is_mixed:
                     #print("Adding TB sequence {2} of {0} bytes with {1} Ns and {3} variants relative to ref.".format(len(seq), seq.count('N'), guid_to_insert, nVariants))
                     pass
             else:
                     #print("Adding mixed TB sequence {2} of {0} bytes with {1} Ns relative to ref.".format(len(seq), seq.count('N'), guid_to_insert))
                     pass    
-            self.assertEqual(len(seq), 4411532)		# check it's the right sequence
+            self.assertEqual(len(seq), 4411532)     # check it's the right sequence
     
             c = sc.compress(seq)
             sc.persist(c, guid=guid_to_insert )
@@ -1940,133 +1941,148 @@ class test_hybridComparer_51(unittest.TestCase):
 
 
 class test_hybridComparer_52(unittest.TestCase):
-	""" tests catwalk with uncertain_base = M"""
-	def runTest(self):
-		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
-		with open(inputfile, 'rt') as f:
-			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):
-					refSeq = str(record.seq)               
-					originalseq = list(str(record.seq))
-		hc=hybridComparer( maxNs = 1e8,
+    """ tests catwalk with uncertain_base = M"""
+    def runTest(self):
+        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        with open(inputfile, 'rt') as f:
+            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):
+                    refSeq = str(record.seq)               
+                    originalseq = list(str(record.seq))
+        hc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
                        snpCeiling =10,
                        preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{'bind_port':5999, 'bind_host':'localhost','cw_binary_filepath':None,'reference_name':"H37RV",'reference_filepath':inputfile,'mask_filepath':"../reference/TB-exclude-adaptive.txt"}},
                        unittesting=True)
         
-		hc.PERSIST._delete_existing_data()      
+        hc.PERSIST._delete_existing_data()      
 
 
-		inserted_guids = ['guid_ref']
-		obj = hc.compress(refSeq)
-		hc.persist(obj,'guid_ref')
+        inserted_guids = ['guid_ref']
+        obj = hc.compress(refSeq)
+        hc.persist(obj,'guid_ref')
 
-		for k in [0,1]:
-			for i in [0,1,2]:
-				guid_to_insert = "msa2_{1}_guid_{0}".format(k*100+i,k)
-				inserted_guids.append(guid_to_insert)
-				muts = 0
-				seq = originalseq.copy()			
-				# make  mutations 
-				if k==1:
-					for j in range(1000000,1000010):		# make 10 mutants at position 1m
-						mutbase =j
-						ref = seq[mutbase]
-						if not ref == 'T':
-							seq[mutbase] = 'T'
-						if not ref == 'A':
-							seq[mutbase] = 'A'
-						muts+=1
-	
+        for k in [0,1]:
+            for i in [0,1,2]:
+                guid_to_insert = "msa2_{1}_guid_{0}".format(k*100+i,k)
+                inserted_guids.append(guid_to_insert)
+                muts = 0
+                seq = originalseq.copy()            
+                # make  mutations 
+                if k==1:
+                    for j in range(1000000,1000010):        # make 10 mutants at position 1m
+                        mutbase =j
+                        ref = seq[mutbase]
+                        if not ref == 'T':
+                            seq[mutbase] = 'T'
+                        if not ref == 'A':
+                            seq[mutbase] = 'A'
+                        muts+=1
+    
 
-				seq = ''.join(seq)
-				obj = hc.compress(seq)
-				hc.persist(obj, guid_to_insert)			
+                seq = ''.join(seq)
+                obj = hc.compress(seq)
+                hc.persist(obj, guid_to_insert)         
 
-		self.assertEqual(hc.pc.guids(), set(inserted_guids))
+        self.assertEqual(hc.pc.guids(), set(inserted_guids))
   
-		for guid in inserted_guids:
-			res = hc.mcompare(guid)
-			self.assertEqual(res['timings']['catWalk_enabled'], True)
-			self.assertEqual(res['timings']['preComparer_distances_are_exact'],False)
-			self.assertTrue(res['timings']['candidates']>0)
-	
+        for guid in inserted_guids:
+            res = hc.mcompare(guid)
+            self.assertEqual(res['timings']['catWalk_enabled'], True)
+            self.assertEqual(res['timings']['preComparer_distances_are_exact'],False)
+            self.assertTrue(res['timings']['candidates']>0)
+    
 
 class test_hybridComparer_53(unittest.TestCase):
-	""" tests catwalk with uncertain_base = N_or_M.
-		cf. preComparer test 11, which tests python vs. catwalk methods.
+    """ tests catwalk with uncertain_base = N_or_M.
+        cf. preComparer test 11, which tests python vs. catwalk methods.
+
+        functions correctly if catwalk is not already running and prepopulated
 """
-	def runTest(self):
-		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
-		with open(inputfile, 'rt') as f:
-			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):
-					refSeq = str(record.seq)               
-					originalseq = list(str(record.seq))
-		hc=hybridComparer( maxNs = 1e8,
+    def runTest(self):
+
+        cw = CatWalk(
+                    cw_binary_filepath=None,
+                    reference_name="H37RV",
+                    reference_filepath="../reference/TB-ref.fasta",
+                    mask_filepath="../reference/TB-exclude-adaptive.txt",
+                    max_distance=20,
+                    bind_host='localhost',
+                    bind_port=5999)
+
+                # stop the server if it is running
+        cw.stop_all()
+        self.assertFalse(cw.server_is_running())
+
+        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        with open(inputfile, 'rt') as f:
+            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):
+                    refSeq = str(record.seq)               
+                    originalseq = list(str(record.seq))
+        hc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
                        snpCeiling =10,
                        preComparer_parameters={'selection_cutoff':20,'uncertain_base':'N_or_M', 'over_selection_cutoff_ignore_factor':1, 'catWalk_parameters':{'bind_port':5999, 'bind_host':'localhost','cw_binary_filepath':None,'reference_name':"H37RV",'reference_filepath':inputfile,'mask_filepath':"../reference/TB-exclude-adaptive.txt"}},
                        unittesting=True)
         
-		hc.PERSIST._delete_existing_data()      
+        hc.PERSIST._delete_existing_data()      
 
+        inserted_guids = ['guid_ref']
+        obj = hc.compress(refSeq)
+        hc.persist(obj,'guid_ref')
 
-		inserted_guids = ['guid_ref']
-		obj = hc.compress(refSeq)
-		hc.persist(obj,'guid_ref')
+        for k in [0,1]:
+            for i in [0,1,2]:
+                guid_to_insert = "msa2_{1}_guid_{0}".format(k*100+i,k)
+                inserted_guids.append(guid_to_insert)
+                muts = 0
+                seq = originalseq.copy()            
+                # make  mutations 
+                if k==1:
+                    for j in range(500000,500005):      # make 5 mutants at position 500000k
+                        mutbase =j
+                        ref = seq[mutbase]
+                        if not ref == 'T':
+                            seq[mutbase] = 'T'
+                        else: 
+                            seq[mutbase] = 'A'
+                        muts+=1
+    
 
-		for k in [0,1]:
-			for i in [0,1,2]:
-				guid_to_insert = "msa2_{1}_guid_{0}".format(k*100+i,k)
-				inserted_guids.append(guid_to_insert)
-				muts = 0
-				seq = originalseq.copy()			
-				# make  mutations 
-				if k==1:
-					for j in range(500000,500005):		# make 5 mutants at position 500000k
-						mutbase =j
-						ref = seq[mutbase]
-						if not ref == 'T':
-							seq[mutbase] = 'T'
-						else: 
-							seq[mutbase] = 'A'
-						muts+=1
-	
+                seq = ''.join(seq)
+                obj = hc.compress(seq)
+                print(guid_to_insert, muts)
+                hc.persist(obj, guid_to_insert)         
 
-				seq = ''.join(seq)
-				obj = hc.compress(seq)
-				print(guid_to_insert, muts)
-				hc.persist(obj, guid_to_insert)			
-
-		self.assertEqual(hc.pc.guids(), set(inserted_guids))
+        self.assertEqual(hc.pc.guids(), set(inserted_guids))
   
-		for guid in inserted_guids:
-			res = hc.mcompare(guid)
-			print(guid, res['timings'])
-			self.assertEqual(res['timings']['catWalk_enabled'], True)
-			self.assertEqual(res['timings']['preComparer_distances_are_exact'],True)
-			self.assertTrue(res['timings']['candidates']==0)		# doesn't report these
-			self.assertEqual(res['timings']['preCompared'],len(inserted_guids))
-			self.assertTrue(res['timings']['matches']>0)
-			
+        for guid in inserted_guids:
+            res = hc.mcompare(guid)
+            print(guid, res['timings'])
+            self.assertEqual(res['timings']['catWalk_enabled'], True)
+            self.assertEqual(res['timings']['preComparer_distances_are_exact'],True)
+            self.assertTrue(res['timings']['candidates']==0)        # doesn't report these
+            self.assertEqual(res['timings']['preCompared'],len(inserted_guids))
+            self.assertTrue(res['timings']['matches']>0)
+            
 class test_hybridComparer_54(unittest.TestCase):
-	""" tests catwalk with insertion disabled (catwalk should not start)"""
-	def runTest(self):
-		inputfile = "../COMPASS_reference/R39/R00000039.fasta"
-		with open(inputfile, 'rt') as f:
-			for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):
-					refSeq = str(record.seq)               
-					originalseq = list(str(record.seq))
-		hc=hybridComparer( maxNs = 1e8,
+    """ tests catwalk with insertion disabled (catwalk should not start)"""
+    def runTest(self):
+        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        with open(inputfile, 'rt') as f:
+            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):
+                    refSeq = str(record.seq)               
+                    originalseq = list(str(record.seq))
+        hc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
                        snpCeiling =10,
                        preComparer_parameters={'selection_cutoff':20,'uncertain_base':'N_or_M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{'bind_port':5999, 'bind_host':'localhost','cw_binary_filepath':None,'reference_name':"H37RV",'reference_filepath':inputfile,'mask_filepath':"../reference/TB-exclude-adaptive.txt"}},
                        unittesting=True,
                        disable_insertion=True)
-		self.assertFalse(hc.pc.catWalk_enabled)
+        self.assertFalse(hc.pc.catWalk_enabled)
 
-		inserted_guids = ['guid_ref']
-		obj = hc.compress(refSeq)
-		with self.assertRaises(NotImplementedError):
-			hc.persist(obj,'guid_ref')
+        inserted_guids = ['guid_ref']
+        obj = hc.compress(refSeq)
+        with self.assertRaises(NotImplementedError):
+            hc.persist(obj,'guid_ref')
 
-	
+    

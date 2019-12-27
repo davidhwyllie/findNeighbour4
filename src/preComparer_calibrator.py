@@ -50,7 +50,6 @@ from NucleicAcid import NucleicAcid
 from mongoStore import fn3persistence
 from seqComparer import seqComparer     # import from seqComparer_mt for multithreading
 from preComparer import preComparer
-from clustering import snv_clustering
 from guidLookup import guidSearcher  # fast lookup of first part of guids
 
 # network visualisation

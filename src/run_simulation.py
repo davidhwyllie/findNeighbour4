@@ -24,7 +24,7 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import generic_nucleotide
 
-from fn3client import fn3Client
+from fn4client import fn4Client
 
 if __name__ == '__main__':
 
@@ -43,7 +43,7 @@ python run_simulation.py  ../output/simulation_set_1""")
     
     
     # connect to server
-    fn3c = fn3Client("http://localhost:5020")
+    fn4c = fn4Client("http://localhost:5020")
     
     # iterate over simulated data
     for inputdir in glob.glob(os.path.join(basedir,'*')):
@@ -86,24 +86,24 @@ python run_simulation.py  ../output/simulation_set_1""")
             f.write(">reference\n{0}\n".format(miniseq))
   
         print("Loading new data")
-        fn3c.reset()        # restart server with no data and new reference sequence
+        fn4c.reset()        # restart server with no data and new reference sequence
         
         inserted = []
         for ix in observed.index:
             to_insert = observed.loc[ix,'seq']
             guid = observed.loc[ix,'node']
-            fn3c.insert(guid, to_insert)
+            fn4c.insert(guid, to_insert)
             #print("Loaded ",guid)
             inserted.append(guid)
-            if not len(inserted) == len(fn3c.guids()):
-                raise KeyError("Guids were not inserted correctly, {0} {1}".format(inserted, fn3c.guids()))
+            if not len(inserted) == len(fn4c.guids()):
+                raise KeyError("Guids were not inserted correctly, {0} {1}".format(inserted, fn4c.guids()))
 
         # examine all samples.  are they mixed?
         print("Conducting per-sample analysis")
         per_sample = []
-        for sample in  fn3c.guids():
+        for sample in  fn4c.guids():
 
-            neighbours = fn3c.guid2neighbours(guid=sample, threshold = 20)
+            neighbours = fn4c.guid2neighbours(guid=sample, threshold = 20)
             nneighbours = len(neighbours)
             guids = [sample]
             for item in neighbours:
@@ -112,7 +112,7 @@ python run_simulation.py  ../output/simulation_set_1""")
                 status = 'Not assessable'
             else:
 
-                msa = fn3c.msa(guids)
+                msa = fn4c.msa(guids)
                 p_value_cutoff = 1e-5/len(msa.index)
                 ismixed = msa.query("p_value1 < @p_value_cutoff")
                 status = 'Not mixed'
@@ -160,7 +160,7 @@ python run_simulation.py  ../output/simulation_set_1""")
         
         # find the neighbours of the mixed sample
         for snv_cutoff in [5]:
-            neighbours = fn3c.guid2neighbours(guid=params['observed_sequence_mixed'], threshold = snv_cutoff)
+            neighbours = fn4c.guid2neighbours(guid=params['observed_sequence_mixed'], threshold = snv_cutoff)
             nneighbours = len(neighbours)
             neighbouring_guids = []
             print("The mixed sample {0} has {1} neighbours at {2} snp; resampling".format(params['observed_sequence_mixed'], nneighbours, snv_cutoff))
@@ -183,7 +183,7 @@ python run_simulation.py  ../output/simulation_set_1""")
                     for i in range(max_samples):
                         guid_sample = random.sample(neighbouring_guids, s)
                         guid_sample.append(params['observed_sequence_mixed'])
-                        msa = fn3c.msa(guid_sample)
+                        msa = fn4c.msa(guid_sample)
                         #print(msa)
                         p_value_cutoff = 1e-5/len(msa.index)
                         ismixed = msa.query("p_value1 < @p_value_cutoff")

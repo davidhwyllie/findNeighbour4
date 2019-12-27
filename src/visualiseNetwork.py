@@ -20,7 +20,7 @@ class snvNetwork():
     def is_mixed(self,guid):
         """ returns True if the is_mixed attribute is set True """
         try:
-            if self.G.node[guid]['is_mixed']==True:
+            if self.G.nodes[guid]['is_mixed']==True:
                 return True
         except KeyError:
             # there's no 'is_mixed' attribute
@@ -46,7 +46,7 @@ class snvNetwork():
         """
            
         # set is_mixed attribute
-        self.G.node[guid]['is_mixed']=True
+        self.G.nodes[guid]['is_mixed']=True
 
     def add_sample(self, starting_guid, guids=None, neighbours=[], **kwargs):
         """ adds a sample, guid, linked to neighbours.
