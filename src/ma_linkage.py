@@ -140,9 +140,10 @@ class MixPOREMixtureChecker(MixtureChecker):
                     HYBRIDCOMPARER, 
                     snv_threshold,      
                     mixture_criterion, 
-                    cutoff, 
+                    cutoff,
                     uncertain_base_type,
                     max_seqs_mixpore,
+                    mixture_snv_cutoff,
                     **kwargs
             ):
         """ sets up the MixtureChecker.
@@ -162,7 +163,7 @@ class MixPOREMixtureChecker(MixtureChecker):
 
                 mixture_criterion: pvalue_n, where p = 1,2,3 or 4.  refers to the nature of the statistical test peformed; see  hybridComparer.msa() function for details.  pvalue_2 is recommended.    
 		cutoff:  the p value at which the result is considered mixed.  not corrected for multiple comparisons.  one comparison is performed per sample analysed. consider 1e-8
-
+                snv_cutoff:  if >0, the result will not be considered mixed if align{what} < snv_cutoff.  For example, if less than 4 mixed bases in the alignment do not compromise clustering, snv_cutoff could be set to 4.
                 max_seqs_mixpore:  how many sequences the test sequence will be compared with to perform mixpore.  2 minimum.  recommended: 10
 
                 **kwargs: other args are ignored
@@ -174,7 +175,8 @@ class MixPOREMixtureChecker(MixtureChecker):
         self.hc = HYBRIDCOMPARER
         self.snv_threshold= snv_threshold
         self.mixture_criterion = mixture_criterion
-        self.cutoff = cutoff 
+        self.p_value_cutoff = cutoff
+        self.snv_cutoff = mixture_snv_cutoff
         self.uncertain_base_type = uncertain_base_type
         self.max_seqs_mixpore =max_seqs_mixpore
 
@@ -208,13 +210,26 @@ class MixPOREMixtureChecker(MixtureChecker):
             msa_result = self.hc.multi_sequence_alignment(guids_to_msa,  uncertain_base_type=self.uncertain_base_type)
             res = msa_result.df.loc[guid].to_dict()
             del(res['aligned_seq'])		# not useful, wastes ram
+            del(res['aligned_mseq'])		# not useful, wastes ram
+
+            enough_bases_mixed = None
             res['is_mixed'] = False
             if res[self.mixture_criterion] is not None:
-                if res[self.mixture_criterion]<self.cutoff:
-	                res['is_mixed']= True
-
+                align_mixed = "align{0}".format(self.uncertain_base_type)
+                if align_mixed in res.keys():
+                    if res[align_mixed]>self.snv_cutoff:
+                        enough_bases_mixed = True
+                    else:
+                        enough_bases_mixed = False
+                else:
+                    enough_bases_mixed = False
+                if res[self.mixture_criterion]<self.p_value_cutoff and enough_bases_mixed:
+	                res.update({'is_mixed':True})
+            res['enough_bases_mixed'] = enough_bases_mixed
+            
             ## return result
             res.update({'mix_check_method':self.info})
+            
             return res
         else:
             # not assessed
@@ -2070,7 +2085,7 @@ class test_MIXCHECK_1(unittest.TestCase):
                 unittesting=True
                 )
 
-            #print(clustering_setting)
+            print(clustering_setting)
             mpmc = MixPOREMixtureChecker(hc, **clustering_setting) 
 
             # check update adds remaining guids

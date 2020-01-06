@@ -18,9 +18,9 @@
 "catWalk_parameters":{"cw_binary_filepath":"","reference_name":"H37RV",
 "reference_filepath":"../reference/TB-ref.fasta","mask_filepath":"../reference/TB-exclude-adaptive.txt", "bind_port":5007, "bind_host":"localhost"}},
 "CLUSTERING":{
-"SNV12_include":{"snv_threshold":12,"mixed_sample_management":"include","mixture_criterion":"p_value3","cutoff":0.000001,"uncertain_base_type":"M","max_seqs_mixpore":100,"cluster_nomenclature_method":"TB"},
-"SNV12_ignore":{"snv_threshold":12,"mixed_sample_management":"ignore","mixture_criterion":"p_value3","cutoff":  0.000001,"uncertain_base_type":"M","max_seqs_mixpore":100,"cluster_nomenclature_method":"TB"},
-"SNV12_exclude":{"snv_threshold":12,"mixed_sample_management":"exclude","mixture_criterion":"p_value3","cutoff":0.000001,"uncertain_base_type":"M","max_seqs_mixpore":100,"cluster_nomenclature_method":"TB"}
+"SNV12_include":{"snv_threshold":12,"mixture_snv_cutoff":6, "mixed_sample_management":"include","mixture_criterion":"p_value3","cutoff":0.0000001,"uncertain_base_type":"M","max_seqs_mixpore":100, "cluster_nomenclature_method":"TB"},
+"SNV12_ignore":{"snv_threshold":12,"mixture_snv_cutoff":6,  "mixed_sample_management":"ignore","mixture_criterion":"p_value3","cutoff":  0.0000001,"uncertain_base_type":"M","max_seqs_mixpore":100, "cluster_nomenclature_method":"TB"},
+"SNV12_exclude":{"snv_threshold":12,"mixture_snv_cutoff":6, "mixed_sample_management":"exclude","mixture_criterion":"p_value3","cutoff":0.0000001,"uncertain_base_type":"M","max_seqs_mixpore":100, "cluster_nomenclature_method":"TB"}
     }
 } 
 

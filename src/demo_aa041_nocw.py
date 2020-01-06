@@ -17,7 +17,7 @@ if __name__ == '__main__':
     outputdir = os.path.join('..','demos','AA041','output')
 
     # instantiate client
-    fn4c = fn4Client("http://127.0.0.1:5041")      # expects operation on local host; config file runs server on port 5031 for cw version and 5041 for python version.
+    fn4c = fn4Client("http://127.0.0.1:5042")      # expects operation on local host; config file runs server on port 5032 for cw version and 5042 for python version.
 
     # names of the clustering algorithms
     clusters=fn4c.clustering()
