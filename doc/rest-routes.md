@@ -30,7 +30,12 @@ Describe properties/neighbours of a single sequence, identified by a guid
 **/api/v2/*guid*/neighbours_within/*threshold* ** specifies threshold, uses default quality cutoff and output format.   Formats 1,2,3,4 are options.  See docs for details.    
 **/api/v2/*guid*/neighbours_within/*threshold*/with_quality_cutoff/*cutoff* ** specify quality cutoff; uses default output format   
 **/api/v2/*guid*/neighbours_within/*threshold*/in_format/*returned_format* **  specify quality cutoff and output format.  
-**/api/v2/*guid*/clusters**  return clusters containing this guid  
+**/api/v2/*guid*/clusters**  return clusters containing this guid
+
+Describe distance between a pair of sequences, identified by guids
+-------------------------------------------------------------------------
+**/api/v2/*guid1*/*guid2*/exact_distance**  returns exact distance between two guids
+
 
 Recover masked sequences
 ------------------------

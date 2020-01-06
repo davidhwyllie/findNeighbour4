@@ -57,6 +57,8 @@ import dateutil.parser
 import argparse
 import networkx as nx
 import progressbar
+import uuid
+
 from sentry_sdk import capture_message, capture_exception
 from sentry_sdk.integrations.flask import FlaskIntegration
 
@@ -78,7 +80,7 @@ from hybridComparer import hybridComparer
 from guidLookup import guidSearcher         # fast lookup of first part of guids
 from ma_linkage import MixtureAwareLinkageResult
 from msa import MSAStore
-
+from preComparer import preComparer 
 
 # network visualisation
 from visualiseNetwork import snvNetwork
@@ -307,9 +309,47 @@ class findNeighbour4():
         # load in-memory sequences
         self.gs = guidSearcher()
         self._load_in_memory_data()
-        
+
+        # set up a read-only precomparer for use by pairwise comparisons.  There is no SNP ceiling
+        # preComparer_parameters will be read from disc
+        tmp_preComparer_parameters = cfg['PRECOMPARER_PARAMETERS'].copy()
+        tmp_preComparer_parameters['selection_cutoff'] = len(self.reference)
+        tmp_preComparer_parameters['catWalk_parameters'] = {}
+        tmp_preComparer_parameters['over_selection_cutoff_ignore_factor'] = 1        
+        self.pc_tmp = preComparer(**tmp_preComparer_parameters)
         print("findNeighbour4 is ready.")
-    
+
+    def pairwise_comparison(self, guid1, guid2):
+        """ compares two sequences which have already been stored
+
+        Parameter:
+        guid1 on sequence identifier
+        guid2 the second sequence identifier
+
+        Returns
+        exact distance.  no threshold is applied.  Returns None if either sequence does not exist."""
+
+        obj1 = self.PERSIST.refcompressedsequence_read(guid1)
+        obj2 = self.PERSIST.refcompressedsequence_read(guid2)
+
+        # we generate new uuids to identify the sequence, as self.pc_tmp can be accessed by different threads
+        # by providing new uuids for each sequence, one thread can't delete the other's sequences
+        uuid1 = str(uuid.uuid1())
+        uuid2 = str(uuid.uuid1())
+        
+        if obj1 is None or  obj2 is None:
+            return None     # no sequence
+
+        # store object in the precomparer
+        self.pc_tmp.persist(obj1, uuid1)      # store in the preComparer
+        self.pc_tmp.persist(obj2, uuid2)      # store in the preComparer
+        res = self.pc_tmp.compare(uuid1, uuid2)
+
+        self.pc_tmp.remove(uuid1)
+        self.pc_tmp.remove(uuid2)
+        res.update({'guid1':guid1,'guid2':guid2})
+        return res
+
     def _load_in_memory_data(self):
         """ loads in memory data into the hybridComparer object from database storage """
         
@@ -1260,9 +1300,6 @@ if __name__ == '__main__':
         return(make_response(tojson(result)))
 
 
-
-
-
     @app.route('/api/v2/annotations', methods=['GET'])
     def annotations(**kwargs):
         """ returns all guids and associated meta data.
@@ -1277,6 +1314,28 @@ if __name__ == '__main__':
             
         return(tojson(result))
 
+    @app.route('/api/v2/<string:guid1>/<string:guid2>/exact_distance', methods=['GET'])
+    def pairwise_comparison(guid1, guid2):
+        """ computes and exact pairwise distance between two samples.
+
+        Parameters:
+            guid1: one sequence identifier
+            guid2: the second sequence identifier
+        Returns:
+            exact distance, if both guids exists
+            404 if either does not exist
+        """
+        
+        try:
+            result = fn.pairwise_comparison(guid1,guid2)
+            
+        except Exception as e:
+            capture_exception(e)
+            abort(500, e)
+        if result is None:
+            abort(404, "one or other of {0} or {1} does not exist".format(guid1, guid2))
+            
+        return make_response(tojson(result))
 
     @app.route('/api/v2/<string:guid>/exists', methods=['GET'])
     def exist_sample(guid, **kwargs):

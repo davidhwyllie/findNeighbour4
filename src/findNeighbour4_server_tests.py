@@ -1182,7 +1182,61 @@ class test_change_id(unittest.TestCase):
         res = do_GET(relpath)
         self.assertEqual(res.status_code, 404)
         
+class test_compare_two(unittest.TestCase):
+    """ tests route /api/v2/{guid1}/{guid2}/exact_distance"""
+    def runTest(self):
+        relpath = "/api/v2/reset"
+        res = do_POST(relpath, payload={})
+        
+        relpath = "/api/v2/guids"
+        res = do_GET(relpath)
+        n_pre = len(json.loads(str(res.text)))      # get all the guids
 
+        guid_to_insert = "guid_{0}".format(n_pre+1)
+
+        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        with open(inputfile, 'rt') as f:
+            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+                    seq = str(record.seq)
+
+        # make variant
+        vseq=list(seq)
+        for i in range(100):
+                if not vseq[100000+i]=='A':
+                        vseq[100000+i]='A'
+                else:
+                        vseq[100000+i]='T'
+        vseq=''.join(vseq)
+        print("Adding TB reference sequence of {0} bytes".format(len(seq)))
+        self.assertEqual(len(seq), 4411532)     # check it's the right sequence
+
+        relpath = "/api/v2/insert"
+        res = do_POST(relpath, payload = {'guid':'one','seq':seq})
+        self.assertEqual(res.status_code, 200)
+ 
+        res = do_POST(relpath, payload = {'guid':'two','seq':seq})
+        self.assertEqual(res.status_code, 200)
+ 
+        res = do_POST(relpath, payload = {'guid':'three','seq':vseq})
+        self.assertEqual(res.status_code, 200)
+   
+        relpath = "/api/v2/one/two/exact_distance"
+        res = do_GET(relpath)
+        self.assertEqual(res.status_code, 200)
+   
+        info = json.loads(res.content.decode('utf-8'))
+        self.assertEqual({'guid1':'one','guid2':'two','dist':0}, info)
+        relpath = "/api/v2/one/three/exact_distance" 
+        res = do_GET(relpath)
+        self.assertEqual(res.status_code, 200)
+ 
+        info = json.loads(res.content.decode('utf-8'))
+        self.assertEqual({'guid1':'one','guid2':'three','dist':100}, info)
+
+        relpath = "/api/v2/one/four/exact_distance" 
+        res = do_GET(relpath)
+        self.assertEqual(res.status_code, 404)
+        
 class test_insert_1(unittest.TestCase):
     """ tests route /api/v2/insert """
     def runTest(self):
