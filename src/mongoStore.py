@@ -143,8 +143,9 @@ class fn3persistence():
             """ deletes server monitoring entries more than before_seconds ago """
             now = datetime.datetime.now()
             earliest_allowed = now - datetime.timedelta(seconds = before_seconds)
-            earliest_allowed_str = str(earliest_allowed)
-            self.db['server_monitoring'].delete_many( {  "context|time|time_now" : { "$gt" : earliest_allowed_str } } )
+
+            earliest_allowed_str = str(earliest_allowed.isoformat())
+            self.db['server_monitoring'].delete_many( {  "context|time|time_now" : { "$lt" : earliest_allowed_str } } )
 
             
         def summarise_stored_items(self):
@@ -321,9 +322,9 @@ class fn3persistence():
                 now['content|activity|guid']= guid
             now['context|info|message'] = message
             current_time = datetime.datetime.now()
-            now['context|time|time_now']=current_time.isoformat()
+            now['context|time|time_now']=str(current_time.isoformat())
             now['context|time|time_boot']=datetime.datetime.fromtimestamp(psutil.boot_time()).strftime("%Y-%m-%d %H:%M:%S")  
-               
+
             # should we write this data?  We have the option not to log all messages, to prevent the store getting very full.
             write_content = False       
             if self.previous_server_monitoring_time is None:
@@ -335,6 +336,7 @@ class fn3persistence():
                         write_content = True
                         
             if write_content:      
+
                 self.db['server_monitoring'].insert_one(now)
                 self.previous_server_monitoring_time = current_time
                 self.previous_server_monitoring_data = now
@@ -1016,13 +1018,19 @@ class Test_Server_Monitoring_3(unittest.TestCase):
 class Test_Server_Monitoring_4(unittest.TestCase):
         """ checks whether delete_server_monitoring_entries"""
         def runTest(self):
-                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2, server_monitoring_min_interval_msec= 2000)
+                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2, server_monitoring_min_interval_msec= 0)
                 retVal = p.server_monitoring_store(message='one')  # should insert
                 self.assertEqual(retVal, True)
                 res = p.recent_server_monitoring(100)
                 self.assertEqual(len(res),1)
                 self.assertTrue(isinstance(res,list))
+                p.delete_server_monitoring_entries(1)
+                res = p.recent_server_monitoring(100)
+                self.assertEqual(len(res),1)
+                self.assertTrue(isinstance(res,list))  #  should not have deleted
+                
                 time.sleep(2)                   # seconds
+
                 p.delete_server_monitoring_entries(1)
                 res = p.recent_server_monitoring(100)
                 self.assertEqual(len(res),0)

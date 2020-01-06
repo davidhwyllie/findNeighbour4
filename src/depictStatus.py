@@ -380,11 +380,16 @@ class DepictServerStatus():
         returns: bokeh document
         """
 
+        doc = {}
+
         # try to read json.  
         self.read_json(all_result, data_tag='pre_insert')
         self.read_json(recent_result, data_tag='recent_all')
 
-
+        if len(self.monitoring_data['pre_insert'].index) == 0 or len(self.monitoring_data['recent_all'].index) == 0:        
+            doc['Report'] = Div(text = "No data is available to plot")
+            return doc
+        
         tab_server = self.depict(data_tag='pre_insert', tab_title="In RAM sequence", metrics='server|pcstat',  x_axis_label = 'Order sequences added (Oldest --> Most recent)')
         tab_memory = self.depict(data_tag='pre_insert', tab_title="RAM usage", metrics='server|mstat', x_axis_label = 'Order sequences added (Oldest --> Most recent)')
 
@@ -409,7 +414,6 @@ class DepictServerStatus():
         div = Div(text= "[last {0} lines of log file are shown]<br/>".format(n_latest_lines) + res.replace('\n','<br />'), render_as_text=False, width=1000, height=800)
         tab_log = Panel(child=div, title='Log tail')        
 
-        doc = {}
         s1=self.server_info_tab()
         doc['Report']= Tabs(tabs=[s1,tab_rserver,tab_rmemory,tab_server, tab_memory,tab_g2n, tab_g2m, tab_sm,tab_log])
         return doc

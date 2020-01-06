@@ -147,9 +147,9 @@ if __name__ == '__main__':
                 html = file_html(page_content[item], CDN, item)
                 PERSIST.monitor_store(item, html) 
  
-                #with open("test.html",'wt') as f:
+                # with open("test.html",'wt') as f:
                 #    f.write(html)
-             
+                  
             time.sleep(120)	# rerun in 2 minutes
 
 
