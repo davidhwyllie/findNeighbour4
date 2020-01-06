@@ -52,7 +52,7 @@ if [ $NOHUP_LOGGING -eq 1 ]; then
 	nohup pipenv run python3 findNeighbour4_clustering.py $1 > ${LOGDIR}nohup_fn4_clustering_${MD5CHECKSUM}.out &
         sleep 1
 	echo "Startup complete.  Output files containing STDOUT and STDERR output are being written to $LOGDIR."
-	echo "Server processes make their own logs; retaining the STDOUT and STDERR of the server processes should not be necessary, although we do so currently for debugging purposes.  This will yield very large log files in production.  In a production system, you should either (i) use .fn4_startup.sh {LOGFILE} NO_NOHUP_LOGGING  (recommended) or (2) arrange log rotation of the nohup output using the linux logrotate command, see: https://support.rackspace.com/how-to/understanding-logrotate-utility/"
+	echo "Server processes make their own logs; retaining the STDOUT and STDERR of the server processes should not be necessary, although we do so currently for debugging purposes.  This will yield very large log files in production.  In a production system, you should either (i) use .fn4_startup.sh {CONFIG_FILE} NO_NOHUP_LOGGING  (recommended) or (2) arrange log rotation of the nohup output using the linux logrotate command, see: https://support.rackspace.com/how-to/understanding-logrotate-utility/"
 
 else
 
