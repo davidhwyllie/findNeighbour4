@@ -179,7 +179,7 @@ class MixPOREMixtureChecker(MixtureChecker):
         self.snv_cutoff = mixture_snv_cutoff
         self.uncertain_base_type = uncertain_base_type
         self.max_seqs_mixpore =max_seqs_mixpore
-
+        self.sequence_ms = {}
         # we need to load enough samples into the hybridComparer to do reliable composition based computations.  The hybridcomparer doesn't contain all the sequences, and doesn't need to, but it does need to contain enough to compute composition data used by msa().  Important: the hybridComparer must have disable_insertion = True, to avoid possible conflicts with different catwalks.
 
         #if not self.hc.disable_insertion:
@@ -199,8 +199,24 @@ class MixPOREMixtureChecker(MixtureChecker):
         self.ensure_composition()
         neighbours = self.hc.PERSIST.guid2neighbours(guid, returned_format=1)['neighbours']
         neighbours = sorted(neighbours, key = lambda x: int(x[1]))
-        neighbours = [x for x in neighbours if x[1]<=self.snv_threshold]
+        neighbours = [x for x in neighbours if x[1]<=self.snv_threshold]       
 
+        # if we have more neighbours than we are allowed to analyse (self.max_seqs_mixpore) then we preferentially analyse the ones with high mixed base numbers
+        if len(neighbours) > self.max_seqs_mixpore:
+            guid2mix = []
+            for neighbour in neighbours:
+                if not neighbour[0] in self.sequence_ms.keys():
+                    nMixed = 0
+                    try:
+                        nMixed = self.hc.PERSIST.guid_annotation(neighbour[0])[neighbour[0]]['DNAQuality:mixed']
+                    except KeyError:
+                        pass        # not recorded
+                    self.sequence_ms[neighbour[0]] = nMixed
+                guid2mix.append([neighbour[0],self.sequence_ms[neighbour[0]]])
+            neighbours = sorted(guid2mix, key = lambda x: -int(x[1]))        
+           
+
+            
         if len(neighbours)>1:		# need 2 or more to apply mixpore
             neighbours_analysed = neighbours[:self.max_seqs_mixpore]	# take up to specific number
             to_msa = neighbours_analysed.copy()
