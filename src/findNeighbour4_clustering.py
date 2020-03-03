@@ -201,7 +201,7 @@ Checks for new sequences are conducted once per minute.
         clustering_setting = CONFIG['CLUSTERING'][clustering_name]
         
         mpmc = MixPOREMixtureChecker(hc, **clustering_setting)  # uses hybridComparer to load samples and compute msas
-
+  
         # check update adds remaining guids
         logger.info("Creating clustering object {0}".format(clustering_name))
         clusterers[clustering_name] = MixtureAwareLinkage(PERSIST=PERSIST, 

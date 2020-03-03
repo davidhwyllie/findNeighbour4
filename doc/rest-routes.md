@@ -7,8 +7,8 @@ Frontend
 
 Search/describe sequences in the server
 -----------------------------------------------------------------------
-[/api/v2/guids](/api/v2/guids)  list all guids (sequence identifiers) in the server 
-[/api/v2/valid_guids](/api/v2/valid_guids)  list all guids (sequence identifiers) corresponding to valid sequences in the server.  Validity is computed on insertion, depending on whether the number of Ns or Ms exceed a cutoff provided in the configuration file.
+[/api/v2/guids](/api/v2/guids)  list all guids (sequence identifiers) in the server   
+[/api/v2/valid_guids](/api/v2/valid_guids)  list all guids (sequence identifiers) corresponding to valid sequences in the server.  Validity is computed on insertion, depending on whether the number of Ns or Ms exceed a cutoff provided in the configuration file.   
 [/api/v2/invalid_guids](/api/v2/valid_guids)  list all guids (sequence identifiers) corresponding to invalid sequences in the server.  Validity is computed on insertion, depending on whether the number of Ns or Ms exceed a cutoff provided in the configuration file.
 
 
@@ -19,12 +19,12 @@ Search/describe sequences in the server
 
 Describe properties/neighbours of a single sequence, identified by a guid
 -------------------------------------------------------------------------
-**/api/v2/*guid*/exists**  test whether it exists.  Returns True or False.
+**/api/v2/*guid*/exists**  test whether it exists.  Returns True or False.  
 **/api/v2/*guid*/valid**  test whether it is valid.  Returns:  
-		    -1    The guid does not exist
-		     0    The guid exists and the sequence is valid
-		     1    The guid exists and the sequence is invalid
-		    -2    The guid exists, but there is no DNAQuality.valid key  
+		    -1    The guid does not exist  
+		     0    The guid exists and the sequence is valid  
+		     1    The guid exists and the sequence is invalid  
+		    -2    The guid exists, but there is no DNAQuality.valid key    
 
 **/api/v2/*guid*/annotation**  return metadata for the guid  
 **/api/v2/*guid*/neighbours_within/*threshold* ** specifies threshold, uses default quality cutoff and output format.   Formats 1,2,3,4 are options.  See docs for details.    
@@ -39,7 +39,7 @@ Describe distance between a pair of sequences, identified by guids
 
 Recover masked sequences
 ------------------------
-**/api/v2/*guid*/sequence**  recover validity and (if valid) masked sequence for *guid*  
+**/api/v2/*guid*/sequence**  recover validity and (if valid) masked sequence for the sequence identified by  *guid*  
 
 Multiple sequence alignments
 ----------------------------

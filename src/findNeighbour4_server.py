@@ -239,7 +239,7 @@ class findNeighbour4():
         self.PERSIST=PERSIST
         
         # set up an MSA store
-        self.ms = MSAStore(PERSIST=PERSIST, in_ram_persistence_time=300)        # max time to store msas
+        self.ms = MSAStore(PERSIST=PERSIST, in_ram_persistence_time=300)        # max time to store msas in seconds
 
         # check input
         if isinstance(CONFIG, str):
@@ -1494,9 +1494,16 @@ if __name__ == '__main__':
     @app.route('/api/v2/clustering/<string:clustering_algorithm>/guids2clusters', methods=['GET'])
     @app.route('/api/v2/clustering/<string:clustering_algorithm>/guids2clusters/after_change_id/<int:change_id>', methods=['GET'])
     def g2c(clustering_algorithm, change_id=None):
-        """  returns a guid -> clusterid dictionary for all guids """
-        try:
+        """  returns a guid -> clusterid dictionary for all guids with examination time and cluster size"""
 
+        # recover a guid2examination time dictionary.
+        g2e = fn.get_all_guids_examination_time()
+        
+        # recover all cluster membership
+        fn.clustering[clustering_algorithm].refresh()
+        cl2guids = fn.clustering[clustering_algorithm].cluster2guid
+     
+        try:
             fn.clustering[clustering_algorithm].refresh()
             
         except KeyError:
@@ -1506,8 +1513,28 @@ if __name__ == '__main__':
             app.logger.info("Never ran {0}".format(clustering_algorithm))
             abort(421, "never ran clustering algorithm {0}".format(clustering_algorithm))
 
-        res = fn.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = change_id)        
-        
+        c2g = fn.clustering[clustering_algorithm].clusters2guidmeta(after_change_id = change_id)        
+        res = []
+
+        for item in c2g:
+
+            item['examinationTime'] = g2e[item['guid']]
+            item['clusterSize'] = len(cl2guids[item['cluster_id']])
+
+            # this is too low for large scale querying
+            # recover all the neighbours, irrespective of SNP distance
+            # neighbours = fn.neighbours_within_filter(item['guid'], 1e7, CONFIG['MAXN_PROP_DEFAULT'], 4)
+            # dists = []
+            # for neighbour in neighbours:
+            #    dists.append(neighbour['snv'])
+            # min_snp = '-'
+            #nneighbours = len(dists)
+            #if nneighbours > 0:
+            #   min_snp = min(dists)
+            #item['closestNeighbourSNVs'] = min_snp
+
+            res.append(item)
+   
         return make_response(tojson(res))
 
 
@@ -1808,10 +1835,6 @@ python findNeighbour4_server.py ../config/myConfigFile.json \
 
     # plotting engine
     matplotlib.use('agg')       #  prevent https://stackoverflow.com/questions/27147300/how-to-clean-images-in-python-django
-
-    if 'SENTRY_URL' in CONFIG.keys():
-            app.logger.info("Launching communication with Sentry bug-tracking service")
-            sentry_sdk.init(CONFIG['SENTRY_URL'], integrations=[FlaskIntegration()])
 
     print("Connecting to backend data store")
     try:
