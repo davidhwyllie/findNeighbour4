@@ -62,7 +62,7 @@ from depictStatus import MakeHumanReadable
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from Bio.Alphabet import generic_nucleotide
+
 import unittest
 from urllib.parse import urlparse as urlparser
 from urllib.parse import urljoin as urljoiner

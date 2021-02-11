@@ -24,7 +24,6 @@ import time
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from Bio.Alphabet import generic_nucleotide
 from fn4client import fn4Client
 
 if __name__ == '__main__':
@@ -54,7 +53,7 @@ if __name__ == '__main__':
     print("reading h37rv control sequence")
     inputfile = "../COMPASS_reference/R39/R00000039.fasta"
     with open(inputfile, 'rt') as f:
-        for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+        for record in SeqIO.parse(f,'fasta'):               
                 seq = str(record.seq)
     seqbases = list(seq)        # a list with one nt per element.
 

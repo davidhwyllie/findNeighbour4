@@ -16,8 +16,7 @@ import argparse
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from Bio.Alphabet import generic_nucleotide
-       
+     
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="""Produce gzipped fasta files with sanitised deflines
@@ -52,7 +51,7 @@ outputdir   output directory into which .fasta files are written.
         if not os.path.exists(outputfile):
             # don't overwrite
             with open(inputfile, 'rt') as f:
-                    for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+                    for record in SeqIO.parse(f,'fasta'):               
                         record.id = guid
                         record.name = guid
                         print("Reheadering",guid)

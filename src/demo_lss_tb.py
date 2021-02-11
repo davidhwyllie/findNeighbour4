@@ -69,7 +69,6 @@ import time
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from Bio.Alphabet import generic_nucleotide
 from fn4client import fn4Client
     
 if __name__ == '__main__':
@@ -136,7 +135,7 @@ if __name__ == '__main__':
             nSamples +=1  
             nAdded_this_batch +=1      
             with open(inputfile, 'rt') as f_in:
-                for record in SeqIO.parse(f_in,'fasta', alphabet=generic_nucleotide):               
+                for record in SeqIO.parse(f_in,'fasta'):               
                     seq = str(record.seq)
                     guid = str(record.id)
        

@@ -21,7 +21,6 @@ from preComparer import preComparer
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from Bio.Alphabet import generic_nucleotide
 import unittest
 from urllib.parse import urlparse as urlparser
 from urllib.parse import urljoin as urljoiner
@@ -39,7 +38,7 @@ if __name__ == '__main__':
         # instantiate seqComparer
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+            for record in SeqIO.parse(f,'fasta'):               
                 refSeq = str(record.seq)
         excludePositions=set()
         with open("../reference/TB-exclude-adaptive.txt",'rt') as f:

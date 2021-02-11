@@ -4,6 +4,7 @@ assumes a findNeighbour3 server is running, with the connection string stated in
 An example command doing this would be (starting from /src)
 python3 findNeighbour3-server.py ../demos/AA041/config/config.json
 """
+
 if __name__ == '__main__':
     import os
     import glob
@@ -22,16 +23,22 @@ if __name__ == '__main__':
     clustering_created = False
     print("There are {0} existing guids".format(len(existing_guids)))
     nSkipped = 0
-    for i,fastafile in enumerate(sorted(glob.glob(os.path.join(fastadir,  '*.mfasta.gz')))):
+    globpath = os.path.join(fastadir,  '*.mfasta.gz')
+    print(globpath)
+    for i,fastafile in enumerate(sorted(glob.glob(globpath))):
         t1 = datetime.datetime.now()
         
         guid = os.path.basename(fastafile).replace('.mfasta.gz','')
+        if guid[0:3] == 'cf0':
+            print(guid)
         if not guid in existing_guids:
+            print(guid)
             read_failed = False
             try:
                 seq = fn4c.read_fasta_file(fastafile)['seq']
             except IOError:
                 read_failed = True
+                print("read failed for {0}".format(guid))
             
             if not read_failed: 
                 fn4c.insert(guid=guid,seq=seq)

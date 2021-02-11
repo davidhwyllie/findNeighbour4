@@ -54,7 +54,6 @@ import psutil
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from Bio.Alphabet import generic_nucleotide
 import unittest
 from urllib.parse import urlparse as urlparser
 from urllib.parse import urljoin as urljoiner
@@ -155,7 +154,7 @@ class test_reset(unittest.TestCase):
         
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+            for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
         
         relpath = "/api/v2/insert"
@@ -194,7 +193,7 @@ class test_guids(unittest.TestCase):
         
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+            for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
         
         relpath = "/api/v2/insert"
@@ -232,7 +231,7 @@ class test_guid_validity(unittest.TestCase):
         
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+            for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
         
         relpath = "/api/v2/insert"
@@ -267,7 +266,7 @@ class test_cl2network(unittest.TestCase):
         # add four samples, two mixed
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+            for record in SeqIO.parse(f,'fasta' ):               
                     originalseq = list(str(record.seq))
         guids_inserted = list()
         relpath = "/api/v2/guids"
@@ -340,7 +339,7 @@ class test_msa_2(unittest.TestCase):
 
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+            for record in SeqIO.parse(f,'fasta' ):               
                     originalseq = list(str(record.seq))
         inserted_guids = ['guid_ref']
         seq="".join(originalseq)
@@ -548,7 +547,7 @@ class test_msa_1(unittest.TestCase):
         print("There are {0} existing samples".format(n_pre))
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+            for record in SeqIO.parse(f,'fasta' ):               
                     originalseq = list(str(record.seq))
         inserted_guids = []         
         for i in range(0,3):
@@ -722,7 +721,7 @@ class test_get_all_guids_examination_time_1(unittest.TestCase):
 
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+            for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
 
         print("Adding TB reference sequence of {0} bytes".format(len(seq)))
@@ -756,7 +755,7 @@ class test_get_matching_guids_1(unittest.TestCase):
 
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+            for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
 
         print("Adding TB reference sequence of {0} bytes".format(len(seq)))
@@ -832,7 +831,7 @@ class test_clusters_sample(unittest.TestCase):
 
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+            for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
 
         #print("Adding TB reference sequence of {0} bytes".format(len(seq)))
@@ -894,7 +893,7 @@ class test_clusters_what(unittest.TestCase):
 
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+            for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
 
         print("Adding TB reference sequence of {0} bytes".format(len(seq)))
@@ -960,7 +959,7 @@ class test_what_tested(unittest.TestCase):
 
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+            for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
 
         print("Adding TB reference sequence of {0} bytes".format(len(seq)))
@@ -1012,7 +1011,7 @@ class test_g2c(unittest.TestCase):
 
                 inputfile = "../COMPASS_reference/R39/R00000039.fasta"
                 with open(inputfile, 'rt') as f:
-                    for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+                    for record in SeqIO.parse(f,'fasta' ):               
                             seq = str(record.seq)
 
                 print("Adding TB reference sequence of {0} bytes".format(len(seq)))
@@ -1062,7 +1061,7 @@ class test_clusters2cnt(unittest.TestCase):
 
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+            for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
 
         print("Adding TB reference sequence of {0} bytes".format(len(seq)))
@@ -1166,7 +1165,7 @@ class test_g2ca(unittest.TestCase):
 
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+            for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
 
         print("Adding TB reference sequence of {0} bytes".format(len(seq)))
@@ -1227,7 +1226,7 @@ class test_compare_two(unittest.TestCase):
 
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+            for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
 
         # make variant
@@ -1282,7 +1281,7 @@ class test_insert_1(unittest.TestCase):
 
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+            for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
 
         print("Adding TB reference sequence of {0} bytes".format(len(seq)))
@@ -1323,7 +1322,7 @@ class test_insert_10(unittest.TestCase):
 
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+            for record in SeqIO.parse(f,'fasta' ):               
                     originalseq = list(str(record.seq))
                     
         for i in range(1,10):
@@ -1377,7 +1376,7 @@ class test_insert_10a(unittest.TestCase):
 
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+            for record in SeqIO.parse(f,'fasta' ):               
                     originalseq = list(str(record.seq))
                     
         for i in range(1,10):
@@ -1432,7 +1431,7 @@ class test_insert_60(unittest.TestCase):
 
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+            for record in SeqIO.parse(f,'fasta' ):               
                     originalseq = list(str(record.seq))
         guids_inserted = list()         
         for i in range(1,40):
@@ -1618,7 +1617,7 @@ class test_neighbours_within_6(unittest.TestCase):
 
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+            for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
                     
         # generate variants
@@ -1702,7 +1701,7 @@ class test_sequence_1(unittest.TestCase):
 
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+            for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
 
         print("Adding TB reference sequence of {0} bytes".format(len(seq)))
@@ -1748,7 +1747,7 @@ class test_sequence_3(unittest.TestCase):
 
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+            for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
         seq = 'N'*4411532
         print("Adding TB reference sequence of {0} bytes with {1} Ns".format(len(seq), seq.count('N')))
@@ -1781,7 +1780,7 @@ class test_sequence_4(unittest.TestCase):
 
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+            for record in SeqIO.parse(f,'fasta' ):               
                     seq2 = str(record.seq)
 
         guid_to_insert1 = "guid_{0}".format(n_pre+1)
@@ -1832,7 +1831,7 @@ class test_sequence_5(unittest.TestCase):
 
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+            for record in SeqIO.parse(f,'fasta' ):               
                     seq2 = str(record.seq)
 
         guid_to_insert1 = "guid_{0}".format(n_pre+1)

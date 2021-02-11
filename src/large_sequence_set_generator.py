@@ -32,7 +32,6 @@ from string import ascii_uppercase
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from Bio.Alphabet import generic_nucleotide
 
 class LargeSequenceSetGenerator():
     """ generates sets of closely related samples.
@@ -208,7 +207,7 @@ python make_large_sequence_set.py 10 1000 3 50 1e-8 ../output/lss_tb
     print("reading h37rv control sequence")
     inputfile = "../COMPASS_reference/R39/R00000039.fasta"
     with open(inputfile, 'rt') as f:
-        for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+        for record in SeqIO.parse(f,'fasta'):               
                 refSeq = str(record.seq)
  
     # find unique prefix

@@ -13,7 +13,6 @@ from collections import Counter
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from Bio.Alphabet import generic_nucleotide
 
 class seqComparer():
     def __init__(self,
@@ -1557,7 +1556,7 @@ class test_seqComparer_45(unittest.TestCase):
     def runTest(self):
         inputfile = "../reference/NC_000962.fasta"
         with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):
+            for record in SeqIO.parse(f,'fasta'):
                     goodseq = str(record.seq)
                     badseq = ''.join('N'*len(goodseq))
                     originalseq = list(str(record.seq))

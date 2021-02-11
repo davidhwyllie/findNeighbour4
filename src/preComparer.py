@@ -10,7 +10,6 @@ from pycw_client import CatWalk
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from Bio.Alphabet import generic_nucleotide
 
 class preComparer():
     """ compares reference compressed sequences.  
@@ -799,7 +798,7 @@ class test_preComparer_11(unittest.TestCase):
         # use BioPython3 SeqIO library to read the file.      
         nFiles = 0 
         with io.StringIO(content) as f:
-           for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):
+           for record in SeqIO.parse(f,'fasta'):
                nFiles +=1
                if nFiles > 1:       # that's a multifasta, and we don't support that
                     raise ValueError("Multifasta file is present in {0}.  Multifasta files are not supported".format(fastafile))

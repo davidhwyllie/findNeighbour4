@@ -32,7 +32,6 @@ import logging
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from Bio.Alphabet import generic_nucleotide
 from pycw_client import CatWalk
 # connection to mongodb on localhost; used for unittesting
 UNITTEST_MONGOCONN = "mongodb://localhost"
@@ -1824,7 +1823,7 @@ class test_hybridComparer_45(unittest.TestCase):
     def runTest(self):
         inputfile = "../reference/NC_000962.fasta"
         with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):
+            for record in SeqIO.parse(f,'fasta'):
                     goodseq = str(record.seq)
                     badseq = ''.join('N'*len(goodseq))
                     originalseq = list(str(record.seq))
@@ -1945,7 +1944,7 @@ class test_hybridComparer_52(unittest.TestCase):
     def runTest(self):
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):
+            for record in SeqIO.parse(f,'fasta'):
                     refSeq = str(record.seq)               
                     originalseq = list(str(record.seq))
         hc=hybridComparer( maxNs = 1e8,
@@ -2015,7 +2014,7 @@ class test_hybridComparer_53(unittest.TestCase):
 
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):
+            for record in SeqIO.parse(f,'fasta'):
                     refSeq = str(record.seq)               
                     originalseq = list(str(record.seq))
         hc=hybridComparer( maxNs = 1e8,
@@ -2069,7 +2068,7 @@ class test_hybridComparer_54(unittest.TestCase):
     def runTest(self):
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):
+            for record in SeqIO.parse(f,'fasta':
                     refSeq = str(record.seq)               
                     originalseq = list(str(record.seq))
         hc=hybridComparer( maxNs = 1e8,

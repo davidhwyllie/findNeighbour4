@@ -41,7 +41,6 @@ import progressbar
 
 from Bio import SeqIO
 from Bio.Seq import Seq
-from Bio.Alphabet import generic_nucleotide
 from sentry_sdk import capture_message, capture_exception
 from sentry_sdk.integrations.flask import FlaskIntegration
 

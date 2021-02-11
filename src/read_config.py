@@ -6,7 +6,6 @@ import json
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from Bio.Alphabet import generic_nucleotide
 
 class ReadConfig():
     """ reads, and where approporiate modified from environmental variables containing secret 

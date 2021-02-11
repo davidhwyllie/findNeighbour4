@@ -26,7 +26,6 @@ import networkx as nx
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from Bio.Alphabet import generic_nucleotide
 
 def delete_single_child_internal(t):
     """Utility function that removes internal nodes
@@ -350,7 +349,7 @@ python make_simulation.py 50 10000 0.02 0.01 0.001 0.05 0.1 20 1 ../output/simul
         print("reading h37rv control sequence")
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta', alphabet=generic_nucleotide):               
+            for record in SeqIO.parse(f,'fasta'):               
                     seq = str(record.seq)
     
         # we only use a subpart of this for our simulations, in part for reasons of speed.
