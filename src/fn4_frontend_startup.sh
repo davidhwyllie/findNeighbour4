@@ -1,4 +1,4 @@
-dockerImageName=triendo/fnmonitor
+dockerImageName=davidhwyllie/fnmonitor
 dockerpid=`docker ps -a | grep $dockerImageName | grep "Up" | awk -F " " '{ print $1 }'`
 if [[ $dockerpid != "" ]];then
    docker kill $dockerpid
