@@ -349,7 +349,9 @@ class DepictServerStatus():
                     single_plots['order'][item].xaxis.axis_label=''
                     single_plots['order'][item].yaxis.axis_label=''
                     single_plots['order'][item].circle(x='order', y=item, size=2, hover_color="red", source=self.source[data_tag], view=view)
-                    single_plots['order'][item].line(x='order', y=item, hover_color="red", source=self.source[data_tag], view=view)
+
+                    # line is not supported, see https://github.com/bokeh/bokeh/issues/9388
+                    #single_plots['order'][item].line(x='order', y=item, hover_color="red", source=self.source[data_tag], view=view)
         
                     multi_plots.append([single_plots['order'][item]])
 
@@ -480,7 +482,7 @@ class test_depict_1(unittest.TestCase):
 
         doc = Tabs(tabs=[tab_server, tab_memory, tab_g2n, tab_g2m, tab_sm, tab_rserver, tab_rmemory])
 
-        #show(doc)
+        show(doc)
         
 class test_tail(unittest.TestCase):
     def runTest(self):
