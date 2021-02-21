@@ -47,7 +47,9 @@ class NucleicAcid():
              
                 # define valid characters
                 totalValid=0
-                iupac = ['R','r','Y','y','S','s','W','w','K','k','M','m']       # dinucleotide codes
+                iupac_di = ['R','r','Y','y','S','s','W','w','K','k','M','m']       # dinucleotide codes
+                iupac_tri = ['B','D','H','V','b','d','h','v']                      # trinucleotide codes
+                iupac = iupac_di + iupac_tri
                 validChars=['A','C','G','T','N','-']+iupac
                 nMixed = 0
                 for thisChar in validChars:
@@ -64,7 +66,7 @@ class NucleicAcid():
                         self.isValid=True
                 else:
                         self.isValid=False
-                        raise ValueError ("nucleicAcidString must be of type str, and consist only of ACGTN-.  There are %i invalid characters" % self.composition['invalid'])             
+                        raise ValueError ("nucleicAcidString must be of type str, and consist only of ACGTN-.  There are %i invalid characters".format(self.composition['invalid']))       
 class Test_NucleicAcid_Base1(unittest.TestCase):
     """ base class used for tests of NucleicAcid class """
     def setUp(self):
@@ -126,3 +128,11 @@ class Test_NucleicAcid_9(Test_NucleicAcid_Base1):
         na.examine('AAAR')
         self.assertEqual(na.composition['mixed'],1 )  
         self.assertEqual(na.composition['R'],1 )  
+class Test_NucleicAcid_10(Test_NucleicAcid_Base1):
+    """ checks trinucleotide code is acceptable """
+    def runTest(self):
+        na=NucleicAcid()
+        na.examine('AAAB')
+        self.assertEqual(na.isValid,True )          
+        self.assertEqual(na.composition['mixed'],1 )  
+        self.assertEqual(na.composition['B'],1 ) 
