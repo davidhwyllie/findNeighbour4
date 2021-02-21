@@ -120,9 +120,9 @@ class DepictServerStatus():
         """
         
         if self.logfile is None:
-            return 'No Log file was specified.'
+            return 'No Log file was specified. '
         if not os.path.exists(self.logfile):
-            return "No log file exists"
+            return "No log file exists.  The specified log file was {0}".format(self.logfile)
         # https://stackoverflow.com/questions/2301789/read-a-file-in-reverse-order-using-python/26747854
         try:
             with open(self.logfile,'rt'):
@@ -432,10 +432,10 @@ class test_logfile(unittest.TestCase):
         
         # no parameters except SNV threshold
         dss = DepictServerStatus()
-        self.assertEqual(dss.logfile_tail(None), 'No Log file was specified.')
+        self.assertEqual(dss.logfile_tail(None), 'No Log file was specified. ')
 
-        dss = DepictServerStatus(logfile='nonexisting_file')
-        self.assertEqual(dss.logfile_tail(), 'No log file exists')
+        dss = DepictServerStatus(logfile='nonexisting_file.log')
+        self.assertEqual(dss.logfile_tail(), 'No log file exists.  The specified log file was nonexisting_file.log')
 
         dss = DepictServerStatus(logfile=os.path.join("..","testdata","monitoring","logfile_small.log"))        
         res = dss.logfile_tail()        
