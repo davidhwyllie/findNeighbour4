@@ -33,8 +33,10 @@ faker = "*"
 xlrd = "*"
 sphinx = "*"
 recommonmark = "*"
-ete3 = "*"
 pyvolve = "*"
+ete3 = "*"
+sip = "*"
+pyqt5 = "*"
 
 [requires]
 python_version = "3.6"
