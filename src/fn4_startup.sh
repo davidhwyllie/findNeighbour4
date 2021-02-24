@@ -38,8 +38,8 @@ MD5CHECKSUM=`md5sum $1 | cut -d' ' -f1`
 LOGDIR=`python3 get_log_dir_from_config_file.py $1`
 
 
-# set sentry url for bug tracking
-FN_SENTRY_URL="https://49ebb508a10f428aaf82f9e1b6b11def@sentry.io/110110"
+# set sentry url for bug tracking: FN_SENTRY_URL
+# not set here. Should be set in a .env file in the pipenv
 
 if [ $NOHUP_LOGGING -eq 1 ]; then
 	echo "Starting server"
