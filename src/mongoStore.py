@@ -133,6 +133,9 @@ class fn3persistence():
            
             # create indices on guid2meta, allowing recovery of valid and invalid specimens rapidly.
             ix4 = pymongo.IndexModel([("sequence_meta.DNAQuality.invalid", pymongo.ASCENDING)], name='guid_valid')
+
+            # note: if additional metadata is added, such as sequence names etc which might be searched for, then we need to add additional indices here.
+            
             self.db['guid2meta'].create_indexes([ix4]) 
 
             # create index on server_monitoring insert times
