@@ -131,6 +131,15 @@ Checks for new sequences are conducted once per minute.
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
 
+    # determine whether a FN_SENTRY_URLenvironment variable is present,
+    # if so, the value of this will take precedence over any values in the config file.
+    # This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuraton file.
+    if os.environ.get("FN_SENTRY_URL") is not None:
+        CONFIG["SENTRY_URL"] = os.environ.get("FN_SENTRY_URL")
+        print("Set Sentry connection string from environment variable")
+    else:
+        print("Using Sentry connection string from configuration file.")
+        
     # launch sentry if API key provided
     if 'SENTRY_URL' in CONFIG.keys():
             logger.info("Launching communication with Sentry bug-tracking service")
@@ -288,9 +297,9 @@ Checks for new sequences are conducted once per minute.
             bar.finish()
 
 
-        # cleanup anything we don't need, including old clustering versions and msas
-        ms.unpersist(whitelist=whitelist)
-        logger.info("Cleanup complete.  Stored data on {0} MSAs; Built {1} new clusters".format(len(whitelist), nbuilt))
+            # cleanup anything we don't need, including old clustering versions and msas
+            ms.unpersist(whitelist=whitelist)
+            logger.info("Cleanup complete.  Stored data on {0} MSAs; Built {1} new clusters".format(len(whitelist), nbuilt))
     
         if debugmode:
             exit(0)
