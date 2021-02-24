@@ -13,9 +13,9 @@ if __name__ == '__main__':
 
     ### Modify this line to reflect where the fasta files are 
     # define directory where the fastas are
-    fastadir = os.path.join('/srv','data','mixfiles','covid')
-    fastafile = os.path.join(fastadir, 'milk_all.fas')
-    outputfile = os.path.join(fastadir, 'milk_micro.fas')
+    fastadir = os.path.join('/srv','data','covid')
+    fastafile = os.path.join(fastadir, 'elan.consensus.fasta')
+    utputfile = os.path.join(fastadir, 'milk_nano.fas')
 
     nSkipped = 0
     i = 0
@@ -24,8 +24,8 @@ if __name__ == '__main__':
     for record in Bio.SeqIO.parse(fastafile, 'fasta'):
         if len(record.seq) == 29903:
             guids.append(record.id)
-    g2000 = random.sample(guids, 2000)
-    print(len(g2000))
+    print("There are {0}".format(len(guids)))
+    exit()
     for record in Bio.SeqIO.parse(fastafile, 'fasta'):
 
         guid = record.id
