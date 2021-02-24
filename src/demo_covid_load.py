@@ -29,10 +29,17 @@ if __name__ == '__main__':
     ### Modify this line to reflect where the fasta files are 
     # define directory where the fastas are
     fastadir = os.path.join('/srv','data','covid')
-    fastafile = os.path.join(fastadir, 'elan.consensus.fasta')
+    fastafile = os.path.join(fastadir, 'naive_msa.fasta')
 
     # instantiate client
-    fn4c = fn4Client("http://localhost:5020")      # expects operation on local host; pass baseurl if somewhere else.
+    fn4c = fn4Client("http://localhost:5023")      # expects operation on local host; pass baseurl if somewhere else.
+
+
+    # add the reference sequence as the root
+    for record in Bio.SeqIO.parse("../reference/nc_045512.fasta", 'fasta'):
+        guid = '--Wuhan-Reference--'
+        seq = str(record.seq).upper()
+        res = fn4c.insert(guid=guid,seq=seq)
 
     existing_guids = set(fn4c.guids())
     clustering_created = False
@@ -47,42 +54,34 @@ if __name__ == '__main__':
         i = i + 1
         t1 = datetime.datetime.now()
         guid = record.id
-        guid = guid[6:17]
         guid = guid.replace('/','-')
         guid = guid.replace(':','-')
 
+        seq = str(record.seq).upper()
+        seq = seq.replace('?','N')
+        seq = seq.replace(' ','N')
+        counter = Counter(list(seq))
+        
+        res = {'record_id':record.id,'guid':guid, 'seqlen':len(seq), **counter}
         if not guid in existing_guids:
-            seq = str(record.seq).upper()
-            seq = seq.replace('?','N')
-            seq = seq.replace('-','N')
-            seq = seq.replace(' ','N')
-            counter = Counter(list(seq))
-
-            if len(seq)== 29903:
-                nGood += 1 
-                res = fn4c.insert(guid=guid,seq=seq)
-                if not res.status_code == 200:
-                    # failed to add
-                    failed.append((i,guid))
-                    msg = "** FAILED **"
-                else:
-                    msg = "Succeeeded"
-
-
-
-                t2 = datetime.datetime.now()
-                i1 = t2-t1
-                s = i1.total_seconds()
-                print(i, nGood, guid, msg, datetime.datetime.now(),  "in", s, "seconds", len(guid),  len(seq), seq[:10], seq[-10:],counter)
-                
+            res = fn4c.insert(guid=guid,seq=seq)
+            if not res.status_code == 200:
+                # failed to add
+                failed.append((i,guid))
+                msg = "** FAILED **"
             else:
-                nBad +=1
-                
+                msg = "Succeeeded"
 
+            t2 = datetime.datetime.now()
+            i1 = t2-t1
+            s = i1.total_seconds()
+            print(i, nGood, guid, msg, datetime.datetime.now(),  "in", s, "seconds", len(guid),  len(seq), seq[:10], seq[-10:],counter)
+            
         else:
+            nBad +=1
+            
 
-            nSkipped +=1
-
+       
     print("Complete.  Skipped {0} guids which already exist in the server.  There are {1} bad sequences".format(nSkipped, nBad))
 
     print("Failed samples are:")
