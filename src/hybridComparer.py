@@ -2068,7 +2068,7 @@ class test_hybridComparer_54(unittest.TestCase):
     def runTest(self):
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
-            for record in SeqIO.parse(f,'fasta':
+            for record in SeqIO.parse(f,'fasta'):
                     refSeq = str(record.seq)               
                     originalseq = list(str(record.seq))
         hc=hybridComparer( maxNs = 1e8,
