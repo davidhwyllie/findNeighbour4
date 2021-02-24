@@ -23,7 +23,7 @@ from NucleicAcid import NucleicAcid
 import time
 
 class NPEncoder(json.JSONEncoder):
-    """ encodes NP types as jsonisable equivalents """
+    """ encodes Numpy types as jsonisable equivalents """
     def default(self, obj):
         if isinstance(obj, np.integer):
             return int(obj)
@@ -36,7 +36,7 @@ class NPEncoder(json.JSONEncoder):
 
 
 class fn3persistence():
-        """ System for persisting results from  large numbers of sequences stored in FindNeighbour.
+        """ System for persisting results from  large numbers of sequences stored in FindNeighbour 3+.
         Uses Mongodb.
         
         in the current schema there are the following collections:
@@ -565,11 +565,15 @@ class fn3persistence():
                 # it doesn't exist.  we create a new one.
                 metadataObj = {'_id':guid, 'sequence_meta':{nameSpace:annotDict}}
 
-            if not 'sequence_meta' in metadataObj.keys():
+            if not 'sequence_meta' in metadataObj.keys():       # this is key is mandatory and is always present
                 metadataObj['sequence_meta']={}
+
+            # if the namespace does not exist as a subsidiary of sequence_meta, then we create it
             if not nameSpace in metadataObj['sequence_meta'].keys():
                 metadataObj['sequence_meta'][nameSpace] = {}
-                metadataObj['sequence_meta'][nameSpace] = {**metadataObj['sequence_meta'][nameSpace], **annotDict}
+
+            # we add any annotations to the existing data
+            metadataObj['sequence_meta'][nameSpace] = {**metadataObj['sequence_meta'][nameSpace], **annotDict}
                 
             res = self.db.guid2meta.replace_one({'_id':guid}, metadataObj, upsert=True)
             if not res.acknowledged is True:
@@ -1221,13 +1225,55 @@ class Test_SeqMeta_guid_annotate_1(unittest.TestCase):
     def runTest(self): 
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
         
-        # test there is no 'test' item; insert, and confirm insert
+        #  add the dictionary 'payload' to the namespace 'ns'
         guid = 1
         namespace= 'ns'
         payload = {'one':1, 'two':2}
         res = p.guid_annotate(guid= guid, nameSpace=namespace, annotDict = payload)
         res = p.db.guid2meta.find_one({'_id':1})
         self.assertEqual(res['sequence_meta']['ns'], payload)
+
+class Test_SeqMeta_guid_annotate_2(unittest.TestCase):
+    """ tests addition to existing data item""" 
+    def runTest(self): 
+        p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
+        
+        guid = 1
+
+        # add the dictionary 'payload' to the namespace 'ns'
+        namespace= 'ns'
+        payload = {'one':1, 'two':2}
+        res = p.guid_annotate(guid= guid, nameSpace=namespace, annotDict = payload)
+        res = p.db.guid2meta.find_one({'_id':1})
+        self.assertEqual(res['sequence_meta']['ns'], payload)
+
+        # add the dictionary 'payload' to the namespace 'ns'
+        namespace= 'ns'
+        payload = {'three':3}
+        res = p.guid_annotate(guid= guid, nameSpace=namespace, annotDict = payload)
+        res = p.db.guid2meta.find_one({'_id':1})
+        self.assertEqual(res['sequence_meta']['ns'], {'one':1, 'two':2, 'three':3})
+
+class Test_SeqMeta_guid_annotate_3(unittest.TestCase):
+    """ tests addition to existing data item""" 
+    def runTest(self): 
+        p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
+        
+        guid = 1
+
+        # add the dictionary 'payload' to the namespace 'ns'
+        namespace= 'ns'
+        payload = {'one':1, 'two':2}
+        res = p.guid_annotate(guid= guid, nameSpace=namespace, annotDict = payload)
+        res = p.db.guid2meta.find_one({'_id':1})
+        self.assertEqual(res['sequence_meta']['ns'], payload)
+
+        # add the dictionary 'payload' to the namespace 'ns'
+        namespace= 'ns'
+        payload = {'two':3}
+        res = p.guid_annotate(guid= guid, nameSpace=namespace, annotDict = payload)
+        res = p.db.guid2meta.find_one({'_id':1})
+        self.assertEqual(res['sequence_meta']['ns'], {'one':1, 'two':3})
 
 class Test_SeqMeta_guid_exists_1(unittest.TestCase):
     """ tests insert of new data item and existence check""" 
@@ -1299,7 +1345,7 @@ class Test_SeqMeta_guid_valid_2(unittest.TestCase):
         res = p.guids_invalid()
         self.assertEqual(res, set(['invalid']))
         
-class Test_SeqMeta_guid_annotate_2(unittest.TestCase):
+class Test_SeqMeta_guid_annotate_5(unittest.TestCase):
     """ tests update of existing data item with same namespace""" 
     def runTest(self): 
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
@@ -1316,7 +1362,7 @@ class Test_SeqMeta_guid_annotate_2(unittest.TestCase):
         res = p.db.guid2meta.find_one({'_id':1})
         self.assertEqual(res['sequence_meta']['ns'], payload2)
         
-class Test_SeqMeta_guid_annotate_3(unittest.TestCase):
+class Test_SeqMeta_guid_annotate_6(unittest.TestCase):
     """ tests update of existing data item with different namespace""" 
     def runTest(self): 
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
@@ -1440,6 +1486,7 @@ class Test_SeqMeta_guid2quality2(Test_SeqMeta_Base):
         def runTest(self):
                """ tests return of sequences and their qualities """
                # set up nucleic acid object
+               
                na=NucleicAcid()
                na.examine('ACGTACGTNN')         # 20% bad
 
