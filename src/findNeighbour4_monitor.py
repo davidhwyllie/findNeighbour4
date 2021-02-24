@@ -89,11 +89,6 @@ if __name__ == '__main__':
         logger.addHandler(logging.StreamHandler())
  
 
-        # launch sentry if API key provided
-        if 'SENTRY_URL' in CONFIG.keys():
-                logger.info("Launching logger")
-                sentry_sdk.init(CONFIG['SENTRY_URL'])
-
         # set min logging interval if not supplied
         if not 'SERVER_MONITORING_MIN_INTERVAL_MSEC' in CONFIG.keys():
                CONFIG['SERVER_MONITORING_MIN_INTERVAL_MSEC']=0
@@ -117,6 +112,10 @@ if __name__ == '__main__':
         else:
                 logger.info("Using Sentry connection string from configuration file.")
                 
+        # launch sentry if API key provided
+        if 'SENTRY_URL' in CONFIG.keys():
+                logger.info("Launching sentry client")
+                sentry_sdk.init(CONFIG['SENTRY_URL'])
                 
         #########################  CONFIGURE HELPER APPLICATIONS ######################
 
@@ -135,7 +134,8 @@ if __name__ == '__main__':
              if e.__module__ == "pymongo.errors":
                  logger.info("Error raised pertains to pyMongo connectivity")
                  raise
-        dss1 = DepictServerStatus(logfile= CONFIG['LOGFILE'],
+        server_logfile = os.path.join(logdir, "server-{0}".format(os.path.basename(CONFIG['LOGFILE'])))
+        dss1 = DepictServerStatus(logfile= server_logfile,
                                     server_url=CONFIG['IP'],
                                     server_port=CONFIG['REST_PORT'],
                                     server_description=CONFIG['DESCRIPTION'])
