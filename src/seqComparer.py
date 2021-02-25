@@ -62,7 +62,8 @@ class seqComparer():
         self.maxNs=maxNs
 
         # check composition of the reference.
-        self.reference=str(reference)           # if passed a Bio.Seq object, coerce to string.
+        self.reference=str(reference)                   # if passed a Bio.Seq object, coerce to string.
+        self.reference_list = list(self.reference)      # a list, one element per nt
         letters=Counter(self.reference)   
         if len(set(letters.keys())-set(['A','C','G','T']) )>0:
             raise TypeError("Reference sequence supplied contains characters other than ACTG: {0}".format(letters))
@@ -668,8 +669,8 @@ class seqComparer():
         
 
         # step 1: define all positions in these sequences for which there is a non-reference position
-        # we ignore Ms and Ns in this analysis
-        # we also compute the total number of Ms or Ns in each guid
+        # we ignore Ms and Ns in this analysis apart from
+        # computing the total number of Ms or Ns in each guid
         nrps = {}
         guid2all = {'N':{},'M':{}, 'N_or_M':{}}
         guid2align = {'N':{},'M':{}, 'N_or_M':{}}
@@ -709,7 +710,18 @@ class seqComparer():
             if len(nrps[position])>1:
                 variant_positions.add(position)
 
-        # step 4: determine the sequences of all bases.
+        
+        # step 3b: define constant base frequencies - i.e. frequencies outside the region of variation.  This is used by iqtree, see http://www.iqtree.org/doc/Command-Reference
+        constant_positions = list(self.included - variant_positions)
+        constant_nt = [ self.reference_list[x] for x in constant_positions]
+        fconst_dict = Counter(constant_nt)
+        fconst = [0,0,0,0]
+        for i,base in enumerate(['A','C','G','T']):
+            if base in fconst_dict.keys():
+                fconst[i] = fconst_dict[base]
+        fconst_str = "{0},{1},{2},{3}".format(fconst[0],fconst[1],fconst[2],fconst[3])
+        
+        # step 4: determine the sequences of all variant positions.
         ordered_variant_positions = sorted(list(variant_positions))
         guid2seq = {}
         guid2msa_seq={}
@@ -729,7 +741,6 @@ class seqComparer():
             guid2msa_seq[guid] = ''.join(guid2seq[guid])
         
         # step 5: determine the expected_p2 at the ordered_variant_positions:
-
         expected_N2 = self.estimate_expected_unk_sites(sample_size=sample_size, exclude_guids= invalid_guids, sites=set(ordered_variant_positions), unk_type = uncertain_base_type)
         if expected_N2 is None:
             expected_p2 = None
@@ -819,7 +830,8 @@ class seqComparer():
             df1 = pd.DataFrame.from_dict(guid2msa_seq, orient='index')
             df1.columns=['aligned_seq']
             df1['aligned_seq_len'] = len(ordered_variant_positions)
-            
+            df1['fconst'] = fconst_str
+
             df2n = pd.DataFrame.from_dict(guid2all['N'], orient='index')
             df2n.columns=['allN']
             df3n = pd.DataFrame.from_dict(guid2align['N'], orient='index')
@@ -1008,7 +1020,7 @@ class test_seqComparer_47c(unittest.TestCase):
         df= sc.multi_sequence_alignment(guid_names[0:8], output='df', expected_p1=0.995)      
         # there's variation at positions 0,1,2,3
         self.assertTrue(isinstance(df, pd.DataFrame))
-        expected_cols = set(['what_tested','aligned_seq','aligned_seq_len','aligned_seq_len','allN','alignN','allM','alignM','allN_or_M','alignN_or_M','p_value1','p_value2','p_value3', 'p_value4', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3','expected_proportion4'])
+        expected_cols = set(['fconst','what_tested','aligned_seq','aligned_seq_len','aligned_seq_len','allN','alignN','allM','alignM','allN_or_M','alignN_or_M','p_value1','p_value2','p_value3', 'p_value4', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3','expected_proportion4'])
         self.assertEqual(set(df.columns.values),expected_cols)
 
         self.assertEqual(len(df.index),8)
@@ -1063,7 +1075,7 @@ class test_seqComparer_47b2(unittest.TestCase):
         
         # there's variation at positions 0,1,2,3
         self.assertTrue(isinstance(df, pd.DataFrame))
-        expected_cols = set(['what_tested','aligned_seq','aligned_seq_len','aligned_seq_len','allN','alignN','allM','alignM','allN_or_M','alignN_or_M','p_value1','p_value2','p_value3', 'p_value4', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3','expected_proportion4'])
+        expected_cols = set(['fconst','what_tested','aligned_seq','aligned_seq_len','aligned_seq_len','allN','alignN','allM','alignM','allN_or_M','alignN_or_M','p_value1','p_value2','p_value3', 'p_value4', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3','expected_proportion4'])
  
 
         self.assertEqual(set(df.columns.values),expected_cols)
@@ -1116,7 +1128,7 @@ class test_seqComparer_47b(unittest.TestCase):
         
         # there's variation at positions 0,1,2,3
         self.assertTrue(isinstance(df, pd.DataFrame))
-        expected_cols = set(['what_tested','aligned_seq','aligned_seq_len','aligned_seq_len','allN','alignN','allM','alignM','allN_or_M','alignN_or_M','p_value1','p_value2','p_value3', 'p_value4', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3','expected_proportion4'])
+        expected_cols = set(['fconst','what_tested','aligned_seq','aligned_seq_len','aligned_seq_len','allN','alignN','allM','alignM','allN_or_M','alignN_or_M','p_value1','p_value2','p_value3', 'p_value4', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3','expected_proportion4'])
  
         self.assertEqual(set(df.columns.values),expected_cols)
         self.assertEqual(len(df.index),8)
@@ -1155,7 +1167,7 @@ class test_seqComparer_47a(unittest.TestCase):
         df= sc.multi_sequence_alignment(guid_names[0:8], output='df')
         # there's variation at positions 0,1,2,3
         self.assertTrue(isinstance(df, pd.DataFrame))
-        expected_cols = set(['what_tested','aligned_seq','aligned_seq_len','aligned_seq_len','allN','alignN','allM','alignM','allN_or_M','alignN_or_M','p_value1','p_value2','p_value3', 'p_value4', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3','expected_proportion4'])
+        expected_cols = set(['fconst','what_tested','aligned_seq','aligned_seq_len','aligned_seq_len','allN','alignN','allM','alignM','allN_or_M','alignN_or_M','p_value1','p_value2','p_value3', 'p_value4', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3','expected_proportion4'])
  
         self.assertEqual(set(df.columns.values),expected_cols)
         self.assertEqual(len(df.index),8)
