@@ -28,6 +28,7 @@ import sentry_sdk
 import json
 import time
 import random
+import datetime 
 
 # logging
 from logging.config import dictConfig
@@ -115,11 +116,20 @@ if __name__ == '__main__':
  
 
         # launch sentry if API key provided
+         # determine whether a FN_SENTRY_URLenvironment variable is present,
+        # if so, the value of this will take precedence over any values in the config file.
+        # This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuraton file.
+        if os.environ.get("FN_SENTRY_URL") is not None:
+                CONFIG["SENTRY_URL"] = os.environ.get("FN_SENTRY_URL")
+                print("Set Sentry connection string from environment variable")
+        else:
+                print("Using Sentry connection string from configuration file.")
+
         if 'SENTRY_URL' in CONFIG.keys():
                 logger.info("Launching logger")
                 sentry_sdk.init(CONFIG['SENTRY_URL'])
 
-        # set min logging interval if not supplied
+        # set min logging interval if not supplied; otherwise, supply zero
         if not 'SERVER_MONITORING_MIN_INTERVAL_MSEC' in CONFIG.keys():
                CONFIG['SERVER_MONITORING_MIN_INTERVAL_MSEC']=0
 
@@ -156,11 +166,19 @@ if __name__ == '__main__':
              logger.exception("Error raised on creating persistence object")
              if e.__module__ == "pymongo.errors":
                  logger.info("Error raised pertains to pyMongo connectivity")
-                 raise        
+                 raise    
+
+        date_last_log_rotated =  datetime.datetime.now()-datetime.timedelta(hours=25)           # force log rotation on startup   
         while True:
+             if datetime.datetime.now() > date_last_log_rotated+datetime.timedelta(hours=24):
+                     print(datetime.datetime.now() , date_last_log_rotated+datetime.timedelta(hours=24))
+                     date_last_log_rotated =datetime.datetime.now()
+                     logging.info("Rotated mongodb log")
+                     PERSIST.rotate_log()
+
              nModified = 0
              print("Removing old server monitor entries.. ")
-             PERSIST.delete_server_monitoring_entries(before_seconds= (3600 * 24 * 14))        # 14 days
+             PERSIST.delete_server_monitoring_entries(before_seconds= (3600 * 24 * 7))        # 7 days
              
              to_update = set()
              # does this guid have any singleton guid2neighbour records which need compressing
@@ -169,6 +187,7 @@ if __name__ == '__main__':
                  to_update.add(res['guid'])
                  if len(to_update)>max_batch_size:
                      break
+
              to_update = list(to_update)
              random.shuffle(to_update)
              for guid in to_update:

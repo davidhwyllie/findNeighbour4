@@ -200,6 +200,10 @@ class fn3persistence():
             except pymongo.errors.ConnectionFailure:
                 return False
 
+        def rotate_log(self):
+            """ forces rotation of the mongo log file """
+            self.client.admin.command('logRotate')
+            
         def raise_error(self,token):
             """ raises a ZeroDivisionError, with token as the message.
             useful for unit tests of error logging """
@@ -1653,6 +1657,11 @@ class Test_summarise_stored_items(unittest.TestCase):
                 p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)                
                 res = p.summarise_stored_items()
 
+class Test_rotate_log(unittest.TestCase):
+        """ adds server monitoring info"""
+        def runTest(self):
+                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)                
+                res = p.rotate_log()
 
 
 
