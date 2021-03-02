@@ -86,7 +86,8 @@ class MSAResult():
                     creation_time
                 ):
 
-        """ a representation of a multisequence alignment  
+        """ a representation of a multisequence alignment
+        The multisequence alignment is generates by SeqComparer.multi_sequence_alignment(), not by this class.  
         
         Parameters:
                     'variant_positions': positions of variation in msa
