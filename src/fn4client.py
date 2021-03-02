@@ -41,7 +41,7 @@ from Bio.SeqRecord import SeqRecord
 import uuid
 
 class fn4Client():
-    """ python3 API to the findNeighbour3-server REST endpoint.
+    """ python3 API to the findNeighbour3 + -server REST endpoint.
     
         All endpoints are supported.
         See ../doc/rest-routes.md for a list.
