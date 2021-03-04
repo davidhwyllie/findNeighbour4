@@ -14,8 +14,9 @@ if __name__ == '__main__':
     ### Modify this line to reflect where the fasta files are 
     # define directory where the fastas are
     fastadir = os.path.join('/srv','data','covid')
-    fastafile = os.path.join(fastadir, 'elan.consensus.fasta')
-    utputfile = os.path.join(fastadir, 'milk_nano.fas')
+    
+    fastafile = os.path.join(fastadir, 'naive_msa.fasta')
+    outputfile = os.path.join(fastadir, 'milk_nano.fas')
 
     nSkipped = 0
     i = 0
