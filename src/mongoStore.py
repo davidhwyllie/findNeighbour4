@@ -132,15 +132,16 @@ class fn3persistence():
             self.db['msa.files'].create_indexes([ix3]) 
            
             # create indices on guid2meta, allowing recovery of valid and invalid specimens rapidly.
-            ix4 = pymongo.IndexModel([("sequence_meta.DNAQuality.invalid", pymongo.ASCENDING)], name='guid_valid')
-
+            ix4 = pymongo.IndexModel([('"sequence_meta.DNAQuality.invalid"', pymongo.ASCENDING)], name='guid_validity')
+            ix5 = pymongo.IndexModel([('"sequence_meta.DNAQuality.propACTG"', pymongo.ASCENDING)], name='guid_quality')
+            
             # note: if additional metadata is added, such as sequence names etc which might be searched for, then we need to add additional indices here.
             
-            self.db['guid2meta'].create_indexes([ix4]) 
+            self.db['guid2meta'].create_indexes([ix4, ix5]) 
 
             # create index on server_monitoring insert times
-            ix5 = pymongo.IndexModel([('context|time|time_now', pymongo.ASCENDING)])
-            self.db['server_monitoring'].create_indexes([ix5])
+            ix6 = pymongo.IndexModel([('context|time|time_now', pymongo.ASCENDING)])
+            self.db['server_monitoring'].create_indexes([ix6])
 
         def delete_server_monitoring_entries(self, before_seconds):
             """ deletes server monitoring entries more than before_seconds ago """
@@ -605,6 +606,14 @@ class fn3persistence():
             retVal = [x['_id'] for x in self.db.guid2meta.find({"sequence_meta.DNAQuality.invalid":validity}, {'_id':1})]
             return(set(retVal))
         
+        def singletons(self, max_records = 500000):
+            """ returns guids of records which need repacking.
+            Inclusion of max_records is important for very large datasets """
+            singleton_guids = set()
+            for res in self.db.guid2neighbour.find({'rstat':'s'}, {'guid':1}).limit(max_records):                   
+                singleton_guids.add(res['guid'])
+            return singleton_guids
+             
         def guids_valid(self):
             """ return all registered valid guids.  
 
@@ -680,7 +689,6 @@ class fn3persistence():
         
         def guid2item(self, guidList, namespace, tag):
             """ returns the item in namespace:tag for all guids in guidlist.
-            To do this, a table scan is performed - indices are not used.
             If guidList is None, all items are returned.
             An error is raised if namespace and tag is not present in each record.   
             """
@@ -698,11 +706,11 @@ class fn3persistence():
                try:
                    namespace_content = res['sequence_meta'][namespace]
                except KeyError:
-                   raise KeyError("{2} is not present in the sequence metadata {0}: {1}".format(guid, res, namespace))
+                   raise KeyError("{2} is not present in the sequence metadata {0}: {1}".format(guidList, res, namespace))
                
                # check the DNA quality metric expected is present
                if not tag in namespace_content.keys():
-                   raise KeyError("{2} is not present in {3} namespace of guid {0}: {1}".format(guid, namespace_content, tag, namespace))
+                   raise KeyError("{2} is not present in {3} namespace of guid {0}: {1}".format(guidList, namespace_content, tag, namespace))
                
                # return property
                retDict[res['_id']] = namespace_content[tag]
@@ -714,20 +722,24 @@ class fn3persistence():
             return self.guid2item(guidList,'DNAQuality','examinationDate')
         
         def guid2quality(self, guidList=None):
-            """ returns quality scores for all guids in guidlist (if guidList is None)"""
+            """ returns quality scores for all guids in guidlist (or all samples if guidList is None)
+            potentially expensive query if guidList is None."""
             
             return self.guid2item(guidList,'DNAQuality','propACTG')
         
-        def guid2propACTG_filtered(self, cutoff=0.85):
+        def guid2propACTG_filtered(self, cutoff=0):
             """ recover guids which have good quality, > cutoff.
             These are in the majority, so we run a table scan to find these.
+
+            This query is potentially very inefficient- best avoided
             """
             
-            allresults = self.guid2quality(None)        # get all results
+            allresults = self.db.guid2meta.find({'sequence_meta.DNAQuality.propACTG':{"$gte":cutoff}},{'_id':1, 'sequence_meta.DNAQuality.propACTG':1})
+            
             retDict = {}
-            for guid in allresults.keys():
-                if allresults[guid]>=cutoff:
-                    retDict[guid]=cutoff
+            for item in allresults:
+                retDict[item['_id']]=item['sequence_meta']['DNAQuality']['propACTG']
+
             return retDict      # note: slightly different from previous api
         
         def guid2items(self, guidList, namespaces):
@@ -925,7 +937,6 @@ class fn3persistence():
                 results=  self.db.guid2neighbour.find({'guid':guid})
                 reported_already = set()
                 for result in results:
-                        
                         for otherGuid in result['neighbours'].keys():
                                 if not otherGuid in reported_already:           # exclude duplicates
                                         if result['neighbours'][otherGuid]['dist']<=cutoff:        # if distance < cutoff
@@ -955,7 +966,7 @@ class fn3persistence():
                                                 reported_already.add(otherGuid)
                                                 retVal.append(returned_data)
                                         
-                # recover the guids          
+                # recover the guids 
                 return({'guid':guid, 'neighbours':retVal})
 
                 
@@ -1045,7 +1056,23 @@ class Test_Server_Monitoring_4(unittest.TestCase):
                 p.delete_server_monitoring_entries(1)
                 res = p.recent_server_monitoring(100)
                 self.assertEqual(len(res),0)
-                self.assertTrue(isinstance(res,list))               
+                self.assertTrue(isinstance(res,list))   
+class Test_SeqMeta_singleton(unittest.TestCase):
+        """ tests guid2neighboursOf"""
+        def runTest(self):
+                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
+                p.guid2neighbour_add_links("srcguid",{'guid1':{'dist':12}, 'guid2':{'dist':0}, 'guid3':{'dist':3}, 'guid4':{'dist':4}, 'guid5':{'dist':5}})
+                with self.assertRaises(NotImplementedError):
+                    res1 = p.guid2neighbours('srcguid', returned_format=2)
+                res1 = p.guid2neighbours('srcguid', returned_format=1)
+                self.assertEqual(5, len(res1['neighbours']))
+                singletons = p.singletons()
+                self.assertEqual(len(singletons),6 )
+                p.guid2neighbour_repack(guid='srcguid')
+                res2 = p.guid2neighbours('srcguid', returned_format=1)
+                self.assertEqual(5, len(res2['neighbours']))  
+                self.assertEqual(len(p.singletons()),5 )
+
 class Test_SeqMeta_guid2neighbour_8(unittest.TestCase):
         """ tests guid2neighboursOf"""
         def runTest(self):
