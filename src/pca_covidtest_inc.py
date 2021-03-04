@@ -1078,11 +1078,11 @@ python findNeighbour3-varmod.py ../config/myConfigFile.json
                 raise
 
         print("Building model")
-        vm = builder.build(train_on=None, n_components=100, pca_parameters= {})       # run all   ## for MiniBatchSparsePCA (which gives unstable results) {'batch_size':10, 'random_state':0, 'n_jobs':-1}
+        vm = builder.build(train_on=None, n_components=200, pca_parameters= {})       # run all   ## for MiniBatchSparsePCA (which gives unstable results) {'batch_size':10, 'random_state':0, 'n_jobs':-1}
         
         print("Exporting sqlite")
         fn = vm.to_sqlite()
-
+        exit()
         print("Exporting excel - not run as very slow.  Use sqlite as source for excel")
         #vm.to_excel('output2.xlsx')
 
