@@ -218,7 +218,7 @@ class fn4Client():
             raise TypeError("nrows must be integer not {0}".format(type(nrows)))      
         retVal= self._decode(self.getpost('/api/v2/server_memory_usage/{0}'.format(nrows), timeout=timeout, method='GET')) 
         return(pd.DataFrame.from_records(retVal))
-    def guids_with_quality_over(self,  cutoff = 0.8, timeout =None):
+    def guids_with_quality_over(self,  cutoff = 0, timeout =None):
         if not type(cutoff) in [int, float]:
             raise TypeError("cutoff must be float or int not {0}".format(type(cutoff)))      
         return self._decode(self.getpost('/api/v2/guids_with_quality_over/{0}'.format(cutoff), timeout=timeout, method='GET')) 
@@ -229,8 +229,10 @@ class fn4Client():
         if not isinstance(threshold, int):
             raise TypeError("threshold must be int not {0}".format(type(threshold)))
         if quality_cutoff is None:
-            return self._decode(self.getpost('/api/v2/{0}/neighbours_within/{1}'.format(guid, threshold), timeout=timeout, method='GET')) 
-        elif isinstance(quality_cutoff, float):
+            response = self.getpost('/api/v2/{0}/neighbours_within/{1}'.format(guid, threshold), timeout=timeout, method='GET')
+            res = self._decode(response)
+            return(res)
+        elif isinstance(quality_cutoff, float) or isinstance(quality_cutoff, int):
             return self._decode(self.getpost('/api/v2/{0}/neighbours_within/{1}/with_quality_cutoff/{2}'.format(guid,threshold, quality_cutoff), timeout=timeout, method='GET')) 
         else:
             raise TypeError("quality_cutoff must be None or float, not {0}".format(type(quality_cutoff)))

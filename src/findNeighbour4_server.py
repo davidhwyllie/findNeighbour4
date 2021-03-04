@@ -594,7 +594,7 @@ class findNeighbour4():
             max_reported =100       # a default
         return self.PERSIST.recent_server_monitoring(max_reported= max_reported)
     
-    def neighbours_within_filter(self, guid, snpDistance, cutoff=0.85, returned_format=1):
+    def neighbours_within_filter(self, guid, snpDistance, cutoff=0, returned_format=1):
         """ returns a list of guids, and their distances, by a sample quality cutoff    
             returns links either as
             format 1 [[otherGuid, distance]]
@@ -609,7 +609,7 @@ class findNeighbour4():
         # check the query is of good quality
         inScore = self.PERSIST.guid_quality_check(guid,float(cutoff))
         if inScore == None:
-            raise KeyError("{0} not found".format(guid))    # that's an error, maybe should raise KeyError
+            raise KeyError("{0} not found".format(guid))    # that's an error, raise KeyError
         elif inScore == False:
             return []       # bad sequence; just to report no links
 
@@ -618,9 +618,13 @@ class findNeighbour4():
 
         # gets the similar sequences from the database;
         retVal = self.PERSIST.guid2neighbours(guid=guid, cutoff=snpDistance, returned_format=returned_format)
-        
         # run a quality check on the things our sample is like.
-        # extract the matching guids, independent of the format requested.
+
+        # extract the quality guids, independent of the format requested.
+        if cutoff == 0 or cutoff is None:
+            return retVal
+
+        # otherwise, filter by quality
         sampleList=retVal['neighbours']
         idList=[]
         for sa in sampleList:
@@ -634,14 +638,16 @@ class findNeighbour4():
                 raise TypeError("Unknown format returned {0} {1}".format(type(sa),sampleList))
         
         guid2qual=self.PERSIST.guid2quality(idList)
-                      
+                    
         # Filter to get good matching guids
         goodGuids=set()
         cutoff=float(cutoff)
         for guid in guid2qual.keys():
             if guid2qual[guid]>=cutoff:
                 goodGuids.add(guid)
-        
+            else:
+                pass # print("findNeighbour4.neighbours_within_filter, excluded on quality filter", guid2qual[guid], cutoff, guid)
+    
         # note one could put a filter to identify samples based on Ns here: these statistics are return in the sampleList
         
         # assemble output by filtering sampleList
@@ -656,6 +662,7 @@ class findNeighbour4():
         
             if guid in goodGuids:
                 finalOutput.append(sa)
+
                 
         return finalOutput
     
@@ -666,7 +673,7 @@ class findNeighbour4():
     def get_all_invalid_guids(self):
         return self.PERSIST.guids_invalid()
     
-    def guids_with_quality_over(self,cutoff=0.66):
+    def guids_with_quality_over(self,cutoff=0):
         rs=self.PERSIST.guid2propACTG_filtered(float(cutoff))
         if rs==None:
             return []
@@ -1390,7 +1397,7 @@ if __name__ == '__main__':
             if res is not None:
                 for item in res:
                     retVal.append(item)
-                    print(item)
+                    
 
         return make_response(tojson(retVal))
 
@@ -1587,7 +1594,6 @@ if __name__ == '__main__':
                 df = labels.merge(df,  how='left', left_on='cluster_id', right_index=True)
                 summary = json.loads(df.to_json(orient='records'))
                 detail  = json.loads(d.to_json(orient='records'))
-                #print(request.url, request.url.endswith('summary'), request.url.endswith('members'))
                 if cluster_id is not None:
                     retVal = {"summary":summary, "members":detail}
                 elif request.url.endswith('clusters'):
