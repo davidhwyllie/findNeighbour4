@@ -1,5 +1,12 @@
 """
-run catwalk from python.
+A catwalk client for python
+
+Tested on Linux with python 3.9
+Uses linux-specific commands to run the server, so is not expected to work on Windows.
+
+unittests:
+pipenv run python -m unittest pycw_client.py
+
 """
 import argparse
 import threading
@@ -13,6 +20,7 @@ import unittest
 import os
 import psutil
 import uuid
+import warnings
 
 class CatWalkServerInsertError(Exception):
     """ insert failed """
@@ -135,9 +143,13 @@ in either
                     proc.kill()
     def stop_all(self):
         """ stops all catwalk servers """
+        nKilled = 0
         for proc in psutil.process_iter():
             if 'cw_server' in proc.name():
                     proc.kill()
+                    nKilled +=1
+        if nKilled > 0:
+            warnings.warn("Catwalk client.stop_all() executed.  {0} processes killed.  Beware, this will kill all catwalk processes on the server, not any specific one".format(nKilled))
     def info(self):
         """
         Get status information from catwalk
@@ -201,6 +213,7 @@ class test_cw(unittest.TestCase):
                     bind_host='localhost',
                     bind_port=5999)
 
+
         # stop the server if it is running
         self.cw.stop_all()
         self.assertFalse(self.cw.server_is_running())
@@ -233,7 +246,7 @@ class test_cw_2(test_cw):
         payload1 = {'A':[100000,100001,100002], 'G':[], 'T':[], 'C':[], 'N':[20000,20001,20002]}
         payload2 = {'A':[100003,100004,100005], 'G':[], 'T':[], 'C':[], 'N':[20000,20001,20002]}
         
-# one is 10000 nt different
+        # one is 10000 nt different
         payload3 = {'A':list(range(110000,120000)), 'G':[], 'T':[], 'C':[], 'N':[20000,20001,20002]}
         res = self.cw.add_sample_from_refcomp('guid1',payload1)
         self.assertEqual(res, 201)
@@ -269,25 +282,3 @@ class test_cw_3(test_cw):
         res = self.cw.add_sample_from_refcomp('guid2',payload1)
 
         self.assertEqual(set(self.cw.sample_names()), set(['guid1','guid2']))	# order doesn't matter      
-
-def main():
-    """
-    You can also start it on the command-line, and then skip start()
-    """
-    p = argparse.ArgumentParser()
-    p.add_argument("cw_binary_filepath")
-    p.add_argument("instance_name")
-    p.add_argument("reference_filepath")
-    p.add_argument("mask_filepath")
-    p.add_argument("max_distance")
-    args = p.parse_args()
-
-    start(*vars(args).values())
-
-    time.sleep(5)
-    while True:
-        print(json.dumps(info(), indent=4))
-        time.sleep(60)
-
-if __name__ == "__main__":
-    main()
