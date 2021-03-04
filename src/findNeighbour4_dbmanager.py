@@ -162,17 +162,17 @@ if __name__ == '__main__':
         date_last_log_rotated =  datetime.datetime.now()-datetime.timedelta(hours=25)           # force log rotation on startup   
         while True:
              if datetime.datetime.now() > date_last_log_rotated+datetime.timedelta(hours=24):
-                     #date_last_log_rotated =datetime.datetime.now()
-                     #logging.info("Rotated mongodb log; deleting old server monitor entries")
-                     #PERSIST.rotate_log()
-                     #PERSIST.delete_server_monitoring_entries(before_seconds= (3600 * 24 * 7))        # 7 days
+                     date_last_log_rotated =datetime.datetime.now()
+                     logging.info("Rotated mongodb log; deleting old server monitor entries")
+                     PERSIST.rotate_log()
+                     PERSIST.delete_server_monitoring_entries(before_seconds= (3600 * 24 * 7))        # 7 days
                      pass
 
              to_update = set()
              nModified = 0
              # does this guid have any singleton guid2neighbour records which need compressing
              logging.info("Quantifying compressable records.")            
-             to_update =PERSIST.singletons(max_records= 500000)
+             to_update =PERSIST.singletons(max_records= 10000)              # compress in small batches - maybe just one at a time if needed.
 
              logging.info("There remain at least {0} records to compress".format(len(to_update)))
              for guid in to_update:
@@ -184,7 +184,7 @@ if __name__ == '__main__':
 
              # log database size
              db_summary = PERSIST.summarise_stored_items()
-             PERSIST.server_monitoring_store(what='dbManager', message="Repack one", guid=guid, content=db_summary)
+             PERSIST.server_monitoring_store(what='dbManager', message="Repacked batch", guid="-", content=db_summary)
 
              if nModified == 0:
                 # everything has been packed
