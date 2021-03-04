@@ -229,13 +229,11 @@ class fn4Client():
         if not isinstance(threshold, int):
             raise TypeError("threshold must be int not {0}".format(type(threshold)))
         if quality_cutoff is None:
-            response = self.getpost('/api/v2/{0}/neighbours_within/{1}'.format(guid, threshold), timeout=timeout, method='GET')
-            res = self._decode(response)
-            return(res)
-        elif isinstance(quality_cutoff, float) or isinstance(quality_cutoff, int):
+            quality_cutoff = 0  # no cutoff
+        if isinstance(quality_cutoff, float) or isinstance(quality_cutoff, int):
             return self._decode(self.getpost('/api/v2/{0}/neighbours_within/{1}/with_quality_cutoff/{2}'.format(guid,threshold, quality_cutoff), timeout=timeout, method='GET')) 
         else:
-            raise TypeError("quality_cutoff must be None or float, not {0}".format(type(quality_cutoff)))
+            raise TypeError("unhandled: quality_cutoff must be None or float, not {0}".format(type(quality_cutoff)))
     def msa_cluster(self, clustering_algorithm, cluster_id, output_format='json', timeout=None):
         """ does MSA on a cluster """
 
