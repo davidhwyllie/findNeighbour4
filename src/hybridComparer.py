@@ -107,6 +107,7 @@ class hybridComparer():
 
         # check composition of the reference.
         self.reference=str(reference)           # if passed a Bio.Seq object, coerce to string.
+        self.reference_list = list(self.reference)      # a list, one element per nt
         letters=Counter(self.reference)   
         if len(set(letters.keys())-set(['A','C','G','T']) )>0:
             raise TypeError("Reference sequence supplied contains characters other than ACTG: {0}".format(letters))
@@ -913,6 +914,17 @@ e
             if len(nrps[position])>1:
                 variant_positions.add(position)
 
+        # step 3b: define constant base frequencies - i.e. frequencies outside the region of variation.  This is used by iqtree, see http://www.iqtree.org/doc/Command-Reference
+        constant_positions = list(self.included - variant_positions)
+        constant_nt = [ self.reference_list[x] for x in constant_positions]
+
+        fconst_dict = Counter(constant_nt)
+        fconst = [0,0,0,0]
+        for i,base in enumerate(['A','C','G','T']):
+            if base in fconst_dict.keys():
+                fconst[i] = fconst_dict[base]
+        fconst_str = "{0},{1},{2},{3}".format(fconst[0],fconst[1],fconst[2],fconst[3])
+
         # step 4: determine the sequences of all bases.
         ordered_variant_positions = sorted(list(variant_positions))
         guid2seq = {}
@@ -1033,7 +1045,7 @@ e
             df1 = pd.DataFrame.from_dict(guid2msa_seq, orient='index')
             df1.columns=['aligned_seq']
             df1['aligned_seq_len'] = len(ordered_variant_positions)
-              
+
             df1_iupac = pd.DataFrame.from_dict(guid2msa_mseq, orient='index')
             df1_iupac.columns=['aligned_mseq']
             
@@ -1099,8 +1111,8 @@ e
                     'df_dict':df.to_dict(orient='index'),
                     'what_tested':uncertain_base_type,
                     'outgroup':outgroup,
-                    'creation_time':datetime.datetime.now().isoformat()
-             
+                    'creation_time':datetime.datetime.now().isoformat(),
+                    'fconst': fconst_dict
                     }
 
             return MSAResult(**retDict)
@@ -2036,8 +2048,8 @@ class test_hybridComparer_53(unittest.TestCase):
                     bind_host='localhost',
                     bind_port=5999)
 
-                # stop the server if it is running
-        cw.stop_all()
+        # stop the server if it is running
+        cw.stop()
         self.assertFalse(cw.server_is_running())
 
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"

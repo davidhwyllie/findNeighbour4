@@ -90,24 +90,25 @@ def do_GET(relpath):
         Used for unit testing.   """
     
     url = urljoiner(RESTBASEURL, relpath)
-    print("GETing from: {0}".format(url))
+    #print("GETing from: {0}".format(url))
 
     session = requests.Session()
     session.trust_env = False
 
     # print out diagnostics
-    print("About to GET from url {0}".format(url))
+    #print("About to GET from url {0}".format(url))
     response = session.get(url=url, timeout=None)
 
-    print("Result:")
-    print("code: {0}".format(response.status_code))
-    print("reason: {0}".format(response.reason))
+    #print("Result:")
+    #print("code: {0}".format(response.status_code))
+    #print("reason: {0}".format(response.reason))
     try:     
-        print("text: {0}".format(response.text[:100]))
+        res = "text: {0}".format(response.text[:100])
+
     except UnicodeEncodeError:
         # which is what happens if you try to display a gz file as text, which it isn't
-        print("Response cannot be coerced to unicode ? a gz file.  The response content had {0} bytes.".format(len(response.text)))
-        print("headers: {0}".format(response.headers))
+        warnings.warn("Response cannot be coerced to unicode ? a gz file.  The response content had {0} bytes.".format(len(response.text)))
+        warnings.warn("headers: {0}".format(response.headers))
 
     session.close()
     return(response)
@@ -120,15 +121,15 @@ def do_POST(relpath, payload):
     url = urljoiner(RESTBASEURL, relpath)
 
     # print out diagnostics
-    print("POSTING to url {0}".format(url))
+    #print("POSTING to url {0}".format(url))
     if not isinstance(payload, dict):
         raise TypeError("not a dict {0}".format(payload))
     response = requests.post(url=url, data=payload)
 
-    print("Result:")
-    print("code: {0}".format(response.status_code))
-    print("reason: {0}".format(response.reason))
-    print("content: {0}".format(response.content))
+    #print("Result:")
+    #print("code: {0}".format(response.status_code))
+    #print("reason: {0}".format(response.reason))
+    #print("content: {0}".format(response.content))
         
     return(response)
 
@@ -159,7 +160,7 @@ class test_reset(unittest.TestCase):
         
         relpath = "/api/v2/insert"
         res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':seq})
-        print(res)
+        
         self.assertTrue(isjson(content = res.content))
         info = json.loads(res.content.decode('utf-8'))
         self.assertEqual(info, 'Guid {0} inserted.'.format(guid_to_insert))
@@ -375,7 +376,7 @@ class test_msa_2(unittest.TestCase):
                     muts+=1
                 seq = ''.join(seq)
                             
-                print("Adding TB sequence {2} of {0} bytes with {1} mutations relative to ref.".format(len(seq), muts, guid_to_insert))
+                #print("Adding TB sequence {2} of {0} bytes with {1} mutations relative to ref.".format(len(seq), muts, guid_to_insert))
                 self.assertEqual(len(seq), 4411532)     # check it's the right sequence
         
                 relpath = "/api/v2/insert"
@@ -401,7 +402,7 @@ class test_msa_2(unittest.TestCase):
         self.assertFalse(b"</table>" in res.content)
         d = json.loads(res.content.decode('utf-8'))
         expected_keys = set(['variant_positions','invalid_guids','valid_guids','expected_p1',
-                    'sample_size','df_dict', 'what_tested','outgroup','creation_time'])
+                    'sample_size','df_dict', 'what_tested','outgroup','creation_time','fconst'])
         self.assertEqual(set(d.keys()), set(expected_keys))
 
 
@@ -496,7 +497,7 @@ class test_msa_2(unittest.TestCase):
         self.assertEqual(res.status_code, 404)
 
         # Do clustering
-        print("Doing clustering")
+        #"Doing clustering")
         os.system("pipenv run python3 findNeighbour4_clustering.py")
                 
         relpath = "/api/v2/clustering/SNV12_ignore/guids2clusters"
@@ -544,7 +545,7 @@ class test_msa_1(unittest.TestCase):
         relpath = "/api/v2/guids"
         res = do_GET(relpath)
         n_pre = len(json.loads(str(res.text)))      # get all the guids
-        print("There are {0} existing samples".format(n_pre))
+        #print("There are {0} existing samples".format(n_pre))
         inputfile = "../COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
             for record in SeqIO.parse(f,'fasta' ):               
@@ -566,7 +567,7 @@ class test_msa_1(unittest.TestCase):
                     seq[mutbase] = 'A'
             seq = ''.join(seq)
                         
-            print("Adding TB sequence {2} of {0} bytes with {1} mutations relative to ref.".format(len(seq), i, guid_to_insert))
+            #print("Adding TB sequence {2} of {0} bytes with {1} mutations relative to ref.".format(len(seq), i, guid_to_insert))
             self.assertEqual(len(seq), 4411532)     # check it's the right sequence
     
             relpath = "/api/v2/insert"
@@ -591,7 +592,7 @@ class test_msa_1(unittest.TestCase):
         self.assertFalse(b"</table>" in res.content)
         d = json.loads(res.content.decode('utf-8'))
         expected_keys = set(['variant_positions','invalid_guids','valid_guids','expected_p1',
-                    'sample_size','df_dict', 'what_tested','outgroup','creation_time'])
+                    'sample_size','df_dict', 'what_tested','outgroup','creation_time','fconst'])
         self.assertEqual(set(d.keys()), set(expected_keys))
 
     
@@ -652,7 +653,7 @@ class test_server_time(unittest.TestCase):
     def runTest(self):
         relpath = "/api/v2/server_time"
         res = do_GET(relpath)
-        print(res)
+        #print(res)
         self.assertTrue(isjson(content = res.content))
         config_dict = json.loads(res.content.decode('utf-8'))
         self.assertTrue('server_time' in config_dict.keys())
@@ -663,7 +664,7 @@ class test_server_name(unittest.TestCase):
     def runTest(self):
         relpath = "/api/v2/server_name"
         res = do_GET(relpath)
-        print(res)
+        #print(res)
         self.assertTrue(isjson(content = res.content))
         config_dict = json.loads(res.content.decode('utf-8'))
         self.assertTrue('server_name' in config_dict.keys())
@@ -724,7 +725,7 @@ class test_get_all_guids_examination_time_1(unittest.TestCase):
             for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
 
-        print("Adding TB reference sequence of {0} bytes".format(len(seq)))
+        #print("Adding TB reference sequence of {0} bytes".format(len(seq)))
         self.assertEqual(len(seq), 4411532)     # check it's the right sequence
 
         relpath = "/api/v2/insert"
@@ -758,7 +759,7 @@ class test_get_matching_guids_1(unittest.TestCase):
             for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
 
-        print("Adding TB reference sequence of {0} bytes".format(len(seq)))
+        #print("Adding TB reference sequence of {0} bytes".format(len(seq)))
         self.assertEqual(len(seq), 4411532)     # check it's the right sequence
 
         relpath = "/api/v2/insert"
@@ -876,7 +877,7 @@ class test_clusters_sample(unittest.TestCase):
         info = json.loads(cluster_list)
         #print("CLUSTERINFO",info)
         self.assertEqual(len(info),4)
-        print(info)
+        #print(info)
 
 class test_clusters_what(unittest.TestCase):
     """ tests implementation of 'what' value, stored in clustering results object"""
@@ -896,7 +897,7 @@ class test_clusters_what(unittest.TestCase):
             for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
 
-        print("Adding TB reference sequence of {0} bytes".format(len(seq)))
+        #print("Adding TB reference sequence of {0} bytes".format(len(seq)))
         self.assertEqual(len(seq), 4411532)     # check it's the right sequence
 
         relpath = "/api/v2/insert"
@@ -962,7 +963,7 @@ class test_what_tested(unittest.TestCase):
             for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
 
-        print("Adding TB reference sequence of {0} bytes".format(len(seq)))
+        #print("Adding TB reference sequence of {0} bytes".format(len(seq)))
         self.assertEqual(len(seq), 4411532)     # check it's the right sequence
 
         relpath = "/api/v2/insert"
@@ -1014,7 +1015,7 @@ class test_g2c(unittest.TestCase):
                     for record in SeqIO.parse(f,'fasta' ):               
                             seq = str(record.seq)
 
-                print("Adding TB reference sequence of {0} bytes".format(len(seq)))
+                #print("Adding TB reference sequence of {0} bytes".format(len(seq)))
                 self.assertEqual(len(seq), 4411532)     # check it's the right sequence
 
                 relpath = "/api/v2/insert"
@@ -1064,7 +1065,7 @@ class test_clusters2cnt(unittest.TestCase):
             for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
 
-        print("Adding TB reference sequence of {0} bytes".format(len(seq)))
+        #print("Adding TB reference sequence of {0} bytes".format(len(seq)))
         self.assertEqual(len(seq), 4411532)     # check it's the right sequence
 
         relpath = "/api/v2/insert"
@@ -1093,7 +1094,7 @@ class test_clusters2cnt(unittest.TestCase):
         retVal = json.loads(str(res.text))
         self.assertTrue(isinstance(retVal,dict))
         self.assertEqual(set(retVal.keys()), set(['members']))
-        print(retVal)
+        #print(retVal)
         relpath = "/api/v2/clustering/SNV12_ignore/summary"
         res = do_GET(relpath)
         self.assertEqual(res.status_code, 200)
@@ -1168,7 +1169,7 @@ class test_g2ca(unittest.TestCase):
             for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
 
-        print("Adding TB reference sequence of {0} bytes".format(len(seq)))
+        #print("Adding TB reference sequence of {0} bytes".format(len(seq)))
         self.assertEqual(len(seq), 4411532)     # check it's the right sequence
 
         relpath = "/api/v2/insert"
@@ -1237,7 +1238,7 @@ class test_compare_two(unittest.TestCase):
                 else:
                         vseq[100000+i]='T'
         vseq=''.join(vseq)
-        print("Adding TB reference sequence of {0} bytes".format(len(seq)))
+        #print("Adding TB reference sequence of {0} bytes".format(len(seq)))
         self.assertEqual(len(seq), 4411532)     # check it's the right sequence
 
         relpath = "/api/v2/insert"
@@ -1284,7 +1285,7 @@ class test_insert_1(unittest.TestCase):
             for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
 
-        print("Adding TB reference sequence of {0} bytes".format(len(seq)))
+        #print("Adding TB reference sequence of {0} bytes".format(len(seq)))
         self.assertEqual(len(seq), 4411532)     # check it's the right sequence
 
         relpath = "/api/v2/insert"
@@ -1340,7 +1341,7 @@ class test_insert_10(unittest.TestCase):
                     seq[mutbase] = 'A'
             seq = ''.join(seq)
                         
-            print("Adding TB sequence {2} of {0} bytes with {1} mutations relative to ref.".format(len(seq), i, guid_to_insert))
+            #print("Adding TB sequence {2} of {0} bytes with {1} mutations relative to ref.".format(len(seq), i, guid_to_insert))
             self.assertEqual(len(seq), 4411532)     # check it's the right sequence
     
             relpath = "/api/v2/insert"
@@ -1394,7 +1395,7 @@ class test_insert_10a(unittest.TestCase):
                     seq[mutbase] = 'M'
             seq = ''.join(seq)
                         
-            print("Adding TB sequence {2} of {0} bytes with {1} mutations relative to ref.".format(len(seq), i, guid_to_insert))
+            #print("Adding TB sequence {2} of {0} bytes with {1} mutations relative to ref.".format(len(seq), i, guid_to_insert))
             self.assertEqual(len(seq), 4411532)     # check it's the right sequence
     
             relpath = "/api/v2/insert"
@@ -1459,10 +1460,11 @@ class test_insert_60(unittest.TestCase):
             seq = ''.join(seq)
             guids_inserted.append(guid_to_insert)           
             if is_mixed:
-                    print("Adding TB sequence {2} of {0} bytes with {1} mutations relative to ref.".format(len(seq), i, guid_to_insert))
+                    pass
+                    #print("Adding TB sequence {2} of {0} bytes with {1} mutations relative to ref.".format(len(seq), i, guid_to_insert))
             else:
-                    print("Adding mixed TB sequence {2} of {0} bytes with {1} Ns relative to ref.".format(len(seq), i, guid_to_insert))
-                
+                    #print("Adding mixed TB sequence {2} of {0} bytes with {1} Ns relative to ref.".format(len(seq), i, guid_to_insert))
+                    pass
                 
             self.assertEqual(len(seq), 4411532)     # check it's the right sequence
     
@@ -1598,7 +1600,7 @@ class test_neighbours_within_5(unittest.TestCase):
         
         relpath = "/api/v2/non_existent_guid/neighbours_within/12/in_format/1"
         res = do_GET(relpath)
-        print(res)
+        #print(res)
         self.assertTrue(isjson(content = res.content))
         info = json.loads(res.content.decode('utf-8'))
         self.assertEqual(type(info), dict)
@@ -1631,7 +1633,7 @@ class test_neighbours_within_6(unittest.TestCase):
 
         for guid_to_insert in variants.keys():
 
-                print("Adding mutated TB reference sequence called {0}".format(guid_to_insert))        
+                #print("Adding mutated TB reference sequence called {0}".format(guid_to_insert))        
                 relpath = "/api/v2/insert"
                 
                 res = do_POST(relpath, payload = {'guid':guid_to_insert,'seq':variants[guid_to_insert]})
@@ -1654,7 +1656,7 @@ class test_neighbours_within_6(unittest.TestCase):
         self.assertEqual(n_pre+4, n_post)
 
         test_guid = min(variants.keys())
-        print("Searching for ",test_guid)
+        #print("Searching for ",test_guid)
         
         search_paths = ["/api/v2/{0}/neighbours_within/1",
                         "/api/v2/{0}/neighbours_within/1/with_quality_cutoff/0.5",
@@ -1704,7 +1706,7 @@ class test_sequence_1(unittest.TestCase):
             for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
 
-        print("Adding TB reference sequence of {0} bytes".format(len(seq)))
+        #print("Adding TB reference sequence of {0} bytes".format(len(seq)))
         self.assertEqual(len(seq), 4411532)     # check it's the right sequence
 
         relpath = "/api/v2/insert"
@@ -1740,7 +1742,7 @@ class test_sequence_3(unittest.TestCase):
         
         relpath = "/api/v2/guids"
         res = do_GET(relpath)
-        print(res)
+        #print(res)
         n_pre = len(json.loads(res.content.decode('utf-8')))        # get all the guids
 
         guid_to_insert = "guid_{0}".format(n_pre+1)
@@ -1750,7 +1752,7 @@ class test_sequence_3(unittest.TestCase):
             for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
         seq = 'N'*4411532
-        print("Adding TB reference sequence of {0} bytes with {1} Ns".format(len(seq), seq.count('N')))
+        #print("Adding TB reference sequence of {0} bytes with {1} Ns".format(len(seq), seq.count('N')))
         self.assertEqual(len(seq), 4411532)     # check it's the right sequence
 
         relpath = "/api/v2/insert"
@@ -1788,14 +1790,14 @@ class test_sequence_4(unittest.TestCase):
 
 
         seq1 = 'N'*4411532
-        print("Adding TB reference sequence of {0} bytes with {1} Ns".format(len(seq1), seq1.count('N')))
+        #print("Adding TB reference sequence of {0} bytes with {1} Ns".format(len(seq1), seq1.count('N')))
         self.assertEqual(len(seq1), 4411532)        # check it's the right sequence
 
         relpath = "/api/v2/insert"
         res = do_POST(relpath, payload = {'guid':guid_to_insert1,'seq':seq1})
         self.assertEqual(res.status_code, 200)
 
-        print("Adding TB reference sequence of {0} bytes with {1} Ns".format(len(seq2), seq2.count('N')))
+        #print("Adding TB reference sequence of {0} bytes with {1} Ns".format(len(seq2), seq2.count('N')))
         self.assertEqual(len(seq2), 4411532)        # check it's the right sequence
 
         relpath = "/api/v2/insert"
@@ -1839,14 +1841,14 @@ class test_sequence_5(unittest.TestCase):
 
 
         seq1 = 'R'*4411532
-        print("Adding TB reference sequence of {0} bytes with {1} Rs".format(len(seq1), seq1.count('R')))
+        #print("Adding TB reference sequence of {0} bytes with {1} Rs".format(len(seq1), seq1.count('R')))
         self.assertEqual(len(seq1), 4411532)        # check it's the right sequence
 
         relpath = "/api/v2/insert"
         res = do_POST(relpath, payload = {'guid':guid_to_insert1,'seq':seq1})
         self.assertEqual(res.status_code, 200)
 
-        print("Adding TB reference sequence of {0} bytes with {1} Ns".format(len(seq2), seq2.count('N')))
+        #print("Adding TB reference sequence of {0} bytes with {1} Ns".format(len(seq2), seq2.count('N')))
         self.assertEqual(len(seq2), 4411532)        # check it's the right sequence
 
         relpath = "/api/v2/insert"

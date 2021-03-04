@@ -106,6 +106,9 @@ class fn4Client():
             raise NotImplementedError("either GET or POST is required as a method.  was passed {0}".format(method))
         
         session.close() 
+        
+        if response.status_code >= 500: 
+            response.raise_for_status()     # raise error if there's an error.  Sub 500 (404 etc) are let through and handled by the client routines
         return response 
 
     def get(self, relpath,  timeout=None):
@@ -126,6 +129,7 @@ class fn4Client():
         r = self.getpost(relpath='/api/v2/mirror', timeout=timeout, payload=payload, method='POST')   
         rd = self._decode(r)
         return rd
+
     def server_config(self,  timeout =None):
         """ returns server config as a dictionary """
         return self._decode(self.getpost('/api/v2/server_config', timeout=timeout, method='GET'))
@@ -255,7 +259,7 @@ class fn4Client():
         guidstring = ';'.join(guids)
         payload = {'guids':guidstring,'output_format':output_format, 'what':what}
         res = self.post('/api/v2/multiple_alignment/guids', payload = payload, timeout= timeout)
-        if output_format=='json-records':
+        if output_format in ['json-records','json']:
             retList = self._decode(res)
             return pd.DataFrame.from_records(retList)          
         else:            
@@ -517,7 +521,7 @@ class test_fn4_client_guids2clusters(unittest.TestCase):
         
         # recover neighbours
         res = fn4c.guid2neighbours(guid= uuid1, threshold = 250)
-        self.assertTrue(isinstance(res, list))
+        self.assertTrue(isinstance(res, dict))
 
         res = fn4c.guid2neighbours(guid= uuid1, threshold = 250, quality_cutoff = 0.7)
         self.assertTrue(isinstance(res, list))

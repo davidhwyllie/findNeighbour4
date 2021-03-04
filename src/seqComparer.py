@@ -830,7 +830,6 @@ class seqComparer():
             df1 = pd.DataFrame.from_dict(guid2msa_seq, orient='index')
             df1.columns=['aligned_seq']
             df1['aligned_seq_len'] = len(ordered_variant_positions)
-            df1['fconst'] = fconst_str
 
             df2n = pd.DataFrame.from_dict(guid2all['N'], orient='index')
             df2n.columns=['allN']
@@ -1020,7 +1019,7 @@ class test_seqComparer_47c(unittest.TestCase):
         df= sc.multi_sequence_alignment(guid_names[0:8], output='df', expected_p1=0.995)      
         # there's variation at positions 0,1,2,3
         self.assertTrue(isinstance(df, pd.DataFrame))
-        expected_cols = set(['fconst','what_tested','aligned_seq','aligned_seq_len','aligned_seq_len','allN','alignN','allM','alignM','allN_or_M','alignN_or_M','p_value1','p_value2','p_value3', 'p_value4', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3','expected_proportion4'])
+        expected_cols = set(['what_tested','aligned_seq','aligned_seq_len','aligned_seq_len','allN','alignN','allM','alignM','allN_or_M','alignN_or_M','p_value1','p_value2','p_value3', 'p_value4', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3','expected_proportion4'])
         self.assertEqual(set(df.columns.values),expected_cols)
 
         self.assertEqual(len(df.index),8)
@@ -1075,7 +1074,7 @@ class test_seqComparer_47b2(unittest.TestCase):
         
         # there's variation at positions 0,1,2,3
         self.assertTrue(isinstance(df, pd.DataFrame))
-        expected_cols = set(['fconst','what_tested','aligned_seq','aligned_seq_len','aligned_seq_len','allN','alignN','allM','alignM','allN_or_M','alignN_or_M','p_value1','p_value2','p_value3', 'p_value4', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3','expected_proportion4'])
+        expected_cols = set(['what_tested','aligned_seq','aligned_seq_len','aligned_seq_len','allN','alignN','allM','alignM','allN_or_M','alignN_or_M','p_value1','p_value2','p_value3', 'p_value4', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3','expected_proportion4'])
  
 
         self.assertEqual(set(df.columns.values),expected_cols)
@@ -1128,7 +1127,7 @@ class test_seqComparer_47b(unittest.TestCase):
         
         # there's variation at positions 0,1,2,3
         self.assertTrue(isinstance(df, pd.DataFrame))
-        expected_cols = set(['fconst','what_tested','aligned_seq','aligned_seq_len','aligned_seq_len','allN','alignN','allM','alignM','allN_or_M','alignN_or_M','p_value1','p_value2','p_value3', 'p_value4', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3','expected_proportion4'])
+        expected_cols = set(['what_tested','aligned_seq','aligned_seq_len','aligned_seq_len','allN','alignN','allM','alignM','allN_or_M','alignN_or_M','p_value1','p_value2','p_value3', 'p_value4', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3','expected_proportion4'])
  
         self.assertEqual(set(df.columns.values),expected_cols)
         self.assertEqual(len(df.index),8)
@@ -1167,7 +1166,7 @@ class test_seqComparer_47a(unittest.TestCase):
         df= sc.multi_sequence_alignment(guid_names[0:8], output='df')
         # there's variation at positions 0,1,2,3
         self.assertTrue(isinstance(df, pd.DataFrame))
-        expected_cols = set(['fconst','what_tested','aligned_seq','aligned_seq_len','aligned_seq_len','allN','alignN','allM','alignM','allN_or_M','alignN_or_M','p_value1','p_value2','p_value3', 'p_value4', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3','expected_proportion4'])
+        expected_cols = set(['what_tested','aligned_seq','aligned_seq_len','aligned_seq_len','allN','alignN','allM','alignM','allN_or_M','alignN_or_M','p_value1','p_value2','p_value3', 'p_value4', 'observed_proportion','expected_proportion1','expected_proportion2','expected_proportion3','expected_proportion4'])
  
         self.assertEqual(set(df.columns.values),expected_cols)
         self.assertEqual(len(df.index),8)

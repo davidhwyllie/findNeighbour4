@@ -9,11 +9,13 @@ It has been tested with python 3.5 and 3.7, and with Mongodb v 3.6.1 and 4.0
 
 Operating system
 ----------------
-The code has been tested on Linux (Ubuntu 16.04, 18.04), Windows 7 and Windows 10.  The below instruction include linux-specific commands.
+The code has been tested on Linux (Ubuntu 16.04, 18.04).  
+It is not expected to run on Windows, as it uses unix-specific concepts and libraries.
+The below instruction include linux-specific commands.
 
 Dependencies
 ------------
-* Python >= 3.5.  On Windows there are MSI installers available.  See below for Linux.  
+* Python >= 3.5.  
 You may need to install pip3 with: ```sudo apt-get install python3-pip```
 
 Note, Ubuntu 18 users, there is a [known issue](https://github.com/pypa/pipenv/issues/2122) and you may need to unisntall pip first, e.g.  
@@ -22,7 +24,7 @@ Note, Ubuntu 18 users, there is a [known issue](https://github.com/pypa/pipenv/i
 
 Database backend
 ----------------
-The server requires a mongodb database to work.
+The server requires a mongodb database to work.  Tested with v. 4.02 and 4.2.
 [These instructions](mongoinstall.md) describe installation of mongodb.
 This server has been tested both with a local mongodb database and with a free cloud instance of mongodb, Mongo Atlas.
 
@@ -38,28 +40,41 @@ After this, please follow the below steps.
 
 Virtual environments and dependencies
 -------------------------------------
-It is recommended, but not essential, to use a virtual environment.
+It is strongly recommended, but not essential, to use a virtual environment.
 A pipenv Pipfile is provided which specifies dependencies.  See also [section](dependencies.md).
+
+In the root of your directory, you will need to create a .env file.  This sets environment variables required for the code to run.
+Here is an example:
+```
+FN_SENTRY_URL="https://********************.ingest.sentry.io/*****"
+CW_BINARY_FILEPATH="/home/phe.gov.uk/david.wyllie/catwalk/cw_server"
+IQTREE="/home/phe.gov.uk/david.wyllie/software/iqtree-2.1.2-Linux/bin/iqtree2"
+```
+All are optional, but the CW_BINARY_FILEPATH is required if (as is strongly recommended) you are using the catwalk comparison engine as part of findNeighbour4.
+FN_SENTRY_URL is an optional url for the sentry.io (error logging) service.  If present and Sentry.io (small free or paid service) configured, error logging will be collated there.  
+This is very useful for collating  & debugging server side errors.   If considering this, be aware that if identifiable data is in the server, errors trapped may be sent to the Sentry.io service.  
+IQTREE is an optional path to the IQTREE executable, a tree drawing software.
+
 
 To run with a virtual environment, preface command with ```pipenv run ..```
 e.g.
 ```pipenv run python3 findNeighbour4_server.py```.
 
-The below commands will run without a virtual environment if relevant packages are installed at a machine level.   
+The below commands will run without a virtual environment if relevant packages are installed at a machine level, 
+and relevant environment variables present..   
 
 To start the server
 -------------------
 The easiest way to start the server is go to the findNeighbour4 *src* folder and run the command:  
 ```./fn4_startup.sh {configfile}```  where {configfile} is the path to a configuration file. 
-This will launch the server, database monitor, server monitor, and clustering systems.
+This will launch the server, database monitor, server monitor, and clustering systems.  The latter three are recommended, but not essential.
 
 However, in a first run setting you can check it starts manually
 ```pipenv run python3 findNeighbour4_server.py```
 
 Note: This application doesn't work with python2, so be sure to use python 3.  It also won't work on Windows, because the clustering system uses linux-specific packages.  These packages (networkit) are supposed to be compatible with WSL, but we have not tested this.
-This will try to start the webserver with a default configuration, in debug mode.  
+This will try to start the webserver with a default configuration which is useful for unit testing, in debug mode.  **Important**: *Debug mode means, amongst other things, that all existing data in the fn3_unittesting database will be wiped on server restart.   This is good for testing, but not in most other settings.  You need to edit the config file (see below) for your needs.*
 
-**Important**: *Debug mode means, amongst other things, that all existing data will be wiped on server restart.  This is good for testing, but not in most other settings.  You need to edit the config file (see below) for your needs.*
 
 If the server fails to start, it's probably due to one of the following:
 * mongodb not being operational (a ```pymongo.errors.ServerSelectionTimeOutError``` will indicate this; in Windows, check in *Services* that the service is running; in linux, a command like ```sudo systemctl start mongod``` will be needed), or
@@ -78,19 +93,26 @@ nohup pipenv run python3 findNeighbour4_server.py {configfile.json} &
 If {configfile.json} is omitted, then it will use a default config file, config/default_test_config.json.  This is suitable for unit testing, and other kinds of one-off tests. It expects a mongodb running on localhost on the default port.
 It is **unsuitable for production**, because:  
 1 it runs the flask webserver in debug mode, which is insecure   
-2 all data is wiped on server restart.   
+2 all data is wiped on server restart because it is running in debug mode
+3 it enables the /restart and /status endpoints, which respectively wipe the database and disclose confidential information about the server config, because it is running in debug mode.   
 A warning is emitted if the server is running with this default configuration.  
 
 Unit tests
 ----------
 
 Do not run unit tests on a production server with findNeighbour server instances running.
-Unit tests may shut down any running CatWalk servers, which may cause running findNeighbour server instances to fail.
+Side effects are not expected and have not been observed in the most recent versions, but it is better not to take the chance.
 
-Automated testing of everything can be performed with
+Complete testing can be achieved with
 ```
-.\unittest_all.sh
+./unittest_all.sh
 ```
+however a stepwise approach is recommended after initial installation.
+Automated testing of everything except the server itself can be performed with
+```
+pipenv run python3 unittest_core.py
+```
+Failures initially are likely due to missing dependencies.
 
 If you wish to run unittests individually, you can do 
 ```
@@ -104,11 +126,12 @@ etc or with a virtual environment, do
 pipenv run python3 -m unittest  NucleicAcid seqComparer clustering mongoStore
 ```
 
+
 More complex testing requires a findNeighbour4 server running.  Note that unit tests don't start the server. You will need to do.  After this, you can run unit tests.  
 
 ```
 # starting a test RESTFUL server
-nohup python3 findNeighbour4_server.py &
+nohup python3 findNeighbour4_server.py &          # if run in a shell without nohup, this will also work, but you will need to run the tests in a different shell
 ```
 or if using a virtual environment 
 ```
@@ -116,16 +139,16 @@ or if using a virtual environment
 nohup pipenv run python3 findNeighbour4_server.py &
 ```  
 
-And then (e.g. in a different terminal, in windows) launching unit tests as below.
+And then (e.g. in a different termina) launching unit tests as below.
 Note: unittesting is changes the data in the server.
-Do not run unittests against a production server.
+Do not run unittests against a production server, although side effects from testing are not expected; unittest use a separate database and separate port.
 In the below configuration, the unittests will run against a
 separate instance of the server used for debugging, called 'fn3_unittesting'
+ 
 ```
-python3 -m unittest findNeighbour4_server 
-```
-or 
-```
+# just tests the python client
+pipenv run python3 -m unittest fn4client  
+# test the server
 pipenv run python3 -m unittest findNeighbour4_server 
 ```
 
@@ -181,16 +204,8 @@ MAXN_PROP_DEFAULT: if the proportion not N in the sequence exceeds this, the sam
 LOGFILE:        the log file used
 LOGLEVEL:		default logging level used by the server.  Valid values are DEBUG INFO WARNING ERROR CRITICAL
 SNPCEILING: 	links between guids > this are not stored in the database
-GC_ON_RECOMPRESS: if 'recompressing' sequences to a local reference, something the server does automatically, perform
-                a full mark-and-sweep gc at this point.  This setting alters memory use and compute time, but not the results obtained.
-RECOMPRESS_FREQUENCY: if recompressable records are detected, recompress every RECOMPRESS_FREQ th detection (e.g. 5).
-                Trades off compute time with mem usage.  This setting alters memory use and compute time, but not the results obtained.
-REPACK_FREQUENCY: concerns how the matrix is stored in mongodb.
-                if REPACK_FREQ=0, there will be one document for every non-empty matrix cell.
-			             if REPACK_FREQ>0, then if a guid has REPACK_FREQ-1 neighbours, then a 'repack' operation
-							         occurs.  This transfers multiple matrix cells into one mongodb document: essentially, part or all of a row
-							         will be packed into a single document.  This reduces query times, but the repack operation slows inserts.
-							         Repacking doesn't alter the results at all, and could be performed independently of inserts.
+PRECOMPARER_PARAMETERS:
+               describe how the Catwalk server is to be operated, see example below.
 CLUSTERING:		a dictionary of parameters used for clustering.  In the below example, there are two different
                 clustering settings defined, one named 'SNV12_ignore' and the other 'SNV12_include.
                 {'SNV12_ignore' :{'snv_threshold':12, 'mixed_sample_management':'ignore', 'mixture_criterion':'pvalue_1', 'cutoff':0.001},
@@ -213,24 +228,27 @@ CLUSTERING:		a dictionary of parameters used for clustering.  In the below examp
 An example CONFIG is below:
 
 ```
-	{
-"DESCRIPTION":"A test server operating in on localhost for unit testing using mapped TB data",
+
+{
+"DESCRIPTION":"PHE fn4 covid test server",
 "IP":"127.0.0.1",
-"INPUTREF":"../reference/TB-ref.fasta",
-"EXCLUDEFILE":"../reference/TB-exclude-adaptive.txt",
-"DEBUGMODE":2,
-"SERVERNAME":"fn3_unittesting",      
+"INPUTREF":"../reference/nc_045512.fasta",
+"EXCLUDEFILE":"../reference/covid-exclude.txt",
+"DEBUGMODE":0,
+"SERVERNAME":"PHE_covid_5",
 "FNPERSISTENCE_CONNSTRING":"mongodb://localhost",
-"MAXN_STORAGE":130000,
-"RECOMPRESS_FREQUENCY":5,
-"REPACK_FREQUENCY":1,
-"GC_ON_RECOMPRESS":1,
-"SNPCOMPRESSIONCEILING":250,
-"MAXN_PROP_DEFAULT":0.85,
-"LOGFILE":"../unittest_tmp/logfile_unittesting.log",
-"LOGLEVEL":"DEBUG",	
-"SNPCEILING": 20,
-"REST_PORT":5000,
+"MAXN_STORAGE":20000,
+"MAXN_PROP_DEFAULT":0.70,
+"LISTEN_TO":"0.0.0.0",
+"LOGFILE":"/srv/data/mixfiles/log/phe_covid.log",
+"LOGLEVEL":"INFO",
+"SNPCEILING": 5,
+"REST_PORT":5023,
+"PRECOMPARER_PARAMETERS":{"selection_cutoff":5,"uncertain_base":"N_or_M",
+"over_selection_cutoff_ignore_factor":1,
+"catWalk_parameters":{"cw_binary_filepath":"","reference_name":"covid5snp",
+"reference_filepath":"../reference/nc_045512.fasta","mask_filepath":"../reference/covid-exclude.txt", "bind_port":5024, "bind_host":"localhost"}},
+
 "CLUSTERING":{"SNV12_ignore":{"snv_threshold":12,"mixed_sample_management":"ignore","mixture_criterion":"p_value1","cutoff":0.001},
               "SNV12_include":{"snv_threshold":12,"mixed_sample_management":"include","mixture_criterion":"p_value1","cutoff":0.001}
              }
@@ -264,12 +282,6 @@ LOGLEVEL
 where the database connection binds to
 FNPERSISTENCE_CONNSTRING
 
-related to internal server memory management:
-GC_ON_RECOMPRESS
-RECOMPRESS_FREQUENCY
-SNPCOMPRESSIONCEILING
-REPACK_FREQUENCY
-
 ```
 
 Database backend
@@ -280,7 +292,7 @@ Provided the findNeighbour server connection has sufficient priviledges, no conf
 
 Benchmarking
 ============
-To follow.  The machine used to do the benchmarking was as follows:
+To follow.  
 
 
 Multiple instances of findNeighbour4
@@ -290,7 +302,7 @@ However, you cannot run multiple instances on the same port.
 The API is not parameterised by 'instance' or 'organism' etc.
 * One port, one server, one config file.
 * Use different 'SERVERNAME' settings for each server.  This name becomes the name of the backend mongodb database.
-* Be aware that unittesting is destructive.  The database named in the CONFIG file used for unittesting (currently fn3_unittesting) will be recreated.
+* Be aware that unittesting is potentially destructive if done with the wrong settings.  The database named in the CONFIG file used for unittesting (currently fn3_unittesting) will be recreated.  Use the default CONFIG file for unittesting.
 
 
 Services available

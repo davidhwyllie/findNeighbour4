@@ -2085,10 +2085,10 @@ class test_MIXCHECK_1(unittest.TestCase):
                     mask_filepath="../reference/TB-exclude-adaptive.txt",
                     max_distance=20,
                     bind_host='localhost',
-                    bind_port=5999)
+                    bind_port=5998)
 
             # stop the server if it is running
-            cw.stop_all()
+            cw.stop()
             self.assertFalse(cw.server_is_running())
 
             hc = hybridComparer(
@@ -2101,7 +2101,6 @@ class test_MIXCHECK_1(unittest.TestCase):
                 unittesting=True
                 )
 
-            print(clustering_setting)
             mpmc = MixPOREMixtureChecker(hc, **clustering_setting) 
 
             # check update adds remaining guids
@@ -2144,7 +2143,7 @@ class test_MIXCHECK_1(unittest.TestCase):
                     else:
                          seq[mutbase] = 'M'					
                 seq = ''.join(seq)
-                print(i,guid_to_insert, seq[699995:700020])
+                #print(i,guid_to_insert, seq[699995:700020])
                 guids_inserted.append(guid_to_insert)
                 obj = hc.compress(seq)	
                 loginfo = hc.persist(obj, guid_to_insert)

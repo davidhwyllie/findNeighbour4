@@ -14,7 +14,12 @@ class MSAStore():
     def __init__(self, PERSIST, in_ram_persistence_time=60):
         """ sets up an MSA cache, which stores MSAs on disc and in ram 
             PERSIST is an fn3persistence object
-            in_ram_persistence_time the time MSAs are cached in ram, in seconds"""
+            in_ram_persistence_time the time MSAs are cached in ram, in seconds
+            
+            Parameters:
+            PERSIST is an fn3persistence object
+            in_ram_persistence_time the time MSAs are cached in ram, in seconds
+            """
         self.cache = {}
         self.PERSIST = PERSIST
         self.iss = IdentifySequenceSet()
@@ -83,7 +88,8 @@ class MSAResult():
                     df_dict,
                     what_tested,
                     outgroup,
-                    creation_time
+                    creation_time, 
+                    fconst
                 ):
 
         """ a representation of a multisequence alignment
@@ -99,6 +105,8 @@ class MSAResult():
                     'what_tested': what (M/N/N_or_M) was tested
                     'outgroup': either none, or a guid used as the outgroup.
                     'creation_time': timestamp the msa was created
+                    'fconst': a dictionary containing the number of constant sites (A,C,G,T) in the reference genome but OUTSIDE the alignment.  
+                              Can be an empty dictionary {} if this concept is not relevant.  May be required by maximal likelihood tree gen software, e.g. iqTree.
         """
 
         self.variant_positions = variant_positions
@@ -108,7 +116,7 @@ class MSAResult():
         self.expected_p1 = expected_p1
         self.sample_size = sample_size
         self.df = pd.DataFrame.from_dict(df_dict, orient='index')
-
+        self.fconst = fconst
         self.what_tested = what_tested
         self.outgroup = outgroup
         self.creation_time= creation_time
@@ -149,13 +157,14 @@ class MSAResult():
                     'df_dict':self.df.to_dict(orient='index'),
                     'what_tested':self.what_tested,
                     'outgroup':self.outgroup,
-                    'creation_time':self.creation_time  
+                    'creation_time':self.creation_time,
+                    'fconst':self.fconst  
                 }
     
 class Test_MSA(unittest.TestCase):
     """ tests the MSAResult class"""
     def runTest(self):
-        inputdict = {'variant_positions': [0, 1, 2, 3], 'invalid_guids': [], 'valid_guids': ['AAACGY-1', 'CCCCGY-2', 'TTTCGY-3', 'GGGGGY-4', 'NNNCGY-5', 'ACTCGY-6', 'TCTQGY-7', 'AAACGY-8'], 'expected_p1': 0.16666666666666666, 'sample_size': 30, 'df_dict': {'AAACGY-1': {'aligned_seq': 'AAAC', 'aligned_mseq':'AAAC', 'aligned_seq_len': 4, 'allN': 0, 'alignN': 0, 'allM': 1, 'alignM': 0, 'allN_or_M': 1, 'alignN_or_M': 0, 'p_value1': 1.0, 'p_value2': 1.0, 'p_value3': 1.0, 'p_value4': 1.0, 'observed_proportion': 0.0, 'expected_proportion1': 0.16666666666666666, 'expected_proportion2': 0.5, 'expected_proportion3': 0.5, 'expected_proportion4': 0.0, 'what_tested': 'M'}, 'CCCCGY-2': {'aligned_seq': 'CCCC', 'aligned_mseq': 'CCCC', 'aligned_seq_len': 4, 'allN': 0, 'alignN': 0, 'allM': 1, 'alignM': 0, 'allN_or_M': 1, 'alignN_or_M': 0, 'p_value1': 1.0, 'p_value2': 1.0, 'p_value3': 1.0, 'p_value4': 1.0, 'observed_proportion': 0.0, 'expected_proportion1': 0.16666666666666666, 'expected_proportion2': 0.5, 'expected_proportion3': 0.5, 'expected_proportion4': 0.0, 'what_tested': 'M'}}, 'what_tested': 'M', 'outgroup': None, 'creation_time': '2019-11-17T23:46:00.098151'}
+        inputdict = {'fconst':{}, 'variant_positions': [0, 1, 2, 3], 'invalid_guids': [], 'valid_guids': ['AAACGY-1', 'CCCCGY-2', 'TTTCGY-3', 'GGGGGY-4', 'NNNCGY-5', 'ACTCGY-6', 'TCTQGY-7', 'AAACGY-8'], 'expected_p1': 0.16666666666666666, 'sample_size': 30, 'df_dict': {'AAACGY-1': {'aligned_seq': 'AAAC', 'aligned_mseq':'AAAC', 'aligned_seq_len': 4, 'allN': 0, 'alignN': 0, 'allM': 1, 'alignM': 0, 'allN_or_M': 1, 'alignN_or_M': 0, 'p_value1': 1.0, 'p_value2': 1.0, 'p_value3': 1.0, 'p_value4': 1.0, 'observed_proportion': 0.0, 'expected_proportion1': 0.16666666666666666, 'expected_proportion2': 0.5, 'expected_proportion3': 0.5, 'expected_proportion4': 0.0, 'what_tested': 'M'}, 'CCCCGY-2': {'aligned_seq': 'CCCC', 'aligned_mseq': 'CCCC', 'aligned_seq_len': 4, 'allN': 0, 'alignN': 0, 'allM': 1, 'alignM': 0, 'allN_or_M': 1, 'alignN_or_M': 0, 'p_value1': 1.0, 'p_value2': 1.0, 'p_value3': 1.0, 'p_value4': 1.0, 'observed_proportion': 0.0, 'expected_proportion1': 0.16666666666666666, 'expected_proportion2': 0.5, 'expected_proportion3': 0.5, 'expected_proportion4': 0.0, 'what_tested': 'M'}}, 'what_tested': 'M', 'outgroup': None, 'creation_time': '2019-11-17T23:46:00.098151'}
 
         m = MSAResult(**inputdict)
         self.assertEqual(type(m.msa_fasta()), str)
@@ -172,9 +181,9 @@ class Test_MSAStore(unittest.TestCase):
     """ tests the MSAStore class"""
     def runTest(self):
 
-        inputdict1 = {'variant_positions': [0, 1, 2, 3], 'invalid_guids': [], 'valid_guids': ['AAACGY-1', 'CCCCGY-2'], 'expected_p1': 0.16666666666666666, 'sample_size': 30, 'df_dict': {'AAACGY-1': {'aligned_seq': 'AAMM', 'aligned_mseq': 'AAYR', 'aligned_seq_len': 4, 'allN': 0, 'alignN': 0, 'allM': 3, 'alignM': 2, 'allN_or_M': 1, 'alignN_or_M': 0, 'p_value1': 1.0, 'p_value2': 1.0, 'p_value3': 1.0, 'p_value4': 1.0, 'observed_proportion': 0.0, 'expected_proportion1': 0.16666666666666666, 'expected_proportion2': 0.5, 'expected_proportion3': 0.5, 'expected_proportion4': 0.0, 'what_tested': 'M'}, 'CCCCGY-2': {'aligned_seq':'CCCC', 'aligned_mseq': 'CCCC', 'aligned_seq_len': 4, 'allN': 0, 'alignN': 0, 'allM': 1, 'alignM': 0, 'allN_or_M': 1, 'alignN_or_M': 0, 'p_value1': 1.0, 'p_value2': 1.0, 'p_value3': 1.0, 'p_value4': 1.0, 'observed_proportion': 0.0, 'expected_proportion1': 0.16666666666666666, 'expected_proportion2': 0.5, 'expected_proportion3': 0.5, 'expected_proportion4': 0.0, 'what_tested': 'M'}}, 'what_tested': 'M', 'outgroup': None, 'creation_time': '2019-11-17T23:46:00.098151'}
+        inputdict1 = {'fconst':{},'variant_positions': [0, 1, 2, 3], 'invalid_guids': [], 'valid_guids': ['AAACGY-1', 'CCCCGY-2'], 'expected_p1': 0.16666666666666666, 'sample_size': 30, 'df_dict': {'AAACGY-1': {'aligned_seq': 'AAMM', 'aligned_mseq': 'AAYR', 'aligned_seq_len': 4, 'allN': 0, 'alignN': 0, 'allM': 3, 'alignM': 2, 'allN_or_M': 1, 'alignN_or_M': 0, 'p_value1': 1.0, 'p_value2': 1.0, 'p_value3': 1.0, 'p_value4': 1.0, 'observed_proportion': 0.0, 'expected_proportion1': 0.16666666666666666, 'expected_proportion2': 0.5, 'expected_proportion3': 0.5, 'expected_proportion4': 0.0, 'what_tested': 'M'}, 'CCCCGY-2': {'aligned_seq':'CCCC', 'aligned_mseq': 'CCCC', 'aligned_seq_len': 4, 'allN': 0, 'alignN': 0, 'allM': 1, 'alignM': 0, 'allN_or_M': 1, 'alignN_or_M': 0, 'p_value1': 1.0, 'p_value2': 1.0, 'p_value3': 1.0, 'p_value4': 1.0, 'observed_proportion': 0.0, 'expected_proportion1': 0.16666666666666666, 'expected_proportion2': 0.5, 'expected_proportion3': 0.5, 'expected_proportion4': 0.0, 'what_tested': 'M'}}, 'what_tested': 'M', 'outgroup': None, 'creation_time': '2019-11-17T23:46:00.098151'}
 
-        inputdict2 = {'variant_positions': [0, 1, 2, 3], 'invalid_guids': [], 'valid_guids': ['AAACGY-1', 'CCCCGY-2'], 'expected_p1': 0.16666666666666666, 'sample_size': 30, 'df_dict': {'AAACGY-1': {'aligned_seq': 'AAAM', 'aligned_mseq': 'AAAR', 'aligned_seq_len': 4, 'allN': 0, 'alignN': 0, 'allM': 1, 'alignM': 1, 'allN_or_M': 1, 'alignN_or_M': 0, 'p_value1': 1.0, 'p_value2': 1.0, 'p_value3': 1.0, 'p_value4': 1.0, 'observed_proportion': 0.0, 'expected_proportion1': 0.16666666666666666, 'expected_proportion2': 0.5, 'expected_proportion3': 0.5, 'expected_proportion4': 0.0, 'what_tested': 'M'}, 'CCCCGY-2': {'aligned_seq':'CCCC', 'aligned_mseq': 'CCCC', 'aligned_seq_len': 4, 'allN': 0, 'alignN': 0, 'allM': 1, 'alignM': 0, 'allN_or_M': 1, 'alignN_or_M': 0, 'p_value1': 1.0, 'p_value2': 1.0, 'p_value3': 1.0, 'p_value4': 1.0, 'observed_proportion': 0.0, 'expected_proportion1': 0.16666666666666666, 'expected_proportion2': 0.5, 'expected_proportion3': 0.5, 'expected_proportion4': 0.0, 'what_tested': 'M'}}, 'what_tested': 'M', 'outgroup': None, 'creation_time': '2019-11-17T23:46:00.098151'}
+        inputdict2 = {'fconst':{},'variant_positions': [0, 1, 2, 3], 'invalid_guids': [], 'valid_guids': ['AAACGY-1', 'CCCCGY-2'], 'expected_p1': 0.16666666666666666, 'sample_size': 30, 'df_dict': {'AAACGY-1': {'aligned_seq': 'AAAM', 'aligned_mseq': 'AAAR', 'aligned_seq_len': 4, 'allN': 0, 'alignN': 0, 'allM': 1, 'alignM': 1, 'allN_or_M': 1, 'alignN_or_M': 0, 'p_value1': 1.0, 'p_value2': 1.0, 'p_value3': 1.0, 'p_value4': 1.0, 'observed_proportion': 0.0, 'expected_proportion1': 0.16666666666666666, 'expected_proportion2': 0.5, 'expected_proportion3': 0.5, 'expected_proportion4': 0.0, 'what_tested': 'M'}, 'CCCCGY-2': {'aligned_seq':'CCCC', 'aligned_mseq': 'CCCC', 'aligned_seq_len': 4, 'allN': 0, 'alignN': 0, 'allM': 1, 'alignM': 0, 'allN_or_M': 1, 'alignN_or_M': 0, 'p_value1': 1.0, 'p_value2': 1.0, 'p_value3': 1.0, 'p_value4': 1.0, 'observed_proportion': 0.0, 'expected_proportion1': 0.16666666666666666, 'expected_proportion2': 0.5, 'expected_proportion3': 0.5, 'expected_proportion4': 0.0, 'what_tested': 'M'}}, 'what_tested': 'M', 'outgroup': None, 'creation_time': '2019-11-17T23:46:00.098151'}
 
         m1 = MSAResult(**inputdict1)
         m2 = MSAResult(**inputdict2)

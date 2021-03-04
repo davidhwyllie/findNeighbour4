@@ -55,7 +55,7 @@ class CatWalk():
         bind_port
 
         identity_token: a string identifying the process.  If not provided, a guid is generated
-        unittesting: if True, will shut down and restart (empty) any catwalk on creation
+        unittesting: if True, will shut down and restart (empty) any catwalk on bind_port on creation
         """
        
         no_catwalk_exe_message = """
@@ -90,14 +90,14 @@ in either
         self.mask_filepath = mask_filepath
         self.max_distance = max_distance
         self.reference_name = reference_name
-        self.instance_stem = "CatWalk-SNV-{0}-PORT-{1}".format(self.max_distance, self.bind_port)
+        self.instance_stem = "CatWalk-PORT-{0}".format(self.bind_port)
         if identity_token is None:
             identity_token = str(uuid.uuid1())
-        self.instance_name = "{0}-{1}".format(self.instance_stem, identity_token)
+        self.instance_name = "{0}-SNV-{1}-{2}".format(self.instance_stem, self.max_distance, identity_token)
 
         # start up if not running
         if unittesting and self.server_is_running():
-            self.stop_all()     # removes any data from server  and any other running cws
+            self.stop()     # removes any data from server  and any other running cws
 
         if not self.server_is_running():
             self.start()
@@ -139,8 +139,13 @@ in either
         """ stops the catwalk server launched by this process, if running.  The process is identified by a uuid, so only one catwalk server will be shut down. """
         for proc in psutil.process_iter():
             if 'cw_server' in proc.name():
-                if self.instance_name in proc.cmdline():
-                    proc.kill()
+                cmdline_parts = proc.cmdline()
+                for i,cmdline_part in enumerate(proc.cmdline()):
+                    if cmdline_part == '--instance_name':
+                        if cmdline_parts[i+1].startswith(self.instance_stem):
+                            proc.kill()
+        if self.server_is_running():
+            warnings.warn("Attempt to shutdown a catwalk process with name cw_server and --instance_name beginning with {0} failed.  It may be that another process (with a different instance name) is running on port {1}.  Review running processes (ps x) and kill residual processes on this port  manually if appropriate".format(self.instance_stem, self.bind_port))
     def stop_all(self):
         """ stops all catwalk servers """
         nKilled = 0
@@ -149,7 +154,7 @@ in either
                     proc.kill()
                     nKilled +=1
         if nKilled > 0:
-            warnings.warn("Catwalk client.stop_all() executed.  {0} processes killed.  Beware, this will kill all catwalk processes on the server, not any specific one".format(nKilled))
+            warnings.warn("Catwalk client.stop_all() executed. Kill instruction issues on {0} processes.  Beware, this will kill all cw_server processes on the server, not any specific one".format(nKilled))
     def info(self):
         """
         Get status information from catwalk
@@ -215,7 +220,7 @@ class test_cw(unittest.TestCase):
 
 
         # stop the server if it is running
-        self.cw.stop_all()
+        self.cw.stop()
         self.assertFalse(self.cw.server_is_running())
 
         self.cw.start()
