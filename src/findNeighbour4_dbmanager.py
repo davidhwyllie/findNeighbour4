@@ -39,15 +39,6 @@ from mongoStore import fn3persistence
 # only used for unit testing
 import unittest
             
-def repack(guids):
-    """ generates a smaller and faster representation in the persistence store
-    for the guids in the list. optional"""
-    if guids is None:
-        guids = PERSIST.guids()  # all the guids
-    for this_guid in guids:
-        logger.debug("Repacking {0}".format(this_guid))
-        PERSIST.guid2neighbour_repack(this_guid)
-        
 
 # startup
 if __name__ == '__main__':
@@ -171,38 +162,35 @@ if __name__ == '__main__':
         date_last_log_rotated =  datetime.datetime.now()-datetime.timedelta(hours=25)           # force log rotation on startup   
         while True:
              if datetime.datetime.now() > date_last_log_rotated+datetime.timedelta(hours=24):
-                     print(datetime.datetime.now() , date_last_log_rotated+datetime.timedelta(hours=24))
-                     date_last_log_rotated =datetime.datetime.now()
-                     logging.info("Rotated mongodb log")
-                     PERSIST.rotate_log()
+                     #date_last_log_rotated =datetime.datetime.now()
+                     #logging.info("Rotated mongodb log; deleting old server monitor entries")
+                     #PERSIST.rotate_log()
+                     #PERSIST.delete_server_monitoring_entries(before_seconds= (3600 * 24 * 7))        # 7 days
+                     pass
 
-             nModified = 0
-             print("Removing old server monitor entries.. ")
-             PERSIST.delete_server_monitoring_entries(before_seconds= (3600 * 24 * 7))        # 7 days
-             
              to_update = set()
+             nModified = 0
              # does this guid have any singleton guid2neighbour records which need compressing
-             print("Gathering guids for update .. ")
-             for res in PERSIST.db.guid2neighbour.find({'rstat':'s'}):                   
-                 to_update.add(res['guid'])
-                 if len(to_update)>max_batch_size:
-                     break
+             logging.info("Quantifying compressable records.")            
+             to_update =PERSIST.singletons(max_records= 500000)
 
-             to_update = list(to_update)
-             random.shuffle(to_update)
+             logging.info("There remain at least {0} records to compress".format(len(to_update)))
              for guid in to_update:
-                     logger.info("Repacking {0}".format(guid))
-                     repack([guid])
-                     nModified += 1
+                logger.info("Repacking {0}".format(guid))
+                PERSIST.guid2neighbour_repack(guid)
+                nModified += 1
+                if nModified > max_batch_size:
+                        break
 
-                     # log database size
-                     db_summary = PERSIST.summarise_stored_items()
-                     PERSIST.server_monitoring_store(what='dbManager', message="Repack one", guid=guid, content=db_summary)
+             # log database size
+             db_summary = PERSIST.summarise_stored_items()
+             PERSIST.server_monitoring_store(what='dbManager', message="Repack one", guid=guid, content=db_summary)
 
              if nModified == 0:
-                     # everything has been packed
-                     logger.info("Nothing found to repack.  Waiting 60s .. ")
-                     time.sleep(60) # recheck in 1 minute
+                # everything has been packed
+                logger.info("Nothing found to repack.  Waiting 5 mins .. ")
+                time.sleep(300)    # recheck in 1 min
+             # otherwise go get some more to compress
          
 
 
