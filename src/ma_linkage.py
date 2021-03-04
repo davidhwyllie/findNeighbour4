@@ -50,7 +50,7 @@ class MockPersistence():
         self._guid2neighbours={}
         self.store = {}
         self.g = nk.generators.ClusteredRandomGraphGenerator(n_guids, int(n_guids/2), 1, 0).generate()
-        for x in self.g.nodes():
+        for x in self.g.iterNodes():
             new_guid = str(uuid.uuid4())
             self.node2name[x] = new_guid
             self.name2node[new_guid] = x
@@ -65,7 +65,7 @@ class MockPersistence():
                 self.node2clusterid[node] = clusterid
 
         # build a dictionary containing edges (SNV distances) in format 1
-        for (x,y) in self.g.edges():
+        for (x,y) in self.g.iterEdges():
             guid1 = self.node2name[x]
             guid2 = self.node2name[y]
             snv = random.sample(range(7),1)[0]     # distances drawn randomly from 0-6
@@ -641,7 +641,7 @@ a guid to metadata lookup (including mixture and if appropriate clustering data)
         """
 
         edges = []
-        for (u,v) in self.g.edges():
+        for (u,v) in self.g.iterEdges():
             edges.append([u,v])
 
         # write it back to file
@@ -754,7 +754,7 @@ a guid to metadata lookup (including mixture and if appropriate clustering data)
         self.g = nk.graph.Graph(weighted=False, directed=False, n=len(node_order))    # empty graph with the correct number of nodes
 
         # map new node numbers (if different) to old node numbers
-        old2new = dict(zip(node_order, [x for x in self.g.nodes()]))
+        old2new = dict(zip(node_order, [x for x in self.g.iterNodes()]))
 
         # add edges
         for [u,v] in sdict['_edges']:
@@ -1109,7 +1109,7 @@ a guid to metadata lookup (including mixture and if appropriate clustering data)
         
         # return a dictionary
         retVal = {}
-        for (node_id, node_centrality) in zip(self.g.nodes(), centrality):
+        for (node_id, node_centrality) in zip(self.g.iterNodes(), centrality):
 
             Z= (node_centrality-med)/mad
             retVal[self._node2name[node_id]] = {'node_id':node_id, 
@@ -1205,7 +1205,7 @@ a guid to metadata lookup (including mixture and if appropriate clustering data)
         edges_to_remove = set()
         for guid in to_remove:
             node_id = self._name2node[guid]
-            for neighbour in self.g.neighbors(node_id):
+            for neighbour in self.g.iterNeighbors(node_id):
                 edges_to_remove.add(frozenset([node_id,neighbour]))
        
         for (u,v) in edges_to_remove:
@@ -1253,7 +1253,7 @@ a guid to metadata lookup (including mixture and if appropriate clustering data)
                         else:
                             rewire_edges = True
                             to_add.add(frozenset([node2min_element_in_cluster[node_id],node_id]))
-                            for neighbour in self.g.neighbors(node_id):
+                            for neighbour in self.g.iterNeighbors(node_id):
                                 to_remove.add(frozenset([node_id,neighbour]))
        
         for (u,v) in to_remove:
@@ -1607,7 +1607,7 @@ class Test_MAL_11(unittest.TestCase):
         self.assertEqual(m.g.numberOfEdges(), p.g.numberOfEdges())
 
         # check edges are all inplace
-        for u,v in m.g.edges():
+        for u,v in m.g.iterEdges():
             gu = m._node2name[u]
             gv = m._node2name[v]
         
@@ -1647,7 +1647,7 @@ class Test_MAL_12(unittest.TestCase):
         self.assertEqual(m2.g.numberOfEdges(), p.g.numberOfEdges())
 
         # check edges are all inplace
-        for u,v in m2.g.edges():
+        for u,v in m2.g.iterEdges():
             gu = m2._node2name[u]
             gv = m2._node2name[v]
         
