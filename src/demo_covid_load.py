@@ -20,7 +20,7 @@ if __name__ == '__main__':
     fastafile = os.path.join(fastadir, 'naive_msa.fasta')
 
     # instantiate client
-    fn4c = fn4Client("http://localhost:5025")      # expects operation on local host; pass baseurl if somewhere else.
+    fn4c = fn4Client("http://localhost:5023")      # expects operation on local host; pass baseurl if somewhere else.
 
 
     # add the reference sequence as the root
@@ -69,8 +69,8 @@ if __name__ == '__main__':
             nSkipped +=1
         if i % 5000 == 0:
             print("Examined ",i)   
-        if i > 5:
-            break       
+        #if i > 5:
+        #    break       
     print("Complete.  Skipped {0} guids which already exist in the server.  There are {1} bad sequences".format(nSkipped, nBad))
 
     print("Failed samples are:")

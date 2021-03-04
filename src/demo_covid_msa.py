@@ -1,8 +1,10 @@
-""" illustrates use of findNeighbour4 with covid samples
+""" illustrates use of findNeighbour4 with covid samples,
+in particular the generation of multisequence alignments
 assumes a findNeighbour4 server is running
 """
 
 if __name__ == '__main__':
+
     import os
     import glob
     import datetime
@@ -19,25 +21,24 @@ if __name__ == '__main__':
     fn4c = fn4Client("http://findneighbours04.unix.phe.gov.uk:5023")      # expects operation on local host; pass baseurl if somewhere else.
 
     existing_guids = set(fn4c.guids())
-    print("There are {0} existing guids".format(len(existing_guids)))
+    runtime = datetime.datetime.now().isoformat()
+    print("Analysis run at {1}; there are {0} existing guids".format(len(existing_guids), runtime))
 
+    # LOAD THE LIST OF SAMPLES YOU WANT AN MSA FROM HERE
     my_special_samples = set(['ALDP-12ABA31','ALDP-12AA63E'])           # pretend these are the samples of interest
 
+    print("Analysing {0} samples, obtaining neighbourhood, and constructing msa.".format(len(my_special_samples)))
     missing_special_samples = my_special_samples - existing_guids
     if not len(missing_special_samples) == 0:
-        print("Not all of my special samples are present; missing are: {0}".format(missing_special_samples))
+        warning("Not all of my special samples are present in the server; missing are: {0}".format(missing_special_samples))
 
     # get the neighbours of my_special_samples
     for_msa = my_special_samples.copy()
 
     for my_special_sample in my_special_samples:
         res = fn4c.guid2neighbours(my_special_sample, threshold = 1)        # find neighbours within 1 SNV
-        for related_sample, distance in res:
+        for related_sample, distance in res['neighbours']:
                 for_msa.add(related_sample)
-
-    # OTPIONAL : if you want an outgroup / ancestor to root your tree with, there is a special sample called --Wuhan-Reference--
-    outgroup_name = '--Wuhan-Reference--'
-    for_msa.add(outgroup_name)
 
     # build an MSA
     # various other kinds of output are possible including
@@ -49,6 +50,13 @@ if __name__ == '__main__':
         
     # note that the for_msa call can return
     print("Building MSA with {0} sequences.".format(len(for_msa)))
+    msa_json= fn4c.msa(for_msa, output_format='json', what='N_or_M') 
+    print(msa_json)
+    msa_dict = json.loads(msa_json)
+
+    print(msa_dict.keys())
+
+    exit()
 
     # to just get the MSA
     msa_df = fn4c.msa(for_msa, output_format='json-records', what='N_or_M') 
