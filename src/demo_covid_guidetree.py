@@ -47,7 +47,7 @@ if __name__ == '__main__':
         # to just get the MSA
         msa_df = fn4c.msa(for_msa, output_format='json-records', what='N_or_M')
         msa_df.set_index('guid', inplace=True, drop=True) 
-        mixpore_test_p = msa_df.at[sample, 'p_value2']
+        mixpore_test_p = msa_df.at[sample, 'p_value3']
         return {'mixpore_test_p': mixpore_test_p, 'neighbours':neighbours}
 
 
@@ -55,7 +55,7 @@ if __name__ == '__main__':
     # instantiate client
     fn4c = fn4Client("http://findneighbours04.unix.phe.gov.uk:5023")      # expects operation on local host; pass baseurl if somewhere else.
 
-    snp_cutoff = 3                                 # how many snp from a sample should we include neighbours
+    snp_cutoff = 2                                 # how many snp from a sample should we include neighbours
     sample_quality_cutoff = 0.9                    # only build tree from samples with >= 90% ACTG
 
     print("Loading all samples & annotations.")
@@ -104,7 +104,7 @@ if __name__ == '__main__':
             # include it
             representative_subsample.add(test_sample)
 
-        elif test_sample_neighbour_info['mixpore_test_p'] > 0.05:         # not obviously mixed
+        elif test_sample_neighbour_info['mixpore_test_p'] > 1e-5:         # not obviously mixed
             representative_subsample.add(test_sample)
             representative_size[test_sample] = len(test_sample_neighbours)
 

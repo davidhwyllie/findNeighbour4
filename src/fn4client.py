@@ -259,9 +259,10 @@ class fn4Client():
         guidstring = ';'.join(guids)
         payload = {'guids':guidstring,'output_format':output_format, 'what':what}
         res = self.post('/api/v2/multiple_alignment/guids', payload = payload, timeout= timeout)
-        if output_format in ['json-records','json']:
-            retList = self._decode(res)
-            return pd.DataFrame.from_records(retList)          
+        if output_format in ['json']:
+            return res.json()
+        elif output_format in ['json-records']:
+            return pd.DataFrame.from_records(res.json())          
         else:            
             return res.content
         

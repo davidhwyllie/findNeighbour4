@@ -1641,11 +1641,6 @@ if __name__ == '__main__':
         return make_response(tojson(retVal))
 
 
-            
-            
-
-
-
     @app.route('/api/v2/<string:guid>/neighbours_within/<int:threshold>', methods=['GET'])
     @app.route('/api/v2/<string:guid>/neighbours_within/<int:threshold>/with_quality_cutoff/<float:cutoff>', methods=['GET'])
     @app.route('/api/v2/<string:guid>/neighbours_within/<int:threshold>/with_quality_cutoff/<int:cutoff>', methods=['GET'])
@@ -1657,9 +1652,9 @@ if __name__ == '__main__':
 
         # we support optional cutoff and threshold parameters.
         # we also support 'method' and 'reference' parameters but these are ignored.
-        # the default for cutoff and format are 0.85 and 1, respectively.
+        # the default for cutoff and format are 0 and 1, respectively.
         if not 'cutoff' in kwargs.keys():
-            cutoff = 0                      #   CONFIG['MAXN_PROP_DEFAULT']
+            cutoff = 0                      #   if it's not specified, then we use zero (no cutoff)  fix issue #25 CONFIG['MAXN_PROP_DEFAULT']
         else:
             cutoff = kwargs['cutoff']
             
