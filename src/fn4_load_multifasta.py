@@ -1,5 +1,5 @@
-""" loads COVID-19 samples into a findNeighbour4 server
-from a fasta file (e.g. the COVID-19 alignment produced by COG-UK)
+""" loads samples into a findNeighbour4 server
+from a muliti-fasta file (e.g. the COVID-19 alignment produced by COG-UK)
 
 assumes a findNeighbour4 server is running
 
@@ -8,11 +8,11 @@ Paths expected are currently hard-coded
 Example usage: 
 ============== 
 # show command line options 
-python updating_covid_load.py --help  
+python fn4_load.py --help  
 
-python3 updating_covid_load.py [server_url] [directory to look for fastas in] [filename to glob within directory]
+python3 fn4_load_multifasta.py [server_url] [directory to look for fastas in] [filename to glob within directory]
 # example usage
-pipenv run python3 updating_covid_load.py http://localhost:5023 /srv/data/covid COVID_MSA*.fasta
+pipenv run python3 fn4_load_multifasta.py http://localhost:5023 /srv/data/covid COVID_MSA*.fasta
 
 
 """
@@ -74,10 +74,10 @@ python updating_covid_load.py "http://localhost:5023"
         os.makedirs(testdir, exist_ok = True)
 
     # launch logger
-    logger = logging.Logger('updating_covid_load')
+    logger = logging.Logger('fn4_load_multifasta')
     logger.setLevel(logging.INFO)
     timenow = datetime.datetime.now().isoformat()
-    logfile = os.path.join(logdir, "updating_covid_load.log")
+    logfile = os.path.join(logdir, "fn4_load_multifasta.log")
     file_handler = logging.handlers.RotatingFileHandler(logfile, mode = 'a', maxBytes = 1e7, backupCount = 7)
     formatter = logging.Formatter( "%(asctime)s | %(pathname)s:%(lineno)d | %(funcName)s | %(levelname)s | %(message)s ")
     file_handler.setFormatter(formatter)
@@ -97,22 +97,22 @@ python updating_covid_load.py "http://localhost:5023"
 
     existing_guids = set(fn4c.guids())
     clustering_created = False
-    logging.info("There are {0} existing guids".format(len(existing_guids)))
+    logger.info("There are {0} existing guids".format(len(existing_guids)))
 
     # add the reference sequence as the root if not already present
     ref_guid = '--Wuhan-Reference--'
     ref_guid_present = fn4c.guid_exists(ref_guid)
     if not ref_guid_present:
-        logging.info("Adding reference")
+        logger.info("Adding reference")
         for record in Bio.SeqIO.parse("../reference/nc_045512.fasta", 'fasta'):
 
             seq = str(record.seq).upper()
             res = fn4c.insert(guid=ref_guid,seq=seq)
     else:
-        logging.info("Reference already present")
+        logger.info("Reference already present")
 
     for fastafile in glob.glob(os.path.join(args.fastadir, args.fileglob)):
-        logging.info("Scanning {0}".format(fastafile))
+        logger.info("Scanning {0}".format(fastafile))
 
         nSkipped = 0
         nBad = 0
@@ -146,7 +146,7 @@ python updating_covid_load.py "http://localhost:5023"
                 t2 = datetime.datetime.now()
                 i1 = t2-t1
                 s = i1.total_seconds()
-                logging.info("Scanned {0} Added {1} Sample: {2} {3} in {4} secs.  Composition: {5}".format(i, nGood, guid, msg, s, counter))
+                logger.info("Scanned {0} Added {1} Sample: {2} {3} in {4} secs.  Composition: {5}".format(i, nGood, guid, msg, s, counter))
                 
             else:
                 nSkipped +=1
@@ -154,10 +154,15 @@ python updating_covid_load.py "http://localhost:5023"
             if i % 1000 == 0:
                 logger.info("Examined {0} / skipped {1}".format(i,nSkipped))   
      
-        logging.info("Complete.  Skipped {0} guids which already exist in the server.  There are {1} bad sequences".format(nSkipped, nBad))
+        logger.info("Complete.  Skipped {0} guids which already exist in the server.  There are {1} bad sequences".format(nSkipped, nBad))
 
-        logging.info("Failed samples are: {0}".format(failed))
-        
         if len(failed)>0:
             # do not move the file
-            pass
+            logger.warning("findneighbour_load | not all fasta files could be uploaded; {0} failed".format(len(failed)))
+            logger.info("Failed samples are: {0}".format(failed))
+        else:
+            logger.info("Sample load succeeded.  Moving fasta file to /completed directory")
+            shutil.move(fastafile, completedir)
+        
+        # finished
+        logging.info('Finished, terminating program.')

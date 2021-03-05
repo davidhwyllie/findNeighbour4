@@ -621,11 +621,12 @@ class findNeighbour4():
         # run a quality check on the things our sample is like.
 
         # extract the quality guids, independent of the format requested.
+        sampleList=retVal['neighbours']
+        
         if cutoff == 0 or cutoff is None:
-            return retVal
+            return sampleList
 
         # otherwise, filter by quality
-        sampleList=retVal['neighbours']
         idList=[]
         for sa in sampleList:
             if isinstance(sa, list):
