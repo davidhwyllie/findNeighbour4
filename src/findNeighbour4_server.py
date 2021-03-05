@@ -1653,12 +1653,13 @@ if __name__ == '__main__':
     @app.route('/api/v2/<string:guid>/neighbours_within/<int:threshold>/with_quality_cutoff/<int:cutoff>/in_format/<int:returned_format>', methods=['GET'])
     @app.route('/api/v2/<string:guid>/neighbours_within/<int:threshold>/in_format/<int:returned_format>', methods=['GET'])
     def neighbours_within(guid, threshold, **kwargs):
-        """ get a guid's neighbours, within a threshold """
+        """ get a guid's neighbours, within a SNP threshold """
+
         # we support optional cutoff and threshold parameters.
         # we also support 'method' and 'reference' parameters but these are ignored.
         # the default for cutoff and format are 0.85 and 1, respectively.
         if not 'cutoff' in kwargs.keys():
-            cutoff = CONFIG['MAXN_PROP_DEFAULT']
+            cutoff = 0                      #   CONFIG['MAXN_PROP_DEFAULT']
         else:
             cutoff = kwargs['cutoff']
             
