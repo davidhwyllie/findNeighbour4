@@ -2,19 +2,21 @@ Mixture testing
 ================
 
 The server can test whether particular sequences are likely to contain mixed base calls,
-by computing the number of Ns in the variant bases in a collection of similar sequences,
+by computing the number of Ns, Ms (a term used to include all IUPAC mixed base designations), or both
+in the variant bases in a collection of similar sequences,
 relative to various null hypotheses.  Four hypotheses are tested by default; it is up to the user
 to choose which is an appropriate test for their data set.
 
-All the p values reported are derived from exact, one-sided binomial tests as implemented in python's scipy.stats.binom_test().
+All the *p* values reported are derived from exact, one-sided binomial tests as implemented in python's scipy.stats.binom_test().
 
 For *Mycobacterium tuberculosis* as mapped by our pipeline, testing using test1, 2 or 3 gives very similar answers.   Test 1 is recommended (i.e. using p_value1 as the mixture criterion).  
 For *Salmonella enterica* as mapped by our pipeline, testing using test4 may be appropriate when applied to clusters,
 because the proportion of Ns in the multisequence alignment of different SNV-based clusters differs markedly, presumably because
 some sequences match the reference better than others.
 
+The clustering algorithms which are SNP based can use estimates of whether the sequence is mixed.  
 Which test is used has to be prespecified when the clustering algorithm is defined.  If you wish to compare the results of (say) 50 SNV clustering with
-different p-value criteria, you can define multiple clustering algorithms using different criteria and compare them in parallel on the same dataset.  
+different p-value criteria, you can define multiple clustering algorithms using different criteria and compare them in parallel on the same trial dataset.  
 
 The cutoff value also needs careful choice.  Bear in mind that a test is applied to each sequence in a cluster.
 Thus, if there are 100k samples, up to 100k tests will be performed.  At present, no FDR adjustment is performed, although we could implement this.  
@@ -52,8 +54,8 @@ is GREATER than those expected from the expected_N in the population of whole se
 This might be relevant if these particular bases are generally hard to call.
 
 Does so by comparing the observed number of Ns in the alignment (alignN),
-given the alignment length (4 in the above case) and an expectation of the proportion of bases which will be N.
-The expected number of Ns is estimated by randomly sampling sample_size guids from those stored in the server and
+given the alignment length  and an expectation of the proportion of bases which will be N.
+The expected number of Ns is estimated by randomly sampling *sample_size* (a configurable parameter) samples from those stored in the server and
 observing the number of Ns per base at the relevant sites.  The estimate_expected_N_sites() function performs this.
 
 This approach determines the median number of Ns in valid sequences, which (if bad samples with large Ns are rare)

@@ -21,18 +21,5 @@ Since mongodb works best if indices are kept in RAM, the in-ram index size will 
 This conversion can occur:  
 * never.  For small numbers of samples, this is OK.  
 * immediately after insertion.  This will slow up insertion, but keep the mongodb as small as possible.  
-* at some point after insertion when the server is idle.  This is the recommended option - repacking after insert is disabled, and a separate process does repacking in the background.  The software doing this is ```findNeighbour3-dbmanager.py```.  See [here](../doc/HowToTest.md) for more details.
+* at some point after insertion when the server is idle.  This is the recommended option - repacking after insert is disabled, and a separate process does repacking in the background.  The software doing this is ```findNeighbour4-dbmanager.py```.  See [here](../doc/HowToTest.md) for more details.
 
-### REPACK_FREQ
-This behaviour is controlled by the REPACK_FREQ setting in the server config file.
-
-If REPACK_FREQ=0, there will be one document for every non-empty matrix cell.  This is the recommended setting 
-* where mongodb storage size is not limiting 
-* for real-world applications where the samples come in batches, and new sample insertion into the server has to be as fast as possible
-* when the findNeighbour3_dbmanager application is running in the background
-
-if REPACK_FREQ>0, then if a guid has REPACK_FREQ-1 neighbours, then a 'repack' operation occurs.
-For example, if REPACK_FREQ=1, a repack occurs after every insert.
-This minimises mongodb size but increases the time needed for insertion.
-
-Repacking doesn't alter the results obtained at all.

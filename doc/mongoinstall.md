@@ -1,16 +1,11 @@
 # Installing mongodb
-We have tested this application with Mongo 3.6.1 (Windows, and MongoDb atlas), and Mongo 4 (linux, windows).
-It does not work with 2.6.  
+We have tested this application with  Mongo 4.02 and 4.4 (linux, and using Mongo Atlas, a cloud installation).
 
 ## Remote server
-If you are using a remote mongodb server, you do not need to install mongodb locally.  We have tested findNeighbour3 with [MongoDB Atlas](https://www.mongodb.com/cloud/atlas).
-
-## Windows
-MSI installers are [available](https://www.mongodb.com/download-center).
-The server can be started/stopped using the Services application, available via the Control Panel.
+If you are using a remote mongodb server, you do not need to install mongodb locally.  We have tested findNeighbour4 with [MongoDB Atlas](https://www.mongodb.com/cloud/atlas).
 
 ## Linux
-Please read the [documentation](https://docs.mongodb.com/manual/tutorial/install-mongodb-on-ubuntu/).
+Please carefully read the [documentation](https://docs.mongodb.com/manual/tutorial/install-mongodb-on-ubuntu/).
 The below installs MongoDB 4 on Ubuntu 16.04 LTS:
 ```
 sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 9DA31620334BD75D9DCB49F368818C72E52529D4
@@ -32,4 +27,6 @@ sudo systemctl restart mongod
 ```  
 
 If a sharded cluster is considered necessary, please see [here](mongosharding.md).
+Note that the default installation is accessible without authentication to everyone with access to the machine,   
+but the mongo server has to be explicitly bound to an external IP for it to be accessible outside the machine it is running on.
 

@@ -11,7 +11,6 @@ Search/describe sequences in the server
 [/api/v2/valid_guids](/api/v2/valid_guids)  list all guids (sequence identifiers) corresponding to valid sequences in the server.  Validity is computed on insertion, depending on whether the number of Ns or Ms exceed a cutoff provided in the configuration file.   
 [/api/v2/invalid_guids](/api/v2/valid_guids)  list all guids (sequence identifiers) corresponding to invalid sequences in the server.  Validity is computed on insertion, depending on whether the number of Ns or Ms exceed a cutoff provided in the configuration file.
 
-
 **/api/v2/guids_beginning_with/*startstr* **  list all guids starting with *startstr*.  Very fast algorithm, suitable for on-keypress prediction of matching guids.  Only up to 30 results are returned.  If more than 30 records match, an empty list is returned.  
 **/api/v2/guids_with_quality_over/*cutoff* ** list all guids with quality (proportion of Ns in the sequence) over *cutoff*    
 [/api/v2/guids_and_examination_times](/api/v2/guids_and_examination_times) list all guids and their examination (i.e. insertion) time   
@@ -26,16 +25,15 @@ Describe properties/neighbours of a single sequence, identified by a guid
 		     1    The guid exists and the sequence is invalid  
 		    -2    The guid exists, but there is no DNAQuality.valid key    
 
-**/api/v2/*guid*/annotation**  return metadata for the guid  
-**/api/v2/*guid*/neighbours_within/*threshold* ** specifies threshold, uses default quality cutoff and output format.   Formats 1,2,3,4 are options.  See docs for details.    
+**/api/v2/*guid*/annotation**  return metadata for the guid.   
+**/api/v2/*guid*/neighbours_within/*threshold* ** specifies threshold.  Default output format (1) is used.  Quality threshold (proportion of A,C,T, or G) used is zero, so all samples irrespective of % Ns will be returned.      
 **/api/v2/*guid*/neighbours_within/*threshold*/with_quality_cutoff/*cutoff* ** specify quality cutoff; uses default output format   
-**/api/v2/*guid*/neighbours_within/*threshold*/in_format/*returned_format* **  specify quality cutoff and output format.  
+**/api/v2/*guid*/neighbours_within/*threshold*/in_format/*returned_format* **  specify quality cutoff and output format.  Formats 1,3,4 are options.  See docs for details. 
 **/api/v2/*guid*/clusters**  return clusters containing this guid
 
 Describe distance between a pair of sequences, identified by guids
 -------------------------------------------------------------------------
 **/api/v2/*guid1*/*guid2*/exact_distance**  returns exact distance between two guids
-
 
 Recover masked sequences
 ------------------------
