@@ -15,6 +15,7 @@ import pickle
 import psutil
 import copy
 import io
+import statistics
 import numpy as np
 
 # used for unit testing only
@@ -76,7 +77,7 @@ class fn3persistence():
                      dbname = 'fn3_unittesting',
                      debug=0,
                      config_settings={},
-                     max_neighbours_per_document=5000,
+                     max_neighbours_per_document=100000,
                      server_monitoring_min_interval_msec=0):
             """ Creates a connection to a MongoDb database.
             
@@ -826,8 +827,108 @@ class fn3persistence():
                     if not res.acknowledged is True :
                        raise IOError("Mongo {0} did not acknowledge write of data: {1}".format(self.db, metadataObj))
 
-       
-        def guid2neighbour_repack(self,guid):
+        def _audit_storage(self,guid):
+                """ returns a pandas data frame containing all neighbours of guid, as stored in mongo, as well as 
+                a summary of storage statistics and a list of _ids which could be optimised
+
+                Parameters:
+                guid : the identifier of a sample to repack
+                
+                Returns:
+                A tuple containing three elements:
+                to_optimise: a set of mongodb record _ids which are either single, not full (m) or contain duplicate guids and so could be optimised
+                content_df: a dataframe containing all record _ids, the neighbouring guid, and the snp distance.
+                audit_stats: a dictionary containing the following:
+                    singletons: number of singleton records
+                    m_records:  number of records which are not completely full
+                    f_records:  number of full records 
+                    f_records_with_duplicates: number of full records containing the same guid twice
+                    neighbouring_guids: the number of neighbouring guids 
+                    neighbouring_guids_recordings: number of times a neighbouring guid is recorded.  Maybe larger than neighbouring_guids.
+
+                Designed for internal use
+                """                
+                
+
+                # audit the storage of neighbours
+                # read all occurrences of each neighbour and its distances into a pandas dataframe
+                # note that its is OK for a neighbour to be present more than once
+                bytes_per_record = {'s':[],'m':[],'f':[]}
+                contents = []
+                for res in self.db.guid2neighbour.find({'guid':guid}):
+                    bytes_per_record[res['rstat']].append(len(str(res)))
+                    location = res.copy()
+                    del(location['neighbours'])
+                   
+                    for neighbouring_guid in res['neighbours'].keys():
+                        storage_element = location.copy()
+                        storage_element['guid'] = neighbouring_guid
+                        storage_element['dist']=res['neighbours'][neighbouring_guid]['dist']
+                        contents.append(storage_element)
+                
+                content_df = pd.DataFrame.from_records(contents)
+                
+                # diagnostics - how many neighbours per document
+                neighbours_per_document = content_df.groupby(['_id', 'rstat']).size().reset_index(name='counts')
+
+                max_pr = neighbours_per_document.groupby(['rstat'])['counts'].max().reset_index(name='max_neighbours_per_record')
+                mean_pr = neighbours_per_document.groupby(['rstat'])['counts'].mean().reset_index(name='mean_neighbours_per_record')
+                report_loading = {}
+                for ix in max_pr.index:
+                    report_loading[max_pr.at[ix,'rstat']+'_max_neighbours_per_record'] = max_pr.at[ix,'max_neighbours_per_record']
+
+                for ix in mean_pr.index:
+                    report_loading[mean_pr.at[ix,'rstat']+'_mean_neighbours_per_record'] =mean_pr.at[ix,'mean_neighbours_per_record']
+                
+                # compute things to optimise.  These are 
+                # records containing duplicate guids
+                duplicates = content_df.groupby(['guid']).size().reset_index(name='counts')
+                n_guids = len(duplicates.index)
+                duplicates = duplicates[duplicates['counts']>1]
+                duplicate_guids = set(duplicates['guid'])
+                
+                # and any singletons
+                # and any ms
+                # plus any fs which have duplicates in them (these should be very rare, if ever occurring)
+                to_optimise = set()
+                n_s = 0
+                n_m = 0
+                n_duplicates = 0
+                n_duplicates_f = 0
+                n_f = 0
+                for ix in content_df.index:
+                    if content_df.at[ix,'rstat'] in ['s','m'] or content_df.at[ix,'guid'] in duplicate_guids:
+                        to_optimise.add(content_df.at[ix,'_id'])
+
+                    # this section purely to gather audit data
+                    if content_df.at[ix,'rstat'] == 's':
+                        n_s +=1
+                    if content_df.at[ix,'rstat'] == 'm':
+                        n_m +=1
+                    if content_df.at[ix,'guid'] in duplicate_guids:
+                        n_duplicates +=1
+                    if content_df.at[ix,'guid'] in duplicate_guids and content_df.at[ix,'rstat'] == 'f':
+                        n_duplicates_f +=1
+                    if not content_df.at[ix,'guid'] in duplicate_guids and content_df.at[ix,'rstat'] == 'f':
+                        n_f +=1
+                audit_stats = {
+                    'singletons':n_s,
+                    'stored_in_m_records':n_m, 
+                    'stored_in_f_records':n_f, 
+                    'f_records_with_duplicates':n_duplicates_f, 
+                    'neighbouring_guids':n_guids, 
+                    'neighbouring_guids_recordings':len(content_df),
+                }
+                audit_stats.update(report_loading)
+                for rstat in ['s','f','m']:
+                    if len(bytes_per_record[rstat])>0:
+                        audit_stats[rstat+'_mean_bytes_per_record']=statistics.mean(bytes_per_record[rstat])
+                        audit_stats[rstat+'_max_bytes_per_record']=max(bytes_per_record[rstat])
+                        audit_stats[rstat+'_records']=len(bytes_per_record[rstat])
+                      
+                return (to_optimise, content_df, audit_stats)
+
+        def guid2neighbour_repack(self,guid, always_optimise=False):
                 """ alters the mongodb representation of the links of guid.
 
                 This stores links in the guid2neighbour collection;
@@ -846,69 +947,73 @@ class fn3persistence():
                 This operation moves rstat='s' record's neighbours into rstat='m' type records.
                 It guarantees that no guid-guid links will be lost, but more than one record of the same link may exist
                 during processing.  This does not matter, because guid2neighbours() deduplicates.
+
+                Parameters:
+                guid : the identifier of a sample to repack
+                always_optimise: consider for optimisation even if there are no 's' (single item) records
                 """                
                 
-                # determine whether there are any rstat 's' entries for this guid.
-                # these include only one 'cell' of the distance matrix.
-                
-                s_ids=[]
-                s_ids = [res["_id"] for res in self.db.guid2neighbour.find({'guid':guid, 'rstat':'s'})]
+                if not always_optimise:
+                    # determine whether there are any rstat 's' entries for this guid.
+                    if self.db.guid2neighbour.count_documents({'guid':guid, 'rstat':'s'}) ==0:          # no singletons.  We won't bother optimising this.
+                            return None
 
-                if len(s_ids)==0:
-                        return 1
+                # get a summary of how the records are currently stored
+                #logging.info("Auditing")
+                to_optimise, content_df, audit_stats = self._audit_storage(guid)
 
-                # determine whether there are any rstat 'm' entries for this guid.
-                # these contain multiple cells on each row/column of the matrix.
-                m_ids = [x['_id'] for x in self.db.guid2neighbour.find({'guid':guid, 'rstat':'m'})]
-                                
-                # iterate over the s_ids
-                # setup
-                current_m_id= None
-                current_m = None
-                processed_s_ids = []
-                
-                # iterate; for each 's' type record
-                while len(s_ids)>0:
-                        # read the record with this s_id
-                        s_id = s_ids.pop()
-                        processed_s_ids.append(s_id)
-                        s = self.db.guid2neighbour.find_one({'_id':s_id})       # '_id':item
-                        if s is not None:
-                            # it is possible that another process has moved it into an m record already.                                         
-              
-                            # make sure we have a record to write into
-                            if len(m_ids)==0 and current_m is None:
-                                # create a record to write into
-                                to_insert = {'guid':guid, 'rstat':'m', 'neighbours': {}}
-                                current_m_id = self.db.guid2neighbour.insert_one(to_insert).inserted_id
-                                if current_m_id is None:
-                                        raise IOError("Failed to create a rstat m record")
-                                current_m = self.db.guid2neighbour.find_one({'_id':current_m_id})
-                
-                            elif len(m_ids)>0 and current_m is None:
-                                # we can use an existing record
-                                current_m_id = m_ids.pop()
-                                current_m = self.db.guid2neighbour.find_one({'_id':current_m_id})
-                                
-                            if current_m is None:
-                                raise IOError("could not read or create record of id {0}".format(current_m_id))
-           
-                            # add the new neighbours to the existing neighbours    
-                            for key in s['neighbours'].keys():
-                                 current_m['neighbours'][key] = s['neighbours'][key]
-                        
-                            # if we've reached the maximum size permitted or there are none left to process
-                            if len(current_m['neighbours'].keys()) >= self.max_neighbours_per_document or len(s_ids)==0:
-                                if len(current_m['neighbours'].keys()) >= self.max_neighbours_per_document:                        
-                                        current_m['rstat']= 'f'    # full
-                                res = self.db.guid2neighbour.replace_one({'_id':current_m_id}, current_m)
-                                if not res.acknowledged is True:
-                                        raise IOError("Mongo {0} did not acknowledge write of data: {1}".format(self.db, current_m)) 
+                # now we adopt a very simple strategy. 
+                # We assign all the to_optimise ids ('s' single records, and 'm' partially full records) for destruction, 
+                # and repartition all of their contents across new rows in the collection. 
+                # This prevents any updating: only insert and delete operations are used
+                #logging.info("analysing")
+                n_optimised = 0
+                current_m = None            # the record to store the records in
+                to_write = []
+                for ix in content_df.index:
+                    if content_df.at[ix,'_id'] in to_optimise:          # if this data element needs to be rewritten
+
+                        # if current_m, which contains the data we are preparing to write, is full, then we mark it as full, and
+                        # transfer it to to_write, an array containing things we need to write to disc.
+                        if current_m is not None:
+                            if len(current_m['neighbours'].keys()) >= self.max_neighbours_per_document:                        
+                                current_m['rstat']= 'f'    # full
+                                to_write.append(current_m)
                                 current_m = None
-                                current_m_id=None
+
+                        # if we don't have a current_m, which is a data structure containing what we're going to write to disc,
+                        # either because this is the first pass through the loop, or becuase our previous current_m was full (see above)
+                        # then we make one
+                        if current_m is None:
+                            current_m = {'guid':guid, 'rstat':'m', 'neighbours': {}}   # make one
+
+                        # add the element to current_m
+                        current_m['neighbours'][content_df.at[ix,'guid']] ={'dist':int(content_df.at[ix,'dist'])}       # int because stored as numpy.int64, which is not jsonable
+
+                # now we've covered all the elements to rewrite
+                # do we have a current m with data in it?
+                if current_m is not None:
+                    if len(current_m['neighbours'].keys())>0:
+                        # check if it's full
+                        if len(current_m['neighbours'].keys()) >= self.max_neighbours_per_document:                        
+                            current_m['rstat']= 'f'    # full
+                        # add to to_write
+                        to_write.append(current_m)
+
+                # write the documents which need writing
+                #logging.info("Inserting many")
+                self.db.guid2neighbour.insert_many(to_write, ordered=False)
+
                 # delete those processed single records
-                self.db.guid2neighbour.delete_many({'_id':{'$in':processed_s_ids}})
-                
+                #logging.info("Deleting many")
+                self.db.guid2neighbour.delete_many({'_id':{'$in':list(to_optimise)}})
+
+                # return a report of what we did
+                actions = dict(n_written = len(to_write), n_deleted = len(to_optimise))
+                report =  {'guid':guid, 'finished':datetime.datetime.now().isoformat(), 'pre_optimisation':audit_stats, 'actions_taken':actions}
+                #logging.info("complete")
+                return report
+
         def guid2neighbours(self, guid, cutoff =20, returned_format=2):
                 """ returns neighbours of guid with cutoff <=cutoff.
                     Returns links either as
@@ -1113,17 +1218,21 @@ class Test_SeqMeta_guid2neighbour_6(unittest.TestCase):
                 self.assertEqual(res, 1)
                 res = p.db.guid2neighbour.count_documents({'guid':'srcguid'})
                 self.assertEqual(res, 5)
-                
+                res = p.db.guid2neighbour.count_documents({'guid':'srcguid', 'rstat':'s'})
+                self.assertEqual(res, 5)                
                 p.guid2neighbour_repack(guid='srcguid')
-                
-                # should compress the two entries for 'srcguid' into two
+                                
+                # should compress the two entries for 'srcguid' into two, because max guids per sample is 3
                 res = p.db.guid2neighbour.count_documents({'guid':'guid1'})
                 self.assertEqual(res, 1)
                 res = p.db.guid2neighbour.count_documents({'guid':'srcguid'})
                 self.assertEqual(res, 3)
                 res = p.db.guid2neighbour.count_documents({'guid':'srcguid', 'rstat':'f'})
                 self.assertEqual(res, 2)
-                                
+                res = p.db.guid2neighbour.count_documents({'guid':'srcguid', 'rstat':'s'})
+                self.assertEqual(res, 0)                # test for issue #26 - S items were not deleted
+
+
                 # the src guid entry should contain two keys, 'guid1' and 'guid2' in its neighbours: section
                 results= p.db.guid2neighbour.find({'guid':'srcguid'})
                 observed = set()
