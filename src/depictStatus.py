@@ -79,7 +79,7 @@ class DepictServerStatus():
         self.monitoring_data['server_info']=pd.DataFrame(columns=['Description','Value'], data=data)
         self._create_cds('server_info')
     def __init__(self,
-                 logfile=None,
+                 logfiles=None,
                  server_url='Not specified',
                  server_port='Not specified',
                  server_description='Not specified',
@@ -97,7 +97,7 @@ class DepictServerStatus():
         nothing
         """
         
-        self.logfile = logfile
+        self.logfiles = logfiles
         self.server_url =server_url
         self.server_port =server_port
         self.server_description = server_description
@@ -109,24 +109,25 @@ class DepictServerStatus():
               
         self._set_server_info()
         
-    def logfile_tail(self, nlines = 100):
+    def logfile_tail(self, process, nlines = 100):
         """ returns the last nlines of a file logfile, if it exists
         
         input:
         nlines:    the number of lines to return.
+        process:    one of the keys of self.logfiles: currently one of server, dbmonitor, ..
         
         returns:
         the tail of the file, in html format (line breaks converted to <br>)
         """
         
-        if self.logfile is None:
+        if self.logfiles is None:
             return 'No Log file was specified. '
-        if not os.path.exists(self.logfile):
-            return "No log file exists.  The specified log file was {0}".format(self.logfile)
+        if not os.path.exists(self.logfiles[process]):
+            return "No log file exists.  The specified {0} log file was {1}".format(process, self.logfiles[process])
         # https://stackoverflow.com/questions/2301789/read-a-file-in-reverse-order-using-python/26747854
         try:
-            with open(self.logfile,'rt'):
-                 with open(self.logfile) as qfile:
+            with open(self.logfiles[process],'rt'):
+                with open(self.logfiles[process]) as qfile:
                     qfile.seek(0, os.SEEK_END)
                     endf = position = qfile.tell()
                     linecnt = 0
@@ -407,17 +408,17 @@ class DepictServerStatus():
         tab_rserver = self.depict(data_tag='recent_server', tab_title="Last {0} inserts: Sequences".format(n), metrics='server|pcstat')
         tab_rmemory = self.depict(data_tag='recent_server', tab_title="Last {0} inserts: RAM".format(n), metrics='server|mstat')
         self._set_server_info()
-        
-        # get tail of logfile
-        n_latest_lines = 100
-        res = self.logfile_tail(n_latest_lines)
-
-        # render
-        div = Div(text= "[last {0} lines of log file are shown]<br/>".format(n_latest_lines) + res.replace('\n','<br />'), render_as_text=False, width=1000, height=800)
-        tab_log = Panel(child=div, title='Log tail')        
-
         s1=self.server_info_tab()
-        doc['Report']= Tabs(tabs=[s1,tab_rserver,tab_rmemory,tab_server, tab_memory,tab_g2n, tab_g2m, tab_sm,tab_log])
+
+        # logging
+        n_latest_lines = 200
+        tab_list = tabs=[s1,tab_rserver,tab_rmemory,tab_server, tab_memory,tab_g2n, tab_g2m, tab_sm]
+        for process in self.logfiles.keys():
+            res = self.logfile_tail(process,n_latest_lines)
+            div = Div(text= "[last {0} lines of log file are shown]<br/>".format(n_latest_lines) + res.replace('\n','<br />'), render_as_text=False, width=1000, height=800)
+            tab_list.append( Panel(child=div, title='{0} log'.format(process))) 
+
+        doc['Report']= Tabs(tabs=tab_list)
         return doc
 
 # unittests
@@ -436,15 +437,15 @@ class test_logfile(unittest.TestCase):
         dss = DepictServerStatus()
         self.assertEqual(dss.logfile_tail(None), 'No Log file was specified. ')
 
-        dss = DepictServerStatus(logfile='nonexisting_file.log')
-        self.assertEqual(dss.logfile_tail(), 'No log file exists.  The specified log file was nonexisting_file.log')
+        dss = DepictServerStatus(logfiles={'nil':'nonexisting_file.log'})
+        self.assertEqual(dss.logfile_tail('nil'), 'No log file exists.  The specified nil log file was nonexisting_file.log')
 
-        dss = DepictServerStatus(logfile=os.path.join("..","testdata","monitoring","logfile_small.log"))        
-        res = dss.logfile_tail()        
+        dss = DepictServerStatus(logfiles={'test':os.path.join("..","testdata","monitoring","logfile_small.log")})        
+        res = dss.logfile_tail(process ='test')        
         self.assertTrue("2018-10-30 12:02:09,964" in res)    
 
-        dss = DepictServerStatus(logfile=os.path.join("..","testdata","monitoring","logfile_big.log"))
-        res = dss.logfile_tail()
+        dss = DepictServerStatus(logfiles={'test':os.path.join("..","testdata","monitoring","logfile_big.log")})
+        res = dss.logfile_tail(process = 'test')
         self.assertTrue("2018-11-02 10:33:41,831" in res)    
  
 class test_depict_1(unittest.TestCase):
@@ -454,9 +455,10 @@ class test_depict_1(unittest.TestCase):
         with open(inputfile,'rt') as f:
             res = json.load(f)
             
-        logfile = os.path.join("..","testdata","monitoring","logfile_big.log")
+        logfiles = {'big':os.path.join("..","testdata","monitoring","logfile_big.log"),
+                    'small':os.path.join("..","testdata","monitoring","logfile_small.log")}
         
-        dss = DepictServerStatus(logfile= logfile)
+        dss = DepictServerStatus(logfiles= logfiles)
         dss.read_json(res, data_tag='all')
         dss.subset_data(from_data_tag='all', to_data_tag='pre_insert', column_name="context|info|message", cell_values=["About to insert"])
         tab_server = dss.depict(data_tag='pre_insert', tab_title="In RAM sequence", metrics='server|pcstat',  x_axis_label = 'Order sequences added (Oldest --> Most recent)')
@@ -473,14 +475,17 @@ class test_depict_1(unittest.TestCase):
         tab_rmemory = dss.depict(data_tag='recent_guids', tab_title="Last {0} RAM usage".format(n), metrics='server|mstat')
         
         # get tail of logfile
-        n_latest_lines = 100
-        res = dss.logfile_tail(n_latest_lines)
+        n_latest_lines = 200
 
         # render
-        div = Div(text= "[last {0} lines of log file are shown]<br/>".format(n_latest_lines) + res.replace('\n','<br />'), render_as_text=False, width=1000, height=800)
-        tab_log = Panel(child=div, title='Log tail')        
+        tab_list = [tab_server, tab_memory, tab_g2n, tab_g2m, tab_sm, tab_rserver, tab_rmemory]
+        for process in logfiles.keys():
+            res = dss.logfile_tail(process,n_latest_lines)
+            div = Div(text= "[last {0} lines of log file are shown]<br/>".format(n_latest_lines) + res.replace('\n','<br />'), render_as_text=False, width=1000, height=800)
+            tab_list.append( Panel(child=div, title='{0} log'.format(process))) 
 
-        doc = Tabs(tabs=[tab_server, tab_memory, tab_g2n, tab_g2m, tab_sm, tab_rserver, tab_rmemory])
+
+        doc = Tabs(tabs=tab_list)
 
         show(doc)
         
@@ -489,8 +494,8 @@ class test_tail(unittest.TestCase):
         """ tests tailing of a file """
         
         # no parameters except SNV threshold
-        dss = DepictServerStatus(logfile = os.path.join("..","testdata","monitoring","logfile_big.log"))
-        res = dss.logfile_tail(100)
+        dss = DepictServerStatus(logfiles = {'test':os.path.join("..","testdata","monitoring","logfile_big.log")})
+        res = dss.logfile_tail('test',100)
         self.assertTrue("2018-11-02 10:33:41,831" in res)    
  
         ## snippet to be removed to main file

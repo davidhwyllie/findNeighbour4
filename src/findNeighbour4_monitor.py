@@ -134,8 +134,12 @@ if __name__ == '__main__':
              if e.__module__ == "pymongo.errors":
                  logger.info("Error raised pertains to pyMongo connectivity")
                  raise
-        server_logfile = os.path.join(logdir, "server-{0}".format(os.path.basename(CONFIG['LOGFILE'])))
-        dss1 = DepictServerStatus(logfile= server_logfile,
+
+        processes = ['server','dbmanager','clustering']
+        for process in processes:
+                logfiles = {process: os.path.join(logdir, "{0}{1}".format(process, os.path.basename(CONFIG['LOGFILE'])))}
+
+        dss1 = DepictServerStatus(logfiles= logfiles,
                                     server_url=CONFIG['IP'],
                                     server_port=CONFIG['REST_PORT'],
                                     server_description=CONFIG['DESCRIPTION'])
