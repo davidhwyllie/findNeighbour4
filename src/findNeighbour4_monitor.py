@@ -136,8 +136,10 @@ if __name__ == '__main__':
                  raise
 
         processes = ['server','dbmanager','clustering']
+        logfiles = {}
         for process in processes:
-                logfiles = {process: os.path.join(logdir, "{0}{1}".format(process, os.path.basename(CONFIG['LOGFILE'])))}
+                logfiles[process]= os.path.join(logdir, "{0}-{1}".format(process, os.path.basename(CONFIG['LOGFILE'])))
+        
 
         dss1 = DepictServerStatus(logfiles= logfiles,
                                     server_url=CONFIG['IP'],
