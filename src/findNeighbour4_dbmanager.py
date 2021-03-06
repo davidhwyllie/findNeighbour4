@@ -29,6 +29,8 @@ import json
 import time
 import random
 import datetime 
+import hashlib
+import argparse
 
 # logging
 from logging.config import dictConfig
@@ -45,18 +47,63 @@ if __name__ == '__main__':
 
         # command line usage.  Pass the location of a config file as a single argument.
         # an example config file is default_test_config.json
-               
+            # command line usage.  Pass the location of a config file as a single argument.
+        parser = argparse.ArgumentParser(
+        formatter_class= argparse.RawTextHelpFormatter,
+        description="""Runs findNeighbour4_dbmanager, part of the findNeighbour4 server system.
+
+        findNeighbour4_server will run without this, but it it recommended that one or more (see below) processes of findNeighbour4_dbmanager should be 
+        running as well.  The findNeighbour4_dbmanager is entirely independent of findNeighbour4_server, and does not require that the findNeighbour4_server
+        be running.
+
+        The prupose of the database manager is as follows:
+        * It rotates log files for all findNeighbour4 applications
+        * It periodically releases database space back to the operating system
+        * It rearranges the database continuously, to ensure that neighbours are stored in  the most efficient way.  For details on how it does this, see the mongoStore.repack() method.                                     
+
+Example usage: 
+============== 
+# show command line options 
+python findNeighbour4_dbmanager.py --help  
+
+# run using settings in myConfigFile.json.   
+python findNeighbour4_dbmanager.py ../config/myConfigFile.json          # this config file should be the same as that used by the server.  recompress everything needing it.    
+
+python findNeighbour4_server.py ../config/myConfigFile.json \ 
+                        --recompress_subset 0123456789abcdef            # effects same as above
+
+# two processes, which can be run simultaneously; they will not recompress the same samples
+python findNeighbour4_server.py ../config/myConfigFile.json \ 
+                        --recompress_subset 01234567            # one process only compresses samples if the hash of the sample_id begins with 0,1,..7
+python findNeighbour4_server.py ../config/myConfigFile.json \ 
+                        --recompress_subset 89abcdef            # one process only compresses samples if the hash of the sample_id begins with 8,9, a, ... f
+
+""")
+        parser.add_argument('path_to_config_file', type=str, action='store', nargs='?',
+                                help='the path to the configuration file', default='')
+        parser.add_argument('--recompress_subset', type=str, nargs=1, action='store', default='abcdef0123456789', 
+                                help='only compress samples whose hash begins with one of these letters.  Set this if you are using multiple dbmanagers, to make sure they do different work.')
+        args = parser.parse_args()
+        
+        # an example config file is default_test_config.json
+
+                
         ############################ LOAD CONFIG ######################################
         print("findNeighbour4_dbmanager server .. reading configuration file.")
 
-        max_batch_size = 100
-
-        if len(sys.argv) == 2:
-                configFile = sys.argv[1]
+        if len(args.path_to_config_file) > 0 :
+                configFile = args.path_to_config_file
         else:
                 configFile = os.path.join('..','config','default_test_config.json')
                 warnings.warn("No config file name supplied ; using a configuration ('default_test_config.json') suitable only for testing, not for production. ")
    
+        if isinstance(args.recompress_subset, list):          # we were passed the parameters
+                if not len(args.recompress_subset) == 1:
+                        raise TypeError("Must pass a single parameter to recompress_subset, if you are passing it.")
+                else:
+                        recompress_subset = args.recompress_subset[0]
+        recompress_subset = list(recompress_subset)
+
         # open the config file
         try:
                 with open(configFile,'r') as f:
@@ -168,18 +215,25 @@ if __name__ == '__main__':
                      PERSIST.delete_server_monitoring_entries(before_seconds= (3600 * 24 * 7))        # 7 days
                      pass
 
-             to_update = set()
              nModified = 0
              # does this guid have any singleton guid2neighbour records which need compressing
              logger.info("Finding compressable records.")            
-             to_update =PERSIST.singletons(max_records= 50000)              # compress in small batches.  Will find samples with singletons from the top 10k singleton records - may only recover a few
-
+             to_update =PERSIST.singletons(max_records= 250000, min_number_records = 30)             # compress in small batches.  
+                                                                                                     # Will find samples with singletons from a subset of singleton records - 
+                                                                                                     # may only recover a fraction, but will recover items needing repacking, quickly
              logger.info("There remain at least {0} records to compress".format(len(to_update)))
+
+             # process them in a random order - not really clear if this is necessary
+             to_update = list(to_update)
+             random.shuffle(to_update)
+
              for guid in to_update:
                 logger.info("Repacking {0} ".format(guid))
-                audit_stats = PERSIST.guid2neighbour_repack(guid, always_optimise=False)         # if there are singletons, always optimise; but it checks
-                logger.info("Repacked {0} : {1}".format(guid,audit_stats))
-                nModified+=1
+                hashed_guid = hashlib.md5(guid.encode('utf-8')).hexdigest()
+                if hashed_guid[0] in recompress_subset:
+                        audit_stats = PERSIST.guid2neighbour_repack(guid, always_optimise=False)         # if there are singletons, always optimise; but it checks
+                        logger.info("Repacked {0} : {1}".format(guid,audit_stats))
+                        nModified+=1
                 
              # log database size
              db_summary = PERSIST.summarise_stored_items()

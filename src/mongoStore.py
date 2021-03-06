@@ -9,6 +9,7 @@ import json
 import pandas as pd
 import logging
 import pymongo
+from collections import Counter
 from bson.objectid import ObjectId
 import gridfs
 import pickle
@@ -607,13 +608,30 @@ class fn3persistence():
             retVal = [x['_id'] for x in self.db.guid2meta.find({"sequence_meta.DNAQuality.invalid":validity}, {'_id':1})]
             return(set(retVal))
         
-        def singletons(self, max_records = 500000):
+        def singletons(self, max_records = 500000, min_number_records = 20):
             """ returns guids of records which need repacking.
-            Inclusion of max_records is important for very large datasets """
+            Inclusion of max_records is important for very large datasets, or the query is slow.
+            
+            Parameters:
+            max_records: only consider the first max_records in the table
+            min_number_records: do not report samples with fewer than min_number_records singleton samples.
+
+            Returns:
+            a set of sample identifiers ('guids') which contain > min_number_records singleton entries.
+             """
             singleton_guids = set()
-            for res in self.db.guid2neighbour.find({'rstat':'s'}, {'guid':1}).limit(max_records):                   
-                singleton_guids.add(res['guid'])
-            return singleton_guids
+            singletons= []
+            high_freq_singletons = []
+            
+            for res in self.db.guid2neighbour.find({'rstat':'s'}, {'guid':1}).limit(max_records): 
+                singletons.append(res['guid']) 
+            singleton_freq = Counter(singletons)
+            
+            for guid,count in singleton_freq.most_common():
+                if count >= min_number_records:
+                    high_freq_singletons.append(guid)          
+                
+            return set(high_freq_singletons)
              
         def guids_valid(self):
             """ return all registered valid guids.  
@@ -810,7 +828,12 @@ class fn3persistence():
                         payload1 = {guid:payload}
                         payload2 = {targetguid:payload}
                         
+                        ## NOTE: for the (new) guid --> targetguids, we can write a single record with many entries
+                        ## this will speed up processing a lot ** TODO **
+                        ## ensure that you don't write too many - see repack() for approaches
                         to_insert.append({'guid':guid, 'rstat':'s', 'neighbours': {targetguid:payload}})
+
+                        # however, the other way round, we have to add multiple single samples
                         to_insert.append({'guid':targetguid, 'rstat':'s', 'neighbours':{guid:payload}})
 
                 # when complete, do update
@@ -1167,16 +1190,20 @@ class Test_SeqMeta_singleton(unittest.TestCase):
         def runTest(self):
                 p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
                 p.guid2neighbour_add_links("srcguid",{'guid1':{'dist':12}, 'guid2':{'dist':0}, 'guid3':{'dist':3}, 'guid4':{'dist':4}, 'guid5':{'dist':5}})
-                with self.assertRaises(NotImplementedError):
-                    res1 = p.guid2neighbours('srcguid', returned_format=2)
                 res1 = p.guid2neighbours('srcguid', returned_format=1)
+                
                 self.assertEqual(5, len(res1['neighbours']))
-                singletons = p.singletons()
+                singletons  = p.singletons(max_records = 500, min_number_records = 0)
+
                 self.assertEqual(len(singletons),6 )
-                p.guid2neighbour_repack(guid='srcguid')
+                for guid in ['srcguid','guid1','guid2','guid3','guid4','guid5']:
+                    p.guid2neighbour_repack(guid=guid)
+                
                 res2 = p.guid2neighbours('srcguid', returned_format=1)
-                self.assertEqual(5, len(res2['neighbours']))  
-                self.assertEqual(len(p.singletons()),5 )
+                self.assertEqual(5, len(res2['neighbours'])) 
+
+                self.assertEqual(len(p.singletons(max_records = 500, min_number_records = 0)),0 )
+                self.assertEqual(len(p.singletons(max_records = 500, min_number_records = 20)),0 )
 
 class Test_SeqMeta_guid2neighbour_8(unittest.TestCase):
         """ tests guid2neighboursOf"""
