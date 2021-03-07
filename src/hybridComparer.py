@@ -253,37 +253,6 @@ class hybridComparer():
         self.PERSIST.guid2neighbour_add_links(guid=guid,  targetguids=links)
 
         
-        #  self.PERSIST.guid2neighbour_repack(guid)
-
-        ### Sanity check start - remove if unnecessary #######
-        # check that the number of neighbours recovered is the same as that inserted
-        #stored1 = self.PERSIST.guid2neighbours(guid, cutoff = self.snpCeiling, returned_format=1)
-        #print("PERSIST: THE FOLLOWING WAS STORED FMT 1 :",guid, stored1)
-
-        
-        #stored = self.PERSIST.guid2neighbours(guid, cutoff = self.snpCeiling, returned_format=3)
-        #logging.info("PERSIST: THE FOLLOWING WAS STORED FMT 3 :",guid, stored)
-        #logging.info("stored vs. submitted", set(list(links.keys())) , set(stored['neighbours'])
-        #s_pre = set(list(links.keys()))
-        #s_post = set(stored['neighbours'])
-        #if  s_pre == s_post: 
-        #else:
-        #    missing = s_pre - s_post
-        #    logging.info("LINKS - KEYS (what should have been stored) {0}".format(s_pre))
-        #    logging.info("WHAT WAS STORED UNDER {0}- {1}".format(guid, stored['neighbours']))  
-            #print("---------------------------------------------------------")             
-        #    raise NeighbourStorageFailureError(expression = None, message = "Failed to recover what was stored - mongostore failure.  Missing = {0}".format(missing))
-
-        # check it is bidirectional
-        #for item in s_post:
-        #    revstore = self.PERSIST.guid2neighbours(item, cutoff = self.snpCeiling, returned_format=3)
-        #    if not guid in revstore['neighbours']:
-        #        raise NeighbourStorageFailureError(expression = None, message = "Reciprocal link missing {0} {1}".format(item, guid))
-        #    else:
-        
-
-        ### Sanity check end ###
-
         # make sure the invalid annotation is set correctly
         if 'DNAQuality' in annotations.keys():
             annotations['DNAQuality']['invalid'] = is_invalid
