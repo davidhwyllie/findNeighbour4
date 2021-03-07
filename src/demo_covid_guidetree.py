@@ -51,11 +51,10 @@ if __name__ == '__main__':
         return {'mixpore_test_p': mixpore_test_p, 'neighbours':neighbours}
 
 
-    ### Startup
     # instantiate client
     fn4c = fn4Client("http://findneighbours04.unix.phe.gov.uk:5023")      # expects operation on local host; pass baseurl if somewhere else.
 
-    snp_cutoff = 2                                 # how many snp from a sample should we include neighbours
+    snp_cutoff = 5                                 # how many snp from a sample should we include neighbours
     sample_quality_cutoff = 0.9                    # only build tree from samples with >= 90% ACTG
 
     print("Loading all samples & annotations.")
@@ -125,7 +124,7 @@ if __name__ == '__main__':
         # remove the test sample, if it has not already been removed
         remaining_samples.discard(test_sample)
 
-        print("{0} | Iteration: {1} | Remaining samples {2} |  Change now/total {9}/{10} | Sample = {3} |  Mixture statistic {4} | Neighbours {5} | Selected representatives {6} | Mixed samples {7} | Singletons {8} | Approx Subsample (1/{11:.1f})".format(
+        print("{0} | Iteration: {1} | Remaining samples {2} |  Change now/total {9}/{10} | Sample = {3} |  Mixture statistic {4} | Neighbours {5} | Selected representatives {6} | Mixed samples {7} | Singletons {8} | Approx Subsample 1 in {11:.0f}".format(
           datetime.datetime.now().isoformat(),
           iteration,
           len(remaining_samples),
