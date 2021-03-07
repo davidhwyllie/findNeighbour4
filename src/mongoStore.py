@@ -607,14 +607,64 @@ class fn3persistence():
 
             retVal = [x['_id'] for x in self.db.guid2meta.find({"sequence_meta.DNAQuality.invalid":validity}, {'_id':1})]
             return(set(retVal))
-        
-        def singletons(self, max_records = 500000, min_number_records = 20):
+
+        def singletons(self, method= 'approximate', return_top=1000):
+            """ returns guids and the number of singleton records, which 
+            (if high numbers are present) indicates repacking is needed.
+            Inclusion of max_records is important for very large datasets, or the query is slow.
+            
+            Parameters:
+            method: either 'approximate' or 'exact'.  For ranking samples for repacking, the approximate method is recommended.
+            return_top:  the number of results to return.  Set > number of samples to return all records.  If method = 'exact', return_top is ignored and all records are returned.
+
+            The approximate method is much faster than the exact one; it randomly downsamples the guid-neighbour pairs in 
+            the guid2neighbour collection, taking 100k samples only, and the counts the number of singletons in the downsample.  This is therefore a method of ranking
+            samples which may benefit from repacking.  This sampling method returns queries in a few milliseconds in testing on large tables.  
+            This method is not deterministic if there are more than 100k documents in the guid2neighbour collection.
+            
+            The exact method computes the exact number of singletons for each sample.  This requires an index scan which (as of mongo 4.04) is 
+            surprisingly slow, with the query taking > 30 seconds with > table size ~ 3 x10^7.
+            This method is deterministic.
+            
+            Returns:
+            a set of sample identifiers ('guids') which contain > min_number_records singleton entries.
+            """
+
+            # input validation   
+            if not isinstance(return_top, int):
+                raise TypeError("return_top is {0}; this must be an integer not a {1}".format(return_top, type(return_top)))
+            if not return_top>0:
+                raise TypeError("return_top is {0}; this must be a non zero positive integer".format(return_top))
+            
+            # use mongodb pipeline
+            # shell example: db.guid2neighbour.aggregate([ {$sample: {size: 100000}}, { $match: {rstat:'s'}}, { $sortByCount: "$guid"}, {$limit: 1000}  ] )
+            approximate_pipeline = [ {"$sample": {"size": 100000}}, { "$match": {"rstat":'s'}}, { "$sortByCount": "$guid"}, {"$limit": return_top}  ]
+            exact_pipeline = [  { "$match": {"rstat":'s'}}, { "$sortByCount": "$guid"} ] 
+
+            if method == 'approximate':
+                results = self.db.guid2neighbour.aggregate(approximate_pipeline)
+            elif method == 'exact':
+                results = self.db.guid2neighbour.aggregate(exact_pipeline)
+            else: 
+                raise ValueError("method must be either 'approximate' or 'exact'")
+            
+            ret_list = []
+            for item in results:
+                ret_list.append(item)
+            
+            ret_df = pd.DataFrame.from_records(ret_list)
+            ret_df.rename(columns={"_id": "guid"}, inplace=True)
+            ret_df.set_index('guid',drop=True, inplace=True)
+            
+            return ret_df
+
+        def singletons_old(self, max_records = 500000, min_number_records = 20):
             """ returns guids of records which need repacking.
             Inclusion of max_records is important for very large datasets, or the query is slow.
             
             Parameters:
             max_records: only consider the first max_records in the table
-            min_number_records: do not report samples with fewer than min_number_records singleton samples.
+            min_number_records: do not report samples with fewer than min_number_records ** in the max_records scanned ** singleton samples.
 
             Returns:
             a set of sample identifiers ('guids') which contain > min_number_records singleton entries.
@@ -995,7 +1045,7 @@ class fn3persistence():
                       
                 return (to_optimise, content_df, audit_stats)
 
-        def guid2neighbour_repack(self,guid, always_optimise=False):
+        def guid2neighbour_repack(self,guid, always_optimise=False, min_optimisable_size=1):
                 """ alters the mongodb representation of the links of guid.
 
                 This stores links in the guid2neighbour collection;
@@ -1021,9 +1071,14 @@ class fn3persistence():
                 """                
                 
                 if not always_optimise:
-                    # determine whether there is more than one rstat 's' entries for this guid.
-                    if self.db.guid2neighbour.count_documents({'guid':guid, 'rstat':'s'}) <=1:          # either no singletons, or just one: nil to optimise.
-                            return None
+                    # determine whether how many one rstat 's' entries for this guid.
+                    n_s_records = self.db.guid2neighbour.count_documents({'guid':guid, 'rstat':'s'})
+                    if n_s_records <=min_optimisable_size:          # either no singletons, or just one: nil to optimise.
+                            return  {
+                            'guid':guid, 
+                            'finished':datetime.datetime.now().isoformat(), 
+                            'pre_optimisation':{'s_records':n_s_records, 'msg':'Below optimisation cutoff'}, 
+                                    'actions_taken': {'n_written': 0, 'n_deleted': 0}}
 
                 # get a summary of how the records are currently stored
                 #logging.info("Auditing")
@@ -1237,22 +1292,10 @@ class Test_SeqMeta_singleton(unittest.TestCase):
                 res1 = p.guid2neighbours('srcguid', returned_format=1)
                 
                 self.assertEqual(5, len(res1['neighbours']))
-                singletons  = p.singletons(max_records = 500, min_number_records = 0)
-
-                self.assertEqual(len(singletons),5 )
-                for guid in ['srcguid','guid1','guid2','guid3','guid4','guid5']:
-                    p.guid2neighbour_repack(guid=guid)      # Should make no difference
-                
-                res2 = p.guid2neighbours('srcguid', returned_format=1)
-                self.assertEqual(5, len(res2['neighbours'])) 
-
-                a,b,c = p._audit_storage('srcguid')
-                
-                a,b,c = p._audit_storage('guid1')
-                
-                self.assertEqual(len(p.singletons(max_records = 500, min_number_records = 0)),5 )
-                self.assertEqual(len(p.singletons(max_records = 500, min_number_records = 20)),0 )
-
+                singletons  = p.singletons(method='exact')
+                self.assertEqual(len(singletons.index),5 )
+                singletons  = p.singletons(method='approximate')
+                self.assertEqual(len(singletons.index),5 )
 class Test_SeqMeta_guid2neighbour_8(unittest.TestCase):
         """ tests guid2neighboursOf"""
         def runTest(self):

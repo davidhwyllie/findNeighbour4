@@ -226,26 +226,21 @@ python findNeighbour4_server.py ../config/myConfigFile.json \
              nModified = 0
              # does this guid have any singleton guid2neighbour records which need compressing
              logger.info("(instance = {0}) | Finding compressable records.".format(recompress_subset_label))            
-             to_update =PERSIST.singletons(max_records= 250000, min_number_records = 50)             # compress in small batches.  
-                                                                                                     # Will find samples with singletons from a subset of singleton records - 
-                                                                                                     # may only recover a fraction, but will recover items needing repacking, quickly
-                                                                                                     # the min_number_records could be tuned automatically
-             logger.info("(instance = {1}) | Found {0} records which may need compression; examining these.".format(len(to_update), recompress_subset_label))
+             to_update =PERSIST.singletons(method='approximate', return_top=100)                     # compress in small batches of 100, after which we will reassess what is worst.  
 
-             # process them in a random order - not really clear if this is necessary
-             to_update = list(to_update)
-             random.shuffle(to_update)
+             logger.info("(instance = {1}) | Found records which may need compression; examining {0} with higher singleton estimates.".format(len(to_update.index), recompress_subset_label))
 
-             for guid in to_update:
+             for guid in to_update.index:
                 hashed_guid = hashlib.md5(guid.encode('utf-8')).hexdigest()
                 if hashed_guid[0] in recompress_subset_chars:
-                        audit_stats = PERSIST.guid2neighbour_repack(guid, always_optimise=False)         # if there are singletons, always optimise; but it checks
+                        audit_stats = PERSIST.guid2neighbour_repack(guid, always_optimise=False, min_optimisable_size=10)         # if there are singletons, always optimise; but it checks
                         logger.info("(instance = {1}) | Repacked {0} : {2}".format(guid,recompress_subset_label, audit_stats))
                         nModified+=1
                 
-             # log database size
-             db_summary = PERSIST.summarise_stored_items()
-             PERSIST.server_monitoring_store(what='dbManager', message="Repacked batch", guid="-", content=db_summary)
+                        # log database size
+                        if nModified % 25 == 0:
+                                db_summary = PERSIST.summarise_stored_items()
+                                PERSIST.server_monitoring_store(what='dbManager', message="Repacking", guid="-", content=db_summary)
 
              if nModified == 0:
                 # everything has been packed
