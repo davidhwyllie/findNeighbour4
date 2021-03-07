@@ -44,8 +44,10 @@ LOGDIR=`python3 get_log_dir_from_config_file.py $1`
 if [ $NOHUP_LOGGING -eq 1 ]; then
 	echo "Starting server"
 	nohup pipenv run python3 findNeighbour4_server.py $1 > ${LOGDIR}nohup_fn4_server_${MD5CHECKSUM}.out &
-	echo "Starting dbmanager"
-	nohup pipenv run python3 findNeighbour4_dbmanager.py $1 > ${LOGDIR}nohup_fn4_dbmanager_${MD5CHECKSUM}.out &
+	echo "Starting dbmanager instance 1"
+	nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset 01234567 $1 > ${LOGDIR}nohup_fn4_dbmanager_${MD5CHECKSUM}.out &
+	echo "Starting dbmanager instance 2"
+	nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset 89abcdef $1 > ${LOGDIR}nohup_fn4_dbmanager_${MD5CHECKSUM}.out &
 	echo "Starting monitor"
 	nohup pipenv run python3 findNeighbour4_monitor.py $1 > ${LOGDIR}nohup_fn4_monitor_${MD5CHECKSUM}.out &
 	echo "Starting clustering"
@@ -58,8 +60,10 @@ else
 
 	echo "Starting server"
 	nohup pipenv run python3 findNeighbour4_server.py $1 > /dev/null &
-	echo "Starting dbmanager"
-	nohup pipenv run python3 findNeighbour4_dbmanager.py $1 > /dev/null &
+	echo "Starting dbmanager instance 1"
+	nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset 01234567 $1 > /dev/null & 
+	echo "Starting dbmanager instance 2"
+	nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset 89abcdef $1 > /dev/null &
 	echo "Starting monitor"
 	nohup pipenv run python3 findNeighbour4_monitor.py $1 > /dev/null &
 	echo "Starting clustering"

@@ -118,7 +118,7 @@ class fn3persistence():
                 self._delete_existing_clustering_data()
                 self._delete_existing_data()
 
-                self.max_neighbours_per_document =2             # used for unittests
+                self.max_neighbours_per_document =3             # used for unittests
             else:
                 self.logger.info("Using stored data in mongostore")
                 
@@ -800,10 +800,10 @@ class fn3persistence():
             
             return self.guid2items([guid],None)           # restriction by guid.
 
-                   
         def guid2neighbour_add_links(self,guid, targetguids):
-                """ adds links between guid and targetguids
-                
+                """ adds links between guid and their neighbours ('targetguids')
+
+                Parameters:               
                 guid: the 'source' guid for the matches eg 'guid1'
                 targetguids: what is guid linked to, eg
                 {
@@ -817,24 +817,55 @@ class fn3persistence():
                 The function guid2neighbour_repack() reduces the number of documents
                 required to store the same information.
                 
-                if annotation is not None, will additionally write an annotation dictionary into 
+                if annotation is not None, will additionally write an annotation dictionary
+
+                Returns:
+                The number of records written
                 """                
                                  
                 # find guid2neighbour entry for guid.
                 to_insert = []
-
+                current_m = None    # no target record for guid -> multiple targets
                 for targetguid in targetguids.keys():
-                        payload = targetguids[targetguid]
-                        payload1 = {guid:payload}
-                        payload2 = {targetguid:payload}
-                        
-                        ## NOTE: for the (new) guid --> targetguids, we can write a single record with many entries
-                        ## this will speed up processing a lot ** TODO **
-                        ## ensure that you don't write too many - see repack() for approaches
-                        to_insert.append({'guid':guid, 'rstat':'s', 'neighbours': {targetguid:payload}})
-
+                        payload = targetguids[targetguid]    # a distance 
+                                                       
+                        ## ADD REVERSE LINK
+                        # NOTE: for the (new) guid --> targetguids, we can write a single record with many entries
                         # however, the other way round, we have to add multiple single samples
+                        #  targetguid --> guid (reverse link) (singleton)
                         to_insert.append({'guid':targetguid, 'rstat':'s', 'neighbours':{guid:payload}})
+
+                        # Now add one record containing many target guids
+                        # guid --> {many targetguids } (forward link)
+
+                        ## OLD to_insert.append({'guid':guid, 'rstat':'s', 'neighbours': {targetguid:payload}})
+                        if current_m is not None:
+                            if len(current_m['neighbours'].keys()) >= self.max_neighbours_per_document:     # need to make another one                   
+                                current_m['rstat']= 'f'    # full
+                                to_insert.append(current_m)
+                                current_m = None
+
+                        # if we don't have a current_m, which is a data structure containing what we're going to write to disc,
+                        # either because this is the first pass through the loop, or becuase our previous current_m was full (see above)
+                        # then we make one
+                        if current_m is None:
+                            current_m = {'guid':guid, 'rstat':'m', 'neighbours': {}}   # make one
+
+                        # add the element to current_m
+                        current_m['neighbours'][targetguid] = payload 
+                
+                # now we've covered all the elements to write
+                # do we have a current m with data in it?
+                if current_m is not None:
+                    if len(current_m['neighbours'].keys())>0:
+                        # check if it's full
+                        if len(current_m['neighbours'].keys()) >= self.max_neighbours_per_document:                        
+                            current_m['rstat']= 'f'    # full
+                        # check if it's actually a singleton
+                        if len(current_m['neighbours'].keys()) == 1:                        
+                            current_m['rstat']= 's'    # just one
+                        # add to to_insert
+                        to_insert.append(current_m) 
 
                 # when complete, do update
                 if len(to_insert)>0:
@@ -850,6 +881,8 @@ class fn3persistence():
                     if not res.acknowledged is True :
                        raise IOError("Mongo {0} did not acknowledge write of data: {1}".format(self.db, metadataObj))
 
+                return {'records_written':len(to_insert)}
+          
         def _audit_storage(self,guid):
                 """ returns a pandas data frame containing all neighbours of guid, as stored in mongo, as well as 
                 a summary of storage statistics and a list of _ids which could be optimised
@@ -872,8 +905,8 @@ class fn3persistence():
                 Designed for internal use
                 """                
                 
+                ## audit the storage of neighbours
 
-                # audit the storage of neighbours
                 # read all occurrences of each neighbour and its distances into a pandas dataframe
                 # note that its is OK for a neighbour to be present more than once
                 bytes_per_record = {'s':[],'m':[],'f':[]}
@@ -888,9 +921,20 @@ class fn3persistence():
                         storage_element['guid'] = neighbouring_guid
                         storage_element['dist']=res['neighbours'][neighbouring_guid]['dist']
                         contents.append(storage_element)
-                
                 content_df = pd.DataFrame.from_records(contents)
-                
+                                
+                # are there any neighbours?
+                if len(contents) == 0:
+                    audit_stats = {
+                    'singletons':0,
+                    'stored_in_m_records':0, 
+                    'stored_in_f_records':0, 
+                    'f_records_with_duplicates':0, 
+                    'neighbouring_guids':0
+                    }
+                    return (set([]), content_df, audit_stats)
+
+                # there are some neighbours
                 # diagnostics - how many neighbours per document
                 neighbours_per_document = content_df.groupby(['_id', 'rstat']).size().reset_index(name='counts')
 
@@ -977,8 +1021,8 @@ class fn3persistence():
                 """                
                 
                 if not always_optimise:
-                    # determine whether there are any rstat 's' entries for this guid.
-                    if self.db.guid2neighbour.count_documents({'guid':guid, 'rstat':'s'}) ==0:          # no singletons.  We won't bother optimising this.
+                    # determine whether there is more than one rstat 's' entries for this guid.
+                    if self.db.guid2neighbour.count_documents({'guid':guid, 'rstat':'s'}) <=1:          # either no singletons, or just one: nil to optimise.
                             return None
 
                 # get a summary of how the records are currently stored
@@ -1195,14 +1239,18 @@ class Test_SeqMeta_singleton(unittest.TestCase):
                 self.assertEqual(5, len(res1['neighbours']))
                 singletons  = p.singletons(max_records = 500, min_number_records = 0)
 
-                self.assertEqual(len(singletons),6 )
+                self.assertEqual(len(singletons),5 )
                 for guid in ['srcguid','guid1','guid2','guid3','guid4','guid5']:
-                    p.guid2neighbour_repack(guid=guid)
+                    p.guid2neighbour_repack(guid=guid)      # Should make no difference
                 
                 res2 = p.guid2neighbours('srcguid', returned_format=1)
                 self.assertEqual(5, len(res2['neighbours'])) 
 
-                self.assertEqual(len(p.singletons(max_records = 500, min_number_records = 0)),0 )
+                a,b,c = p._audit_storage('srcguid')
+                
+                a,b,c = p._audit_storage('guid1')
+                
+                self.assertEqual(len(p.singletons(max_records = 500, min_number_records = 0)),5 )
                 self.assertEqual(len(p.singletons(max_records = 500, min_number_records = 20)),0 )
 
 class Test_SeqMeta_guid2neighbour_8(unittest.TestCase):
@@ -1233,68 +1281,7 @@ class Test_SeqMeta_guid2neighbour_7(unittest.TestCase):
                 p.guid2neighbour_repack(guid='srcguid')
                 res2 = p.guid2neighbours('srcguid', returned_format=1)
                 self.assertEqual(5, len(res2['neighbours']))                
-
-class Test_SeqMeta_guid2neighbour_6(unittest.TestCase):
-        """ tests repack where repack spans multiple containers"""
-        def runTest(self):
-                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
-                res = p.guid2neighbour_add_links("srcguid",{'guid1':{'dist':12}, 'guid2':{'dist':0}, 'guid3':{'dist':3}, 'guid4':{'dist':4}, 'guid5':{'dist':5}})
-                
-                # check the insert worked
-                res = p.db.guid2neighbour.count_documents({'guid':'guid1'})
-                self.assertEqual(res, 1)
-                res = p.db.guid2neighbour.count_documents({'guid':'srcguid'})
-                self.assertEqual(res, 5)
-                res = p.db.guid2neighbour.count_documents({'guid':'srcguid', 'rstat':'s'})
-                self.assertEqual(res, 5)                
-                p.guid2neighbour_repack(guid='srcguid')
-                                
-                # should compress the two entries for 'srcguid' into two, because max guids per sample is 3
-                res = p.db.guid2neighbour.count_documents({'guid':'guid1'})
-                self.assertEqual(res, 1)
-                res = p.db.guid2neighbour.count_documents({'guid':'srcguid'})
-                self.assertEqual(res, 3)
-                res = p.db.guid2neighbour.count_documents({'guid':'srcguid', 'rstat':'f'})
-                self.assertEqual(res, 2)
-                res = p.db.guid2neighbour.count_documents({'guid':'srcguid', 'rstat':'s'})
-                self.assertEqual(res, 0)                # test for issue #26 - S items were not deleted
-
-
-                # the src guid entry should contain two keys, 'guid1' and 'guid2' in its neighbours: section
-                results= p.db.guid2neighbour.find({'guid':'srcguid'})
-                observed = set()
-                for result in results:
-                        for item in result['neighbours'].keys():
-                                observed.add(item)
-                self.assertEqual(observed, set(['guid1','guid2', 'guid3','guid4', 'guid5']))
-  
-                res = p.guid2neighbour_add_links("guid6",{'srcguid':{'dist':12}})
-                res = p.db.guid2neighbour.count_documents({'guid':'srcguid'})
-                self.assertEqual(res, 4)
-                res = p.db.guid2neighbour.count_documents({'guid':'srcguid', 'rstat':'f'})
-                self.assertEqual(res, 2)
-                res = p.db.guid2neighbour.count_documents({'guid':'srcguid', 'rstat':'s'})
-                self.assertEqual(res, 1)             
-                res = p.db.guid2neighbour.count_documents({'guid':'srcguid', 'rstat':'m'})
-                self.assertEqual(res, 1)
-                
-                p.guid2neighbour_repack(guid='srcguid')
-                res = p.db.guid2neighbour.count_documents({'guid':'srcguid'})
-                self.assertEqual(res, 3)
-                res = p.db.guid2neighbour.count_documents({'guid':'srcguid', 'rstat':'f'})
-                self.assertEqual(res, 3)
-                res = p.db.guid2neighbour.count_documents({'guid':'srcguid', 'rstat':'s'})
-                self.assertEqual(res, 0)             
-                res = p.db.guid2neighbour.count_documents({'guid':'srcguid', 'rstat':'m'})
-                self.assertEqual(res, 0)
-
-                results= p.db.guid2neighbour.find({'guid':'srcguid'})
-                observed = set()
-                for result in results:
-                        for item in result['neighbours'].keys():
-                                observed.add(item)
-                self.assertEqual(observed, set(['guid1','guid2', 'guid3','guid4', 'guid5', 'guid6']))
-                                            
+                                           
 class Test_SeqMeta_guid2neighbour_5(unittest.TestCase):
         """ tests repack """
         def runTest(self):
@@ -1305,11 +1292,11 @@ class Test_SeqMeta_guid2neighbour_5(unittest.TestCase):
                 res = p.db.guid2neighbour.count_documents({'guid':'guid1'})
                 self.assertEqual(res, 1)
                 res = p.db.guid2neighbour.count_documents({'guid':'srcguid'})
-                self.assertEqual(res, 2)
+                self.assertEqual(res, 1)
                 
-                p.guid2neighbour_repack(guid='srcguid')
+                p.guid2neighbour_repack(guid='srcguid')         # will make no difference
                 
-                # should compress the two entries for 'srcguid' into one.
+                # should make no change for 'srcguid' 
                 res = p.db.guid2neighbour.count_documents({'guid':'guid1'})
                 self.assertEqual(res, 1)
                 res = p.db.guid2neighbour.count_documents({'guid':'srcguid'})
@@ -1319,16 +1306,171 @@ class Test_SeqMeta_guid2neighbour_5(unittest.TestCase):
                 res= p.db.guid2neighbour.find_one({'guid':'srcguid'})
                 self.assertEqual(set(res['neighbours'].keys()), set(['guid1','guid2']))
                 
-class Test_SeqMeta_guid2neighbour_4(unittest.TestCase):
-        """ tests creation of a new guid2neighbour entry """
+                # add some more links, creating 2 entries for guid1
+                res = p.guid2neighbour_add_links("srcguid2",{'guid1':{'dist':12}})
+                
+                # check the insert worked
+                res = p.db.guid2neighbour.count_documents({'guid':'guid1'})
+                self.assertEqual(res, 2)
+                res = p.db.guid2neighbour.count_documents({'guid':'srcguid'})
+                self.assertEqual(res, 1)
+                res = p.db.guid2neighbour.count_documents({'guid':'srcguid2'})
+                self.assertEqual(res, 1)
+
+                p.guid2neighbour_repack(guid='srcguid2')         # will make no difference
+                
+                # should make no change for 'srcguid2' 
+                res = p.db.guid2neighbour.count_documents({'guid':'guid1'})
+                self.assertEqual(res, 2)
+                res = p.db.guid2neighbour.count_documents({'guid':'srcguid2'})
+                self.assertEqual(res, 1)
+               
+                p.guid2neighbour_repack(guid='guid1')         # will compress guid1's two entries into one.
+                
+                # should make no change for 'srcguid1' 
+                res = p.db.guid2neighbour.count_documents({'guid':'guid1'})
+                self.assertEqual(res, 1)
+                res = p.db.guid2neighbour.count_documents({'guid':'srcguid2'})
+                self.assertEqual(res, 1)
+
+class Test_SeqMeta_guid2neighbour_4a(unittest.TestCase):
+        """ tests creation of new guid2neighbour entries """
         def runTest(self):
                 p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
                 res = p.guid2neighbour_add_links("srcguid",{'guid1':{'dist':12}, 'guid2':{'dist':0}})
+                self.assertEqual(p.max_neighbours_per_document, 3)      # debug setting
+                a,b,c = p._audit_storage('srcguid')
+                
+                self.assertEqual(len(b.index), 2)                   # 2 guids
+                self.assertEqual(set(b['rstat']), set(['m']))       # in a multirecord
+
                 res = p.db.guid2neighbour.count_documents({'guid':'guid1'})
                 self.assertEqual(res, 1)
-                res = p.db.guid2neighbour.count_documents({'guid':'srcguid'})
-                self.assertEqual(res, 2)
+                res =p.db.guid2neighbour.count_documents({'guid':'srcguid'})
+                self.assertEqual(res, 1)                
                 
+
+class Test_SeqMeta_guid2neighbour_4b(unittest.TestCase):
+        """ tests creation of new guid2neighbour entries """
+        def runTest(self):
+                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
+                res = p.guid2neighbour_add_links("srcguid",{'guid1':{'dist':12}, 'guid2':{'dist':0}, 'guid3':{'dist':6}})
+                self.assertEqual(p.max_neighbours_per_document, 3)
+                a,b,c = p._audit_storage('srcguid')
+                
+                self.assertEqual(len(b.index), 3)
+                self.assertEqual(set(b['rstat']), set(['f']))       # one full, one singleton
+
+                res = p.db.guid2neighbour.count_documents({'guid':'guid1'})
+                self.assertEqual(res, 1)
+                res = p.db.guid2neighbour.count_documents({'guid':'guid2'})
+                self.assertEqual(res, 1)
+                res = p.db.guid2neighbour.count_documents({'guid':'guid3'})
+                self.assertEqual(res, 1)
+                res =p.db.guid2neighbour.count_documents({'guid':'srcguid'})
+                self.assertEqual(res, 1)   
+
+class Test_SeqMeta_guid2neighbour_4c(unittest.TestCase):
+        """ tests creation of new guid2neighbour entries """
+        def runTest(self):
+                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
+                res = p.guid2neighbour_add_links("srcguid",{'guid1':{'dist':1}, 'guid2':{'dist':2}, 'guid3':{'dist':3}, 'guid4':{'dist':4}})
+                self.assertEqual(p.max_neighbours_per_document, 3)
+                a,b,c = p._audit_storage('srcguid')
+                
+                self.assertEqual(len(b.index), 4)
+                self.assertEqual(set(b['rstat']), set(['f','s']))       # one full, one singleton
+
+                res = p.db.guid2neighbour.count_documents({'guid':'guid1'})
+                self.assertEqual(res, 1)
+                res = p.db.guid2neighbour.count_documents({'guid':'guid2'})
+                self.assertEqual(res, 1)
+                res = p.db.guid2neighbour.count_documents({'guid':'guid3'})
+                self.assertEqual(res, 1)
+                res = p.db.guid2neighbour.count_documents({'guid':'guid4'})
+                self.assertEqual(res, 1)
+                res =p.db.guid2neighbour.count_documents({'guid':'srcguid'})
+                self.assertEqual(res, 2) 
+
+class Test_SeqMeta_guid2neighbour_4d(unittest.TestCase):
+        """ tests creation of new guid2neighbour entries """
+        def runTest(self):
+                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
+                res = p.guid2neighbour_add_links("srcguid",{'guid1':{'dist':1}, 'guid2':{'dist':2}, 'guid3':{'dist':3}, 'guid4':{'dist':4}, 'guid5':{'dist':5}})
+                self.assertEqual(p.max_neighbours_per_document, 3)
+                a,b,c = p._audit_storage('srcguid')
+               
+                self.assertEqual(len(b.index), 5)
+                self.assertEqual(set(b['rstat']), set(['f','m']))       # one full, one mixed
+
+                res = p.db.guid2neighbour.count_documents({'guid':'guid1'})
+                self.assertEqual(res, 1)
+                res = p.db.guid2neighbour.count_documents({'guid':'guid2'})
+                self.assertEqual(res, 1)
+                res = p.db.guid2neighbour.count_documents({'guid':'guid3'})
+                self.assertEqual(res, 1)
+                res = p.db.guid2neighbour.count_documents({'guid':'guid4'})
+                self.assertEqual(res, 1)
+                res = p.db.guid2neighbour.count_documents({'guid':'guid5'})
+                self.assertEqual(res, 1)
+                res =p.db.guid2neighbour.count_documents({'guid':'srcguid'})
+                self.assertEqual(res, 2) 
+
+class Test_SeqMeta_guid2neighbour_4e(unittest.TestCase):
+        """ tests creation of new guid2neighbour entries """
+        def runTest(self):
+                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
+                res = p.guid2neighbour_add_links("srcguid",{'guid1':{'dist':1}, 'guid2':{'dist':2}, 'guid3':{'dist':3}, 'guid4':{'dist':4}, 'guid5':{'dist':5}, 'guid6':{'dist':6}})
+                self.assertEqual(p.max_neighbours_per_document, 3)
+                a,b,c = p._audit_storage('srcguid')
+               
+                self.assertEqual(len(b.index), 6)
+                self.assertEqual(set(b['rstat']), set(['f']))       # one full, one mixed
+
+                res = p.db.guid2neighbour.count_documents({'guid':'guid1'})
+                self.assertEqual(res, 1)
+                res = p.db.guid2neighbour.count_documents({'guid':'guid2'})
+                self.assertEqual(res, 1)
+                res = p.db.guid2neighbour.count_documents({'guid':'guid3'})
+                self.assertEqual(res, 1)
+                res = p.db.guid2neighbour.count_documents({'guid':'guid4'})
+                self.assertEqual(res, 1)
+                res = p.db.guid2neighbour.count_documents({'guid':'guid5'})
+                self.assertEqual(res, 1)
+                res = p.db.guid2neighbour.count_documents({'guid':'guid6'})
+                self.assertEqual(res, 1)
+                res =p.db.guid2neighbour.count_documents({'guid':'srcguid'})
+                self.assertEqual(res, 2) 
+
+
+class Test_SeqMeta_guid2neighbour_4e(unittest.TestCase):
+        """ tests creation of new guid2neighbour entries """
+        def runTest(self):
+                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
+                res = p.guid2neighbour_add_links("srcguid",{'guid1':{'dist':1}, 'guid2':{'dist':2}, 'guid3':{'dist':3}, 'guid4':{'dist':4}, 'guid5':{'dist':5}, 'guid6':{'dist':6},'guid7':{'dist':7}})
+                self.assertEqual(p.max_neighbours_per_document, 3)
+                a,b,c = p._audit_storage('srcguid')
+               
+                self.assertEqual(len(b.index), 7)
+                self.assertEqual(set(b['rstat']), set(['f','s']))       # two full, one single
+
+                res = p.db.guid2neighbour.count_documents({'guid':'guid1'})
+                self.assertEqual(res, 1)
+                res = p.db.guid2neighbour.count_documents({'guid':'guid2'})
+                self.assertEqual(res, 1)
+                res = p.db.guid2neighbour.count_documents({'guid':'guid3'})
+                self.assertEqual(res, 1)
+                res = p.db.guid2neighbour.count_documents({'guid':'guid4'})
+                self.assertEqual(res, 1)
+                res = p.db.guid2neighbour.count_documents({'guid':'guid5'})
+                self.assertEqual(res, 1)
+                res = p.db.guid2neighbour.count_documents({'guid':'guid6'})
+                self.assertEqual(res, 1)
+                res = p.db.guid2neighbour.count_documents({'guid':'guid7'})
+                self.assertEqual(res, 1)
+                res =p.db.guid2neighbour.count_documents({'guid':'srcguid'})
+                self.assertEqual(res, 3) 
+
 class Test_SeqMeta_guid2neighbour_3(unittest.TestCase):
         """ tests creation of a new guid2neighbour entry """
         def runTest(self):
@@ -1338,7 +1480,23 @@ class Test_SeqMeta_guid2neighbour_3(unittest.TestCase):
                 self.assertEqual(res, 1)
                 res = p.db.guid2neighbour.count_documents({'guid':'srcguid'})
                 self.assertEqual(res, 1)
+                a,b,c = p._audit_storage('srcguid')
+                self.assertEqual(len(b.index), 1)
+                self.assertEqual(set(b['rstat']), set(['s']))       # singleton
                 
+
+class Test_SeqMeta_audit_storage_2(unittest.TestCase):
+        """ tests audit of the situation where there are no links """
+        def runTest(self):
+                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
+                res = p.guid2neighbour_add_links("srcguid",{})
+                res = p.db.guid2neighbour.count_documents({'guid':'guid1'})
+                self.assertEqual(res, 0)
+                a,b,c = p._audit_storage('srcguid')
+                self.assertEqual(a,set([]))
+                self.assertIsInstance(b, pd.DataFrame)
+                self.assertEqual(c, {'singletons': 0, 'stored_in_m_records': 0, 'stored_in_f_records': 0, 'f_records_with_duplicates': 0, 'neighbouring_guids': 0})
+
 class Test_SeqMeta_guid2neighbour_2(unittest.TestCase):
         """ tests creation of a new guid2neighbour entry """
         def runTest(self):
@@ -1346,7 +1504,7 @@ class Test_SeqMeta_guid2neighbour_2(unittest.TestCase):
                 res = p.guid2neighbour_add_links("srcguid",{})
                 res = p.db.guid2neighbour.count_documents({'guid':'guid1'})
                 self.assertEqual(res, 0)
-                
+
 class Test_SeqMeta_version(unittest.TestCase):
     """ tests version of library.  only tested with > v3.0"""   
     def runTest(self): 
