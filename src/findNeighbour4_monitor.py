@@ -148,7 +148,9 @@ if __name__ == '__main__':
         while True:
             insert_data = PERSIST.recent_server_monitoring(selection_field="context|info|message", selection_string="About to insert", max_reported=500)
             recent_data = PERSIST.recent_server_monitoring(selection_field="content|activity|whatprocess", selection_string="server", max_reported=100)
-            page_content = dss1.make_report(insert_data, recent_data)
+            db_data = PERSIST.recent_server_monitoring(selection_field="content|activity|whatprocess", selection_string="dbManager", max_reported=1000)
+
+            page_content = dss1.make_report(insert_data, recent_data, db_data)
             for item in page_content.keys():       
                 html = file_html(page_content[item], CDN, item)
                 PERSIST.monitor_store(item, html) 

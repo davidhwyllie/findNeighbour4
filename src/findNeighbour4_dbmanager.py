@@ -233,9 +233,10 @@ python findNeighbour4_server.py ../config/myConfigFile.json \
              for guid in to_update.index:
                 hashed_guid = hashlib.md5(guid.encode('utf-8')).hexdigest()
                 if hashed_guid[0] in recompress_subset_chars:
-                        audit_stats = PERSIST.guid2neighbour_repack(guid, always_optimise=False, min_optimisable_size=10)         # if there are singletons, always optimise; but it checks
+                        audit_stats = PERSIST.guid2neighbour_repack(guid, always_optimise=False, min_optimisable_size=1)         
                         logger.info("(instance = {1}) | Repacked {0} : {2}".format(guid,recompress_subset_label, audit_stats))
-                        nModified+=1
+                        if audit_stats['actions_taken']['n_written'] > 0:
+                                nModified+=1
                 
                         # log database size
                         if nModified % 25 == 0:
@@ -245,7 +246,7 @@ python findNeighbour4_server.py ../config/myConfigFile.json \
              if nModified == 0:
                 # everything has been packed
                 logger.info("(instance = {0}) | Nothing found to repack within the specimen number range for this dbmonitor.  Waiting 1 min .. ".format(recompress_subset_label))
-                time.sleep(60)    # recheck in 5 min
+                time.sleep(60)    # recheck later
              # otherwise go get some more to compress
          
 

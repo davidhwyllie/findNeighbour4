@@ -92,7 +92,7 @@ class DepictServerStatus():
         server_url: the server url.  only used to display info
         server_port:server port.  only used to display info
         server_description: server description.  only used as display info
-	max_interval: don't plot intervals more than this (seconds)
+	    max_interval: don't plot intervals more than this (seconds)
         returns:
         nothing
         """
@@ -169,7 +169,10 @@ class DepictServerStatus():
         # generate x axis and labels for tooltips
         self.monitoring_data[data_tag]['order']= -self.monitoring_data[data_tag].index
         self.monitoring_data[data_tag]['t']= [dateutil.parser.parse(x) for x in self.monitoring_data[data_tag]['context|time|time_now'].tolist()]
+        self.monitoring_data[data_tag]['_id']=list(range(len(self.monitoring_data[data_tag].index)))
+        # sort by t
 
+        self.monitoring_data[data_tag].sort_values('t',0,ascending=False,inplace=True)
         self.monitoring_data[data_tag]['label_t']= self.monitoring_data[data_tag]['context|time|time_now'].tolist()
         self.monitoring_data[data_tag]['label_event']= self.monitoring_data[data_tag]['context|info|message'].tolist()
         try:
@@ -232,6 +235,8 @@ class DepictServerStatus():
             self.monitoring_data[to_data_tag].reset_index(drop=True, inplace=True)
         except KeyError: # fails if empty, or invalid column proposed
             pass
+            print(self.monitoring_data)
+            print(to_data_tag, 'failed or empty')
         # create intervals & a column data source
         self._create_cds(to_data_tag)
         
@@ -265,9 +270,9 @@ class DepictServerStatus():
         data_table = DataTable(source=self.source['server_info'], columns=self.source_columns['server_info'], width=1200, height=800, editable=False)      
         return Panel(child=data_table, title=tab_title)  
  
-
     def depict(self, data_tag='all', tab_title="No title", metrics = None, colorpoints=None, x_axis_label = 'Order status recorded (Oldest --> Most recent)'):
         """ produces depiction of server activity using a json representation of the server's status.
+        Depicts one data point at each point that the server inserts.
         
         input:
     
@@ -374,12 +379,13 @@ class DepictServerStatus():
         tab1 = Panel(child=div, title=tab_title)        
         return tab1
 
-    def make_report(self, all_result, recent_result):
+    def make_report(self, all_result, recent_result, db_result):
         """ makes a Bokeh report on the server's health and activity
         
         input:
-        dbquery_result: result of calling PERSIST.server_monitoring
-
+        all_result:     result of calling PERSIST.server_monitoring
+        recent_result:  as above - subsets can be different.
+        db_result:      as above - selecting output of  dbManager
         returns: bokeh document
         """
 
@@ -388,6 +394,7 @@ class DepictServerStatus():
         # try to read json.  
         self.read_json(all_result, data_tag='pre_insert')
         self.read_json(recent_result, data_tag='recent_all')
+        self.read_json(db_result, data_tag='recent_db')
 
         if len(self.monitoring_data['pre_insert'].index) == 0 or len(self.monitoring_data['recent_all'].index) == 0:        
             doc['Report'] = Div(text = "No data is available to plot")
@@ -396,27 +403,32 @@ class DepictServerStatus():
         tab_server = self.depict(data_tag='pre_insert', tab_title="In RAM sequence", metrics='server|pcstat',  x_axis_label = 'Order sequences added (Oldest --> Most recent)')
         tab_memory = self.depict(data_tag='pre_insert', tab_title="RAM usage", metrics='server|mstat', x_axis_label = 'Order sequences added (Oldest --> Most recent)')
 
-        tab_g2n = self.depict(data_tag='pre_insert', tab_title="Db: guid->neighbours", metrics='dstats|guid2neighbour',  x_axis_label = 'Order sequences added (Oldest --> Most recent)')
-        tab_g2m = self.depict(data_tag='pre_insert', tab_title="Db: guid->metadata", metrics='dstats|guid2meta',  x_axis_label = 'Order sequences added (Oldest --> Most recent)')
-        tab_sm = self.depict(data_tag='pre_insert', tab_title="Db: server monitor", metrics='dstats|server_monitoring',  x_axis_label = 'Order sequences added (Oldest --> Most recent)')
+        tab_g2n = self.depict(data_tag='pre_insert', tab_title="Neighbours (on insert)", metrics='dstats|guid2neighbour',  x_axis_label = 'Order sequences added (Oldest --> Most recent)')
+        tab_g2m = self.depict(data_tag='pre_insert', tab_title="Meta (on insert)", metrics='dstats|guid2meta',  x_axis_label = 'Order sequences added (Oldest --> Most recent)')
+        tab_sm = self.depict(data_tag='pre_insert', tab_title="ServerMon", metrics='dstats|server_monitoring',  x_axis_label = 'time (results noted every 25 repackings) (Oldest --> Most recent)')
           
         # get details of the most recent guids
         n=10
         recent_guids = self.most_recent_guids('recent_all',n=n)
         self.subset_data(from_data_tag='recent_all', to_data_tag='recent_server', column_name='content|activity|guid', cell_values=[x for x in recent_guids])
 
-        tab_rserver = self.depict(data_tag='recent_server', tab_title="Last {0} inserts: Sequences".format(n), metrics='server|pcstat')
-        tab_rmemory = self.depict(data_tag='recent_server', tab_title="Last {0} inserts: RAM".format(n), metrics='server|mstat')
+        tab_rserver = self.depict(data_tag='recent_server', tab_title="Last {0}: Seqs".format(n), metrics='server|pcstat')
+        tab_rmemory = self.depict(data_tag='recent_server', tab_title="Last {0}: RAM".format(n), metrics='server|mstat')
+
+        # get details of database monitor
+        print(self.monitoring_data['recent_db'])
+        tab_dbmon = self.depict(data_tag='recent_db', tab_title="Neighbours (all)", metrics='dstats|guid2neighbour')
+
         self._set_server_info()
         s1=self.server_info_tab()
 
         # logging
-        n_latest_lines = 200
-        tab_list = tabs=[s1,tab_rserver,tab_rmemory,tab_server, tab_memory,tab_g2n, tab_g2m, tab_sm]
+        n_latest_lines = 100
+        tab_list = tabs=[s1,tab_rserver,tab_rmemory,tab_server, tab_memory,tab_dbmon, tab_g2n, tab_g2m, tab_sm]
         for process in self.logfiles.keys():
             res = self.logfile_tail(process,n_latest_lines)
             div = Div(text= "[last {0} lines of log file are shown]<br/>".format(n_latest_lines) + res.replace('\n','<br />'), render_as_text=False, width=1000, height=800)
-            tab_list.append( Panel(child=div, title='{0} log'.format(process))) 
+            tab_list.append( Panel(child=div, title='Log:{0}'.format(process))) 
 
         doc['Report']= Tabs(tabs=tab_list)
         return doc
@@ -460,10 +472,13 @@ class test_depict_1(unittest.TestCase):
         
         dss = DepictServerStatus(logfiles= logfiles)
         dss.read_json(res, data_tag='all')
+        tab_g2n_all = dss.depict(data_tag='all', tab_title="Guid2neighbour", metrics='dstats|guid2neighbour',  x_axis_label = 'Order sequences added (Oldest --> Most recent)')
+
         dss.subset_data(from_data_tag='all', to_data_tag='pre_insert', column_name="context|info|message", cell_values=["About to insert"])
         tab_server = dss.depict(data_tag='pre_insert', tab_title="In RAM sequence", metrics='server|pcstat',  x_axis_label = 'Order sequences added (Oldest --> Most recent)')
         tab_memory = dss.depict(data_tag='pre_insert', tab_title="RAM usage", metrics='server|mstat', x_axis_label = 'Order sequences added (Oldest --> Most recent)')
         tab_g2n = dss.depict(data_tag='pre_insert', tab_title="Db: guid->neighbours", metrics='dstats|guid2neighbour',  x_axis_label = 'Order sequences added (Oldest --> Most recent)')
+
         tab_g2m = dss.depict(data_tag='pre_insert', tab_title="Db: guid->metadata", metrics='dstats|guid2meta',  x_axis_label = 'Order sequences added (Oldest --> Most recent)')
         tab_sm = dss.depict(data_tag='pre_insert', tab_title="Db: server monitor", metrics='dstats|server_monitoring',  x_axis_label = 'Order sequences added (Oldest --> Most recent)')
            
@@ -478,7 +493,7 @@ class test_depict_1(unittest.TestCase):
         n_latest_lines = 200
 
         # render
-        tab_list = [tab_server, tab_memory, tab_g2n, tab_g2m, tab_sm, tab_rserver, tab_rmemory]
+        tab_list = [tab_server, tab_memory, tab_g2n, tab_g2n_all, tab_g2m, tab_sm, tab_rserver, tab_rmemory]
         for process in logfiles.keys():
             res = dss.logfile_tail(process,n_latest_lines)
             div = Div(text= "[last {0} lines of log file are shown]<br/>".format(n_latest_lines) + res.replace('\n','<br />'), render_as_text=False, width=1000, height=800)
@@ -488,7 +503,30 @@ class test_depict_1(unittest.TestCase):
         doc = Tabs(tabs=tab_list)
 
         show(doc)
+
+class test_depict_2(unittest.TestCase):
+    def runTest(self):
+        """ tests depiction of guid2neighbour size"""
+        inputfile = os.path.join("..","testdata","monitoring","m50.json")
+        with open(inputfile,'rt') as f:
+            res = json.load(f)
+            
+        logfiles = {'big':os.path.join("..","testdata","monitoring","logfile_big.log"),
+                    'small':os.path.join("..","testdata","monitoring","logfile_small.log")}
         
+        dss = DepictServerStatus(logfiles= logfiles)
+        dss.read_json(res, data_tag='all')
+        tab_g2n_all = dss.depict(data_tag='all', tab_title="Db: guid->neighbours", metrics='dstats|guid2neighbour',  x_axis_label = 'Order sequences added (Oldest --> Most recent)')
+ 
+          
+        
+        # render
+        tab_list = [tab_g2n_all]
+        
+        doc = Tabs(tabs=tab_list)
+
+        show(doc)
+
 class test_tail(unittest.TestCase):
     def runTest(self):
         """ tests tailing of a file """

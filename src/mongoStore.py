@@ -285,6 +285,7 @@ class fn3persistence():
 
 
         # methods for the server_monitoring
+        
         def recent_server_monitoring(self, max_reported = 100, selection_field = None, selection_string = None):
             """ returns a list containing recent server monitoring, in reverse order (i.e. tail first).
                 The _id field is an integer reflecting the order added.  Lowest numbers are most recent.
@@ -310,21 +311,20 @@ class fn3persistence():
             retVal = []
             
             if selection_field is None:
-                    formerly_cursor = self.db['server_monitoring'].find({}).sort('_id', pymongo.DESCENDING)
+                    formerly_cursor = self.db['server_monitoring'].find({}).sort('_id', pymongo.DESCENDING).limit(max_reported)
             else:
-                    formerly_cursor = self.db['server_monitoring'].find({selection_field:selection_string}).sort('_id', pymongo.DESCENDING)
+                    formerly_cursor = self.db['server_monitoring'].find({selection_field:selection_string}).sort('_id', pymongo.DESCENDING).limit(max_reported)
                  
             for formerly in formerly_cursor:
                 n+=1
                 formerly['_id']=n
                 retVal.append(formerly)
 
-                if n>=max_reported:
-                        break
             return(retVal)
         
+       
         def server_monitoring_store(self, message = 'No message provided', what=None, guid=None, content={}):
-            """ stores content, a dictionary, into the server monitoirng log"""
+            """ stores content, a dictionary, into the server monitoring log"""
             now = dict(**content)
             if what is not None:
                 now['content|activity|whatprocess']= what
@@ -1073,7 +1073,7 @@ class fn3persistence():
                 if not always_optimise:
                     # determine whether how many one rstat 's' entries for this guid.
                     n_s_records = self.db.guid2neighbour.count_documents({'guid':guid, 'rstat':'s'})
-                    if n_s_records <=min_optimisable_size:          # either no singletons, or just one: nil to optimise.
+                    if n_s_records < min_optimisable_size:          # either no singletons, or just one: nil to optimise.
                             return  {
                             'guid':guid, 
                             'finished':datetime.datetime.now().isoformat(), 
