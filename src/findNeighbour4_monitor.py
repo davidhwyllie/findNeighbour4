@@ -115,15 +115,15 @@ if __name__ == '__main__':
         # launch sentry if API key provided
         if 'SENTRY_URL' in CONFIG.keys():
                 logger.info("Launching sentry client")
-                sentry_sdk.init(CONFIG['SENTRY_URL'])
+                #sentry_sdk.init(CONFIG['SENTRY_URL'])          # DEBUG
                 
         #########################  CONFIGURE HELPER APPLICATIONS ######################
 
-
+ 
         ########################  START Operations ###################################
         logger.info("Preparing to produce visualisations")
 
-        print("Connecting to backend data store at {0}".format(CONFIG['SERVERNAME']))
+        logger.info("Connecting to backend data store at {0}".format(CONFIG['SERVERNAME']))
         try:
              PERSIST=fn3persistence(dbname = CONFIG['SERVERNAME'],
 									connString=CONFIG['FNPERSISTENCE_CONNSTRING'],

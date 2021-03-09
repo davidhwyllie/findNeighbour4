@@ -222,6 +222,14 @@ class fn4Client():
             raise TypeError("nrows must be integer not {0}".format(type(nrows)))      
         retVal= self._decode(self.getpost('/api/v2/server_memory_usage/{0}'.format(nrows), timeout=timeout, method='GET')) 
         return(pd.DataFrame.from_records(retVal))
+    def server_database_usage(self,  nrows = 100, timeout =None):
+        if not isinstance(nrows, int):
+            raise TypeError("nrows must be integer not {0}".format(type(nrows))) 
+        targeturl = '/api/v2/server_database_usage/{0}'.format(nrows)   
+        retVal= self._decode(self.getpost(targeturl, timeout=timeout, method='GET')) 
+        if 'trend_stats' in retVal.keys():
+            retVal['trend_stats']= pd.DataFrame.from_dict(retVal['trend_stats'], orient='columns')
+        return retVal
     def guids_with_quality_over(self,  cutoff = 0, timeout =None):
         if not type(cutoff) in [int, float]:
             raise TypeError("cutoff must be float or int not {0}".format(type(cutoff)))      
@@ -322,12 +330,12 @@ class test_fn4_client_init2(unittest.TestCase):
     def runTest(self):
         """ initialise an fn4 client, against mongodb which doesn't exist """
         with self.assertRaises(Exception):
-            fn4c =fn4Client(baseurl = 'http://example.com')         # expect failure as URL doesn't exist
+            fn4c =fn4Client(baseurl = 'http://example.com')         # fails, does not exist
         
 class test_fn4_client_mirror(unittest.TestCase):
     def runTest(self):
         """ tests mirror function - which just sends back the POSTed payload """
-        fn4c =fn4Client()         # expect failure as URL doesn't exist
+        fn4c =fn4Client()         # default
         sent_payload = {'guid':'g1','seq':"ACTG"}
            
         retVal = fn4c.mirror(payload = sent_payload)
@@ -335,62 +343,69 @@ class test_fn4_client_mirror(unittest.TestCase):
 class test_fn4_client_guids(unittest.TestCase):
     def runTest(self):
         """ tests guids"""
-        fn4c =fn4Client()         # expect failure as URL doesn't exist    
+        fn4c =fn4Client()        
         retVal = fn4c.guids()
         self.assertEqual(type(retVal),list)
 class test_fn4_client_annotations(unittest.TestCase):
     def runTest(self):
         """ tests guids"""
-        fn4c =fn4Client()         # expect failure as URL doesn't exist    
+        fn4c =fn4Client()         # default    
         retVal = fn4c.annotations()
         self.assertEqual(type(retVal),pd.DataFrame)
 class test_fn4_client_clustering(unittest.TestCase):
     def runTest(self):
         """ tests guids"""
-        fn4c =fn4Client()         # expect failure as URL doesn't exist    
+        fn4c =fn4Client()         # default    
         retVal = fn4c.clustering()
         self.assertEqual(type(retVal),dict)
       
 class test_fn4_client_server_memory_usage(unittest.TestCase):
     def runTest(self):
         """ tests guids"""
-        fn4c =fn4Client()         # expect failure as URL doesn't exist    
+        fn4c =fn4Client()         # default    
         retVal = fn4c.server_memory_usage()
+
         self.assertEqual(type(retVal),pd.DataFrame)
+class test_fn4_client_server_database_usage(unittest.TestCase):
+    def runTest(self):
+        """ tests guids"""
+        fn4c =fn4Client()         # default    
+        retVal = fn4c.server_database_usage()
+        self.assertEqual(type(retVal),dict)
 class test_fn4_client_exists(unittest.TestCase):
     def runTest(self):
         """ tests guid/exists"""
-        fn4c =fn4Client()         # expect failure as URL doesn't exist    
+        fn4c =fn4Client()         # default    
         retVal = fn4c.guid_exists("no")
         self.assertEqual(retVal,False)
 class test_fn4_client_masked_sequence(unittest.TestCase):
     def runTest(self):
         """ tests guid/exists"""
-        fn4c =fn4Client()         # expect failure as URL doesn't exist
+        fn4c =fn4Client()         # default
         retVal = fn4c.sequence("no")
         self.assertEqual(retVal,None)
 class test_fn4_client_config(unittest.TestCase):
     def runTest(self):
         """ tests server_config endpoint """
-        fn4c =fn4Client()         # expect failure as URL doesn't exist
+        fn4c =fn4Client()         # default
         retVal = fn4c.server_config()
         self.assertTrue('INPUTREF' in retVal.keys())
 class test_fn4_client_server_time(unittest.TestCase):
     def runTest(self):
         """ tests server_time endpoint """
-        fn4c =fn4Client()         # expect failure as URL doesn't exist
+        fn4c =fn4Client()         # default
         retVal = fn4c.server_time()
         self.assertTrue('server_time' in retVal.keys())
 class test_fn4_client_nucleotides_excluded(unittest.TestCase):
     def runTest(self):
         """ tests server_time endpoint """
-        fn4c =fn4Client()         # expect failure as URL doesn't exist
+        fn4c =fn4Client()         # default
         retVal = fn4c.nucleotides_excluded()
         self.assertTrue(type(retVal), list)
 class test_fn4_client_guids_and_examination_times(unittest.TestCase):
     def runTest(self):
         """ tests server_time endpoint """
-        fn4c =fn4Client()         # expect failure as URL doesn't exist
+        fn4c =fn4Client()         # default
         retVal = fn4c.guids_and_examination_times()
         self.assertTrue(type(retVal), list)
 class test_fn4_client_insert_fasta_1(unittest.TestCase):

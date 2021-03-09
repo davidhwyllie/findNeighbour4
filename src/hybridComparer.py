@@ -139,7 +139,6 @@ class hybridComparer():
             if len(preComparer_parameters.keys())>0:
                 self.PERSIST.config_store('preComparer', preComparer_parameters)
 
-
         # store whether any insertion is necessary
         self.disable_insertion = disable_insertion
         if self.disable_insertion:

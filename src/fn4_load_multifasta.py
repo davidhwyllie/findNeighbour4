@@ -27,6 +27,7 @@ import Bio
 import logging
 import logging.handlers
 import argparse
+import time
 from collections import Counter
 from fn4client import fn4Client
 import sentry_sdk
@@ -84,6 +85,7 @@ python updating_covid_load.py "http://localhost:5023"
     logger.addHandler(file_handler)
     logger.info("Startup with arguments: {0}".format(args))
 
+    print("To see what is happening, do watch tail {0}".format(logfile))
     # launch comms with Sentry
     if os.environ.get("FN_SENTRY_URL") is not None:
         logger.info("Launching communication with Sentry bug-tracking service")
@@ -95,6 +97,7 @@ python updating_covid_load.py "http://localhost:5023"
     # instantiate client
     fn4c = fn4Client(args.server_url)      # expects operation on local host; pass baseurl if somewhere else.
 
+    
     existing_guids = set(fn4c.guids())
     clustering_created = False
     logger.info("There are {0} existing guids".format(len(existing_guids)))
@@ -119,7 +122,22 @@ python updating_covid_load.py "http://localhost:5023"
         nGood = 0
         failed = []
         i = 0
+        sr = None
         for record in Bio.SeqIO.parse(fastafile, 'fasta'):
+
+            # build in pause if high storage ratio ('fragmentation')
+            if nGood % 50 == 0:
+                server_database_usage = fn4c.server_database_usage()
+                sr = server_database_usage['latest_stats']['storage_ratio']
+                # check whether database is keeping repacked adequately
+                logger.info("Examined {0} / skipped {1}.  Database neighbour fragmentation is {2} (target: 1)".format(i,nSkipped,sr))
+                while sr > 30:            #   ratio of records containing neighbours to those containing samples - target is 1:1
+                    logger.info("Waiting 3 minutes to allow repacking operations.  Will resume when fragmentation, which is now {0}, is < 30.".format(sr))
+                    time.sleep(180)    # restart in 3 mins  if below target
+                    server_database_usage = fn4c.server_database_usage()
+                    sr = server_database_usage['latest_stats']['storage_ratio']
+                logger.info("Restarting after  pause. fragmentation is now {0} ".format(sr))  
+
             i = i + 1
             t1 = datetime.datetime.now()
             guid = record.id
@@ -146,14 +164,15 @@ python updating_covid_load.py "http://localhost:5023"
                 t2 = datetime.datetime.now()
                 i1 = t2-t1
                 s = i1.total_seconds()
-                logger.info("Scanned {0} Added {1} Sample: {2} {3} in {4} secs.  Composition: {5}".format(i, nGood, guid, msg, s, counter))
+                logger.info("Scanned {0} Adding #{1} ({2}) {3} in {4} secs.".format(i, nGood, guid, msg, s, counter))
                 
             else:
                 nSkipped +=1
 
-            if i % 1000 == 0:
-                logger.info("Examined {0} / skipped {1}".format(i,nSkipped))   
-     
+            if i % 2500 == 0:
+                logger.info("Examined {0} / skipped {1}".format(i,nSkipped))
+
+
         logger.info("Complete.  Skipped {0} guids which already exist in the server.  There are {1} bad sequences".format(nSkipped, nBad))
 
         if len(failed)>0:

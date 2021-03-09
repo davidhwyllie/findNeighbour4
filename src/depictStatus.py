@@ -235,8 +235,7 @@ class DepictServerStatus():
             self.monitoring_data[to_data_tag].reset_index(drop=True, inplace=True)
         except KeyError: # fails if empty, or invalid column proposed
             pass
-            print(self.monitoring_data)
-            print(to_data_tag, 'failed or empty')
+
         # create intervals & a column data source
         self._create_cds(to_data_tag)
         
@@ -363,7 +362,7 @@ class DepictServerStatus():
 
                     last_plot = item
                 else:
-                    print("No data for {0}".format(item))
+                    logging.info("No data for {0}".format(item))
                     
         if last_plot is not None:       # add x axis label
             single_plots['order'][last_plot].xaxis.axis_label=x_axis_label
@@ -416,7 +415,6 @@ class DepictServerStatus():
         tab_rmemory = self.depict(data_tag='recent_server', tab_title="Last {0}: RAM".format(n), metrics='server|mstat')
 
         # get details of database monitor
-        print(self.monitoring_data['recent_db'])
         tab_dbmon = self.depict(data_tag='recent_db', tab_title="Neighbours (all)", metrics='dstats|guid2neighbour')
 
         self._set_server_info()

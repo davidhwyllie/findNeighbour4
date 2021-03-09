@@ -34,7 +34,7 @@ if __name__ == '__main__':
 
         res = fn4c.guid2neighbours(sample, threshold = snp_cutoff)        # find neighbours within a snv cutoff
         neighbours = []
-        for related_sample, distance in res['neighbours']:
+        for related_sample, distance in res:
                 neighbours.append(related_sample)
 
         # if there are more than 50 samples, randomly downsample.
@@ -52,7 +52,7 @@ if __name__ == '__main__':
 
 
     # instantiate client
-    fn4c = fn4Client("http://findneighbours04.unix.phe.gov.uk:5023")      # expects operation on local host; pass baseurl if somewhere else.
+    fn4c = fn4Client("http://findneighbours04.unix.phe.gov.uk:5025")      # expects operation on local host; pass baseurl if somewhere else.
 
     snp_cutoff = 5                                 # how many snp from a sample should we include neighbours
     sample_quality_cutoff = 0.9                    # only build tree from samples with >= 90% ACTG

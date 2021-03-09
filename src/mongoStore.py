@@ -166,7 +166,7 @@ class fn3persistence():
                               target_key = "dstats|{0}|{1}".format(this_collection.replace('.','-'), relevant_metric)
                               retVal[target_key] = res[relevant_metric]
             return(retVal)    
- 
+
         def connect(self):
             """ test whether the database is connected, and if not, tries to connect.
             if the connection fails, raises pymongo.errors.ConnectionFailure """
@@ -284,8 +284,39 @@ class fn3persistence():
             return self._load('config',key)
 
 
-        # methods for the server_monitoring
-        
+        # methods for the server and database monitoring
+        def recent_database_monitoring(self, max_reported = 100):
+            """ computes trends in the number of records holding pairs (guid2neighbours) vs. records.
+            This ratio is a measure of database health.  Ratios > 100 indicate the database may become very large, and query slowly """
+
+            
+            db_data = self.recent_server_monitoring(selection_field="content|activity|whatprocess", selection_string="dbManager", max_reported=max_reported)
+            
+            res_df = pd.DataFrame.from_dict(db_data)
+
+            if len(res_df.index>0):
+                    res_df['storage_ratio'] = res_df['dstats|guid2neighbour|count']/(1+res_df['dstats|guid2meta|count'])
+                    res_df['context|time|time_now_dt']= pd.to_datetime(res_df['context|time|time_now'])
+                    res_df['latest_time'] = max(res_df['context|time|time_now_dt'])
+                    res_df['interval_seconds']  = (res_df['context|time|time_now_dt'] - res_df['latest_time']).dt.total_seconds()
+                 
+                    desired_cols = set(['_id','storage_ratio','dstats|guid2neighbour|count','dstats|guid2meta|count','context|time|time_now','interval_seconds'])
+                    available_cols = set(res_df.columns.to_list())
+                    select_cols = desired_cols.intersection(available_cols)
+                    res_df = res_df[list(select_cols)]  # select what we want
+            if len(res_df.index>0):
+                    retDict = {'recompression_data':True, 'latest_stats':{'storage_ratio': res_df.at[0, 'storage_ratio']}, 'trend_stats':res_df.to_dict(orient='records')}
+            else:
+                    retDict = {'recompression_data':False, 'latest_stats':{'storage_ratio':1}}   # if there's no data, record as 1 (optimal)
+
+            # store the ratio as 1 if we can't compute it 
+            if not 'dstats|guid2meta|count' in res_df.columns.tolist():
+                retDict['latest_stats']['storage_ratio']=1
+            elif res_df.at[0, 'dstats|guid2meta|count'] == 0:
+                retDict['latest_stats']['storage_ratio']=1
+    
+            return retDict  
+
         def recent_server_monitoring(self, max_reported = 100, selection_field = None, selection_string = None):
             """ returns a list containing recent server monitoring, in reverse order (i.e. tail first).
                 The _id field is an integer reflecting the order added.  Lowest numbers are most recent.
@@ -617,14 +648,16 @@ class fn3persistence():
             method: either 'approximate' or 'exact'.  For ranking samples for repacking, the approximate method is recommended.
             return_top:  the number of results to return.  Set > number of samples to return all records.  If method = 'exact', return_top is ignored and all records are returned.
 
-            The approximate method is much faster than the exact one; it randomly downsamples the guid-neighbour pairs in 
+            The approximate method is much faster than the exact one if large numbers of singletons are present; it randomly downsamples the guid-neighbour pairs in 
             the guid2neighbour collection, taking 100k samples only, and the counts the number of singletons in the downsample.  This is therefore a method of ranking
             samples which may benefit from repacking.  This sampling method returns queries in a few milliseconds in testing on large tables.  
-            This method is not deterministic if there are more than 100k documents in the guid2neighbour collection.
+            This method is not deterministic.
             
-            The exact method computes the exact number of singletons for each sample.  This requires an index scan which (as of mongo 4.04) is 
-            surprisingly slow, with the query taking > 30 seconds with > table size ~ 3 x10^7.
-            This method is deterministic.
+            In the event of failure to successfully generate a sample of sufficient size (set to 100k at present), 
+            which can happen if there are fewer than singletons, then the exact method will be used as a fallback.  If fallback of this kind occurs, only return_top samples will be returned.
+
+            The exact method computes the exact non-zero number of singletons for each sample.  This requires an index scan which can be
+            surprisingly slow, with the query taking > 30 seconds with > table size ~ 3 x10^7.   This method is deterministic.
             
             Returns:
             a set of sample identifiers ('guids') which contain > min_number_records singleton entries.
@@ -635,54 +668,40 @@ class fn3persistence():
                 raise TypeError("return_top is {0}; this must be an integer not a {1}".format(return_top, type(return_top)))
             if not return_top>0:
                 raise TypeError("return_top is {0}; this must be a non zero positive integer".format(return_top))
-            
+            if not method in ['exact','approximate']:
+                raise ValueError("Method must be either 'exact' or 'approximate', not {0}".format(method))
+
             # use mongodb pipeline
             # shell example: db.guid2neighbour.aggregate([ {$sample: {size: 100000}}, { $match: {rstat:'s'}}, { $sortByCount: "$guid"}, {$limit: 1000}  ] )
             approximate_pipeline = [ {"$sample": {"size": 100000}}, { "$match": {"rstat":'s'}}, { "$sortByCount": "$guid"}, {"$limit": return_top}  ]
             exact_pipeline = [  { "$match": {"rstat":'s'}}, { "$sortByCount": "$guid"} ] 
-
+            fallback = False
             if method == 'approximate':
-                results = self.db.guid2neighbour.aggregate(approximate_pipeline)
-            elif method == 'exact':
+                
+                try:
+                    results = self.db.guid2neighbour.aggregate(approximate_pipeline)
+                except pymongo.errors.OperationFailure:
+                    # occurs if there are very few samples left; a random sample of the required size (in this case 100k) cannot be generated
+                    method = 'exact'
+                    logging.info("mongoStore.singletons | unable to generate a random sample of the required size, due to a small numbers of singletons.  Falling back to an exact method.")
+                    fallback = True
+
+            if method == 'exact':
                 results = self.db.guid2neighbour.aggregate(exact_pipeline)
-            else: 
-                raise ValueError("method must be either 'approximate' or 'exact'")
-            
+
             ret_list = []
             for item in results:
                 ret_list.append(item)
-            
+
+            if fallback is True and len(ret_list)> return_top:
+                logging.info("Fallback prcesses in place; restricting to top {0}.  Exact search examined {1} samples with singletons".format(return_top, len(ret_list)))
+                ret_list = ret_list[:return_top] 
             ret_df = pd.DataFrame.from_records(ret_list)
             ret_df.rename(columns={"_id": "guid"}, inplace=True)
             ret_df.set_index('guid',drop=True, inplace=True)
             
             return ret_df
 
-        def singletons_old(self, max_records = 500000, min_number_records = 20):
-            """ returns guids of records which need repacking.
-            Inclusion of max_records is important for very large datasets, or the query is slow.
-            
-            Parameters:
-            max_records: only consider the first max_records in the table
-            min_number_records: do not report samples with fewer than min_number_records ** in the max_records scanned ** singleton samples.
-
-            Returns:
-            a set of sample identifiers ('guids') which contain > min_number_records singleton entries.
-             """
-            singleton_guids = set()
-            singletons= []
-            high_freq_singletons = []
-            
-            for res in self.db.guid2neighbour.find({'rstat':'s'}, {'guid':1}).limit(max_records): 
-                singletons.append(res['guid']) 
-            singleton_freq = Counter(singletons)
-            
-            for guid,count in singleton_freq.most_common():
-                if count >= min_number_records:
-                    high_freq_singletons.append(guid)          
-                
-            return set(high_freq_singletons)
-             
         def guids_valid(self):
             """ return all registered valid guids.  
 
@@ -1199,7 +1218,7 @@ class fn3persistence():
                 
 ## persistence unit tests
 UNITTEST_MONGOCONN = "mongodb://localhost"
-class Test_Server_Monitoring_1(unittest.TestCase):
+class Test_Server_Monitoring_0(unittest.TestCase):
         """ adds server monitoring info"""
         def runTest(self):
                 p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
@@ -1209,6 +1228,23 @@ class Test_Server_Monitoring_1(unittest.TestCase):
 
                 self.assertEqual(len(res),1)
                 self.assertTrue(isinstance(res,list))
+
+class Test_Server_Monitoring_1(unittest.TestCase):
+        """ tests recovery of database monitoring info"""
+        def runTest(self):
+                p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
+
+                res1 = p.recent_database_monitoring(100)
+
+                db_summary = p.summarise_stored_items()
+                p.server_monitoring_store(what='dbManager', message="Repacking", guid='-', content=db_summary)
+                res2 = p.recent_database_monitoring(100)
+                self.assertEqual(res1, {'latest_stats': {'storage_ratio': 1}, 'recompression_data': False})
+                self.assertEqual(res2['recompression_data'], True)
+                self.assertEqual(res2['latest_stats']['storage_ratio'], 1)
+                
+                retVal = json.dumps(res2)               # should succeed
+
 
 class Test_Server_Monitoring_2(unittest.TestCase):
         """ adds server monitoring info"""
@@ -1283,7 +1319,8 @@ class Test_Server_Monitoring_4(unittest.TestCase):
                 p.delete_server_monitoring_entries(1)
                 res = p.recent_server_monitoring(100)
                 self.assertEqual(len(res),0)
-                self.assertTrue(isinstance(res,list))   
+                self.assertTrue(isinstance(res,list))
+   
 class Test_SeqMeta_singleton(unittest.TestCase):
         """ tests guid2neighboursOf"""
         def runTest(self):

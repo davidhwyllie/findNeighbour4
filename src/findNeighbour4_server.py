@@ -378,6 +378,7 @@ class findNeighbour4():
         
         # determine how many guids there in the database
         guids = self.PERSIST.refcompressedsequence_guids()
+
         if len(guids)==0:
             self.server_monitoring_store(message='There is nothing to load')
             app.logger.info("Nothing to load")
@@ -388,9 +389,12 @@ class findNeighbour4():
             nLoaded = 0
             nRecompressed = 0
             bar = progressbar.ProgressBar(max_value = len(guids))
+
             for guid in guids:
+                
                 nLoaded+=1
                 self.gs.add(guid)
+
                 self.hc.repopulate(guid=guid)
                 bar.update(nLoaded)
 
@@ -593,7 +597,15 @@ class findNeighbour4():
         if max_reported is None:
             max_reported =100       # a default
         return self.PERSIST.recent_server_monitoring(max_reported= max_reported)
-    
+
+    def server_database_usage(self, max_reported=None):
+        """ reports recent server memory activity """
+
+        # record the current status
+        if max_reported is None:
+            max_reported =100       # a default
+        return  self.PERSIST.recent_database_monitoring(max_reported= max_reported)
+   
     def neighbours_within_filter(self, guid, snpDistance, cutoff=0, returned_format=1):
         """ returns a list of guids, and their distances, by a sample quality cutoff    
             returns links either as
@@ -1085,6 +1097,21 @@ if __name__ == '__main__':
 
 
 
+    @app.route('/api/v2/server_database_usage', defaults={'nrows':100}, methods=['GET'])
+    @app.route('/api/v2/server_database_usage/<int:nrows>', methods=['GET'])
+    @app.route('/api/v2/server_database_usage/<int:nrows>', methods=['GET'])
+    def server_database_usage(nrows):
+        """ returns server memory usage information, as list.
+        The server notes memory usage at various key points (pre/post insert; pre/post recompression)
+        and these are stored. """
+        try:
+            result = fn.server_database_usage(max_reported = nrows)
+        except Exception as e:
+            
+            capture_exception(e)
+            abort(500, e)
+        return make_response(tojson(result))
+
     @app.route('/api/v2/server_memory_usage', defaults={'nrows':100, 'output_format':'json'}, methods=['GET'])
     @app.route('/api/v2/server_memory_usage/<int:nrows>', defaults={'output_format':'json'}, methods=['GET'])
     @app.route('/api/v2/server_memory_usage/<int:nrows>/<string:output_format>', methods=['GET'])
@@ -1094,7 +1121,7 @@ if __name__ == '__main__':
         and these are stored. """
         try:
             result = fn.server_memory_usage(max_reported = nrows)
-
+            return make_response(tojson(result))
         except Exception as e:
             
             capture_exception(e)

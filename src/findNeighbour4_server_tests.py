@@ -618,8 +618,6 @@ class test_server_config(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
 
 
-        
-
 class test_server_memory_usage(unittest.TestCase):
     """ tests route /api/v2/server_memory_usage"""
     def runTest(self):
@@ -632,6 +630,19 @@ class test_server_memory_usage(unittest.TestCase):
         res = json.loads(res.content.decode('utf-8'))
         self.assertTrue(isinstance(res,list))
 
+
+class test_server_database_usage(unittest.TestCase):
+    """ tests route /api/v2/server_database_usage"""
+    def runTest(self):
+
+        relpath = "/api/v2/server_database_usage"
+        res = do_GET(relpath)
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(isjson(content = res.content))
+
+        res = json.loads(res.content.decode('utf-8'))
+        self.assertTrue(isinstance(res,dict))
+        self.assertEqual(res['latest_stats']['storage_ratio'],1)
 
 
 class test_snpceiling(unittest.TestCase):

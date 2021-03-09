@@ -219,7 +219,12 @@ python findNeighbour4_server.py ../config/myConfigFile.json \
              if datetime.datetime.now() > date_last_log_rotated+datetime.timedelta(hours=24):
                      date_last_log_rotated =datetime.datetime.now()
                      logger.info("Rotated mongodb log; deleting old server monitor entries")
-                     PERSIST.rotate_log()
+                     try:
+                            PERSIST.rotate_log()
+                     except pymongo.errors.OperationFailure as e:
+                             capture_exception(e)
+                             logger.warning("Failed to rotate log")                     # can occur if multiple threads try to do it simultenously
+
                      PERSIST.delete_server_monitoring_entries(before_seconds= (3600 * 24 * 7))        # 7 days
                      pass
 
@@ -241,7 +246,7 @@ python findNeighbour4_server.py ../config/myConfigFile.json \
                         # log database size
                         if nModified % 25 == 0:
                                 db_summary = PERSIST.summarise_stored_items()
-                                PERSIST.server_monitoring_store(what='dbManager', message="Repacking", guid="-", content=db_summary)
+                                PERSIST.server_monitoring_store(what='dbManager', message="Repacking", guid='-', content=db_summary)
 
              if nModified == 0:
                 # everything has been packed
