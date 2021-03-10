@@ -12,14 +12,13 @@ It has the following features:
 * Returns multiple sequence alignments.
 * [Detects mixtures of different sequences](https://www.biorxiv.org/content/10.1101/681502v1).
 * Automatically performs clustering to a range of SNV thresholds.
-* Can detect, and appropriately cluster sequences in the presence of, inter-sample mixtures. [NOTE: THIS IS BEING UPDATED]
+* Can detect, and appropriately cluster sequences in the presence of, inter-sample mixtures. [experimental feature - do not use in production]
 * Allows queries identifying similar sequences, cluster members, and multisequence alignments with  millisecond response times.
 * Tracks memory usage, logging to database, during routine operation.
 * Allow attachment of arbitrary metadata to each sequence, but the front end for this is not implemented.
 
 Compared with findNeighbours 2 and 3, it works much faster (>100x faster inserts) and uses about 5% of the RAM.  
-This is achieved using using a compiled component, CatWalk, to store and compare sequences.  The component was developed by Denis Volk in nim, about which more details of this will be provided in the future.  findNeighbour4 also offers the option to use additional optimisations, including using a two stage comparison initially ignoring uncertain ('N') calls.  
-
+This is achieved using using a compiled component, CatWalk, to store and compare sequences.  The component was developed by Denis Volk (Modernising Medical Microbiology, Oxford) - publication planned.
 It was produced as part of the [Modernising Medical Microbiology](http://modmedmicro.nsms.ox.ac.uk/) initiative, together with [Public Health England](https://www.gov.uk/government/organisations/public-health-england).
 
 # Front end
@@ -41,15 +40,7 @@ The server can be accessed via RESTful web services from any language.
 A python client (fnclient), which calls the REST endpoints and converts output into python objects, is also provided.
 
 # Memory and disc usage
-This depends on the kind of sequences stored.  For *M. tuberculosis*:
-
-**Memory usage**   
-* 50,000 samples will use about 16G of RAM
-   
-**Database size**   
-* database usage is about 0.2M (200kb) per sample.  This equates to about 5,000 samples per gigabyte.
-* a free MongoDb test instance with MongoDb Atlas with 512M of storage will manage about 2,000 samples. Using the same provider, 
-* an M20 EC2 instance (currently USD 0.22/hr) with 4G RAM and 20G disc storage will manage about 100,000 samples.
+This depends on the kind of sequences stored.  The server has been tested with SARS-CoV-2 genomes & with  *M. tuberculosis*:
 
 # Comparison with findNeighbour2
 findNeighbour4 is a development of [findNeighbour2](https://github.com/davidhwyllie/findNeighbour2).
@@ -65,6 +56,9 @@ There are the following other differences:
 * Internally, it has been refactored into four components, managing the web server, in-memory storage, on-disc storage, and clustering.
 * It is only accessible via a RESTful endpoint.  The xmlrpc API included with findNeighbour2 has been removed.
 
+# Comparison with findNeighbour3
+The server has been much more heavily tested, and is much faster.  Production use of findNeighbour3 is not recommended.
+
 # More information
 [Set up and unit testing](doc/HowToTest.md)  
 [Endpoints](doc/rest-routes.md)  
@@ -76,6 +70,7 @@ A publication describing findNeighbour4 implementation & performance is planned.
 A publication describing findNeighbour2 is in BMC Bioinformatics:  
 *BugMat and FindNeighbour: command line and server applications for investigating bacterial relatedness*
 DOI : 10.1186/s12859-017-1907-2 (https://dx.doi.org/10.1186/s12859-017-1907-2)  
+
 The nature of the mixPORE (mixture detection algorithm) provided by the server, and its application to *M. tuberculosis* mixture detection is described [here](https://www.biorxiv.org/content/10.1101/681502v1).
 
 # Large test data sets

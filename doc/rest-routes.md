@@ -1,9 +1,12 @@
 Frontend
 --------
 [/ui/info](/ui/info) server status page  
-[/api/v2/server_memory_usage/1/html](/api/v2/server_memory_usage/1/html) Memory usage now  
-**/ui/server_status/*absdelta*/*stats_type*/*nrows***  visualise server disc and application memory usage    
-[/api/v2/monitor](/api/v2/monitor)  interactive html containing monitoring data. Initial render is slow.  Requires findNeighbour3-monitor.py app is running.
+[/api/v2/server_memory_usage/1/html](/api/v2/server_memory_usage/1/html) Memory usage now (html table)  
+[/api/v2/server_memory_usage/1](/api/v2/server_memory_usage/1) Memory usage now (json)  
+[/api/v2/server_memory_usage/100](/api/v2/server_memory_usage/100) As above but showing last 100 stored - for trend analysis  
+[/api/v2/server_database_usage/1](/api/v2/server_database_usage/1)  Key database stats, including ratio of sequences to rows holding sequence-sequence pairs (storage_ratio)  
+[/api/v2/server_database_usage/100](/api/v2/server_database_usage/100)  As above but last 100 stored rows - for trend analysis  
+[/api/v2/monitor](/api/v2/monitor)  interactive html (embedded javascript) containing monitoring data.  Requires findNeighbour4_monitor.py is running.  
 
 Search/describe sequences in the server
 -----------------------------------------------------------------------
@@ -83,4 +86,3 @@ Notes
 *italics* describe parameters which can be supplied.  
 *guid* refers to the identifier of a sequence.   
 All endpoints support GET unless otherwise specified.  
-
