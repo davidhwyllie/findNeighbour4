@@ -696,10 +696,13 @@ class fn3persistence():
             if fallback is True and len(ret_list)> return_top:
                 logging.info("Fallback prcesses in place; restricting to top {0}.  Exact search examined {1} samples with singletons".format(return_top, len(ret_list)))
                 ret_list = ret_list[:return_top] 
-            ret_df = pd.DataFrame.from_records(ret_list)
+            ret_df = pd.DataFrame.from_records(ret_list)    
             ret_df.rename(columns={"_id": "guid"}, inplace=True)
+
+            if ret_df.empty:            # if empty, the '_id' column is not there, and the rename fails
+                ret_df = pd.DataFrame(columns=("guid","count"))
             ret_df.set_index('guid',drop=True, inplace=True)
-            
+
             return ret_df
 
         def guids_valid(self):
@@ -707,6 +710,7 @@ class fn3persistence():
 
                 Validity is determined by the contents of the DNAQuality.invalid field, on which there is an index """
             return self._guids_selected_by_validity(0)
+
         def guids_invalid(self):
             """ return all invalid guids 
 
@@ -743,6 +747,7 @@ class fn3persistence():
                     return int(res['sequence_meta']['DNAQuality']['invalid'])
                 except KeyError:
                     return -2
+
         def guid_quality_check(self,guid,cutoff):
          """ Checks whether the quality of one guid exceeds the cutoff.
          
@@ -776,7 +781,8 @@ class fn3persistence():
             return dnaq['propACTG']>=cutoff
         
         def guid2item(self, guidList, namespace, tag):
-            """ returns the item in namespace:tag for all guids in guidlist.
+            """ returns the annotation (such as sequence quality, which is stored as an annotation)
+            in namespace:tag for all guids in guidlist.
             If guidList is None, all items are returned.
             An error is raised if namespace and tag is not present in each record.   
             """
@@ -831,7 +837,7 @@ class fn3persistence():
             return retDict      # note: slightly different from previous api
         
         def guid2items(self, guidList, namespaces):
-            """ returns all items in namespaces, which is a list, as a pandas dataframe.
+            """ returns all annotations in namespaces, which is a list, as a pandas dataframe.
             If namespaces is None, all namespaces are returned.
             If guidList is None, all items are returned.
             To do this, a table scan is performed - indices are not used.
@@ -869,7 +875,7 @@ class fn3persistence():
             
             return self.guid2items([guid],None)           # restriction by guid.
 
-        def guid2neighbour_add_links(self,guid, targetguids):
+        def guid2neighbour_add_links(self,guid, targetguids, use_update = False):
                 """ adds links between guid and their neighbours ('targetguids')
 
                 Parameters:               
@@ -879,9 +885,17 @@ class fn3persistence():
                         'guid2':{'dist':12},
                         'guid3':{'dist':2}
                 }
+                use_update -  currently ignored, always False.  Setting True yields NotImplementedError
                 
-                This stores links in the guid2neighbour collection;
-                each stored document links one guid to one target.
+                This stores links in the guid2neighbour collection.
+                If use_update = True, will update target documents, adding a new link to the targetguid document. 
+                    {targetguid -> {previousguid: distance1, previousguid2: distance2}} --> {targetguid -> {previousguid: distance1, previousguid2: distance2, guid: distance}
+                    This approach has many disadvantages
+                    - multiple database accesses: one to find a document to update, and one to update it - may be hundreds or thousands of database connections for each insert operation
+                    - approach is (with Mongodb) not inherently atomic.  If failure occurs in the middle of the process, database can be left in an inconsistent state, requiring use of transactions (slower)
+                    - by contrast, the no_update method (default) requires a single insert_many operation, which is much cleaner and is atomic.
+                    - the use_update approach is not implemented
+                If use_update = False (default), for each new link from targetguid -> guid, a new document will be inserted linking {targetguid -> {guid: distance}}
                 
                 The function guid2neighbour_repack() reduces the number of documents
                 required to store the same information.
@@ -894,7 +908,8 @@ class fn3persistence():
                                  
                 # find guid2neighbour entry for guid.
                 to_insert = []
-                current_m = None    # no target record for guid -> multiple targets
+
+                current_m = None    # no target record for guid -> multiple targets.  We made a new one.
                 for targetguid in targetguids.keys():
                         payload = targetguids[targetguid]    # a distance 
                                                        
@@ -902,12 +917,15 @@ class fn3persistence():
                         # NOTE: for the (new) guid --> targetguids, we can write a single record with many entries
                         # however, the other way round, we have to add multiple single samples
                         #  targetguid --> guid (reverse link) (singleton)
-                        to_insert.append({'guid':targetguid, 'rstat':'s', 'neighbours':{guid:payload}})
+
+                        if use_update:      # slower: multiple update operations against the database on insert, not atomic see above
+                            raise NotImplementedError("Updating method for adding links is not implemented")
+                        else:
+                            # insert a new record, which can be processed by update_many
+                            to_insert.append({'guid':targetguid, 'rstat':'s', 'neighbours':{guid:payload}})
 
                         # Now add one record containing many target guids
                         # guid --> {many targetguids } (forward link)
-
-                        ## OLD to_insert.append({'guid':guid, 'rstat':'s', 'neighbours': {targetguid:payload}})
                         if current_m is not None:
                             if len(current_m['neighbours'].keys()) >= self.max_neighbours_per_document:     # need to make another one                   
                                 current_m['rstat']= 'f'    # full

@@ -21,6 +21,7 @@ pipenv run python3 fn4_load_multifasta.py http://localhost:5023 /srv/data/covid 
 import os
 import glob
 import datetime
+import dateutil
 import pandas as pd
 import shutil
 import Bio
@@ -32,11 +33,36 @@ from collections import Counter
 from fn4client import fn4Client
 import sentry_sdk
 
+## define functions and classes
+class DatabaseMonitorInoperativeError(Exception):
+    """ insert failed """
+    def __init__(self, expression, message):
+        self.expression= expression
+        self.message =message
+
+def measure_sr(fn4_client):
+    """ checks the most recently recorded server ratio (ratio of  rows in guid2neighbour to guid2meta),
+    and notes whether this was in the last 10 minutes 
+    
+    relies on the fn4c client being present as global variable"""
+    seconds_ago = None
+    server_database_usage = fn4_client.server_database_usage(nrows=1)
+    server_time_now = fn4_client.server_time()
+    if 'trend_stats' in server_database_usage.keys(): 
+        report_time = server_database_usage['trend_stats'].loc[0,'context|time|time_now']
+        td = dateutil.parser.parse(server_time_now['server_time'])-dateutil.parser.parse(report_time)       # how long ago was the report on the database?
+        seconds_ago = td.total_seconds()
+     
+    if seconds_ago is None or seconds_ago > 600:            # 10 mins ago
+        raise DatabaseMonitorInoperativeError("No recent measurements of server health indicate findNeighbour4_dbmanager is not operational","Last measurement was {0} seconds ago (None = no record of ever measurement)".format(seconds_ago))
+    
+    return server_database_usage['latest_stats']['storage_ratio']
+    
+
 
 if __name__ == '__main__':
 
-
-   # command line usage.  Pass the location of a config file as a single argument.
+    # command line usage.  Pass the location of a config file as a single argument.
     parser = argparse.ArgumentParser(
         formatter_class= argparse.RawTextHelpFormatter,
         description="""Runs findNeighbour4_server, a service for bacterial relatedness monitoring.
@@ -97,7 +123,6 @@ python updating_covid_load.py "http://localhost:5023"
     # instantiate client
     fn4c = fn4Client(args.server_url)      # expects operation on local host; pass baseurl if somewhere else.
 
-    
     existing_guids = set(fn4c.guids())
     clustering_created = False
     logger.info("There are {0} existing guids".format(len(existing_guids)))
@@ -114,7 +139,12 @@ python updating_covid_load.py "http://localhost:5023"
     else:
         logger.info("Reference already present")
 
-    for fastafile in glob.glob(os.path.join(args.fastadir, args.fileglob)):
+
+    fastafiles = sorted(glob.glob(os.path.join(args.fastadir, args.fileglob)))
+    logger.info("There are {0} fasta files waiting to be loaded".format(len(fastafiles)))
+    
+    ## optionally raise an error if this list is too long 
+    for fastafile in fastafiles:
         logger.info("Scanning {0}".format(fastafile))
 
         nSkipped = 0
@@ -122,22 +152,22 @@ python updating_covid_load.py "http://localhost:5023"
         nGood = 0
         failed = []
         i = 0
-        sr = None
+
         for record in Bio.SeqIO.parse(fastafile, 'fasta'):
 
             # build in pause if high storage ratio ('fragmentation')
-            if nGood % 50 == 0:
-                server_database_usage = fn4c.server_database_usage()
-                sr = server_database_usage['latest_stats']['storage_ratio']
-                # check whether database is keeping repacked adequately
-                logger.info("Examined {0} / skipped {1}.  Database neighbour fragmentation is {2} (target: 1)".format(i,nSkipped,sr))
-                while sr > 30:            #   ratio of records containing neighbours to those containing samples - target is 1:1
-                    logger.info("Waiting 3 minutes to allow repacking operations.  Will resume when fragmentation, which is now {0}, is < 30.".format(sr))
-                    time.sleep(180)    # restart in 3 mins  if below target
-                    server_database_usage = fn4c.server_database_usage()
-                    sr = server_database_usage['latest_stats']['storage_ratio']
-                logger.info("Restarting after  pause. fragmentation is now {0} ".format(sr))  
+            if nGood % 50 == 0 and nGood > 0:
 
+                # check whether database is keeping repacked adequately.  If it isn't, insertion will pause.  
+                # If we don't know, because monitoring is off, then an error will be raised.
+                sr = measure_sr(fn4c)
+                logger.info("Examined {0} / skipped {1}.  Database neighbour fragmentation is {2:.1f} (target: 1)".format(i,nSkipped,sr))
+                while sr > 100:            #   ratio of records containing neighbours to those containing samples - target is 1:1
+                    logger.warning("Waiting 6 minutes to allow repacking operations.  Will resume when fragmentation, which is now {0:.1f}, is < 100.".format(sr))
+                    time.sleep(360)    # restart in 6 mins  if below target
+                    sr = measure_sr(fn4c)
+
+                             
             i = i + 1
             t1 = datetime.datetime.now()
             guid = record.id
@@ -158,13 +188,13 @@ python updating_covid_load.py "http://localhost:5023"
                     msg = "** FAILED **"
 
                 else:
-                    msg = "Succeeeded"
+                    msg = "succeeded"
                     nGood +=1
 
                 t2 = datetime.datetime.now()
                 i1 = t2-t1
                 s = i1.total_seconds()
-                logger.info("Scanned {0} Adding #{1} ({2}) {3} in {4} secs.".format(i, nGood, guid, msg, s, counter))
+                logger.info("Scanned {0} Adding #{1} ({2}) {3} in {4:.2f} secs.".format(i, nGood, guid, msg, s, counter))
                 
             else:
                 nSkipped +=1

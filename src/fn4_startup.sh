@@ -29,7 +29,7 @@ if [ $# -gt 1 ]; then
     fi
 fi
 
-echo "NOHUP_LOGGING $NOHUP_LOGGING"
+echo "NOHUP_LOGGING is $NOHUP_LOGGING (1= enabled)"
 
 # checksum the config file
 MD5CHECKSUM=`md5sum $1 | cut -d' ' -f1`
@@ -41,36 +41,50 @@ LOGDIR=`python3 get_log_dir_from_config_file.py $1`
 # set sentry url for bug tracking: FN_SENTRY_URL
 # not set here. Should be set in a .env file in the pipenv
 
-if [ $NOHUP_LOGGING -eq 1 ]; then
-	echo "Starting server"
-	nohup pipenv run python3 findNeighbour4_server.py $1 > ${LOGDIR}nohup_fn4_server_${MD5CHECKSUM}.out &
-	echo "Starting dbmanager instance 1"
-	nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset 01234567 $1 > ${LOGDIR}nohup_fn4_dbmanager_${MD5CHECKSUM}.out &
-	echo "Starting dbmanager instance 2"
-	nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset 89abcdef $1 > ${LOGDIR}nohup_fn4_dbmanager_${MD5CHECKSUM}.out &
-	echo "Starting monitor"
-	nohup pipenv run python3 findNeighbour4_monitor.py $1 > ${LOGDIR}nohup_fn4_monitor_${MD5CHECKSUM}.out &
-	echo "Starting clustering"
-	nohup pipenv run python3 findNeighbour4_clustering.py $1 > ${LOGDIR}nohup_fn4_clustering_${MD5CHECKSUM}.out &
-        sleep 1
-	echo "Startup complete.  Output files containing STDOUT and STDERR output are being written to $LOGDIR."
-	echo "Server processes make their own logs; retaining the STDOUT and STDERR of the server processes should not be necessary, although we do so currently for debugging purposes.  This will yield very large log files in production.  In a production system, you should either (i) use .fn4_startup.sh {CONFIG_FILE} NO_NOHUP_LOGGING  (recommended) or (2) arrange log rotation of the nohup output using the linux logrotate command, see: https://support.rackspace.com/how-to/understanding-logrotate-utility/"
+MONLOG="${LOGDIR}nohup_fn4_monitor_${MD5CHECKSUM}.out"
+SRVLOG="${LOGDIR}nohup_fn4_server_${MD5CHECKSUM}.out"
+MANLOG="${LOGDIR}nohup_fn4_dbmanager_${MD5CHECKSUM}.out"
+CLUSTLOG="${LOGDIR}nohup_fn4_clustering_${MD5CHECKSUM}.out"
 
-else
+if [ $NOHUP_LOGGING -eq 0 ]; then
+	MANLOG="/dev/null"
+	SRVLOG="/dev/null"
+	MONLOG="/dev/null"
+	CLUSTLOG="/dev/null"
+fi
 
-	echo "Starting server"
-	nohup pipenv run python3 findNeighbour4_server.py $1 > /dev/null &
-	echo "Starting dbmanager instance 1"
-	nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset 01234567 $1 > /dev/null & 
-	echo "Starting dbmanager instance 2"
-	nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset 89abcdef $1 > /dev/null &
-	echo "Starting monitor"
-	nohup pipenv run python3 findNeighbour4_monitor.py $1 > /dev/null &
-	echo "Starting clustering"
-	nohup pipenv run python3 findNeighbour4_clustering.py $1 > /dev/null &
-        sleep 1
-	echo "Startup complete.  Autorotating server log files are being written to $LOGDIR. Nohup output is not retained.  This is the recommended production arrangement, as large log files do not have to be managed external to findNeighbour4."
+echo "Starting server"
+#nohup pipenv run python3 findNeighbour4_server.py $1 > $SRVLOG &
+sleep 5
+echo "Starting dbmanager instance 1"
+nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset 0123 $1 > $MANLOG &
+sleep 5
+echo "Starting dbmanager instance 2"
+nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset 4567 $1 > $MANLOG &
+sleep 5
+echo "Starting dbmanager instance 3"
+nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset 89ab $1 > $MANLOG &
+sleep 5
+echo "Starting dbmanager instance 4"
+nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset cdef $1 > $MANLOG &
+sleep 5
 
+echo "Starting monitor"
+#nohup pipenv run python3 findNeighbour4_monitor.py $1 > $MONLOG &
+sleep 5
+echo "Starting clustering"
+#nohup pipenv run python3 findNeighbour4_clustering.py $1 > $CLUSTLOG &
+sleep 5
+
+echo "Startup complete.  Output files containing STDOUT and STDERR output are being written to $LOGDIR."
+echo "Server processes making their own log in the database. Nohup output is going to the following locations:"
+echo $MONLOG
+echo $MANLOG
+echo $SRVLOG
+echo $CLUSTLOG
+
+if [ $NOHUP_LOGGING -eq 0 ]; then
+	echo "Either use the parameter NO_NOHUP_LOGGING  (recommended) or (2) arrange log rotation of the nohup output using the linux logrotate command, see: https://support.rackspace.com/how-to/understanding-logrotate-utility/"
 fi
 	 
 exit 0
