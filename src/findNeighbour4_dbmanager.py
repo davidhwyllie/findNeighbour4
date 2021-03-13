@@ -177,7 +177,7 @@ python findNeighbour4_server.py ../config/myConfigFile.json \
                 sentry_sdk.init(CONFIG['SENTRY_URL'])
 
 
-        # determine whether a FN_SENTRY_URL environment variable is present,
+        # determine whether a FN_SENTRY_URL environmentvariable is present,
         # if so, the value of this will take precedence over any values in the config file.
         # This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuraton file.
         if os.environ.get("FN_SENTRY_URL") is not None:
@@ -231,7 +231,7 @@ python findNeighbour4_server.py ../config/myConfigFile.json \
              nModified = 0
              # does this guid have any singleton guid2neighbour records which need compressing
              logger.info("(instance = {0}) | Finding compressable records.".format(recompress_subset_label))            
-             to_update =PERSIST.singletons(method='approximate', return_top=100)                     # compress in small batches of 100, after which we will reassess what is worst.  
+             to_update =PERSIST.singletons(method='exact', return_top=100)                     # compress in small batches of 100, after which we will reassess what is worst.  
 
              logger.info("(instance = {1}) | Found records which may need compression; examining {0} with higher singleton estimates.".format(len(to_update.index), recompress_subset_label))
 
