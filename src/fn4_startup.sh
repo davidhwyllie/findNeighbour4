@@ -54,26 +54,38 @@ if [ $NOHUP_LOGGING -eq 0 ]; then
 fi
 
 echo "Starting server"
-#nohup pipenv run python3 findNeighbour4_server.py $1 > $SRVLOG &
+nohup pipenv run python3 findNeighbour4_server.py $1 > $SRVLOG &
 sleep 5
 echo "Starting dbmanager instance 1"
-nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset 0123 $1 > $MANLOG &
+nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset 01 $1 > $MANLOG &
 sleep 5
 echo "Starting dbmanager instance 2"
-nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset 4567 $1 > $MANLOG &
+nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset 23 $1 > $MANLOG &
 sleep 5
 echo "Starting dbmanager instance 3"
-nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset 89ab $1 > $MANLOG &
+nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset 45 $1 > $MANLOG &
 sleep 5
 echo "Starting dbmanager instance 4"
-nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset cdef $1 > $MANLOG &
+nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset 67 $1 > $MANLOG &
+sleep 5
+echo "Starting dbmanager instance 5"
+nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset 89 $1 > $MANLOG &
+sleep 5
+echo "Starting dbmanager instance 6"
+nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset ab $1 > $MANLOG &
+sleep 5
+echo "Starting dbmanager instance 7"
+nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset cd $1 > $MANLOG &
+sleep 5
+echo "Starting dbmanager instance 8"
+nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset ef $1 > $MANLOG &
 sleep 5
 
 echo "Starting monitor"
-#nohup pipenv run python3 findNeighbour4_monitor.py $1 > $MONLOG &
+nohup pipenv run python3 findNeighbour4_monitor.py $1 > $MONLOG &
 sleep 5
 echo "Starting clustering"
-#nohup pipenv run python3 findNeighbour4_clustering.py $1 > $CLUSTLOG &
+nohup pipenv run python3 findNeighbour4_clustering.py $1 > $CLUSTLOG &
 sleep 5
 
 echo "Startup complete.  Output files containing STDOUT and STDERR output are being written to $LOGDIR."
