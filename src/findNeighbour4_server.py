@@ -309,6 +309,10 @@ class findNeighbour4():
         self.gs = guidSearcher()
         self._load_in_memory_data()
 
+        # log database state
+        db_summary = self.PERSIST.summarise_stored_items()
+        self.PERSIST.server_monitoring_store(what='dbManager', message="OnServerStartup", guid='-', content=db_summary)
+
         # set up a read-only precomparer for use by pairwise comparisons.  There is no SNP ceiling
         # preComparer_parameters will be read from disc
         tmp_preComparer_parameters = cfg['PRECOMPARER_PARAMETERS'].copy()
@@ -475,6 +479,11 @@ class findNeighbour4():
                 config_settings[item]=self.CONFIG[item]
                 
         res = self.PERSIST.config_store('config',config_settings)
+
+        # log database sizes
+        db_summary = self.PERSIST.summarise_stored_items()
+        self.PERSIST.server_monitoring_store(what='dbManager', message="OnFirstRun", guid='-', content=db_summary)
+
         self.server_monitoring_store(message='First run complete.')
 
         app.logger.info("First run actions complete.")
@@ -524,6 +533,11 @@ class findNeighbour4():
             for info in loginfo:
                 app.logger.info(info)       # performance info
             self.server_monitoring_store(message='Stored compressed sequence',guid=guid)
+
+            # log database sizes
+            db_summary = self.PERSIST.summarise_stored_items()
+            self.PERSIST.server_monitoring_store(what='dbManager', message="OnInsert", guid=guid, content=db_summary)
+
             return "Guid {0} inserted.".format(guid)        
         else:
             app.logger.info("Already present, no insert needed: {0}".format(guid))

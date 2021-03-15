@@ -39,4 +39,4 @@ pyqt5 = "*"
 sentry-sdk = "*"
 
 [requires]
-python_version = "3.6"
+python_version = "3.8"
