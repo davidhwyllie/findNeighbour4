@@ -25,6 +25,7 @@ import sys
 import pymongo
 import pathlib
 import sentry_sdk
+from sentry_sdk import capture_message, capture_exception
 import json
 import time
 import random
