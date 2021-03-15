@@ -79,7 +79,7 @@ in either
             else:
                 raise CatWalkBinaryNotAvailableError(expression = None, message = no_catwalk_exe_message)
         if not os.path.exists(cw_binary_filepath):
-                raise FileNotFoundError(expression=  None, message = "Was provided a cw_binary_filepath, but there is no file there {0}".format(cw_binary_filepath))
+                raise FileNotFoundError("Was provided a cw_binary_filepath, but there is no file there {0}".format(cw_binary_filepath))
 
         # store parameters
         self.bind_host = bind_host
@@ -123,9 +123,9 @@ in either
         reference_filepath = shlex.quote(self.reference_filepath)
         mask_filepath = shlex.quote(self.mask_filepath)
 
-        cmd = f"nohup {cw_binary_filepath} --instance_name {instance_name}  --bind_host {self.bind_host} --bind_port {self.bind_port} --reference_name {self.reference_name} --reference_filepath {reference_filepath} --mask_name {mask_filepath} --mask_filepath {mask_filepath} --max_distance {self.max_distance} > cw_server_nohup.out &"
-        logging.info("Attempting startup of CatWalk server : {0}".format(cmd))       
-
+        cmd = f"nohup {cw_binary_filepath} --instance_name {instance_name}  --bind_host {self.bind_host} --bind_port {self.bind_port} --reference_filepath {reference_filepath}  --mask_filepath {mask_filepath} --max_distance {self.max_distance} > cw_server_nohup.out &"
+        logging.info("Attempting startup of CatWalk server : {0}".format(cmd)) 
+        
         os.system(cmd)
 
         time.sleep(1)
