@@ -23,10 +23,21 @@ echo "Shutdown planned. Targeted processes currently running are:"
 echo "--------------------"	
 ps -x | grep ".[p]y $1"
 echo "--------------------"
+
+echo  "Stopping dbmanagers"
+pkill -f "findNeighbour4_dbmanager.py --recompress_subset 01 $1" 
+pkill -f "findNeighbour4_dbmanager.py --recompress_subset 23 $1" 
+pkill -f "findNeighbour4_dbmanager.py --recompress_subset 45 $1" 
+pkill -f "findNeighbour4_dbmanager.py --recompress_subset 67 $1" 
+pkill -f "findNeighbour4_dbmanager.py --recompress_subset 89 $1" 
+pkill -f "findNeighbour4_dbmanager.py --recompress_subset ab $1" 
+pkill -f "findNeighbour4_dbmanager.py --recompress_subset cd $1" 
+pkill -f "findNeighbour4_dbmanager.py --recompress_subset ef $1" 
+
+exit 0
 echo "Stopping server"
 pkill -f "findNeighbour4_server.py $1" 
-echo  "Stopping dbmanager"
-pkill -f "findNeighbour4_dbmanager.py $1" 
+
 echo "Stopping monitor"
 pkill -f "findNeighbour4_monitor.py $1" 
 echo "Stopping clustering"
