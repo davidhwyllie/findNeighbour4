@@ -40,22 +40,35 @@ class DatabaseMonitorInoperativeError(Exception):
         self.expression= expression
         self.message =message
 
-def measure_sr(fn4_client):
+def measure_sr(fn4_client, ensure_database_monitor=False):
     """ checks the most recently recorded server ratio (ratio of  rows in guid2neighbour to guid2meta),
     and notes whether this was in the last 10 minutes 
     
-    relies on the fn4c client being present as global variable"""
+    it it wasn't it either
+    - raises a DatabaseMonitorInoperativeError (if ensure_database_monitor is True) or
+    - issues are warning, and continues, reporting storage_ratio as 1 
+
+    Parameters
+    ensure_database_monitor - either True or False.  If true, raises an error if 
+    """
     seconds_ago = None
     server_database_usage = fn4_client.server_database_usage(nrows=1)
     server_time_now = fn4_client.server_time()
     if 'trend_stats' in server_database_usage.keys(): 
         report_time = server_database_usage['trend_stats'].loc[0,'context|time|time_now']
+        print(server_database_usage)
+
         td = dateutil.parser.parse(server_time_now['server_time'])-dateutil.parser.parse(report_time)       # how long ago was the report on the database?
         seconds_ago = td.total_seconds()
-     
+        logging.info("Checked storage ratio.  Last measurement was {0} seconds ago".format(seconds_ago))
+
     if seconds_ago is None or seconds_ago > 600:            # 10 mins ago
-        raise DatabaseMonitorInoperativeError("No recent measurements of server health indicate findNeighbour4_dbmanager is not operational","Last measurement was {0} seconds ago (None = no record of ever measurement)".format(seconds_ago))
-    
+        if ensure_database_monitor:
+            raise DatabaseMonitorInoperativeError("No recent measurements of server health indicate findNeighbour4_dbmanager is not operational","Last measurement was {0} seconds ago (None = no record of ever measurement)".format(seconds_ago))
+        else:
+            logging.warning("No recent measurements of server health indicate findNeighbour4_dbmanager is not operational","Last measurement was {0} seconds ago (None = no record of ever measurement)".format(seconds_ago))
+
+            server_database_usage['latest_stats']['storage_ratio'] = 1         # not sure what it is now - continue 
     return server_database_usage['latest_stats']['storage_ratio']
     
 
@@ -166,6 +179,8 @@ python updating_covid_load.py "http://localhost:5023"
                     logger.warning("Waiting 6 minutes to allow repacking operations.  Will resume when fragmentation, which is now {0:.1f}, is < 100.".format(sr))
                     time.sleep(360)    # restart in 6 mins  if below target
                     sr = measure_sr(fn4c)
+
+
 
                              
             i = i + 1

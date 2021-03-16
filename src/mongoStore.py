@@ -91,13 +91,14 @@ class fn3persistence():
             
             self.logger = logging.getLogger()
             self.logger.setLevel(logging.INFO)
-            logging.info("Created connection to mongodb db named {0}".format(dbname))
-            
+
             # client calling mongostore should trap for connection errors etc 
             self.connString = connString     
             self.dbname = dbname
             self._connect()		# will raise ConnectionError if fails
 
+            logging.info("Created connection to mongodb db named {0}".format(dbname))
+            
             # can check what exists with connection.database_names()
             self.expected_collections = ['server_monitoring',
                                          'guid2meta','guid2neighbour',
@@ -235,10 +236,8 @@ class fn3persistence():
 
         def closedown(self):
             """ closes any session """
-            try:
-                self.client.close() 
-            except:
-                pass
+            # client object has already been destroyed on reaching here
+            pass
 
         # generic routines to handle insertion and read from standard mongodb stores
         def _store(self, collection, key, object):

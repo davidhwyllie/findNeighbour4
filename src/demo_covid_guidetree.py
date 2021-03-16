@@ -8,6 +8,7 @@ if __name__ == '__main__':
     import datetime
     import json
     import pandas as pd
+    import datetime
     from random import sample as random_sample
     from Bio import SeqIO
     from Bio.Seq import Seq
@@ -17,13 +18,13 @@ if __name__ == '__main__':
     from fn4client import fn4Client
 
 
-    def neighbours_of(sample, snp_cutoff=1, max_neighbourhood_mixpore = 50):
+    def neighbours_of(sample, snp_cutoff=3, max_neighbourhood_mixpore = 50):
         """ obtains a list of neighbouring samples of *sample* , and an indication of whether *sample* is mixed.
 
         Parameters
         sample      the identifier of the sample to start with
         cutoff      how many snps from sample neighbours should be identified.  Recommend 1 or 2 for COVID-19
-        max_neighbourhood_mixpore:  the maximum number of similar samples (defined at being less than or equal to the cutoff) used for mixpore computations (assessing mixtures of similar strains)
+        max_neighbourhood_mixpore:  the maximum number of similar samples (defined at being less than or equal to the cutoff) used for mixpore computations (assessing mixtures of similar strains).  If None, no mixpore computation is done.
 
         Returns
         dictionary with keys
@@ -36,6 +37,9 @@ if __name__ == '__main__':
         neighbours = []
         for related_sample, distance in res:
                 neighbours.append(related_sample)
+
+        if max_neighbourhood_mixpore is None:
+            return {'mixpore_test_p': 1, 'neighbours':neighbours}
 
         # if there are more than 50 samples, randomly downsample.
         if len(neighbours)>50:
@@ -52,22 +56,23 @@ if __name__ == '__main__':
 
 
     # instantiate client
-    fn4c = fn4Client("http://findneighbours04.unix.phe.gov.uk:5025")      # expects operation on local host; pass baseurl if somewhere else.
+    fn4c = fn4Client("http://localhost:5025")      # expects operation on local host; pass baseurl if somewhere else.
 
-    snp_cutoff = 5                                 # how many snp from a sample should we include neighbours
+    snp_cutoff = 3                                 # how many snp from a sample should we include neighbours
     sample_quality_cutoff = 0.9                    # only build tree from samples with >= 90% ACTG
-
+    max_neighbourhood_mixpore = None               # set to integer, e.g. 50 to do mixpore check on all samples
+    
     print("Loading all samples & annotations.")
     sample_annotations = fn4c.annotations()
     all_samples = sample_annotations.index.to_list()
-    high_quality_samples = sample_annotations.loc[sample_annotations['DNAQuality:propACTG']>0.9].copy()
+    high_quality_samples = sample_annotations.loc[sample_annotations['DNAQuality:propACTG']>sample_quality_cutoff].copy()
     
     sampling_population = high_quality_samples.index.to_list()
 
-    all_samples = set(all_samples)
+    all_samples = set(sampling_population)
     sampling_population = set(sampling_population)          # samples now (note: more may be added during computations by other processes, so we pick a set to work on at the start of the computations)
 
-    print("From all {0} samples currently present, studying {1} high quality (ACTG > 0.9) samples ".format(len(all_samples), len(sampling_population)))
+    print("From all {0} eligible samples currently present, studying {1} high quality (ACTG > 0.9) samples ".format(len( sample_annotations.index.to_list()), len(sampling_population)))
     representative_subsample = set()
     remaining_samples = sampling_population.copy()
     representative_size = {}
@@ -83,7 +88,7 @@ if __name__ == '__main__':
 
         iteration +=1
         test_sample = random_sample(list(remaining_samples),1)[0]        # randomly sample one
-        test_sample_neighbour_info = neighbours_of(test_sample, snp_cutoff)
+        test_sample_neighbour_info = neighbours_of(test_sample, snp_cutoff, max_neighbourhood_mixpore=max_neighbourhood_mixpore)        
         
         # filter these neighbours.   Only include neighbours which are part of all_samples.
         # because samples get added to the server all the time, this is not guaranteed.
@@ -99,7 +104,7 @@ if __name__ == '__main__':
             singletons.add(test_sample)
 
         elif test_sample_neighbour_info['mixpore_test_p'] is None:
-            # can tell, not enough neighbours
+            # cannot tell, not enough neighbours
             # include it
             representative_subsample.add(test_sample)
 
@@ -123,7 +128,10 @@ if __name__ == '__main__':
 
         # remove the test sample, if it has not already been removed
         remaining_samples.discard(test_sample)
-
+        if len(representative_subsample)>0:
+            ratio_selected = total_delta/float(len(representative_subsample))
+        else: 
+            ratio_selected = None
         print("{0} | Iteration: {1} | Remaining samples {2} |  Change now/total {9}/{10} | Sample = {3} |  Mixture statistic {4} | Neighbours {5} | Selected representatives {6} | Mixed samples {7} | Singletons {8} | Approx Subsample 1 in {11:.0f}".format(
           datetime.datetime.now().isoformat(),
           iteration,
@@ -136,13 +144,14 @@ if __name__ == '__main__':
           len(singletons),
           delta, 
           total_delta,
-          total_delta/float(len(representative_subsample))
+          ratio_selected
           
         ))
 
         #if iteration > 1:      # DEBUG
         #    break
 
+    print("Generating fasta output")
     # export masked fasta (note: holds all selected sequences in ram)
     fasta_outputfile =  'tree_selected.fasta' 
     seqs = []
