@@ -258,7 +258,7 @@ class VariationModel():
 
         metadata = []
         for key in vm.model:
-            
+            print("Writing {0}".format(key))
             if not (key == 'vmodel' or isinstance(vm.model[key], PCA)):   # we don't serialise these; one is massive and the other can't be serialised
                 native_type = type(self.model[key])
                 if native_type in [bool,int,  float, str]:
@@ -292,7 +292,9 @@ class VariationModel():
 
         metadata_df = pd.DataFrame.from_records(metadata)
         metadata_df.to_sql('Metadata', conn, if_exists='fail')
+        print("Closing connection")
         conn.close()
+        print("Closed connection")
         return sqlite_file
 
     def serialise(self):
@@ -1056,7 +1058,7 @@ python findNeighbour3-varmod.py ../config/myConfigFile.json
             elif CONFIG['LOGLEVEL']=='DEBUG':
                     loglevel=logging.DEBUG
 
-    # prepare to launch server 
+    # prepare to connection
     print("Connecting to backend data store")
     try:
             PERSIST=fn3persistence( dbname = CONFIG['SERVERNAME'],
@@ -1067,7 +1069,8 @@ python findNeighbour3-varmod.py ../config/myConfigFile.json
             print("Error raised on creating persistence object")
             raise
 
-    # instantiate server class
+
+    # instantiate builder for PCA object
     rebuild = True
     print("Rebuild is {0}".format(rebuild))
     if rebuild:
@@ -1082,7 +1085,12 @@ python findNeighbour3-varmod.py ../config/myConfigFile.json
         
         print("Exporting sqlite")
         fn = vm.to_sqlite()
-        exit()
+
+
+
+    snippet = """
+
+    
         print("Exporting excel - not run as very slow.  Use sqlite as source for excel")
         #vm.to_excel('output2.xlsx')
 
@@ -1101,9 +1109,8 @@ python findNeighbour3-varmod.py ../config/myConfigFile.json
             vm2 = VariationModel(serialised_representation= serialised)  
     else:
         vm2 = vm         
-      
+ 
 
-    exit()
     # cluster - an experimental process - may not be very useful
     # too slow at large numbers with current algorithm
     print("Clustering Eigenvalues")
@@ -1127,3 +1134,6 @@ python findNeighbour3-varmod.py ../config/myConfigFile.json
  
     ## todo: VALIDATE PCS VS. tREE- BUILD SMALL TREES, SEE WHETHER PHYLOGENETICALLY COHERENT
     ## CONSIDER TREE BASED pc EXAMINATION
+
+    """
+exit()
