@@ -292,9 +292,7 @@ class VariationModel():
 
         metadata_df = pd.DataFrame.from_records(metadata)
         metadata_df.to_sql('Metadata', conn, if_exists='fail')
-        print("Closing connection")
         conn.close()
-        print("Closed connection")
         return sqlite_file
 
     def serialise(self):
@@ -1086,11 +1084,8 @@ python findNeighbour3-varmod.py ../config/myConfigFile.json
         print("Exporting sqlite")
         fn = vm.to_sqlite()
 
-
-
     snippet = """
 
-    
         print("Exporting excel - not run as very slow.  Use sqlite as source for excel")
         #vm.to_excel('output2.xlsx')
 

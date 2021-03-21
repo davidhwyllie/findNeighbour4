@@ -925,7 +925,7 @@ e
         expected_N2 = self.estimate_expected_unk_sites(sites=set(ordered_variant_positions), unk_type = uncertain_base_type)
         if expected_N2 is None:
             expected_p2 = None
-        elif len(ordered_variant_positions) is 0:
+        elif len(ordered_variant_positions) == 0:
             expected_p2 = None
         else:
             expected_p2 = expected_N2 / len(ordered_variant_positions)

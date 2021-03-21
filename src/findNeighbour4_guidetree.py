@@ -254,6 +254,10 @@ if a config file is not provided, it will terminate.
     with open(fasta_outputfile, 'w') as f:
         SeqIO.write(seqs, f, "fasta")
     print("Selected samples are written to {0}".format(fasta_outputfile))
-    print("Finished")
+
+
+    ## TOOD check that 
+    cmd = "nohup ./FastTreeMP -fastest -gtr -nopr -nt {0} > output.nwk".format(fasta_outputfile)
+    print("Finished.")
     
 
