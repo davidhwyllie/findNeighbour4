@@ -778,24 +778,24 @@ if __name__ == '__main__':
             Used for unit testing.   """
         
         url = urljoiner(RESTBASEURL, relpath)
-        print("GETing from: {0}".format(url))
+        #print("GETing from: {0}".format(url))
 
         session = requests.Session()
         session.trust_env = False
 
         # print out diagnostics
-        print("About to GET from url {0}".format(url))
+        #print("About to GET from url {0}".format(url))
         response = session.get(url=url, timeout=None)
 
-        print("Result:")
-        print("code: {0}".format(response.status_code))
-        print("reason: {0}".format(response.reason))
-        try:     
-            print("text: {0}".format(response.text[:100]))
-        except UnicodeEncodeError:
-            # which is what happens if you try to display a gz file as text, which it isn't
-            print("Response cannot be coerced to unicode ? a gz file.  The response content had {0} bytes.".format(len(response.text)))
-            print("headers: {0}".format(response.headers))
+        #print("Result:")
+        #print("code: {0}".format(response.status_code))
+        #print("reason: {0}".format(response.reason))
+        #try:     
+        #    print("text: {0}".format(response.text[:100]))
+        #except UnicodeEncodeError:
+        #    # which is what happens if you try to display a gz file as text, which it isn't
+        #    print("Response cannot be coerced to unicode ? a gz file.  The response content had {0} bytes.".format(len(response.text)))
+        #    print("headers: {0}".format(response.headers))
 
         session.close()
         return(response)
@@ -808,15 +808,15 @@ if __name__ == '__main__':
         url = urljoiner(RESTBASEURL, relpath)
 
         # print out diagnostics
-        print("POSTING to url {0}".format(url))
+        #print("POSTING to url {0}".format(url))
         if not isinstance(payload, dict):
             raise TypeError("not a dict {0}".format(payload))
         response = requests.post(url=url, data=payload)
 
-        print("Result:")
-        print("code: {0}".format(response.status_code))
-        print("reason: {0}".format(response.reason))
-        print("content: {0}".format(response.content))
+        #print("Result:")
+        #print("code: {0}".format(response.status_code))
+        #print("reason: {0}".format(response.reason))
+        #print("content: {0}".format(response.content))
             
         return(response)
 

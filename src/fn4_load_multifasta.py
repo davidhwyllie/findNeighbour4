@@ -167,22 +167,7 @@ python updating_covid_load.py "http://localhost:5023"
         i = 0
 
         for record in Bio.SeqIO.parse(fastafile, 'fasta'):
-
-            # build in pause if high storage ratio ('fragmentation')
-            if nGood % 50 == 0 and nGood > 0:
-
-                # check whether database is keeping repacked adequately.  If it isn't, insertion will pause.  
-                # If we don't know, because monitoring is off, then an error will be raised.
-                sr = measure_sr(fn4c)
-                logger.info("Examined {0} / skipped {1}.  Database neighbour fragmentation is {2:.1f} (target: 1)".format(i,nSkipped,sr))
-                while sr > 100:            #   ratio of records containing neighbours to those containing samples - target is 1:1
-                    logger.warning("Waiting 6 minutes to allow repacking operations.  Will resume when fragmentation, which is now {0:.1f}, is < 100.".format(sr))
-                    time.sleep(360)    # restart in 6 mins  if below target
-                    sr = measure_sr(fn4c)
-
-
-
-                             
+                            
             i = i + 1
             t1 = datetime.datetime.now()
             guid = record.id
@@ -210,7 +195,20 @@ python updating_covid_load.py "http://localhost:5023"
                 i1 = t2-t1
                 s = i1.total_seconds()
                 logger.info("Scanned {0} Adding #{1} ({2}) {3} in {4:.2f} secs.".format(i, nGood, guid, msg, s, counter))
-                
+
+
+                # build in pause if high storage ratio ('fragmentation')
+                if nGood % 50 == 0 and nGood > 0:
+
+                    # check whether database is keeping repacked adequately.  If it isn't, insertion will pause.  
+                    # If we don't know, because monitoring is off, then an error will be raised.
+                    sr = measure_sr(fn4c)
+                    logger.info("Examined {0} / skipped {1}.  Database neighbour fragmentation is {2:.1f} (target: 1)".format(i,nSkipped,sr))
+                    while sr > 100:            #   ratio of records containing neighbours to those containing samples - target is 1:1
+                        logger.warning("Waiting 6 minutes to allow repacking operations.  Will resume when fragmentation, which is now {0:.1f}, is < 100.".format(sr))
+                        time.sleep(360)    # restart in 6 mins  if below target
+                        sr = measure_sr(fn4c)
+
             else:
                 nSkipped +=1
 
