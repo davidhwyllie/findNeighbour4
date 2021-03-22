@@ -12,3 +12,10 @@ src/*.xlsx
 src/*.so
 src/*.nim
 .env
+
+# Vim
+*~
+*.swp
+
+# Virtual environment
+venv
