@@ -6,6 +6,21 @@ An example command doing this would be (starting from /src)
 pipenv run python3 findNeighbour4_server.py ../demos/AC587/config/config_cl.json
 
 The test performs clustering.
+
+A component of the findNeighbour4 system for bacterial relatedness monitoring
+Copyright (C) 2021 David Wyllie david.wyllie@phe.gov.uk
+repo: https://github.com/davidhwyllie/findNeighbour4
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published
+by the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.  See see <https://www.gnu.org/licenses/>.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
 """
 
 # import libraries
@@ -13,8 +28,7 @@ import os
 import sys
 import requests
 import json
-import logging
-import logging.handlers
+
 import warnings
 import datetime
 import glob
@@ -45,6 +59,8 @@ from sentry_sdk import capture_message, capture_exception
 from sentry_sdk.integrations.flask import FlaskIntegration
 
 # logging
+import logging
+import logging.handlers
 from logging.config import dictConfig
 
 # utilities for file handling and measuring file size

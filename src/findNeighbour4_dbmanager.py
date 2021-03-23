@@ -1,18 +1,32 @@
  #!/usr/bin/env python
 """ 
-findNeighbour3 is a server providing relatedness information for bacterial genomes via a Restful API.
+findNeighbour4 is a server providing relatedness information for bacterial genomes via a Restful API.
 
 This application optimises the database which findNeighbour3 uses, in the background.
 Its use is not essential, but running this software will
 * reduce the number of documents
 * consequently, reduce the index size
 * make the database more scalable.
-
-36The main operation this software provides is to repack the database from a format in which there is one document per cell in the snp matrix
+The main operation this software provides is to repack the database from a format in which there is one document per cell in the snp matrix
 to one in which there is one document per row (or, if the matrix is very big, to a small number or rows)
 
 It is designed to be run from the command line by a scheduler, such as cron.
-It will repack up to 10 samples per run
+
+
+A component of the findNeighbour4 system for bacterial relatedness monitoring
+Copyright (C) 2021 David Wyllie david.wyllie@phe.gov.uk
+repo: https://github.com/davidhwyllie/findNeighbour4
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published
+by the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.  See see <https://www.gnu.org/licenses/>.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
 """
  
 # import libraries

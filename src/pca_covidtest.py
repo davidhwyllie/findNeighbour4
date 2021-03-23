@@ -423,7 +423,6 @@ class ModelBuilder():
         # collate mixture quality information, and identify low quality (mixed, \
         #   as judged by high Ns or Ms in the variant sites)
         mix_quality_info = pd.DataFrame.from_dict(guid2missing, orient='index')
-        print(mix_quality_info)
         self.vm.add('mix_quality_info',mix_quality_info)
 
         # identify any mixed samples.  we don't build the model from these.
@@ -526,19 +525,7 @@ class ModelBuilder():
         eigenvalues = pd.DataFrame.from_dict(eigenvalues_dict, orient= 'index')
         eigenvalues.columns = range(n_components)
 
-        # consider eigenvector abs sum; experimental statistic reflecting model prediction.
-        # used as a diagnostic to evaluate how Ns affect the model
-        eigenvalue_distance_metric = eigenvalues.abs().sum(axis=1).to_frame()
-        eigenvalue_distance_metric.columns=['eigenvalue_distance_metric']
-        self.vm.add('eigenvalue_quality_info',
-            mix_quality_info.merge(eigenvalue_distance_metric, left_index=True, right_index=True))
         
-        # inflate each element in the eigenvalue by the relevant eigenvalue_inflation_parameter.  this is (for tb) typically less than 1%
-        print(">>Adjusting eigenvalues for {0} unmixed samples for missingness ".format(len(guids_analysed_stage2)))
-    
-        tmp = eigenvalues.merge(mix_quality_info, left_index=True, right_index=True, how='inner')
-        eigenvalues = eigenvalues.multiply(tmp['N_eigenvalue_inflation_parameter'], axis = 0)
-
         self.vm.add('pca', pca)
         self.vm.add('explained_variance', explained_variance)
         self.vm.add('eigenvalues', eigenvalues) 

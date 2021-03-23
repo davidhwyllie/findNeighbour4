@@ -14,6 +14,19 @@ python3 fn4_load_multifasta.py [server_url] [directory to look for fastas in] [f
 # example usage
 pipenv run python3 fn4_load_multifasta.py http://localhost:5023 /srv/data/covid COVID_MSA*.fasta
 
+A component of the findNeighbour4 system for bacterial relatedness monitoring
+Copyright (C) 2021 David Wyllie david.wyllie@phe.gov.uk
+repo: https://github.com/davidhwyllie/findNeighbour4
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published
+by the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.  See see <https://www.gnu.org/licenses/>.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
 
 """
 
@@ -117,7 +130,7 @@ python updating_covid_load.py "http://localhost:5023"
     logger = logging.Logger('fn4_load_multifasta')
     logger.setLevel(logging.INFO)
     timenow = datetime.datetime.now().isoformat()
-    logfile = os.path.join(logdir, "fn4_load_multifasta.log")
+    logfile = os.path.join(logdir, "fn4_load_multifasta_v2.log")
     file_handler = logging.handlers.RotatingFileHandler(logfile, mode = 'a', maxBytes = 1e7, backupCount = 7)
     formatter = logging.Formatter( "%(asctime)s | %(pathname)s:%(lineno)d | %(funcName)s | %(levelname)s | %(message)s ")
     file_handler.setFormatter(formatter)
@@ -143,15 +156,15 @@ python updating_covid_load.py "http://localhost:5023"
     # add the reference sequence as the root if not already present
     ref_guid = '--Wuhan-Reference--'
     ref_guid_present = fn4c.guid_exists(ref_guid)
+    for record in Bio.SeqIO.parse("../reference/nc_045512.fasta", 'fasta'):
+        refseq = str(record.seq).upper()
+        reflen = len(refseq)
+        
     if not ref_guid_present:
         logger.info("Adding reference")
-        for record in Bio.SeqIO.parse("../reference/nc_045512.fasta", 'fasta'):
-
-            seq = str(record.seq).upper()
-            res = fn4c.insert(guid=ref_guid,seq=seq)
+        res = fn4c.insert(guid=ref_guid,seq=refseq)
     else:
         logger.info("Reference already present")
-
 
     fastafiles = sorted(glob.glob(os.path.join(args.fastadir, args.fileglob)))
     logger.info("There are {0} fasta files waiting to be loaded".format(len(fastafiles)))
@@ -170,7 +183,13 @@ python updating_covid_load.py "http://localhost:5023"
                             
             i = i + 1
             t1 = datetime.datetime.now()
-            guid = record.id
+            namebits = record.id.split('/')
+
+            if len(namebits)==1:
+                guid = namebits[0]      # format CAMC-12CD1B14
+            else:
+                guid = namebits[1]      # format England/CAMC-12C1B14/2021
+            
             guid = guid.replace('/','-')
             guid = guid.replace(':','-')
 
@@ -178,36 +197,40 @@ python updating_covid_load.py "http://localhost:5023"
             seq = seq.replace('?','N')
             seq = seq.replace(' ','N')
             counter = Counter(list(seq))
-            
+           
             res = {'record_id':record.id,'guid':guid, 'seqlen':len(seq), **counter}
             if not guid in existing_guids:
-                res = fn4c.insert(guid=guid,seq=seq)
-                if not res.status_code == 200:
-                    # failed to add
-                    failed.append((i,guid))
-                    msg = "** FAILED **"
 
-                else:
-                    msg = "succeeded"
-                    nGood +=1
+                if len(seq) == reflen:
+                    res = fn4c.insert(guid=guid,seq=seq)
+                    if not res.status_code == 200:
+                        # failed to add
+                        failed.append((i,guid))
+                        msg = "** FAILED **"
 
-                t2 = datetime.datetime.now()
-                i1 = t2-t1
-                s = i1.total_seconds()
-                logger.info("Scanned {0} Adding #{1} ({2}) {3} in {4:.2f} secs.".format(i, nGood, guid, msg, s, counter))
+                    else:
+                        msg = "succeeded"
+                        nGood +=1
+
+                    t2 = datetime.datetime.now()
+                    i1 = t2-t1
+                    s = i1.total_seconds()
+                    logger.info("Scanned {0} Adding #{1} ({2}) {3} in {4:.2f} secs.".format(i, nGood, guid, msg, s, counter))
 
 
-                # build in pause if high storage ratio ('fragmentation')
-                if nGood % 50 == 0 and nGood > 0:
+                    # build in pause if high storage ratio ('fragmentation')
+                    if nGood % 50 == 0 and nGood > 0:
 
-                    # check whether database is keeping repacked adequately.  If it isn't, insertion will pause.  
-                    # If we don't know, because monitoring is off, then an error will be raised.
-                    sr = measure_sr(fn4c)
-                    logger.info("Examined {0} / skipped {1}.  Database neighbour fragmentation is {2:.1f} (target: 1)".format(i,nSkipped,sr))
-                    while sr > 100:            #   ratio of records containing neighbours to those containing samples - target is 1:1
-                        logger.warning("Waiting 6 minutes to allow repacking operations.  Will resume when fragmentation, which is now {0:.1f}, is < 100.".format(sr))
-                        time.sleep(360)    # restart in 6 mins  if below target
+                        # check whether database is keeping repacked adequately.  If it isn't, insertion will pause.  
+                        # If we don't know, because monitoring is off, then an error will be raised.
                         sr = measure_sr(fn4c)
+                        logger.info("Examined {0} / skipped {1}.  Database neighbour fragmentation is {2:.1f} (target: 1)".format(i,nSkipped,sr))
+                        while sr > 100:            #   ratio of records containing neighbours to those containing samples - target is 1:1
+                            logger.warning("Waiting 6 minutes to allow repacking operations.  Will resume when fragmentation, which is now {0:.1f}, is < 100.".format(sr))
+                            time.sleep(360)    # restart in 6 mins  if below target
+                            sr = measure_sr(fn4c)
+                else:
+                    logger.info("{0} Wrong length {1} not {2}".format(guid, len(seq), reflen))
 
             else:
                 nSkipped +=1
