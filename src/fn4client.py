@@ -75,7 +75,7 @@ class fn4Client():
         
         # run connection check
         res =  self.server_time()
-        logging.info("Connection established at server time", res['server_time'])
+        logging.info("Connection established at server time {0}".format(res['server_time']))
 
     def _decode(self, response):
         """ checks that a response object has response code in the 200s.
