@@ -90,6 +90,7 @@ import glob
 import time
 import random
 from pathlib import Path
+from typing import List
 import hashlib
 
 import pandas as pd
@@ -186,16 +187,294 @@ class MNStats():
             missing["{0}_p_value".format(base)]=p_val
             
         return missing
+
+
+class SNPMatrix:
+    """In charge of producing a sample x SNP matrix"""
+    def __init__(self,CONFIG, PERSIST):
+        """ Using values in CONFIG, estimates based on distances in the server with CONFIG['NAME'] on port CONFIG['PORT'].
+        
+        Note that the findNeighbour4 server itself does not have to be operational for this class to work, but the underlying database does have to be accessible.
+
+        related to error handling:
+        SENTRY_URL (optional)
+        Note: if a FN_SENTRY URL environment variable is present, then the value of this will take precedence over any values in the config file.
+        This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuraton file.
+        PERSIST is a storage object needs to be supplied.  The fn3Persistence class in mongoStore is one suitable object.
+        PERSIST=fn4persistence(connString=CONFIG['FNPERSISTENCE_CONNSTRING'])
+
+        """
+        # store the persistence object as part of the object
+        self.PERSIST=PERSIST
+        
+        from common_utils import validate_server_config
+        required_keys=set(['IP','INPUTREF','EXCLUDEFILE','DEBUGMODE','SERVERNAME',
+                           'FNPERSISTENCE_CONNSTRING', 'MAXN_STORAGE',
+                            "SNPCEILING", 'MAXN_PROP_DEFAULT', 'REST_PORT',
+                           'LOGFILE','LOGLEVEL','CLUSTERING'])
+        validate_server_config(CONFIG, required_keys)
+
+        # load reference
+        cfg = self.PERSIST.config_read('config')
+        
+        # set easy to read properties from the config
+        self.analysed_reference_length = len( cfg['reference']) - len(set(cfg['excludePositions']))
+
+        # we start without any variation model
+        self._reset()
+        
+    def _reset(self):
+        """ clears existing variation model and pca result """ 
+        self.vm = VariationModel()      
+        self._invalid = set()   # invalid guids for which we can't compute pcs
+        self.model = {'built':False, 'built_with_guids':[]}
+        self.validation_data = None
+
+    def guids(self):
+        """ returns list of guids currently in the findNeighbour4 database"""
+        return sorted(self.PERSIST.refcompressedsequence_guids())   # sorting is not essential, but makes more deterministic for testing
+        
+    def _column_name(self,pos,base):
+        """ given a base at a position, returns a position:base string suitable for use as a pandas column name """             
+        return  f"{pos}:{base}"
+
+    @classmethod
+    def get_base_counts(guids, num_train_on) -> dict:
+        vmodel = {}     # variants
+        mmodel = {}     # missingness
+        nLoaded = 0
+        guids_analysed_stage1 = set()
+        bar = progressbar.ProgressBar(max_value = num_train_on)
+        for guid in guids:
+            nLoaded+=1
+
+            if nLoaded>=num_train_on:       # trained on enough samples
+                break
+
+            bar.update(nLoaded)
+            refcompressed_sample = self.PERSIST.refcompressedsequence_read(guid) # ref compressed sequence
+
+            if not refcompressed_sample['invalid'] == 1:
+                guids_analysed_stage1.add(guid)
+                # for definite calls, compute variation at each position
+                # regards Ns as definite variation, as they may represent gaps
+                for base in ['A','C','G','T']:
+                    try:
+                        for pos in obj[base]:
+                            try:
+                                vmodel[pos]=vmodel[pos]+1
+                            except KeyError:
+                                if not pos in vmodel.keys():
+                                    vmodel[pos]={}
+                                vmodel[pos]=1
+
+                    except KeyError:
+                        pass        # if there are no A,C,G,T or N then we can ignore these
+                for base in ['M','N']:      # compute missingness/gaps if it's mixed or N
+
+                    # examine all missing (N/M) sites, adding to a missingness model
+                    try:
+                        for pos in obj[base]:
+                            try:
+                                mmodel[pos]=mmodel[pos]+1
+                            except KeyError:
+                                if not pos in vmodel.keys():
+                                    mmodel[pos]={}
+                                mmodel[pos]=1
+
+                    except KeyError:
+                        pass        # if there are no M,N then we can ignore these
+        bar.finish()
+        return vmodel, mmodel
+            
+    def build(self, n_components, pca_parameters={}, min_variant_freq=None, num_train_on = None, deterministic = True):
+        """
+            input: 
+                min_variant_freq: the minimum proportion of samples with variation at that site for the site to be included.  If none, is set to 10/train_on, i.e. each variant has to appear 10 times to be considered
+                train_on: only compute PCA on a subset of train_on samples.  Set to None for all samples.
+        """
+        
+        # determine guids there in the database
+        guids = self.guids()
+        
+        # randomise order for model training purposes if required
+        if not deterministic:
+            random.shuffle(guids)       # makes pipeline non-deterministic if not all samples are analysed
+        else:
+            guids = sorted(guids)       # keep order constant between runs
+        
+        if num_train_on is None:            # if we are not told how many to use then we use
+            num_train_on = len(guids)       # all samples 
+        
+        # persist parameters used
+        self.vm.add('num_train_on',num_train_on)
+        self.vm.add('n_components', n_components)
+        
+        # if minimum variation is not set, only analyse variants seen at least 10 times. 
+        if min_variant_freq is None:
+            min_variant_freq = 10/num_train_on
+        
+        print(">>Determining variant sites, from a derivation set of up to {0} samples ".format(num_train_on))
+        vmodel, mmodel = self.get_base_counts(guids, num_train_on)
+
+        # store variant model
+        self.vm.add('variant_frequencies', vmodel)
+        self.vm.add('min_variant_freq', min_variant_freq)
+        self.vm.add('analysed_reference_length', self.analysed_reference_length)
+        
+        # from the totality of the the variation, select positions with > cutoff % variation
+        cutoff_variant_number = num_train_on*min_variant_freq
+        self.vm.add('cutoff_variant_number', cutoff_variant_number)
+
+        select_positions = set()
+        for pos in vmodel.keys():
+            if vmodel[pos]>=cutoff_variant_number:
+
+                select_positions.add(pos)
+        print("Found {0} positions which vary at frequencies more than {1}.".format(len(select_positions),min_variant_freq))
+
+        if len(select_positions) == 0:
+            raise ValueError("No variation found above cutoff. normally this is because you ran the PCA operation against an empty database; this is what happens if you omit a config file parameter, when a test database is examined by default.   Cannot continue")
+
+        self.model['variant_positions_gt_cutoff_variant_number'] = len(select_positions)
+
+        # analyse missingness in these
+        missingness = []
+        for pos in select_positions:
+            try:
+                missingness.append(mmodel[pos])
+                
+            except KeyError:        # no missing data at this position
+                missingness.append(0)
+        mean_missingness = np.mean(missingness)
+        sd_missingness = np.sqrt(mean_missingness)              # poisson assumption
+        upper_cutoff = int(2*sd_missingness + mean_missingness) # normal approximation
+        print("Identified max acceptable missingness per site as {0} positions ({1}%)".format(upper_cutoff,int(100*upper_cutoff/train_on)))
+        self.vm.add('max_ok_missingness', upper_cutoff)
+        self.vm.add('max_ok_missingness_pc', int(100*upper_cutoff/train_on))
+    
+        # remove any positions with missingness more than this
+        to_remove=[]
+        for pos in select_positions:
+            try:
+                if mmodel[pos]>upper_cutoff:
+                    to_remove.append(pos)
+            except KeyError:
+                pass    # no missing data at this point
+        for item in to_remove:
+            select_positions.remove(item)
+        self.select_positions = select_positions
+        print("Removed {0} positions with missingness > cutoff [note: we are analysing non-missing data here, which will ignore deletions]".format(len(to_remove)))
+        
+        self.mns = MNStats(select_positions, self.vm.model['analysed_reference_length'] )
+        print("Found {0} positions which vary at frequencies more than {1} and pass missingness cutoff.".format(len(select_positions),min_variant_freq))
+        self.vm.add('variant_positions_ok_missingness', len(select_positions))
+
+        # find any samples which have a high number of missing bases
+        print(">> scanning for sequences with per-sample unexpectedly high missingness (N), or likely to be mixed (M)")
+        bar = progressbar.ProgressBar(max_value = len(guids_analysed_stage1))
+        
+        guid2missing = {}
+        for nLoaded,guid in enumerate(guids_analysed_stage1):
+            bar.update(nLoaded)
+            obj = self.PERSIST.refcompressedsequence_read(guid) # ref compressed sequence
+            for base in ['M','N']:      # compute how many bases in this position are either M or N
+
+                # examine all missing (N/M) sites, adding to a missingness model
+                try:
+                    for pos in obj[base]:
+                        if pos in select_positions:
+                            try:
+                                mmodel[pos]=mmodel[pos]+1
+                            except KeyError:
+                                if not pos in vmodel.keys():
+                                    mmodel[pos]={}
+                                mmodel[pos]=1
+
+                except KeyError:
+                    pass        # if there are no M,N then we can ignore these
+
+            ## do binomial test and n count
+            guid2missing[guid] = self.mns.examine(obj)
+
+        bar.finish()
+
+
+        # collate mixture quality information, and identify low quality (mixed, \
+        # as judged by high Ns or Ms in the variant sites)
+        mix_quality_info = pd.DataFrame.from_dict(guid2missing, orient='index')
+        self.vm.add('mix_quality_info',mix_quality_info)
+
+        # identify any mixed samples.  we don't build the model from these.
+        # mixed are defined as having significantly more N or M in the variant
+        # positions than in other bases.
+
+        ### CAUTION - not sure whether this is applicable to SARS-COV-2
+        mix_quality_cutoff = 0.05 / len(mix_quality_info.index)     # 0.05 divided by the number of mixed samples?  Bonferroni adj; maybe better to use FDR      
+        suspect_quality = mix_quality_info.query('M_p_value < {0} or N_p_value < {0}'.format(mix_quality_cutoff))
+        self.vm.add('suspect_quality_seqs', suspect_quality)
+        print(">> Identified {0} sequences based on their having unexpectedly higher Ns in variant vs. non-variant bases; excluded from model as may be mixed.".format(len(set(suspect_quality.index.to_list()))))
+
+        guids_analysed_stage2= guids_analysed_stage1 - set(suspect_quality.index.to_list())
+
+        # build a variation matrix for variant sites
+        vmodel = {}
+        nLoaded = 0
+        print(">>Gathering variation for matrix construction from {0} unmixed samples into dictionary ".format(len(guids_analysed_stage2)))
+
+        bar = progressbar.ProgressBar(max_value = len(guids_analysed_stage2))
+        
+        self.model['built_with_guids'] = []
+        for guid in guids_analysed_stage2:
+            nLoaded+=1
+            if nLoaded>=train_on:       # if we're told only to use a proportion, and we've analysed enough,
+                break
+                pass
+            bar.update(nLoaded)
+
+            obj = self.PERSIST.refcompressedsequence_read(guid) # ref compressed sequence
+            # for definite calls, compute variation at each position
+            
+            # for invalid samples, compute nothing
+            if obj['invalid'] == 1:
+                self._invalid.add(guid)
+            else:
+                # compute a variation model - a list of bases and variants where variation occurs
+                variants={}     # variation for this guid
+
+                # for definite calls, compute variation at each position
+                # positions of variation where a call was made
+                for base in set(['A','C','G','T']).intersection(obj.keys()):
+                    target_positions = select_positions.intersection(obj[base])
+                    called_positions = dict((self._column_name(pos,base),1) for pos in target_positions) 
+                    
+                    variants = {**variants, **called_positions}                   
+                    
+                vmodel[guid]=variants
+        bar.finish()
+
+        print(">>Building variant matrix from dictionary (pandas - no progression information)")  
+        vmodel = pd.DataFrame.from_dict(vmodel, orient='index')
+        vmodel.fillna(value=0, inplace=True)    # if not completed, then it's reference
+                                                # unless it's null, which we are ignoring at present- we have preselected sites as non-null
+        # print(">>Deduplicating the original {0} sequences".format(len(vmodel.index)))
+        # vmodel = vmodel.drop_duplicates()      # deduplicate by row - removes weighting by repeated isolates, but retains diversity 
+        #self.vm.add('null_elements_in_vmodel', vmodel.isna().sum().sum())
+        print(">>Post-deduplication there are {0} sequences".format(len(vmodel.index)))
+        self.vm.add('vmodel', vmodel)
+        
+        print(">>Performing pca extracting {0} components".format(n_components))
+        self.vm.add('n_pca_components', n_components)
+
+
 class VariationModel():
-    """ represents the output of a PCA, as performed by model builder
+    """ Stores a SNPMatrix, the output of a PCA of the matrix, and (optionally) a clustering of the principal components.
         You should not normally have to call this class directly to create a VariationModel - the ModelBuilder class would do this for you.
         
         - You might wish to instantiate this class directly if you are restoring a previously serialised VariationModel - see constructor""" 
         
     def __init__(self,serialised_representation = None):
-        """ creates an object which contains a representation the Principal Components
-           of a set of sequences, and (optionally) their clustering. 
-           
+        """ 
            Inputs:
            serialised_representation:  either None (a new VariationModel which is empty is created) or a dictionary previously created by .serialise()
 
@@ -613,74 +892,14 @@ class VariationModel():
                         warnings.warn("Unhandled type, cannot be written to excel: {0} {1}".format(key, type(self.model[key])))
             pd.DataFrame.from_dict(meta_data, orient='index').to_excel(writer, sheet_name = 'Metadata')
 
-class ModelBuilder():
-    """ builds a variant model from reference mapped data, and performs PCA on it """ 
+
+class PCARunner():
+    """ Performs PCA on a SNPMatrix """ 
         
     def __init__(self,CONFIG, PERSIST):
-        """ Using values in CONFIG, estimates based on distances in the server with CONFIG['NAME'] on port CONFIG['PORT'].
-        
-        Note that the findNeighbour4 server itself does not have to be operational for this class to work, but the underlying database does have to be accessible.
+        pass
 
-        related to error handling:
-        SENTRY_URL (optional)
-        Note: if a FN_SENTRY URL environment variable is present, then the value of this will take precedence over any values in the config file.
-        This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuraton file.
-        PERSIST is a storage object needs to be supplied.  The fn3Persistence class in mongoStore is one suitable object.
-        PERSIST=fn4persistence(connString=CONFIG['FNPERSISTENCE_CONNSTRING'])
-
-        """
         
-        # store the persistence object as part of the object
-        self.PERSIST=PERSIST
-        
-        # check input
-        if isinstance(CONFIG, str):
-            self.CONFIG=json.loads(CONFIG)  # assume JSON string; convert.
-        elif isinstance(CONFIG, dict):
-            self.CONFIG=CONFIG
-        else:
-            raise TypeError("CONFIG must be a json string or dictionary, but it is a {0}".format(type(CONFIG)))
-        
-        # check it is a dictionary  
-        if not isinstance(self.CONFIG, dict):
-            raise KeyError("CONFIG must be either a dictionary or a JSON string encoding a dictionary.  It is: {0}".format(CONFIG))
-        
-        # check that the keys of config are as expected.
-        required_keys=set(['IP','INPUTREF','EXCLUDEFILE','DEBUGMODE','SERVERNAME',
-                           'FNPERSISTENCE_CONNSTRING', 'MAXN_STORAGE',
-                            "SNPCEILING", 'MAXN_PROP_DEFAULT', 'REST_PORT',
-                           'LOGFILE','LOGLEVEL','CLUSTERING'])
-        missing=required_keys-set(self.CONFIG.keys())
-        if not missing == set([]):
-            raise KeyError("Required keys were not found in CONFIG. Missing are {0}".format(missing))
-
-        # load reference
-        cfg = self.PERSIST.config_read('config')
-        
-        # set easy to read properties from the config
-        self.analysed_reference_length = len( cfg['reference']) - len(set(cfg['excludePositions']))
-
-        # we start without any variation model
-        self._reset()
-        
-    def _reset(self):
-        """ clears existing variation model and pca result """ 
-        self.vm = VariationModel()      
-        self.pcs = None
-        self.eigenvectors = None
-        self._invalid = set()   # invalid guids for which we can't compute pcs
-        self.model = {'built':False, 'built_with_guids':[]}
-
-        self.validation_data = None
-
-    def guids(self):
-        """ returns list of guids currently in the findNeighbour4 database"""
-        return sorted(self.PERSIST.refcompressedsequence_guids())   # sorting is not essential, but makes more deterministic for testing
-        
-    def _column_name(self,pos,base):
-        """ given a base at a position, returns a position:base string suitable for use as a pandas column name """             
-        return  "{0}:{1}".format(pos,base)
-            
     def build(self, n_components, pca_parameters={}, min_variant_freq=None, train_on = None, deterministic = True):
         """ builds a variant model, conducts pca, and stores the output in a VariantModel object.
 
@@ -694,222 +913,6 @@ class ModelBuilder():
                 a VariantModel object
             
         """
-        
-        # determine guids there in the database
-        guids = self.guids()
-        
-        # randomise order for model training purposes if required
-        if not deterministic:
-            random.shuffle(guids)       # makes pipeline non-deterministic if not all samples are analysed
-        else:
-            guids = sorted(guids)       # keep order constant between runs
-        
-        if train_on is None:            # if we are not told how many to use then we use
-            train_on = len(guids)       # all samples 
-        
-        # persist parameters used
-        self.vm.add('train_on',train_on)
-        self.vm.add('n_components', n_components)
-        
-        # if minimum variation is not set, only analyse variants seen at least 10 times. 
-        if min_variant_freq is None:
-            min_variant_freq = 10/train_on
-        
-        # build an array containing the amount of variation and missingness (M/N) across bases.
-        vmodel = {}     # variants
-        mmodel = {}     # missingness
-        guids_analysed_stage1 = set()
-        nLoaded = 0
-
-        print(">>Determining variant sites, from a derivation set of up to {0} samples ".format(train_on))
-        bar = progressbar.ProgressBar(max_value = train_on)
-        for guid in guids:
-            nLoaded+=1
-
-            if nLoaded>=train_on:       # trained on enough samples
-                break
-                pass
-            bar.update(nLoaded)
-            obj = self.PERSIST.refcompressedsequence_read(guid) # ref compressed sequence
-
-            if not obj['invalid'] == 1:
-                guids_analysed_stage1.add(guid)
-                # for definite calls, compute variation at each position
-                # regards Ns as definite variation, as they may represent gaps
-                for base in ['A','C','G','T']:
-                    try:
-                        for pos in obj[base]:
-                            try:
-                                vmodel[pos]=vmodel[pos]+1
-                            except KeyError:
-                                if not pos in vmodel.keys():
-                                    vmodel[pos]={}
-                                vmodel[pos]=1
-
-                    except KeyError:
-                        pass        # if there are no A,C,G,T or N then we can ignore these
-                for base in ['M','N']:      # compute missingness/gaps if it's mixed or N
-
-                    # examine all missing (N/M) sites, adding to a missingness model
-                    try:
-                        for pos in obj[base]:
-                            try:
-                                mmodel[pos]=mmodel[pos]+1
-                            except KeyError:
-                                if not pos in vmodel.keys():
-                                    mmodel[pos]={}
-                                mmodel[pos]=1
-
-                    except KeyError:
-                        pass        # if there are no M,N then we can ignore these
-        bar.finish()
-
-        # store variant model
-        self.vm.add('variant_frequencies', vmodel)
-        self.vm.add('min_variant_freq', min_variant_freq)
-        self.vm.add('analysed_reference_length', self.analysed_reference_length)
-        
-        # from the totality of the the variation, select positions with > cutoff % variation
-        cutoff_variant_number = nLoaded*min_variant_freq
-        self.vm.add('cutoff_variant_number', cutoff_variant_number)
-
-        select_positions = set()
-        for pos in vmodel.keys():
-            if vmodel[pos]>=cutoff_variant_number:
-
-                select_positions.add(pos)
-        print("Found {0} positions which vary at frequencies more than {1}.".format(len(select_positions),min_variant_freq))
-
-        if len(select_positions) == 0:
-            raise ValueError("No variation found above cutoff. normally this is because you ran the PCA operation against an empty database; this is what happens if you omit a config file parameter, when a test database is examined by default.   Cannot continue")
-
-        self.model['variant_positions_gt_cutoff_variant_number'] = len(select_positions)
-
-        # analyse missingness in these
-        missingness = []
-        for pos in select_positions:
-            try:
-                missingness.append(mmodel[pos])
-                
-            except KeyError:        # no missing data at this position
-                missingness.append(0)
-        mean_missingness = np.mean(missingness)
-        sd_missingness = np.sqrt(mean_missingness)              # poisson assumption
-        upper_cutoff = int(2*sd_missingness + mean_missingness) # normal approximation
-        print("Identified max acceptable missingness per site as {0} positions ({1}%)".format(upper_cutoff,int(100*upper_cutoff/train_on)))
-        self.vm.add('max_ok_missingness', upper_cutoff)
-        self.vm.add('max_ok_missingness_pc', int(100*upper_cutoff/train_on))
-    
-        # remove any positions with missingness more than this
-        to_remove=[]
-        for pos in select_positions:
-            try:
-                if mmodel[pos]>upper_cutoff:
-                    to_remove.append(pos)
-            except KeyError:
-                pass    # no missing data at this point
-        for item in to_remove:
-            select_positions.remove(item)
-        self.select_positions = select_positions
-        print("Removed {0} positions with missingness > cutoff [note: we are analysing non-missing data here, which will ignore deletions]".format(len(to_remove)))
-        
-        self.mns = MNStats(select_positions, self.vm.model['analysed_reference_length'] )
-        print("Found {0} positions which vary at frequencies more than {1} and pass missingness cutoff.".format(len(select_positions),min_variant_freq))
-        self.vm.add('variant_positions_ok_missingness', len(select_positions))
-
-        # find any samples which have a high number of missing bases
-        print(">> scanning for sequences with per-sample unexpectedly high missingness (N), or likely to be mixed (M)")
-        bar = progressbar.ProgressBar(max_value = len(guids_analysed_stage1))
-        
-        guid2missing = {}
-        for nLoaded,guid in enumerate(guids_analysed_stage1):
-            bar.update(nLoaded)
-            obj = self.PERSIST.refcompressedsequence_read(guid) # ref compressed sequence
-            for base in ['M','N']:      # compute how many bases in this position are either M or N
-
-                # examine all missing (N/M) sites, adding to a missingness model
-                try:
-                    for pos in obj[base]:
-                        if pos in select_positions:
-                            try:
-                                mmodel[pos]=mmodel[pos]+1
-                            except KeyError:
-                                if not pos in vmodel.keys():
-                                    mmodel[pos]={}
-                                mmodel[pos]=1
-
-                except KeyError:
-                    pass        # if there are no M,N then we can ignore these
-
-            ## do binomial test and n count
-            guid2missing[guid] = self.mns.examine(obj)
-
-        bar.finish()
-
-
-        # collate mixture quality information, and identify low quality (mixed, \
-        # as judged by high Ns or Ms in the variant sites)
-        mix_quality_info = pd.DataFrame.from_dict(guid2missing, orient='index')
-        self.vm.add('mix_quality_info',mix_quality_info)
-
-        # identify any mixed samples.  we don't build the model from these.
-        # mixed are defined as having significantly more N or M in the variant
-        # positions than in other bases.
-
-        ### CAUTION - not sure whether this is applicable to SARS-COV-2
-        mix_quality_cutoff = 0.05 / len(mix_quality_info.index)     # 0.05 divided by the number of mixed samples?  Bonferroni adj; maybe better to use FDR      
-        suspect_quality = mix_quality_info.query('M_p_value < {0} or N_p_value < {0}'.format(mix_quality_cutoff))
-        self.vm.add('suspect_quality_seqs', suspect_quality)
-        print(">> Identified {0} sequences based on their having unexpectedly higher Ns in variant vs. non-variant bases; excluded from model as may be mixed.".format(len(set(suspect_quality.index.to_list()))))
-
-        guids_analysed_stage2= guids_analysed_stage1 - set(suspect_quality.index.to_list())
-
-        # build a variation matrix for variant sites
-        vmodel = {}
-        nLoaded = 0
-        print(">>Gathering variation for matrix construction from {0} unmixed samples into dictionary ".format(len(guids_analysed_stage2)))
-
-        bar = progressbar.ProgressBar(max_value = len(guids_analysed_stage2))
-        
-        self.model['built_with_guids'] = []
-        for guid in guids_analysed_stage2:
-            nLoaded+=1
-            if nLoaded>=train_on:       # if we're told only to use a proportion, and we've analysed enough,
-                break
-                pass
-            bar.update(nLoaded)
-
-            obj = self.PERSIST.refcompressedsequence_read(guid) # ref compressed sequence
-            # for definite calls, compute variation at each position
-            
-            # for invalid samples, compute nothing
-            if obj['invalid'] == 1:
-                self._invalid.add(guid)
-            else:
-                # compute a variation model - a list of bases and variants where variation occurs
-                variants={}     # variation for this guid
-
-                # for definite calls, compute variation at each position
-                # positions of variation where a call was made
-                for base in set(['A','C','G','T']).intersection(obj.keys()):
-                    target_positions = select_positions.intersection(obj[base])
-                    called_positions = dict((self._column_name(pos,base),1) for pos in target_positions) 
-                    
-                    variants = {**variants, **called_positions}                   
-                    
-                vmodel[guid]=variants
-        bar.finish()
-
-        print(">>Building variant matrix from dictionary (pandas - no progression information)")  
-        vmodel = pd.DataFrame.from_dict(vmodel, orient='index')
-        vmodel.fillna(value=0, inplace=True)    # if not completed, then it's reference
-                                                # unless it's null, which we are ignoring at present- we have preselected sites as non-null
-        # print(">>Deduplicating the original {0} sequences".format(len(vmodel.index)))
-        # vmodel = vmodel.drop_duplicates()      # deduplicate by row - removes weighting by repeated isolates, but retains diversity 
-        #self.vm.add('null_elements_in_vmodel', vmodel.isna().sum().sum())
-        print(">>Post-deduplication there are {0} sequences".format(len(vmodel.index)))
-        self.vm.add('vmodel', vmodel)
-        
         print(">>Performing pca extracting {0} components".format(n_components))
         self.vm.add('n_pca_components', n_components)
             
