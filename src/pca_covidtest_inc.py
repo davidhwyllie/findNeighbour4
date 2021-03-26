@@ -85,20 +85,20 @@ import sys
 import json
 import logging
 import warnings
-
 import datetime
 import glob
 import time
 import random
+from pathlib import Path
+import hashlib
+
 import pandas as pd
 import numpy as np
-import pathlib
-import hashlib
+from Bio import Phylo
 
 import argparse
 import progressbar
 
-from Bio import Phylo
 import sqlalchemy
 
 from scipy.stats import binom_test, median_abs_deviation
@@ -1003,7 +1003,7 @@ python findNeighbour3-varmod.py ../config/myConfigFile.json
 
 """)
     parser.add_argument('path_to_config_file', type=str, action='store', nargs='?',
-                        help='the path to the configuration file', default='')
+                        help='the path to the configuration file', default=None)
     
     args = parser.parse_args()
     
@@ -1012,32 +1012,15 @@ python findNeighbour3-varmod.py ../config/myConfigFile.json
     ############################ LOAD CONFIG ######################################
     print("findNeighbour4 PCA modelling .. reading configuration file.")
 
-    if len(args.path_to_config_file)>0:
-            configFile = args.path_to_config_file
-    else:
-            configFile = os.path.join('..','config','default_test_config.json')
-            warnings.warn("No config file name supplied ; using a configuration ('default_test_config.json') suitable only for testing, not for production. ")
+    from common_utils import read_server_config, DEFAULT_CONFIG_FILE
 
-    # open the config file
-    try:
-            with open(configFile,'r') as f:
-                     CONFIG=f.read()
+    configFile = args.path_to_config_file
+    if configFile is None:
+        configFile = DEFAULT_CONFIG_FILE
+        warnings.warn(f"No config file name supplied; using configuration in {DEFAULT_CONFIG_FILE}, suitable only for testing, not for production.")
 
-    except FileNotFoundError:
-            raise FileNotFoundError("Passed a positional parameter, which should be a CONFIG file name; tried to open a config file at {0} but it does not exist ".format(sys.argv[1]))
-
-    if isinstance(CONFIG, str):
-            CONFIG=json.loads(CONFIG)   # assume JSON string; convert.
-
-    # check CONFIG is a dictionary  
-    if not isinstance(CONFIG, dict):
-            raise KeyError("CONFIG must be either a dictionary or a JSON string encoding a dictionary.  It is: {0}".format(CONFIG))
-    
-    # check that the keys of config are as expected.
     required_keys=set(['IP', 'REST_PORT', 'DEBUGMODE', 'LOGFILE', 'MAXN_PROP_DEFAULT'])
-    missing=required_keys-set(CONFIG.keys())
-    if not missing == set([]):
-            raise KeyError("Required keys were not found in CONFIG. Missing are {0}".format(missing))
+    CONFIG = read_server_config(configFile, required_keys=required_keys)
 
     # determine whether a FNPERSISTENCE_CONNSTRING environment variable is present,
     # if so, the value of this will take precedence over any values in the config file.
@@ -1061,7 +1044,7 @@ python findNeighbour3-varmod.py ../config/myConfigFile.json
     # create a log file if it does not exist.
     print("Starting logging")
     logdir = os.path.dirname(CONFIG['LOGFILE'])
-    pathlib.Path(os.path.dirname(CONFIG['LOGFILE'])).mkdir(parents=True, exist_ok=True)
+    Path(os.path.dirname(CONFIG['LOGFILE'])).mkdir(parents=True, exist_ok=True)
 
     # set up logger
     loglevel=logging.INFO

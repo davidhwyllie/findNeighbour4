@@ -7,7 +7,7 @@ Implemented in python3, it uses
 * optionally, a compiled free standing relatedness engine, CatWalk.
 
 It loads configuration from a config file, which must be set in production.
-lo
+
 If no config file is provided, it will run in  'testing' mode with the  parameters
 in default_test_config.json.  This expects a mongodb database to be running on
 the default port on local host.  As a rough guide to the amount of space required in mongodb,
@@ -284,7 +284,7 @@ class findNeighbour4():
                                 "uncertain_base"])
 
             missing = expected_keys - observed_keys
-            if not missing == set([]):
+            if len(missing) > 0:
                 raise KeyError("Precomparer parameters were supplied, but the required keys were not found . Missing are {0}".format(missing))
 
         # the following keys are not stored in any database backend, as a server could be moved, i.e.
@@ -1032,20 +1032,19 @@ if __name__ == '__main__':
         # validate input
         valid_output_formats =  ['html','json','fasta', 'json-fasta', 'json-records','interactive']
         request_payload = request.form.to_dict()
-        if 'output_format' in request_payload.keys() and 'guids' in request_payload.keys():
-            guids = request_payload['guids'].split(';')     # coerce both guid and seq to strings
-            output_format= request_payload['output_format']
-            if 'what' in request_payload.keys():
-                what = request_payload['what']
-            else:
-            
-                what = 'N'      # default to N
-            if not what in ['N','M','N_or_M']:
-                abort(404, 'what must be one of N M N_or_M, not {0}'.format(what))
-            if not output_format in valid_output_formats:
-                abort(404, 'output_format must be one of {0}  not {1}'.format(valid_output_formats,output_format))
-        else:
+        if 'output_format' not in request_payload or 'guids' not in request_payload:
             abort(405, 'output_format and guids are not present in the POSTed data {0}'.format(data_keys))
+
+        guids = request_payload['guids'].split(';')     # coerce both guid and seq to strings
+        output_format= request_payload['output_format']
+        if 'what' in request_payload.keys():
+            what = request_payload['what']
+        else:
+            what = 'N'      # default to N
+        if not what in ['N','M','N_or_M']:
+            abort(404, 'what must be one of N M N_or_M, not {0}'.format(what))
+        if not output_format in valid_output_formats:
+            abort(404, 'output_format must be one of {0}  not {1}'.format(valid_output_formats,output_format))
         
         # check guids
         try:
@@ -1792,42 +1791,26 @@ python findNeighbour4_server.py ../config/myConfigFile.json \
 
 """)
     parser.add_argument('path_to_config_file', type=str, action='store', nargs='?',
-                        help='the path to the configuration file', default='')
+                        help='the path to the configuration file', default=None)
     parser.add_argument('--on_startup_recompress_memory_every', type=int, nargs=1, action='store', default=[None], 
                         help='when loading, recompress server memory every so many samples.')
     args = parser.parse_args()
     
-    # an example config file is default_test_config.json
 
     ############################ LOAD CONFIG ######################################
     print("findNeighbour4 server .. reading configuration file.")
 
-    if len(args.path_to_config_file)>0:
-            configFile = args.path_to_config_file
-    else:
-            configFile = os.path.join('..','config','default_test_config.json')
-            warnings.warn("No config file name supplied ; using a configuration ('default_test_config.json') suitable only for testing, not for production. ")
+    from common_utils import read_server_config, DEFAULT_CONFIG_FILE
 
-    # open the config file
-    try:
-            with open(configFile,'r') as f:
-                     CONFIG=f.read()
+    configFile = args.path_to_config_file
+    if configFile is None:
+        configFile = DEFAULT_CONFIG_FILE
+        warnings.warn("No config file name supplied ; using a configuration ('default_test_config.json') suitable only for testing, not for production. ")
 
-    except FileNotFoundError:
-            raise FileNotFoundError("Passed a positional parameter, which should be a CONFIG file name; tried to open a config file at {0} but it does not exist ".format(sys.argv[1]))
 
-    if isinstance(CONFIG, str):
-            CONFIG=json.loads(CONFIG)   # assume JSON string; convert.
-
-    # check CONFIG is a dictionary  
-    if not isinstance(CONFIG, dict):
-            raise KeyError("CONFIG must be either a dictionary or a JSON string encoding a dictionary.  It is: {0}".format(CONFIG))
-    
-    # check that the keys of config are as expected.
     required_keys=set(['IP', 'REST_PORT', 'DEBUGMODE', 'LOGFILE', 'MAXN_PROP_DEFAULT'])
-    missing=required_keys-set(CONFIG.keys())
-    if not missing == set([]):
-            raise KeyError("Required keys were not found in CONFIG. Missing are {0}".format(missing))
+    CONFIG = read_server_config(configFile, required_keys)
+
 
     # determine whether a FNPERSISTENCE_CONNSTRING environment variable is present,
     # if so, the value of this will take precedence over any values in the config file.
