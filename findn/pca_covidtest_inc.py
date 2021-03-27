@@ -90,7 +90,7 @@ import glob
 import time
 import random
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 import hashlib
 
 import pandas as pd
@@ -122,7 +122,7 @@ warnings.simplefilter("ignore", ClusterWarning)     # nonsensical cluster warnin
 from logging.config import dictConfig
 
 # reference based compression storage and clustering modules
-from mongoStore import fn3persistence
+from findn.mongoStore import fn3persistence
 
 class MNStats():
     """ computes the number of M and N bases in a reference compressed object """
@@ -238,8 +238,8 @@ class SNPMatrix:
         """ given a base at a position, returns a position:base string suitable for use as a pandas column name """             
         return  f"{pos}:{base}"
 
-    @classmethod
-    def get_base_counts(guids, num_train_on) -> dict:
+    @staticmethod
+    def get_base_counts(guids, num_train_on, PERSIST) -> Tuple[dict,dict]:
         vmodel = {}     # variants
         mmodel = {}     # missingness
         nLoaded = 0
@@ -252,7 +252,7 @@ class SNPMatrix:
                 break
 
             bar.update(nLoaded)
-            refcompressed_sample = self.PERSIST.refcompressedsequence_read(guid) # ref compressed sequence
+            refcompressed_sample = PERSIST.refcompressedsequence_read(guid) # ref compressed sequence
 
             if not refcompressed_sample['invalid'] == 1:
                 guids_analysed_stage1.add(guid)
@@ -260,7 +260,7 @@ class SNPMatrix:
                 # regards Ns as definite variation, as they may represent gaps
                 for base in ['A','C','G','T']:
                     try:
-                        for pos in obj[base]:
+                        for pos in refcompressed_sample[base]:
                             try:
                                 vmodel[pos]=vmodel[pos]+1
                             except KeyError:
@@ -274,7 +274,7 @@ class SNPMatrix:
 
                     # examine all missing (N/M) sites, adding to a missingness model
                     try:
-                        for pos in obj[base]:
+                        for pos in refcompressed_sample[base]:
                             try:
                                 mmodel[pos]=mmodel[pos]+1
                             except KeyError:
@@ -315,7 +315,7 @@ class SNPMatrix:
             min_variant_freq = 10/num_train_on
         
         print(">>Determining variant sites, from a derivation set of up to {0} samples ".format(num_train_on))
-        vmodel, mmodel = self.get_base_counts(guids, num_train_on)
+        vmodel, mmodel = self.get_base_counts(guids, num_train_on, self.PERSIST)
 
         # store variant model
         self.vm.add('variant_frequencies', vmodel)
@@ -329,7 +329,6 @@ class SNPMatrix:
         select_positions = set()
         for pos in vmodel.keys():
             if vmodel[pos]>=cutoff_variant_number:
-
                 select_positions.add(pos)
         print("Found {0} positions which vary at frequencies more than {1}.".format(len(select_positions),min_variant_freq))
 
@@ -343,7 +342,6 @@ class SNPMatrix:
         for pos in select_positions:
             try:
                 missingness.append(mmodel[pos])
-                
             except KeyError:        # no missing data at this position
                 missingness.append(0)
         mean_missingness = np.mean(missingness)
@@ -1132,4 +1130,3 @@ python findNeighbour3-varmod.py ../config/myConfigFile.json
     ## CONSIDER TREE BASED pc EXAMINATION
 
     """
-exit()
