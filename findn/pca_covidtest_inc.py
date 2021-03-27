@@ -90,7 +90,8 @@ import glob
 import time
 import random
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Set
+from collections import defaultdict
 import hashlib
 
 import pandas as pd
@@ -239,53 +240,55 @@ class SNPMatrix:
         return  f"{pos}:{base}"
 
     @staticmethod
-    def get_base_counts(guids, num_train_on, PERSIST) -> Tuple[dict,dict]:
-        vmodel = {}     # variants
-        mmodel = {}     # missingness
-        nLoaded = 0
-        guids_analysed_stage1 = set()
+    def get_position_counts(guids, num_train_on, PERSIST) -> Tuple[set, dict,dict]:
+        vmodel = defaultdict(int)     # variants
+        mmodel = defaultdict(int)     # missingness
+        guids_analysed = set()
         bar = progressbar.ProgressBar(max_value = num_train_on)
-        for guid in guids:
-            nLoaded+=1
-
-            if nLoaded>=num_train_on:       # trained on enough samples
+        for num_loaded,guid in enumerate(guids):
+            if num_loaded>=num_train_on:       # trained on enough samples
                 break
-
-            bar.update(nLoaded)
+            bar.update(num_loaded)
             refcompressed_sample = PERSIST.refcompressedsequence_read(guid) # ref compressed sequence
 
-            if not refcompressed_sample['invalid'] == 1:
-                guids_analysed_stage1.add(guid)
+            if refcompressed_sample['invalid'] != 1:
+                guids_analysed.add(guid)
                 # for definite calls, compute variation at each position
-                # regards Ns as definite variation, as they may represent gaps
                 for base in ['A','C','G','T']:
-                    try:
-                        for pos in refcompressed_sample[base]:
-                            try:
-                                vmodel[pos]=vmodel[pos]+1
-                            except KeyError:
-                                if not pos in vmodel.keys():
-                                    vmodel[pos]={}
-                                vmodel[pos]=1
-
-                    except KeyError:
-                        pass        # if there are no A,C,G,T or N then we can ignore these
+                    var_positions = refcompressed_sample.get(base, [])
+                    for var_pos in var_positions:
+                        vmodel[var_pos]+=1
+                # compute missingness/gaps if it's mixed (M) or N
                 for base in ['M','N']:      # compute missingness/gaps if it's mixed or N
+                    missingness_positions = refcompressed_sample.get(base, [])
+                    for missingness_pos in missingness_positions:
+                        mmodel[missingness_pos]+=1
 
-                    # examine all missing (N/M) sites, adding to a missingness model
-                    try:
-                        for pos in refcompressed_sample[base]:
-                            try:
-                                mmodel[pos]=mmodel[pos]+1
-                            except KeyError:
-                                if not pos in vmodel.keys():
-                                    mmodel[pos]={}
-                                mmodel[pos]=1
-
-                    except KeyError:
-                        pass        # if there are no M,N then we can ignore these
         bar.finish()
-        return vmodel, mmodel
+        return guids_analysed, vmodel, mmodel
+
+
+    @staticmethod
+    def get_missingness_cutoff(positions: Set[int], mmodel: dict) -> int:
+        missingness = map(lambda pos: mmodel.get(pos, 0), positions)
+        mean_missingness = np.mean(list(missingness))
+        sd_missingness = np.sqrt(mean_missingness)              # poisson assumption
+        upper_cutoff = int(2*sd_missingness + mean_missingness) # normal approximation
+        return upper_cutoff
+
+    @staticmethod
+    def remove_high_missingness_positions(positions: Set[int], mmodel: dict, cutoff: float) -> int:
+        """Remove positions with missingness above cutoff.
+        
+        Returns: the number of removed positions
+        """
+        num_removed = 0
+        for pos in mmodel.keys():
+            if mmodel[pos]>cutoff and pos in positions:
+                num_removed += 1
+                positions.remove(pos)
+        return num_removed
+
             
     def build(self, n_components, pca_parameters={}, min_variant_freq=None, num_train_on = None, deterministic = True):
         """
@@ -315,7 +318,7 @@ class SNPMatrix:
             min_variant_freq = 10/num_train_on
         
         print(">>Determining variant sites, from a derivation set of up to {0} samples ".format(num_train_on))
-        vmodel, mmodel = self.get_base_counts(guids, num_train_on, self.PERSIST)
+        guids_analysed_stage1, vmodel, mmodel = self.get_position_counts(guids, num_train_on, self.PERSIST)
 
         # store variant model
         self.vm.add('variant_frequencies', vmodel)
@@ -327,8 +330,8 @@ class SNPMatrix:
         self.vm.add('cutoff_variant_number', cutoff_variant_number)
 
         select_positions = set()
-        for pos in vmodel.keys():
-            if vmodel[pos]>=cutoff_variant_number:
+        for pos, variant_count in vmodel.items():
+            if variant_count>=cutoff_variant_number:
                 select_positions.add(pos)
         print("Found {0} positions which vary at frequencies more than {1}.".format(len(select_positions),min_variant_freq))
 
@@ -337,39 +340,21 @@ class SNPMatrix:
 
         self.model['variant_positions_gt_cutoff_variant_number'] = len(select_positions)
 
-        # analyse missingness in these
-        missingness = []
-        for pos in select_positions:
-            try:
-                missingness.append(mmodel[pos])
-            except KeyError:        # no missing data at this position
-                missingness.append(0)
-        mean_missingness = np.mean(missingness)
-        sd_missingness = np.sqrt(mean_missingness)              # poisson assumption
-        upper_cutoff = int(2*sd_missingness + mean_missingness) # normal approximation
+        upper_cutoff = self.get_missingness_cutoff(select_positions, mmodel)
         print("Identified max acceptable missingness per site as {0} positions ({1}%)".format(upper_cutoff,int(100*upper_cutoff/train_on)))
         self.vm.add('max_ok_missingness', upper_cutoff)
         self.vm.add('max_ok_missingness_pc', int(100*upper_cutoff/train_on))
     
-        # remove any positions with missingness more than this
-        to_remove=[]
-        for pos in select_positions:
-            try:
-                if mmodel[pos]>upper_cutoff:
-                    to_remove.append(pos)
-            except KeyError:
-                pass    # no missing data at this point
-        for item in to_remove:
-            select_positions.remove(item)
+        num_removed = self.remove_high_missingness_positions(select_positions, mmodel, upper_cutoff)
         self.select_positions = select_positions
-        print("Removed {0} positions with missingness > cutoff [note: we are analysing non-missing data here, which will ignore deletions]".format(len(to_remove)))
-        
-        self.mns = MNStats(select_positions, self.vm.model['analysed_reference_length'] )
-        print("Found {0} positions which vary at frequencies more than {1} and pass missingness cutoff.".format(len(select_positions),min_variant_freq))
-        self.vm.add('variant_positions_ok_missingness', len(select_positions))
+        print(f"Removed {num_removed} positions with missingness > cutoff [note: we are analysing non-missing data here, which will ignore deletions]")
 
+        print("Found {len(select_positions)} positions which vary at frequencies more than {min_variant_freq} and pass missingness cutoff.")
+        self.vm.add('variant_positions_ok_missingness', len(select_positions))
+        
         # find any samples which have a high number of missing bases
-        print(">> scanning for sequences with per-sample unexpectedly high missingness (N), or likely to be mixed (M)")
+        self.mns = MNStats(select_positions, self.vm.model['analysed_reference_length'] )
+        print(">> scanning for samples with unexpectedly high missingness (N), or likely to be mixed (M)")
         bar = progressbar.ProgressBar(max_value = len(guids_analysed_stage1))
         
         guid2missing = {}
