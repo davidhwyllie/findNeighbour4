@@ -998,7 +998,8 @@ python findNeighbour3-varmod.py ../config/myConfigFile.json
     ############################ LOAD CONFIG ######################################
     print("findNeighbour4 PCA modelling .. reading configuration file.")
 
-    from common_utils import read_server_config, DEFAULT_CONFIG_FILE
+    from findn import DEFAULT_CONFIG_FILE
+    from common_utils import read_server_config
 
     configFile = args.path_to_config_file
     if configFile is None:

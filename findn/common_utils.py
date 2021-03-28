@@ -5,8 +5,6 @@ from typing import Union, Optional
 PathLike = Union[str, Path]
 ConfigLike = Union[str, dict]
 
-DEFAULT_CONFIG_FILE = Path('..') / 'config' / 'default_test_config.json'
-
 def validate_server_config(config_like: ConfigLike, required_keys: dict = dict()) -> None:
     CONFIG = _enforce_config_object_type(config_like)
     _enforce_key_presence(CONFIG, required_keys)

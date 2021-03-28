@@ -14,8 +14,8 @@ from fn4client import fn4Client
 
 if __name__ == '__main__':
     # define directory where the fastas are
-    fastadir = os.path.join('..','demos','AC587','fasta')
-    outputdir = os.path.join('..','demos','AC587','output')
+    fastadir = os.path.join('demos','AC587','fasta')
+    outputdir = os.path.join('demos','AC587','output')
 
     # instantiate client
     fn4c = fn4Client("http://localhost:5032")      # expects operation on local host; pass baseurl if somewhere else.

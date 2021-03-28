@@ -63,7 +63,7 @@ import pymongo
 import pandas as pd
 import numpy as np
 import copy
-import pathlib
+from pathlib import Path
 import markdown
 import codecs
 import sentry_sdk
@@ -847,14 +847,14 @@ if __name__ == '__main__':
     def routes():
         """ returns server info page
         """
-        routes_file = os.path.join("..","doc","rest-routes.md")
+        routes_file = BASE_PATH / "doc" / "rest-routes.md"
         return make_response(render_markdown(routes_file))
 
     @app.route('/ui/info', methods=['GET'])
     def server_info():
         """ returns server info page
         """
-        routes_file = os.path.join("..","doc","serverinfo.md")
+        routes_file = BASE_PATH / "doc" / "serverinfo.md"
         return make_response(render_markdown(routes_file))
 
     @app.route('/api/v2/raise_error/<string:component>/<string:token>', methods=['GET'])
@@ -1800,7 +1800,8 @@ python findNeighbour4_server.py ../config/myConfigFile.json \
     ############################ LOAD CONFIG ######################################
     print("findNeighbour4 server .. reading configuration file.")
 
-    from common_utils import read_server_config, DEFAULT_CONFIG_FILE
+    from findn import BASE_PATH, DEFAULT_CONFIG_FILE
+    from common_utils import read_server_config
 
     configFile = args.path_to_config_file
     if configFile is None:
@@ -1834,7 +1835,7 @@ python findNeighbour4_server.py ../config/myConfigFile.json \
     # create a log file if it does not exist.
     print("Starting logging")
     logdir = os.path.dirname(CONFIG['LOGFILE'])
-    pathlib.Path(os.path.dirname(CONFIG['LOGFILE'])).mkdir(parents=True, exist_ok=True)
+    Path(os.path.dirname(CONFIG['LOGFILE'])).mkdir(parents=True, exist_ok=True)
 
     # set up logger
     loglevel=logging.INFO
