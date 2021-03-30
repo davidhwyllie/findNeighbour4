@@ -1,14 +1,29 @@
 *.komodoproject
 unittest_tmp
 unittest_Tmp
-.Rproj.user
-Pipfile.lock
 *.out
 *.log
-src/*.out
-src/*.log
-src/*.sqlite
-src/*.xlsx
-src/*.so
-src/*.nim
+findn/*.sqlite
+findn/*.xlsx
+findn/*.so
+findn/*.nim
 .env
+
+# Vim
+*~
+*.swp
+
+# Scratch
+tmp_work/
+
+# Virtual environment
+venv
+Pipfile.lock
+
+# R
+*.Rproj
+.Rproj.user
+
+# Python
+__pycache__/
+*.egg-info/

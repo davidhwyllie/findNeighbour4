@@ -37,8 +37,9 @@ import numpy as np
 
 # used for unit testing only
 import unittest
-from NucleicAcid import NucleicAcid 
 import time
+
+from findn.NucleicAcid import NucleicAcid 
 
 class NPEncoder(json.JSONEncoder):
     """ encodes Numpy types as jsonisable equivalents """
