@@ -37,11 +37,12 @@ import argparse
 import progressbar
 import time
 import subprocess
-
+from io import StringIO
 from random import sample as random_sample
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
+from Bio import Phylo
 
 from sentry_sdk import capture_message, capture_exception
 from sentry_sdk.integrations.flask import FlaskIntegration
@@ -70,6 +71,10 @@ Example usage:
 Minimal example:
 python findNeighbour4_guidetree.py ../config/myConfigFile.json  
 
+Realistic example for testing
+pipenv run python3 findNeighbour4_guidetree.py ../demos/covid/covid_config_v3.json --select_from_pca_output_file /backup/bricestudy/pca20210323/pca_output.sqlite --output_filestem guidetree --outputdir /backup/bricestudy --debug
+pipenv run python3 findNeighbour4_guidetree.py ../demos/covid/covid_config_v3.json --select_from_pca_output_file /backup/bricestudy/pca20210323/pca_output.sqlite --output_filestem guidetree --outputdir /backup/bricestudy --root_sample="--Wuhan-Reference--" --debug
+
 if a config file is not provided, it will run (as does findNeighbour4_server) is debug mode: it will run once, and then terminate.  This is useful for unit testing.  If a config file is specified, the clustering will  run until terminated.  
 
 Checks for new sequences are conducted once per minute.
@@ -83,8 +88,9 @@ Checks for new sequences are conducted once per minute.
     parser.add_argument('--sample_quality_cutoff', help='Only include in the tree samples with >= this proportion of ACTG bases', action='store')
     parser.add_argument('--snp_cutoff', help='Find representatives for tree building > snp_cutoff apart.  If omitted, maximum distance stored in the relatedness server is used', action='store')
     parser.add_argument('--max_neighbourhood_mixpore', help='exclude samples failing mixpore test on at most max_neighbourhood_mixpore closely related samples.  If omitted, mixpore check is not done', action='store')
+    parser.add_argument('--root_sample', help='regard the closest isolate to this sample as the root.  The root_sample can be ancestral (e.g. Wuhan reference, or the inferred TB Ancester (I Comas 2013)), or it can be an outgroup.  A tree will be generated without this sample.', action='store')
     parser.add_argument('--output_filestem', help='the first part of the output file basename.  e.g. if you want the output file called my_tree.nwk, enter my_tree', action='store')
-    parser.add_argument('--debug', help='only analyse the first 50 samples', action='store_true')
+    parser.add_argument('--debug', help='only analyse the first 20 samples', action='store_true')
     args = parser.parse_args()
     
     ############################ LOAD CONFIG ######################################
@@ -135,8 +141,8 @@ Checks for new sequences are conducted once per minute.
         
     # launch sentry if API key provided
     if 'SENTRY_URL' in CONFIG.keys():
-            logger.info("DISABLED Launching communication with Sentry bug-tracking service")
-            #sentry_sdk.init(CONFIG['SENTRY_URL'], integrations=[FlaskIntegration()])
+            logger.info("Launching communication with Sentry bug-tracking service")
+            sentry_sdk.init(CONFIG['SENTRY_URL'])
 
     ##################################################################################################
      # open PERSIST and hybridComparer object used by all samples
@@ -246,6 +252,19 @@ Checks for new sequences are conducted once per minute.
         max_neighbourhood_mixpore = None    # default value
     logging.info("Max neighbourhood mixpore set to {0}".format(max_neighbourhood_mixpore))
 
+    ########################### decide whether to do a mixpore (base composition) check  #######################
+    if args.root_sample is not None:
+        if PERSIST.guid_exists(args.root_sample) :
+            # it is valid
+            root_sample = args.root_sample
+            need_to_add_root_sample = True
+        else:
+            raise ValueError("Root sample does not exist {0}".format(args.root_sample))
+    else:
+        root_sample = None    # default value
+        need_to_add_root_sample = False     # we don't need to add this
+    logging.info("Root sample set to {0}".format(root_sample))
+
 
     ###################### select high quality samples from which to build the tree ############################
     high_quality_samples = sample_annotations.loc[sample_annotations['DNAQuality:propACTG']>sample_quality_cutoff].copy()
@@ -257,13 +276,10 @@ Checks for new sequences are conducted once per minute.
     remaining_samples = sampling_population.copy()
     representative_size = {}
 
-
-
-
     ################################### DEBUG : ONLY CONSIDER 20 for testing #####################################
     if args.debug:
         remaining_samples = set(random_sample(list(remaining_samples), 20) )
-        logging.warning("Running in debug mode.  Only 50 samples will be considered")
+        logging.warning("Running in debug mode.  Only 20 samples will be considered")
 
     #################################  prepare to iterate #########################################################
     all_samples = set(all_samples)
@@ -271,7 +287,9 @@ Checks for new sequences are conducted once per minute.
     singletons = set()
     iteration = 0
     total_delta = 0
+
     representatives = []
+
     total_n_samples  = len(remaining_samples)
     bar = progressbar.ProgressBar(max_value=len(remaining_samples))
     
@@ -279,7 +297,13 @@ Checks for new sequences are conducted once per minute.
     while len(remaining_samples)>0:
 
         iteration +=1
-        test_sample = random_sample(list(remaining_samples),1)[0]        # randomly sample one
+
+        if need_to_add_root_sample:
+            test_sample = root_sample
+            need_to_add_root_sample = False     # added it now
+        else:
+            test_sample = random_sample(list(remaining_samples),1)[0]        # randomly sample one
+
         test_sample_neighbour_info = PERSIST.guid2neighbours(test_sample, snp_cutoff, returned_format=1)      #  [guid, distance]
         
         # filter these neighbours.   Only include neighbours which are part of all_samples.
@@ -336,6 +360,7 @@ Checks for new sequences are conducted once per minute.
     fasta_outputfile =  os.path.join(outputdir, '{0}.fasta'.format(filestem))
     csv_outputfile = os.path.join(outputdir, '{0}.csv'.format(filestem))
     nwk_outputfile = os.path.join(outputdir, '{0}.nwk'.format(filestem))
+    nwkr_outputfile = os.path.join(outputdir, '{0}.rooted.nwk'.format(filestem))
     meta_outputfile = os.path.join(outputdir, '{0}.treeinfo.txt'.format(filestem))
     reps.to_csv(csv_outputfile)
 
@@ -372,14 +397,24 @@ Checks for new sequences are conducted once per minute.
         ## caution: if one changes the .env file FASTTREE_DIR environment variable to some other software called FastTreeMP, it will get run.  security risk ? how to mitigate
         res = subprocess.run(subprocess_cmd, text=True, capture_output=True, check=True)
         
-
         with open(nwk_outputfile, 'wt') as f:
             f.write(res.stdout)
         with open(meta_outputfile, 'wt') as f:
             f.write(res.stderr)
 
-        logging.info("Newick written to {0}".format(nwk_outputfile))
+        logging.info("Newick as produced by fastTree written to {0}".format(nwk_outputfile))
         logging.info("Metadata written to {0}".format(meta_outputfile))
+
+        # build rooted tree, if root is provided
+        if root_sample is not None:
+            logging.info("Producing a tree rooted using {0}".format(root_sample))
+            tree = Phylo.read(StringIO(res.stdout), 'newick')
+            tree.root_with_outgroup({"name":root_sample})
+            tree.collapse(root_sample)
+            with open(nwkr_outputfile,'w') as f:
+                Phylo.write(tree, f, 'newick')
+            logging.info("Rooted tree written to {0}".format(nwkr_outputfile))
+            
 
     else:
         logging.error("No tree built as FASTTREE environment variable not found.  put it in .env if using a virtual environment, and point it to the directory containing the fasttreeMP executable.  The fasttreeMP should be complied with double precision flags, see fastTree docs.")
