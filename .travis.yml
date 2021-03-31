@@ -1,8 +1,8 @@
 language: python
 python:
     - "3.9"
-    dist: focal
-    sudo: true
+dist: focal
+sudo: true
 #before_install:
 #  - sudo apt-get update
 #  - sudo apt-get -y install nim
