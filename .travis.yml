@@ -3,15 +3,14 @@ python:
     - "3.9"
     dist: focal
     sudo: true
-before_install:
-  - sudo apt-get update
-  - sudo apt-get -y install nim
-addons:
-  apt:
-    sources:
-      - sourceline: 'deb https://repo.mongodb.org/apt/ubuntu $(lsb_release -cs)/mongodb-org/4.4 multiverse'
+#before_install:
+#  - sudo apt-get update
+#  - sudo apt-get -y install nim
+#addons:
+#  apt:
+#    sources:
+#      - sourceline: 'deb https://repo.mongodb.org/apt/ubuntu $(lsb_release -cs)/mongodb-org/4.4 multiverse'
 install:
   - pip install pipenv
   - pipenv install
 
-  
