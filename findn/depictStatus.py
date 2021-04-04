@@ -467,23 +467,23 @@ class test_logfile(unittest.TestCase):
         dss = DepictServerStatus(logfiles={'nil':'nonexisting_file.log'})
         self.assertEqual(dss.logfile_tail('nil'), 'No log file exists.  The specified nil log file was nonexisting_file.log')
 
-        dss = DepictServerStatus(logfiles={'test':os.path.join("..","testdata","monitoring","logfile_small.log")})        
+        dss = DepictServerStatus(logfiles={'test':os.path.join( "testdata","monitoring","logfile_small.log")})        
         res = dss.logfile_tail(process ='test')        
         self.assertTrue("2018-10-30 12:02:09,964" in res)    
 
-        dss = DepictServerStatus(logfiles={'test':os.path.join("..","testdata","monitoring","logfile_big.log")})
+        dss = DepictServerStatus(logfiles={'test':os.path.join( "testdata","monitoring","logfile_big.log")})
         res = dss.logfile_tail(process = 'test')
         self.assertTrue("2018-11-02 10:33:41,831" in res)    
  
 class test_depict_1(unittest.TestCase):
     def runTest(self):
         """ tests depiction """
-        inputfile = os.path.join("..","testdata","monitoring","m50.json")
+        inputfile = os.path.join( "testdata","monitoring","m50.json")
         with open(inputfile,'rt') as f:
             res = json.load(f)
             
-        logfiles = {'big':os.path.join("..","testdata","monitoring","logfile_big.log"),
-                    'small':os.path.join("..","testdata","monitoring","logfile_small.log")}
+        logfiles = {'big':os.path.join( "testdata","monitoring","logfile_big.log"),
+                    'small':os.path.join( "testdata","monitoring","logfile_small.log")}
         
         dss = DepictServerStatus(logfiles= logfiles)
         dss.read_json(res, data_tag='all')
@@ -517,17 +517,17 @@ class test_depict_1(unittest.TestCase):
 
         doc = Tabs(tabs=tab_list)
 
-        show(doc)
+        #show(doc)
 
 class test_depict_2(unittest.TestCase):
     def runTest(self):
         """ tests depiction of guid2neighbour size"""
-        inputfile = os.path.join("..","testdata","monitoring","m50.json")
+        inputfile = os.path.join( "testdata","monitoring","m50.json")
         with open(inputfile,'rt') as f:
             res = json.load(f)
             
-        logfiles = {'big':os.path.join("..","testdata","monitoring","logfile_big.log"),
-                    'small':os.path.join("..","testdata","monitoring","logfile_small.log")}
+        logfiles = {'big':os.path.join( "testdata","monitoring","logfile_big.log"),
+                    'small':os.path.join( "testdata","monitoring","logfile_small.log")}
         
         dss = DepictServerStatus(logfiles= logfiles)
         dss.read_json(res, data_tag='all')
@@ -540,14 +540,14 @@ class test_depict_2(unittest.TestCase):
         
         doc = Tabs(tabs=tab_list)
 
-        show(doc)
+        #show(doc)
 
 class test_tail(unittest.TestCase):
     def runTest(self):
         """ tests tailing of a file """
         
         # no parameters except SNV threshold
-        dss = DepictServerStatus(logfiles = {'test':os.path.join("..","testdata","monitoring","logfile_big.log")})
+        dss = DepictServerStatus(logfiles = {'test':os.path.join("testdata","monitoring","logfile_big.log")})
         res = dss.logfile_tail('test',100)
         self.assertTrue("2018-11-02 10:33:41,831" in res)    
  

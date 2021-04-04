@@ -140,7 +140,7 @@ in either
 
         cmd = f"nohup {cw_binary_filepath} --instance_name {instance_name}  --bind_host {self.bind_host} --bind_port {self.bind_port} --reference_filepath {reference_filepath}  --mask_filepath {mask_filepath} --max_distance {self.max_distance} > cw_server_nohup.out &"
         logging.info("Attempting startup of CatWalk server : {0}".format(cmd)) 
-        
+       
         os.system(cmd)
 
         time.sleep(1)
@@ -227,8 +227,8 @@ class test_cw(unittest.TestCase):
         self.cw = CatWalk(
                     cw_binary_filepath=None,
                     reference_name="H37RV",
-                    reference_filepath="../reference/TB-ref.fasta",
-                    mask_filepath="../reference/TB-exclude-adaptive.txt",
+                    reference_filepath="reference/TB-ref.fasta",
+                    mask_filepath="reference/TB-exclude-adaptive.txt",
                     max_distance=20,
                     bind_host='localhost',
                     bind_port=5999)

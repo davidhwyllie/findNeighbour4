@@ -20,9 +20,9 @@ import unittest
 import pandas as pd
 import datetime
 import time
-from mongoStore import fn3persistence
-from identify_sequence_set import IdentifySequenceSet
-from msaviewer import DepictMSA
+from findn.mongoStore import fn3persistence
+from findn.identify_sequence_set import IdentifySequenceSet
+from findn.msaviewer import DepictMSA
 
 class MSAStore():
     """ stores multisequence alignments, both in ram and in a database """

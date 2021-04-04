@@ -1,9 +1,9 @@
 """ clustering for findNeighbour4
-assumes a findNeighbour4 server is running, with the connection string stated in ../demos/AC587/config/config_cl.json.
+assumes a findNeighbour4 server is running, with the connection string stated in demos/AC587/config/config_cl.json.
 
 An example command doing this would be (starting from /src)
 
-pipenv run python3 findNeighbour4_server.py ../demos/AC587/config/config_cl.json
+pipenv run python3 findNeighbour4_server.py demos/AC587/config/config_cl.json
 
 The test performs clustering.
 
@@ -67,12 +67,14 @@ from logging.config import dictConfig
 import psutil
 
 # startup
-from mongoStore import fn3persistence
-from ma_linkage import MixtureAwareLinkage,MixPOREMixtureChecker, MixtureAwareLinkageResult
-from msa import MSAStore
-from hybridComparer import hybridComparer
-from read_config import ReadConfig
-from clusternomenclature import ClusterNameAssigner, ClusterNomenclature
+from findn.mongoStore import fn3persistence
+from findn.msa import MSAStore
+from findn.hybridComparer import hybridComparer
+from findn.common_utils import ConfigManager
+
+from snpclusters.ma_linkage import MixtureAwareLinkage,MixPOREMixtureChecker, MixtureAwareLinkageResult
+from snpclusters.clusternomenclature import ClusterNameAssigner, ClusterNomenclature
+
 
 if __name__ == '__main__':
 
@@ -87,10 +89,10 @@ Example usage:
 
 ## does not require findNeighbour4_server to be running
 Minimal example:
-python findNeighbour4_clustering.py ../config/myConfigFile.json  
+python findNeighbour4_clustering.py config/myconfig_file.json  
 
 # Relabel clusters
-nohup pipenv run python3 findNeighbour4_clustering.py ../phe_dev/config_phe_dev.json --rebuild_clusters_debug --label_clusters_using=../reference/guid2cluster.xlsx &
+nohup pipenv run python3 findNeighbour4_clustering.py ../phe_dev/config_phe_dev.json --rebuild_clusters_debug --label_clusters_using=reference/guid2cluster.xlsx &
 
 if a config file is not provided, it will run (as does findNeighbour4_server) is debug mode: it will run once, and then terminate.  This is useful for unit testing.  If a config file is specified, the clustering will  run until terminated.  
 
@@ -111,16 +113,15 @@ Checks for new sequences are conducted once per minute.
     print("findNeighbour4 clustering .. reading configuration file.")
 
     if len(args.path_to_config_file)>0:
-            configFile = args.path_to_config_file
+            config_file = args.path_to_config_file
             debugmode = False
-            logging.info(configFile)
     else:
-            configFile = os.path.join('..','config','default_test_config.json')
+            config_file = os.path.join('config','default_test_config.json')
             debugmode = True
             warnings.warn("No config file name supplied ; using a configuration ('default_test_config.json') suitable only for testing, not for production. ")
 
-    rc = ReadConfig()
-    CONFIG = rc.read_config(configFile)
+    cfm = ConfigManager(config_file)  
+    CONFIG = cfm.read_config()
 
 
     ########################### SET UP LOGGING #####################################  
@@ -211,7 +212,7 @@ Checks for new sequences are conducted once per minute.
     hc = hybridComparer(reference=CONFIG['reference'],
         maxNs=CONFIG['MAXN_STORAGE'],
         snpCeiling=  CONFIG['SNPCEILING'],
-        excludePositions=CONFIG['excluded'],
+        excludePositions=CONFIG['excludePositions'],
         preComparer_parameters=CONFIG['PRECOMPARER_PARAMETERS'],
         PERSIST=PERSIST,
         disable_insertion = True)

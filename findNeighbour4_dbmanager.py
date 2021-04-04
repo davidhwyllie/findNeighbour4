@@ -50,8 +50,10 @@ import argparse
 # logging
 from logging.config import dictConfig
 
+# config
+from findn.common_utils import ConfigManager
 # reference based compression, storage and clustering modules
-from mongoStore import fn3persistence
+from findn.mongoStore import fn3persistence
 
 # only used for unit testing
 import unittest
@@ -81,16 +83,16 @@ Example usage:
 # show command line options 
 python findNeighbour4_dbmanager.py --help  
 
-# run using settings in myConfigFile.json.   
-python findNeighbour4_dbmanager.py ../config/myConfigFile.json          # this config file should be the same as that used by the server.  recompress everything needing it.    
+# run using settings in myconfig_file.json.   
+python findNeighbour4_dbmanager.py ../config/myconfig_file.json          # this config file should be the same as that used by the server.  recompress everything needing it.    
 
-python findNeighbour4_server.py ../config/myConfigFile.json \ 
+python findNeighbour4_server.py ../config/myconfig_file.json \ 
                         --recompress_subset 0123456789abcdef            # effects same as above
 
 # two processes, which can be run simultaneously; they will not recompress the same samples
-python findNeighbour4_server.py ../config/myConfigFile.json \ 
+python findNeighbour4_server.py ../config/myconfig_file.json \ 
                         --recompress_subset 01234567            # one process only compresses samples if the hash of the sample_id begins with 0,1,..7
-python findNeighbour4_server.py ../config/myConfigFile.json \ 
+python findNeighbour4_server.py ../config/myconfig_file.json \ 
                         --recompress_subset 89abcdef            # one process only compresses samples if the hash of the sample_id begins with 8,9, a, ... f
 
 """)
@@ -107,9 +109,11 @@ python findNeighbour4_server.py ../config/myConfigFile.json \
         print("findNeighbour4_dbmanager server .. reading configuration file.")
 
         if len(args.path_to_config_file) > 0 :
-                configFile = args.path_to_config_file
+                config_file = args.path_to_config_file
+                debugmode = 0 
         else:
-                configFile = os.path.join('..','config','default_test_config.json')
+                config_file = os.path.join('config','default_test_config.json')
+                debugmode = 1 
                 warnings.warn("No config file name supplied ; using a configuration ('default_test_config.json') suitable only for testing, not for production. ")
    
         # the manager can only compress a fraction of the samples' records.  we provide functionality to select 1/16ths of the samples for this instance to compress.
@@ -128,27 +132,8 @@ python findNeighbour4_server.py ../config/myConfigFile.json \
                 recompress_subset_label = "recompress_subset_{0}_to_{1}".format(recompress_subset_chars[0], recompress_subset_chars[-1])
        
         ############################ load config ######################################
-        # open the config file
-        try:
-                with open(configFile,'r') as f:
-                         CONFIG=f.read()
-
-        except FileNotFoundError:
-                raise FileNotFoundError("Passed one parameter, which should be a CONFIG file name; tried to open a config file at {0} but it does not exist ".format(sys.argv[1]))
-
-        if isinstance(CONFIG, str):
-                CONFIG=json.loads(CONFIG)   # assume JSON string; convert.
-
-        # check CONFIG is a dictionary  
-        if not isinstance(CONFIG, dict):
-                raise KeyError("CONFIG must be either a dictionary or a JSON string encoding a dictionary.  It is: {0}".format(CONFIG))
-        
-        # check that the keys of config are as expected.
-
-        required_keys=set(['IP', 'REST_PORT', 'DEBUGMODE', 'LOGFILE', 'MAXN_PROP_DEFAULT'])
-        missing=required_keys-set(CONFIG.keys())
-        if not missing == set([]):
-                raise KeyError("Required keys were not found in CONFIG. Missing are {0}".format(missing))
+        cfm = ConfigManager(config_file)  
+        CONFIG = cfm.read_config()
 
         ########################### set up logging #####################################  
         # create a log file if it does not exist.
@@ -212,9 +197,6 @@ python findNeighbour4_server.py ../config/myConfigFile.json \
                 print("Using connection string to mongodb from configuration file.")
 
 
-        ######################################################## ######################
-
-
         ########################  START Operations ###################################
         logger.info("Connect to database")
         try:
@@ -262,6 +244,8 @@ python findNeighbour4_server.py ../config/myConfigFile.json \
                         if nModified % 25 == 0:
                                 db_summary = PERSIST.summarise_stored_items()
                                 PERSIST.server_monitoring_store(what='dbManager', message="Repacking", guid='-', content=db_summary)
+             if debugmode == 1:
+                     exit()
 
              if nModified == 0:
                 # everything has been packed

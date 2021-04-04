@@ -36,18 +36,21 @@ import itertools
 import numpy as np
 from scipy.stats import binom_test
 import pandas as pd
-from collections import Counter
-from mongoStore import fn3persistence
-from preComparer import preComparer     # catwalk enabled
-from identify_sequence_set import IdentifySequenceSet
-from msa import MSAResult
-
 import logging
+
+from collections import Counter
+from findn.mongoStore import fn3persistence
+from findn.preComparer import preComparer     # catwalk enabled
+from findn.identify_sequence_set import IdentifySequenceSet
+from findn.msa import MSAResult
+from findn.pycw_client import CatWalk
+
+
 # only used for unit testing
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from pycw_client import CatWalk
+
 # connection to mongodb on localhost; used for unittesting
 UNITTEST_MONGOCONN = "mongodb://localhost"
 
@@ -1843,7 +1846,7 @@ class test_hybridComparer_40(unittest.TestCase):
 class test_hybridComparer_45(unittest.TestCase):
     """ tests insertion of large sequences """
     def runTest(self):
-        inputfile = "../reference/NC_000962.fasta"
+        inputfile = "reference/NC_000962.fasta"
         with open(inputfile, 'rt') as f:
             for record in SeqIO.parse(f,'fasta'):
                     goodseq = str(record.seq)
@@ -1965,7 +1968,7 @@ class test_hybridComparer_51(unittest.TestCase):
 class test_hybridComparer_52(unittest.TestCase):
     """ tests catwalk with uncertain_base = M"""
     def runTest(self):
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
             for record in SeqIO.parse(f,'fasta'):
                     refSeq = str(record.seq)               
@@ -1973,7 +1976,7 @@ class test_hybridComparer_52(unittest.TestCase):
         hc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
                        snpCeiling =10,
-                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{'bind_port':5999, 'bind_host':'localhost','cw_binary_filepath':None,'reference_name':"H37RV",'reference_filepath':inputfile,'mask_filepath':"../reference/TB-exclude-adaptive.txt"}},
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{'bind_port':5999, 'bind_host':'localhost','cw_binary_filepath':None,'reference_name':"H37RV",'reference_filepath':inputfile,'mask_filepath':"reference/TB-exclude-adaptive.txt"}},
                        unittesting=True)
         
         hc.PERSIST._delete_existing_data()      
@@ -2025,8 +2028,8 @@ class test_hybridComparer_53(unittest.TestCase):
         cw = CatWalk(
                     cw_binary_filepath=None,
                     reference_name="H37RV",
-                    reference_filepath="../reference/TB-ref.fasta",
-                    mask_filepath="../reference/TB-exclude-adaptive.txt",
+                    reference_filepath="reference/TB-ref.fasta",
+                    mask_filepath="reference/TB-exclude-adaptive.txt",
                     max_distance=20,
                     bind_host='localhost',
                     bind_port=5999)
@@ -2035,7 +2038,7 @@ class test_hybridComparer_53(unittest.TestCase):
         cw.stop()
         self.assertFalse(cw.server_is_running())
 
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
             for record in SeqIO.parse(f,'fasta'):
                     refSeq = str(record.seq)               
@@ -2043,7 +2046,7 @@ class test_hybridComparer_53(unittest.TestCase):
         hc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
                        snpCeiling =20,
-                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'N_or_M', 'over_selection_cutoff_ignore_factor':1, 'catWalk_parameters':{'bind_port':5999, 'bind_host':'localhost','cw_binary_filepath':None,'reference_name':"H37RV",'reference_filepath':inputfile,'mask_filepath':"../reference/TB-exclude-adaptive.txt"}},
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'N_or_M', 'over_selection_cutoff_ignore_factor':1, 'catWalk_parameters':{'bind_port':5999, 'bind_host':'localhost','cw_binary_filepath':None,'reference_name':"H37RV",'reference_filepath':inputfile,'mask_filepath':"reference/TB-exclude-adaptive.txt"}},
                        unittesting=True)
         
         hc.PERSIST._delete_existing_data()      
@@ -2097,7 +2100,7 @@ class test_hybridComparer_53(unittest.TestCase):
 class test_hybridComparer_54(unittest.TestCase):
     """ tests catwalk with insertion disabled (catwalk should not start)"""
     def runTest(self):
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
             for record in SeqIO.parse(f,'fasta'):
                     refSeq = str(record.seq)               
@@ -2105,7 +2108,7 @@ class test_hybridComparer_54(unittest.TestCase):
         hc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
                        snpCeiling =10,
-                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'N_or_M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{'bind_port':5999, 'bind_host':'localhost','cw_binary_filepath':None,'reference_name':"H37RV",'reference_filepath':inputfile,'mask_filepath':"../reference/TB-exclude-adaptive.txt"}},
+                       preComparer_parameters={'selection_cutoff':20,'uncertain_base':'N_or_M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{'bind_port':5999, 'bind_host':'localhost','cw_binary_filepath':None,'reference_name':"H37RV",'reference_filepath':inputfile,'mask_filepath':"reference/TB-exclude-adaptive.txt"}},
                        unittesting=True,
                        disable_insertion=True)
         self.assertFalse(hc.pc.catWalk_enabled)

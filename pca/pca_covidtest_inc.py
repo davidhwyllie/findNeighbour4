@@ -689,6 +689,7 @@ class VariantMatrix:
             input: 
                 min_variant_freq: the minimum proportion of samples with variation at that site for the site to be included.  If none, is set to 10/train_on, i.e. each variant has to appear 10 times to be considered
                 num_train_on: only compute PCA on a subset of train_on samples.  Set to None for all samples.
+                deterministic:  if num_train on is not None, setting deterministic = True (default) ensures the same samples are analysed each time.  If num_train_on is None, has no effect.  
         """
         # determine guids there in the database
         guids = self.guids()
@@ -831,11 +832,8 @@ class VariantMatrix:
         print(">>Building variant matrix from dictionary (pandas - no progression information)")  
         vmodel = pd.DataFrame.from_dict(vmodel, orient='index')
         vmodel.fillna(value=0, inplace=True)    # if not completed, then it's reference
-                                                # unless it's null, which we are ignoring at present- we have preselected sites as non-null
-        # print(">>Deduplicating the original {0} sequences".format(len(vmodel.index)))
-        # vmodel = vmodel.drop_duplicates()      # deduplicate by row - removes weighting by repeated isolates, but retains diversity 
-        #self.vm['null_elements_in_vmodel'] = vmodel.isna().sum().sum()
-        print(">>Post-deduplication there are {0} sequences".format(len(vmodel.index)))
+                                                # unless it's null, which we are ignoring at present- we have preselected sites as having low null frequencies
+        print(">>There are {0} sequences in the variation model".format(len(vmodel.index)))
         self.vm['variant_matrix'] = vmodel
 
 
@@ -870,6 +868,7 @@ class PCARunner():
         contributing_pos = set()
         for i,row in enumerate(pca.components_,0):
             # mark values far from the median, which is close to zero
+            # this information is not used, but it is retained for depiction purposes if needed
             row_median = np.median(row)
             row_mad = median_abs_deviation(row)
             row_upper_ci = row_median + 3*row_mad
@@ -1032,51 +1031,3 @@ python findNeighbour3-varmod.py ../config/myConfigFile.json
 # startup
 if __name__ == '__main__':
     main()
-
-_snippet = """
-
-    print("Exporting excel - not run as very slow.  Use sqlite as source for excel")
-    #vm.to_excel('output2.xlsx')
-
-    print("Serialising")
-    to_serialise = json.dumps(vm.serialise())
-
-    with open('test_serialisation.json', 'w') as f:
-        f.write(to_serialise)
-
-# deserialise from stored results if not built result on this run
-if not rebuild:
-    print('Recovering from serialised version.')
-    with open('test_serialisation.json', 'r') as f:
-        serialised = f.read()
-        serialised = json.loads(serialised)
-        vm2 = VariationModel(serialised_representation= serialised)  
-else:
-    vm2 = vm         
-
-
-# cluster - an experimental process - may not be very useful
-# too slow at large numbers with current algorithm
-print("Clustering Eigenvalues")
-#vm2.cluster(eps = 0.3, drop_first_pcs=4)       # just one eps
-vm2.multicluster(drop_first_pcs=0)           # multiple thresholds
-
-
-# write tree file
-filename = '/srv/data/mixfiles/covid/milk_micro.fas.treefile'       # ML tree of a 2500 sample subset
-with (open(filename,'r')) as f:
-    ml_tree_string = f.read()
-
-annotated_ml_tree_string = vm2.annotate_tree_with_cluster_output(ml_tree_string)
-
-filename = 'output.treefile'
-with (open(filename,'w')) as f:
-    f.write(annotated_ml_tree_string) 
-
-print('Finished - output in output.treefile')
-exit()
-
-## todo: VALIDATE PCS VS. tREE- BUILD SMALL TREES, SEE WHETHER PHYLOGENETICALLY COHERENT
-## CONSIDER TREE BASED pc EXAMINATION
-
-"""

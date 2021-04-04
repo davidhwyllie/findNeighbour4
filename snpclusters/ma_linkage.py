@@ -29,13 +29,13 @@ import warnings
 import pandas as pd
 import progressbar
 import logging
-from identify_sequence_set import IdentifySequenceSet
+from findn.identify_sequence_set import IdentifySequenceSet
 
 # for unittesting only
-from hybridComparer import hybridComparer
-from read_config import ReadConfig
-from mongoStore import fn3persistence
-from pycw_client import CatWalk
+from findn.hybridComparer import hybridComparer
+from findn.common_utils import ConfigManager
+from findn.mongoStore import fn3persistence
+from findn.pycw_client import CatWalk
 
 class MockPersistence():
     """ simulates the fnPersistence class which provides access to findNeighbour stored data;
@@ -1028,6 +1028,11 @@ a guid to metadata lookup (including mixture and if appropriate clustering data)
         # if mixed_sample_management = 'ignore', this is all the samples.
         # otherwise, it's only the unmixed samples.
         existing_guids = self.guids()
+
+        # if there are no samples, we return
+        if len(existing_guids)== 0:
+            return 0
+
         clusters = self._connectedComponents(what = 'node_id')
 
         node_ids = set()
@@ -2079,8 +2084,8 @@ class test_MIXCHECK_1(unittest.TestCase):
     """ tests mixpore mixture checker"""
     def runTest(self):
 
-        rc = ReadConfig()
-        CONFIG = rc.read_config("../config/default_test_config.json")
+        rc = ConfigManager(os.path.join("config","default_test_config.json"))
+        CONFIG = rc.read_config()
 
         # get a clustering object's settings
         for clustering_name in CONFIG['CLUSTERING'].keys():
@@ -2096,8 +2101,8 @@ class test_MIXCHECK_1(unittest.TestCase):
             cw = CatWalk(
                     cw_binary_filepath=None,
                     reference_name="H37RV",
-                    reference_filepath="../reference/TB-ref.fasta",
-                    mask_filepath="../reference/TB-exclude-adaptive.txt",
+                    reference_filepath="reference/TB-ref.fasta",
+                    mask_filepath="reference/TB-exclude-adaptive.txt",
                     max_distance=20,
                     bind_host='localhost',
                     bind_port=5998)
@@ -2110,7 +2115,7 @@ class test_MIXCHECK_1(unittest.TestCase):
                 reference=CONFIG['reference'],
                 maxNs=CONFIG['MAXN_STORAGE'],
                 snpCeiling=  CONFIG['SNPCEILING'],
-                excludePositions=CONFIG['excluded'],
+                excludePositions=CONFIG['excludePositions'],
                 preComparer_parameters=CONFIG['PRECOMPARER_PARAMETERS'],
                 PERSIST=PERSIST, 
                 unittesting=True

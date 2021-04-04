@@ -18,11 +18,10 @@ GNU Affero General Public License for more details.
 import os, io, glob, gzip
 import unittest
 import copy
-import pycw_client
 import json
 import logging
 import requests
-from pycw_client import CatWalk
+from findn.pycw_client import CatWalk
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
@@ -83,8 +82,8 @@ class preComparer():
         An example would look like:
                         catWalk_parameters ={'cw_binary_filepath':None,
                         'reference_name':"h37rv", 
-                        'reference_filepath':"../reference/TB-ref.fasta", 
-                        'mask_filepath':"../reference/TB-exclude-adaptive.txt", 
+                        'reference_filepath':"reference/TB-ref.fasta", 
+                        'mask_filepath':"reference/TB-exclude-adaptive.txt", 
                         'bind_host':"127.0.0.1", 
                         'bind_port':5999}
                     
@@ -487,8 +486,8 @@ class test_preComparer_2a(unittest.TestCase):
         sc=preComparer(  selection_cutoff = 20, uncertain_base='M',over_selection_cutoff_ignore_factor = 5,                         
                         catWalk_parameters ={'cw_binary_filepath':None,
                         'reference_name':"h37rv", 
-                        'reference_filepath':"../reference/TB-ref.fasta", 
-                        'mask_filepath':"../reference/TB-exclude-adaptive.txt", 
+                        'reference_filepath':"reference/TB-ref.fasta", 
+                        'mask_filepath':"reference/TB-exclude-adaptive.txt", 
                         'bind_host':"127.0.0.1", 
                         'bind_port':5999})
         obj = {'A':set([1,2,3,4])}
@@ -559,8 +558,8 @@ class test_preComparer_3a(unittest.TestCase):
         sc=preComparer(  selection_cutoff = 20, uncertain_base='M',over_selection_cutoff_ignore_factor = 5,
                          catWalk_parameters ={'cw_binary_filepath':None,
                         'reference_name':"h37rv", 
-                        'reference_filepath':"../reference/TB-ref.fasta", 
-                        'mask_filepath':"../reference/TB-exclude-adaptive.txt", 
+                        'reference_filepath':"reference/TB-ref.fasta", 
+                        'mask_filepath':"reference/TB-exclude-adaptive.txt", 
                         'bind_host':"127.0.0.1", 
                         'bind_port':5999})
         obj = {'A':set([1,2,3,4]), 'invalid':1}
@@ -628,13 +627,13 @@ class test_preComparer_4a(unittest.TestCase):
         # initialise comparer
         sc=preComparer(  selection_cutoff = 20, uncertain_base='M',over_selection_cutoff_ignore_factor = 5, catWalk_parameters ={'cw_binary_filepath':None,
                         'reference_name':"h37rv", 
-                        'reference_filepath':"../reference/TB-ref.fasta", 
-                        'mask_filepath':"../reference/TB-exclude-adaptive.txt", 
+                        'reference_filepath':"reference/TB-ref.fasta", 
+                        'mask_filepath':"reference/TB-exclude-adaptive.txt", 
                         'bind_host':"127.0.0.1", 
                         'bind_port':5999, 'unittesting':True})
         res1 = sc.summarise_stored_items()
         self.assertEqual(res1['server|pcstat|nSeqs'], 0 )
-        self.assertEqual(res1['server|catwalk|mask_name'], "../reference/TB-exclude-adaptive.txt" )
+        self.assertEqual(res1['server|catwalk|mask_name'], "reference/TB-exclude-adaptive.txt" )
 
 class test_preComparer_5(unittest.TestCase):
     """ tests comparison """
@@ -730,8 +729,8 @@ class test_preComparer_9a(unittest.TestCase):
         sc=preComparer(  selection_cutoff = 20, uncertain_base='M',over_selection_cutoff_ignore_factor = 5,
                     catWalk_parameters ={'cw_binary_filepath':None,
                         'reference_name':"h37rv", 
-                        'reference_filepath':"../reference/TB-ref.fasta", 
-                        'mask_filepath':"../reference/TB-exclude-adaptive.txt", 
+                        'reference_filepath':"reference/TB-ref.fasta", 
+                        'mask_filepath':"reference/TB-exclude-adaptive.txt", 
                         'bind_host':"127.0.0.1", 
                         'bind_port':5999})
        
@@ -838,8 +837,8 @@ class test_preComparer_11(unittest.TestCase):
                     over_selection_cutoff_ignore_factor = 1, uncertain_base = uncertain_base,
                     catWalk_parameters ={'cw_binary_filepath':None,
                         'reference_name':"h37rv", 
-                        'reference_filepath':"../reference/TB-ref.fasta", 
-                        'mask_filepath':"../reference/nil.txt", 
+                        'reference_filepath':"reference/TB-ref.fasta", 
+                        'mask_filepath':"reference/nil.txt", 
                         'bind_host':"127.0.0.1", 
                         'bind_port':5999, 
                         'unittesting':True})
@@ -847,7 +846,7 @@ class test_preComparer_11(unittest.TestCase):
         # define directory where the fastas are
         fastadir = os.path.join('..','demos','AC587','fasta')
 
-        reference = self.read_fasta_file("../reference/TB-ref.fasta")['seq']
+        reference = self.read_fasta_file("reference/TB-ref.fasta")['seq']
 
         # we load randomly selected guids 
         guids = list()

@@ -759,7 +759,7 @@ class seqComparer():
         expected_N2 = self.estimate_expected_unk_sites(sample_size=sample_size, exclude_guids= invalid_guids, sites=set(ordered_variant_positions), unk_type = uncertain_base_type)
         if expected_N2 is None:
             expected_p2 = None
-        elif len(ordered_variant_positions) is 0:
+        elif len(ordered_variant_positions) == 0:
             expected_p2 = None
         else:
             expected_p2 = expected_N2 / len(ordered_variant_positions)
@@ -1580,7 +1580,7 @@ class test_seqComparer_40(unittest.TestCase):
 class test_seqComparer_45(unittest.TestCase):
     """ tests insertion of large sequences """
     def runTest(self):
-        inputfile = "../reference/NC_000962.fasta"
+        inputfile = "reference/NC_000962.fasta"
         with open(inputfile, 'rt') as f:
             for record in SeqIO.parse(f,'fasta'):
                     goodseq = str(record.seq)

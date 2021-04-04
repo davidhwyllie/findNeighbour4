@@ -289,8 +289,10 @@ class fn3persistence():
         # methods for the config collection
         def config_store(self, key, object):
             """ stores object into config collection
-            It is assumed object is a dictionary"""
-
+            It is assumed object is a dictionary
+            """
+            if 'excluded' in object.keys():
+                del(object['excluded'])         ## TOO LARGE
             return self._store('config',key, object)
         
         def config_read(self, key):
@@ -298,6 +300,7 @@ class fn3persistence():
                 It is assumed object is a dictionary"""
 
             return self._load('config',key)
+
 
 
         # methods for the server and database monitoring

@@ -88,20 +88,24 @@ from logging.config import dictConfig
 # utilities for file handling and measuring file size
 import psutil
 
+# config
+from findn import BASE_PATH, DEFAULT_CONFIG_FILE
+from findn.common_utils import ConfigManager
+
 # reference based compression, storage and clustering modules
-from NucleicAcid import NucleicAcid
-from mongoStore import fn3persistence
-from hybridComparer import hybridComparer   
-from guidLookup import guidSearcher         # fast lookup of first part of guids
-from ma_linkage import MixtureAwareLinkageResult
-from msa import MSAStore
-from preComparer import preComparer 
+from findn.NucleicAcid import NucleicAcid
+from findn.mongoStore import fn3persistence
+from findn.hybridComparer import hybridComparer   
+from findn.guidLookup import guidSearcher         # fast lookup of first part of guids
+from snpclusters.ma_linkage import MixtureAwareLinkageResult
+from findn.msa import MSAStore
+from findn.preComparer import preComparer 
 
 # network visualisation
-from visualiseNetwork import snvNetwork
+from findn.visualiseNetwork import snvNetwork
 
 # server status visualisation
-from depictStatus import MakeHumanReadable
+from findn.depictStatus import MakeHumanReadable
 
 # only used for unit testing
 from Bio import SeqIO
@@ -255,61 +259,17 @@ class findNeighbour4():
         # set up an MSA store
         self.ms = MSAStore(PERSIST=PERSIST, in_ram_persistence_time=300)        # max time to store msas in seconds
 
-        # check input
-        if isinstance(CONFIG, str):
-            self.CONFIG=json.loads(CONFIG)  # assume JSON string; convert.
-        elif isinstance(CONFIG, dict):
-            self.CONFIG=CONFIG
-        else:
-            raise TypeError("CONFIG must be a json string or dictionary, but it is a {0}".format(type(CONFIG)))
-        
-        # check it is a dictionary  
-        if not isinstance(self.CONFIG, dict):
-            raise KeyError("CONFIG must be either a dictionary or a JSON string encoding a dictionary.  It is: {0}".format(CONFIG))
-        
-        # check that the keys of config are as expected.
-        required_keys=set(['IP','INPUTREF','EXCLUDEFILE','DEBUGMODE','SERVERNAME',
-                           'FNPERSISTENCE_CONNSTRING', 'MAXN_STORAGE',
-                            "SNPCEILING", 'MAXN_PROP_DEFAULT', 'REST_PORT',
-                           'LOGFILE','LOGLEVEL', 'CLUSTERING', "PRECOMPARER_PARAMETERS"])
-        missing=required_keys-set(self.CONFIG.keys())
-        if not missing == set([]):
-            raise KeyError("Required keys were not found in CONFIG. Missing are {0}".format(missing))
-
-        if len(self.CONFIG['PRECOMPARER_PARAMETERS'])>0:
-            # these are supplied
-            observed_keys = set(list(self.CONFIG['PRECOMPARER_PARAMETERS'].keys()))
-            expected_keys = set(["selection_cutoff",
-                                "over_selection_cutoff_ignore_factor",
-                                "uncertain_base"])
-
-            missing = expected_keys - observed_keys
-            if len(missing) > 0:
-                raise KeyError("Precomparer parameters were supplied, but the required keys were not found . Missing are {0}".format(missing))
-
-        # the following keys are not stored in any database backend, as a server could be moved, i.e.
-        # running on the same data but with different IP etc
-        
-        do_not_persist_keys=set(['IP',"SERVERNAME",'FNPERSISTENCE_CONNSTRING',
-                                 'LOGFILE','LOGLEVEL','REST_PORT',
-                                 'SENTRY_URL', 'SERVER_MONITORING_MIN_INTERVAL_MSEC'])
-                
-        # determine whether this is a first-run situation.
-        if self.PERSIST.first_run():
-            self.first_run(do_not_persist_keys)
-
-        # load global settings from those stored at the first run.
-        cfg = self.PERSIST.config_read('config')
-        
+        # does not test CONFIG.  Assumes it has been checked by read_config()
+       
         # set easy to read properties from the config
-        self.reference = cfg['reference']
-        self.excludePositions = set(cfg['excludePositions'])
-        self.debugMode = cfg['DEBUGMODE']
-        self.maxNs = cfg['MAXN_STORAGE']
-        self.snpCeiling = cfg['SNPCEILING']
-        self.preComparer_parameters = cfg['PRECOMPARER_PARAMETERS']
-        self.maxn_prop_default = cfg['MAXN_PROP_DEFAULT']
-        self.clustering_settings = cfg['CLUSTERING']
+        self.reference = CONFIG['reference']
+        self.excludePositions = set(CONFIG['excludePositions'])
+        self.debugMode = CONFIG['DEBUGMODE']
+        self.maxNs = CONFIG['MAXN_STORAGE']
+        self.snpCeiling = CONFIG['SNPCEILING']
+        self.preComparer_parameters = CONFIG['PRECOMPARER_PARAMETERS']
+        self.maxn_prop_default = CONFIG['MAXN_PROP_DEFAULT']
+        self.clustering_settings = CONFIG['CLUSTERING']
         
         ## start setup
         self.write_semaphore = threading.BoundedSemaphore(1)        # used to permit only one process to INSERT at a time.
@@ -330,7 +290,7 @@ class findNeighbour4():
 
         # set up a read-only precomparer for use by pairwise comparisons.  There is no SNP ceiling
         # preComparer_parameters will be read from disc
-        tmp_preComparer_parameters = cfg['PRECOMPARER_PARAMETERS'].copy()
+        tmp_preComparer_parameters = CONFIG['PRECOMPARER_PARAMETERS'].copy()
         tmp_preComparer_parameters['selection_cutoff'] = len(self.reference)
         tmp_preComparer_parameters['catWalk_parameters'] = {}
         tmp_preComparer_parameters['over_selection_cutoff_ignore_factor'] = 1        
@@ -451,7 +411,7 @@ class findNeighbour4():
 
     def first_run(self, do_not_persist_keys):
         """ actions taken on first-run only.
-        Include caching results from CONFIGFILE to database, unless they are in do_not_persist_keys"""
+        Include caching results from config_file to database, unless they are in do_not_persist_keys"""
         
         app.logger.info("First run situation: parsing inputs, storing to database. ")
 
@@ -1778,15 +1738,15 @@ python findNeighbour4_server.py --help
 # run with debug settings; only do this for unit testing.
 python findNeighbour4_server.py     
 
-# run using settings in myConfigFile.json.  Memory will be recompressed after loading. 
-python findNeighbour4_server.py ../config/myConfigFile.json     
+# run using settings in myconfig_file.json.  Memory will be recompressed after loading. 
+python findNeighbour4_server.py ../config/myconfig_file.json     
 
-# run using settings in myConfigFile.json; 
+# run using settings in myconfig_file.json; 
 # recompress RAM every 20000 samples loaded 
 # (only needed if RAM is in short supply and data close to limit) 
 # enabling this option will slow up loading 
 
-python findNeighbour4_server.py ../config/myConfigFile.json \ 
+python findNeighbour4_server.py ../config/myconfig_file.json \ 
                         --on_startup_recompress-memory_every 20000 
 
 """)
@@ -1800,37 +1760,15 @@ python findNeighbour4_server.py ../config/myConfigFile.json \
     ############################ LOAD CONFIG ######################################
     print("findNeighbour4 server .. reading configuration file.")
 
-    from findn import BASE_PATH, DEFAULT_CONFIG_FILE
-    from common_utils import read_server_config
 
-    configFile = args.path_to_config_file
-    if configFile is None:
-        configFile = DEFAULT_CONFIG_FILE
+    config_file = args.path_to_config_file
+    if config_file is None:
+        config_file = DEFAULT_CONFIG_FILE
         warnings.warn("No config file name supplied ; using a configuration ('default_test_config.json') suitable only for testing, not for production. ")
 
+    cfm = ConfigManager(config_file)  
+    CONFIG = cfm.read_config()
 
-    required_keys=set(['IP', 'REST_PORT', 'DEBUGMODE', 'LOGFILE', 'MAXN_PROP_DEFAULT'])
-    CONFIG = read_server_config(configFile, required_keys)
-
-
-    # determine whether a FNPERSISTENCE_CONNSTRING environment variable is present,
-    # if so, the value of this will take precedence over any values in the config file.
-    # This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuraton file.
-    if os.environ.get("FNPERSISTENCE_CONNSTRING") is not None:
-        CONFIG["FNPERSISTENCE_CONNSTRING"] = os.environ.get("FNPERSISTENCE_CONNSTRING")
-        print("Set mongodb connection string  from environment variable")
-    else:
-        print("Using mongodb connection string from configuration file.")
-
-    # determine whether a FN_SENTRY_URLenvironment variable is present,
-    # if so, the value of this will take precedence over any values in the config file.
-    # This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuraton file.
-    if os.environ.get("FN_SENTRY_URL") is not None:
-        CONFIG["SENTRY_URL"] = os.environ.get("FN_SENTRY_URL")
-        print("Set Sentry connection string from environment variable")
-    else:
-        print("Using Sentry connection string from configuration file.")
-        
     ########################### SET UP LOGGING #####################################  
     # create a log file if it does not exist.
     print("Starting logging")
@@ -1854,9 +1792,6 @@ python findNeighbour4_server.py ../config/myConfigFile.json \
     formatter = logging.Formatter( "%(asctime)s | %(pathname)s:%(lineno)d | %(funcName)s | %(levelname)s | %(message)s ")
     file_handler.setFormatter(formatter)
     app.logger.addHandler(file_handler)
-
-    # log a test error on startup
-    # app.logger.error("Test error logged on startup, to check logger is working")
 
     # launch sentry if API key provided
     if 'SENTRY_URL' in CONFIG.keys():
@@ -1885,8 +1820,6 @@ python findNeighbour4_server.py ../config/myConfigFile.json \
                         debug=CONFIG['DEBUGMODE'])
     except Exception as e:
             app.logger.exception("Error raised on creating persistence object")
-            if e.__module__ == "pymongo.errors":
-                  app.logger.info("Error raised pertains to pyMongo connectivity")
             raise
 
     # instantiate server class
@@ -1896,7 +1829,6 @@ python findNeighbour4_server.py ../config/myConfigFile.json \
     except Exception as e:
             app.logger.exception("Error raised on instantiating findNeighbour4 object")
             raise
-
 
     ########################  START THE SERVER ###################################
     if CONFIG['DEBUGMODE']>0:

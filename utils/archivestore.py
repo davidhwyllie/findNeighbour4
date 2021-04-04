@@ -1,5 +1,13 @@
-""" builds a guide tree - a phylogenetic tree from a representative sample of sequences,
-obtained by SNP based sampling.
+""" classes to build and store collections of reference compressed sequences
+suitable for testing the performance of pca.
+
+Includes an archiveStore object, which offers a subset of methods present in mongoStore 
+(a class accessing the mongodb database) and can be used as a drop in replacement for 
+mongoStore when 
+
+- unittesting testing PCA generation 
+- benchmarking PCA
+- testing the detection of new variants by PCA
 
 A component of the findNeighbour4 system for bacterial relatedness monitoring
 Copyright (C) 2021 David Wyllie david.wyllie@phe.gov.uk
@@ -14,7 +22,6 @@ This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU Affero General Public License for more details.
-
 
 """
 
@@ -37,11 +44,12 @@ import argparse
 import progressbar
 import time
 import subprocess
-
+from io import StringIO
 from random import sample as random_sample
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
+from Bio import Phylo
 
 from sentry_sdk import capture_message, capture_exception
 from sentry_sdk.integrations.flask import FlaskIntegration
@@ -50,9 +58,10 @@ from sentry_sdk.integrations.flask import FlaskIntegration
 from logging.config import dictConfig
 
 # startup
-from mongoStore import fn3persistence
-from hybridComparer import hybridComparer
-from read_config import ReadConfig
+from findn.mongoStore import fn3persistence
+from findn.hybridComparer import hybridComparer
+from findn.read_config import ReadConfig
+from trees.manipulate_tree import ManipulateTree
 
 if __name__ == '__main__':
 
@@ -60,35 +69,34 @@ if __name__ == '__main__':
     # command line usage.  Pass the location of a config file as a single argument.
     parser = argparse.ArgumentParser(
         formatter_class= argparse.RawTextHelpFormatter,
-        description="""Runs findNeighbour4_guidetreeg, a findNeighbour4 component.
+        description="""make_referencecompressed_archive, a findNeighbour4 component.
                                      
 
 Example usage: 
 ============== 
 
 ## does not require findNeighbour4_server to be running
-Minimal example:
-python findNeighbour4_guidetree.py ../config/myConfigFile.json  
 
-if a config file is not provided, it will run (as does findNeighbour4_server) is debug mode: it will run once, and then terminate.  This is useful for unit testing.  If a config file is specified, the clustering will  run until terminated.  
+python make_referencecompressed_archive.py ../config/myConfigFile.json  
 
-Checks for new sequences are conducted once per minute.
+if a config file is not provided, it will not run.
+
+PERSIST.refcompressedsequence_guids(
+        refcompressedsequence_read
+        config   
+
 
 """)
     parser.add_argument('path_to_config_file', type=str, action='store', nargs='?',
                         help='the path to the configuration file', default=''  )
     parser.add_argument('--outputdir', type=str, action='store', nargs='?',
                         help='the output directory.  Will try to make the directory if it does not exist'  )
-    parser.add_argument('--select_from_pca_output_file', help='selects samples from an sqlite database, which contains details of good quality samples.  Will write a guidetree table into the database containing samples selected. If missing, will select based on --sample_quality_threshold', action='store')
-    parser.add_argument('--sample_quality_cutoff', help='Only include in the tree samples with >= this proportion of ACTG bases', action='store')
-    parser.add_argument('--snp_cutoff', help='Find representatives for tree building > snp_cutoff apart.  If omitted, maximum distance stored in the relatedness server is used', action='store')
-    parser.add_argument('--max_neighbourhood_mixpore', help='exclude samples failing mixpore test on at most max_neighbourhood_mixpore closely related samples.  If omitted, mixpore check is not done', action='store')
-    parser.add_argument('--output_filestem', help='the first part of the output file basename.  e.g. if you want the output file called my_tree.nwk, enter my_tree', action='store')
-    parser.add_argument('--debug', help='only analyse the first 50 samples', action='store_true')
+    parser.add_argument('--max_samples', help='the maximum number of samples to export.  If None, all samples are exported', action='store')
+    parser.add_argument('--write_fasta', help='write the masked sequences to fasta', action='store_true')
     args = parser.parse_args()
     
     ############################ LOAD CONFIG ######################################
-    print("findNeighbour4 guidetree .. reading configuration file.")
+    print("make_referencecompressed_archive .. reading configuration file.")
 
     if len(args.path_to_config_file)>0:
             configFile = args.path_to_config_file
@@ -101,7 +109,6 @@ Checks for new sequences are conducted once per minute.
     CONFIG = rc.read_config(configFile)
 
     ########################### SET UP LOGGING #####################################  
-    # create a log file if it does not exist.
     print("Starting logging")
     logdir = os.path.dirname(CONFIG['LOGFILE'])
     pathlib.Path(os.path.dirname(CONFIG['LOGFILE'])).mkdir(parents=True, exist_ok=True)
@@ -124,22 +131,8 @@ Checks for new sequences are conducted once per minute.
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
 
-    # determine whether a FN_SENTRY_URLenvironment variable is present,
-    # if so, the value of this will take precedence over any values in the config file.
-    # This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuraton file.
-    if os.environ.get("FN_SENTRY_URL") is not None:
-        CONFIG["SENTRY_URL"] = os.environ.get("FN_SENTRY_URL")
-        print("Set Sentry connection string from environment variable")
-    else:
-        print("Using Sentry connection string from configuration file.")
-        
-    # launch sentry if API key provided
-    if 'SENTRY_URL' in CONFIG.keys():
-            logger.info("DISABLED Launching communication with Sentry bug-tracking service")
-            #sentry_sdk.init(CONFIG['SENTRY_URL'], integrations=[FlaskIntegration()])
-
     ##################################################################################################
-     # open PERSIST and hybridComparer object used by all samples
+     # open PERSIST object used by all samples
     # this is only used for data access and msa.
     # inserts are not allowed
 
@@ -154,48 +147,11 @@ Checks for new sequences are conducted once per minute.
             logger.exception("Error raised on creating persistence object")
             raise
 
-     ################################# object to do MSA if required #############################################
-    # open PERSIST and hybridComparer object used by all samples
-    # this is only used for data access and msa.
-    # inserts are not allowed
-    logger.info("Building hybridComparer object")
-    hc = hybridComparer(reference=CONFIG['reference'],
-        maxNs=CONFIG['MAXN_STORAGE'],
-        snpCeiling=  CONFIG['SNPCEILING'],
-        excludePositions=CONFIG['excluded'],
-        preComparer_parameters={},
-        PERSIST=PERSIST,
-        disable_insertion = True)
-    
-
-
-    logging.info("Loading all samples & annotations.")
-    sample_annotations = pd.DataFrame.from_dict(PERSIST.guid2items(None,None), orient='index')
+    logging.info("Loading all samples .")
+    guids = PERSIST.guids()
  
-    server_samples = sample_annotations.index.to_list()
-    
-    ########################### read sqlite file containing samples to select, if it exists ##########
-    if args.select_from_pca_output_file is not None:
-        if not os.path.exists(args.select_from_pca_output_file):
-            raise FileNotFoundError(args.select_from_pca_output_file)
-        if not args.select_from_pca_output_file.endswith('.sqlite'):
-            raise FileNotFoundError("The file {0} exists but it does not end with .sqlite".format(args.select_from_pca_output_file))
-
-        # Read sqlite query results into a pandas DataFrame
-        engine = sqlalchemy.create_engine("sqlite:///{0}".format( args.select_from_pca_output_file, echo=True))
-        conn =  engine.connect()
-
-        df = pd.read_sql_query("SELECT * from built_with_guids", conn)
-        all_samples = df['built_with_guids'].to_list()
-
-        extra_samples_in_pca_only = set(all_samples) - set(server_samples)
-        if len(extra_samples_in_pca_only)>0:
-            raise KeyError("The PCA sqlite file is incompatible with the server data; the PCA contains {0} samples  not present in the server".froamt9len(extra_samples_in_pca_only))
-
-        logging.info("Recovered {0} samples from PCA result in {1}".format(len(all_samples), args.select_from_pca_output_file))
-    else:
-        logging.info("No SQLite file containing PCA output provided.  The tree will be built from samples in the relatedness server.")
-        all_samples = server_samples.copy()
+    print(guids)
+    exit()
 
     ########################### create output filename if it does not exist ##########
     if args.output_filestem is not None:
@@ -203,7 +159,7 @@ Checks for new sequences are conducted once per minute.
     else:
         filestem = "guidetree-{0}".format(datetime.datetime.now().isoformat().replace(':','-').replace('.','-'))
 
-  ########################### create output directory if it does not exist ##########
+    ########################### create output directory if it does not exist ##########
     if args.outputdir is not None:
         outputdir = args.outputdir
         logging.info("Writing output to {0}".format(outputdir))
@@ -213,26 +169,8 @@ Checks for new sequences are conducted once per minute.
     if not os.path.exists(outputdir):
             os.makedirs(outputdir)
     
-    ########################### set distance ##########
-    if args.snp_cutoff is not None:
-        if args.snp_cutoff >=0 and args.snp_cutoff<=CONFIG["SNPCEILING"]:
-            # it is valid
-            snp_cutoff = args.snp_cutoff 
-        else:
-            raise ValueError("Invalid snp_cutoff: must be either omitted; or 0 or more; or less than {0}.  It was {1}".format(CONFIG['SNPCEILING'], args.snp_cutoff))
-    else:
-        snp_cutoff = CONFIG["SNPCEILING"]
-    logging.info("SNP cutoff set to {0}".format(snp_cutoff))
-
     ########################### sample quality cutoff ##########
-    if args.sample_quality_cutoff is not None:
-        if args.sample_quality_cutoff >=0 and args.sample_quality_cutoff <=1:
-            # it is valid
-            sample_quality_cutoff =  args.snp_cutoff 
-        else:
-            raise ValueError("Invalid snp_cutoff: must be either omitted; or 0 to 1 inclusive.  It was {1}".format(CONFIG['SNPCEILING'], args.sample_quality_cutoff))
-    else:
-        sample_quality_cutoff = 0.9     # default value
+    sample_quality_cutoff = 0.9     # default value
     logging.info("Quality cutoff set to {0}".format(sample_quality_cutoff))
 
     ########################### decide whether to do a mixpore (base composition) check  #######################
@@ -257,13 +195,10 @@ Checks for new sequences are conducted once per minute.
     remaining_samples = sampling_population.copy()
     representative_size = {}
 
-
-
-
     ################################### DEBUG : ONLY CONSIDER 20 for testing #####################################
     if args.debug:
         remaining_samples = set(random_sample(list(remaining_samples), 20) )
-        logging.warning("Running in debug mode.  Only 50 samples will be considered")
+        logging.warning("Running in debug mode.  Only 20 samples will be considered")
 
     #################################  prepare to iterate #########################################################
     all_samples = set(all_samples)
@@ -271,7 +206,9 @@ Checks for new sequences are conducted once per minute.
     singletons = set()
     iteration = 0
     total_delta = 0
+
     representatives = []
+
     total_n_samples  = len(remaining_samples)
     bar = progressbar.ProgressBar(max_value=len(remaining_samples))
     
@@ -279,7 +216,13 @@ Checks for new sequences are conducted once per minute.
     while len(remaining_samples)>0:
 
         iteration +=1
-        test_sample = random_sample(list(remaining_samples),1)[0]        # randomly sample one
+
+        if need_to_add_root_sample:
+            test_sample = root_sample
+            need_to_add_root_sample = False     # added it now
+        else:
+            test_sample = random_sample(list(remaining_samples),1)[0]        # randomly sample one
+
         test_sample_neighbour_info = PERSIST.guid2neighbours(test_sample, snp_cutoff, returned_format=1)      #  [guid, distance]
         
         # filter these neighbours.   Only include neighbours which are part of all_samples.
@@ -336,6 +279,7 @@ Checks for new sequences are conducted once per minute.
     fasta_outputfile =  os.path.join(outputdir, '{0}.fasta'.format(filestem))
     csv_outputfile = os.path.join(outputdir, '{0}.csv'.format(filestem))
     nwk_outputfile = os.path.join(outputdir, '{0}.nwk'.format(filestem))
+    nwkr_outputfile = os.path.join(outputdir, '{0}.rooted.nwk'.format(filestem))
     meta_outputfile = os.path.join(outputdir, '{0}.treeinfo.txt'.format(filestem))
     reps.to_csv(csv_outputfile)
 
@@ -372,18 +316,28 @@ Checks for new sequences are conducted once per minute.
         ## caution: if one changes the .env file FASTTREE_DIR environment variable to some other software called FastTreeMP, it will get run.  security risk ? how to mitigate
         res = subprocess.run(subprocess_cmd, text=True, capture_output=True, check=True)
         
-
         with open(nwk_outputfile, 'wt') as f:
             f.write(res.stdout)
         with open(meta_outputfile, 'wt') as f:
             f.write(res.stderr)
 
-        logging.info("Newick written to {0}".format(nwk_outputfile))
+        logging.info("Newick as produced by fastTree written to {0}".format(nwk_outputfile))
         logging.info("Metadata written to {0}".format(meta_outputfile))
+
+        # build rooted tree, if root is provided
+        if root_sample is not None:
+            logging.info("Producing a tree rooted using {0}".format(root_sample))
+            tree = Phylo.read(StringIO(res.stdout), 'newick')
+            tree.root_with_outgroup({"name":root_sample})
+            tree.collapse(root_sample)
+            with open(nwkr_outputfile,'w') as f:
+                Phylo.write(tree, f, 'newick')
+            logging.info("Rooted tree written to {0}".format(nwkr_outputfile))
+            
 
     else:
         logging.error("No tree built as FASTTREE environment variable not found.  put it in .env if using a virtual environment, and point it to the directory containing the fasttreeMP executable.  The fasttreeMP should be complied with double precision flags, see fastTree docs.")
    
-
+    ## option: downsample e.g. pipenv run python3 Treemmer_v0.3.py /backup/bricestudy/pca20210323/guidetree.nwk  -X 5000 2500 1000 (slow) or randomly (faaster)
     ## TODO: store the guidetree in the database, make accessible via front end. ?
 

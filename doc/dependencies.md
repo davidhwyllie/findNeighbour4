@@ -1,3 +1,4 @@
+## TODO: this is out of date and needs revision
 
 # The key dependencies of the main server are as follows:  
 Python 3.5+ (tested with 3.5 and 3.7)  
