@@ -79,6 +79,10 @@ Realistic example for testing
 pipenv run python3 findNeighbour4_guidetree.py ../demos/covid/covid_config_v3.json --select_from_pca_output_file /backup/bricestudy/pca20210323/pca_output.sqlite --output_filestem guidetree --outputdir /backup/bricestudy --debug
 pipenv run python3 findNeighbour4_guidetree.py ../demos/covid/covid_config_v3.json --select_from_pca_output_file /backup/bricestudy/pca20210323/pca_output.sqlite --output_filestem guidetree --outputdir /backup/bricestudy --root_sample="--Wuhan-Reference--" --debug
 
+Realistic example for testing
+pipenv run python3 findNeighbour4_guidetree.py ../demos/covid/covid_config_v3.json --select_from_pca_output_file /backup/bricestudy/pca20210323/pca_output.sqlite --output_filestem guidetree --outputdir /backup/bricestudy --debug
+pipenv run python3 findNeighbour4_guidetree.py ../demos/covid/covid_config_v3.json --select_from_pca_output_file /backup/bricestudy/pca20210323/pca_output.sqlite --output_filestem guidetree --outputdir /backup/bricestudy --root_sample="--Wuhan-Reference--" --debug
+
 if a config file is not provided, it will run (as does findNeighbour4_server) is debug mode: it will run once, and then terminate.  This is useful for unit testing.  If a config file is specified, the clustering will  run until terminated.  
 
 Checks for new sequences are conducted once per minute.
@@ -250,7 +254,7 @@ Checks for new sequences are conducted once per minute.
     ########################### decide whether to do a mixpore (base composition) check  #######################
     if args.root_sample is not None:
         if PERSIST.guid_exists(args.root_sample) :
-            # it is validgit b
+            # it is valid
             root_sample = args.root_sample
             need_to_add_root_sample = True
         else:

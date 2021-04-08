@@ -49,7 +49,7 @@ There are the following other differences:
 * It uses much less RAM and is much faster, due to use of a specialised CatWalk component, and other changes.  
 * It uses mongodb, not relational databases, for persistent storage.
 * Queries are much faster for large numbers of samples
-* It performs clustering.
+* It performs clustering using single nucleotide distances.  This is an experimental feature, only tested using M. tuberculosis genomes.
 * It is 'mixture-aware' and implements an approach for detecting mixed samples.
 * Clustering requires the linux specific *networkit* library.
 * It does not use any storage in a filesystem, except for logging.
