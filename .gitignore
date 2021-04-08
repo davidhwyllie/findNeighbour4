@@ -3,27 +3,10 @@ unittest_tmp/*
 unittest_Tmp/*
 *.out
 *.log
-findn/*.sqlite
-findn/*.xlsx
-findn/*.so
-findn/*.nim
+*.sqlite
+*.xlsx
+*.so
+*.nim
+findn/*.pyc
 .env
 
-# Vim
-*~
-*.swp
-
-# Scratch
-tmp_work/
-
-# Virtual environment
-venv
-Pipfile.lock
-
-# R
-*.Rproj
-.Rproj.user
-
-# Python
-__pycache__/
-*.egg-info/

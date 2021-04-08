@@ -125,11 +125,12 @@ class ConfigManager():
                logging.exception("Error raised on creating persistence object")
                raise
 
+        do_not_persist_keys=set(['IP',"SERVERNAME",'FNPERSISTENCE_CONNSTRING',
+                            'LOGFILE','LOGLEVEL','REST_PORT',
+                            'SENTRY_URL', 'SERVER_MONITORING_MIN_INTERVAL_MSEC'])
+
         if self.PERSIST.first_run():
             # we don't persist some things; some are secret, others might change
-            do_not_persist_keys=set(['IP',"SERVERNAME",'FNPERSISTENCE_CONNSTRING',
-                            'LOGFILE','LOGLEVEL','REST_PORT',
-                            'SENTRY_URL', 'SERVER_MONITORING_MIN_INTERVAL_MSEC'])               
             self._first_run(do_not_persist_keys)
 
         # load the result from database

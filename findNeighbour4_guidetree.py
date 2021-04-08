@@ -79,9 +79,8 @@ Realistic example for testing
 pipenv run python3 findNeighbour4_guidetree.py ../demos/covid/covid_config_v3.json --select_from_pca_output_file /backup/bricestudy/pca20210323/pca_output.sqlite --output_filestem guidetree --outputdir /backup/bricestudy --debug
 pipenv run python3 findNeighbour4_guidetree.py ../demos/covid/covid_config_v3.json --select_from_pca_output_file /backup/bricestudy/pca20210323/pca_output.sqlite --output_filestem guidetree --outputdir /backup/bricestudy --root_sample="--Wuhan-Reference--" --debug
 
-Realistic example for testing
-pipenv run python3 findNeighbour4_guidetree.py ../demos/covid/covid_config_v3.json --select_from_pca_output_file /backup/bricestudy/pca20210323/pca_output.sqlite --output_filestem guidetree --outputdir /backup/bricestudy --debug
-pipenv run python3 findNeighbour4_guidetree.py ../demos/covid/covid_config_v3.json --select_from_pca_output_file /backup/bricestudy/pca20210323/pca_output.sqlite --output_filestem guidetree --outputdir /backup/bricestudy --root_sample="--Wuhan-Reference--" --debug
+Realistic example for running
+pipenv run python3 findNeighbour4_guidetree.py ../demos/covid/covid_config_v3.json --select_from_pca_output_file /backup/bricestudy/pca20210323/pca_output.sqlite --output_filestem guidetree --outputdir /backup/bricestudy --root_sample="--Wuhan-Reference--" 
 
 if a config file is not provided, it will run (as does findNeighbour4_server) is debug mode: it will run once, and then terminate.  This is useful for unit testing.  If a config file is specified, the clustering will  run until terminated.  
 
@@ -114,7 +113,7 @@ Checks for new sequences are conducted once per minute.
     cfm = ConfigManager(config_file)  
     CONFIG = cfm.read_config()
 
-    ########################### SET UP LOGGING #####################################  
+    ########################### SET UP LOGGING & BUG TRACKING #################################  
     # create a log file if it does not exist.
     print("Starting logging")
     logdir = os.path.dirname(CONFIG['LOGFILE'])
@@ -251,7 +250,7 @@ Checks for new sequences are conducted once per minute.
         max_neighbourhood_mixpore = None    # default value
     logging.info("Max neighbourhood mixpore set to {0}".format(max_neighbourhood_mixpore))
 
-    ########################### decide whether to do a mixpore (base composition) check  #######################
+    ########################### decide whether to force inclusion of the root sample #######################
     if args.root_sample is not None:
         if PERSIST.guid_exists(args.root_sample) :
             # it is valid
@@ -264,7 +263,8 @@ Checks for new sequences are conducted once per minute.
         need_to_add_root_sample = False     # we don't need to add this
     logging.info("Root sample set to {0}".format(root_sample))
 
-
+    ####################################  START ################################################################
+    ##                      TO CONVERT TO CLASS      ###########################################################
     ###################### select high quality samples from which to build the tree ############################
     high_quality_samples = sample_annotations.loc[sample_annotations['DNAQuality:propACTG']>sample_quality_cutoff].copy()
     high_quality_samples = high_quality_samples[high_quality_samples.index.isin(all_samples)]   # subselect those within the PCA if appropriate
