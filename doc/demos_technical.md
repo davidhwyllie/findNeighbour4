@@ -1,3 +1,4 @@
+### DOCUMENT NEEDS CHECKING AND TESTING
 NOTE: more details of performance with simulated data will be added later.
 
 ### large_matrix1
@@ -37,10 +38,10 @@ They are written to files by the script
 #### How to run the test
 
 To run the test, start up a server, e.g.  
-```python findNeighbour3-server.py ../demos/large_matrix_1/config/config.json```
+```python findNeighbour3-server.py demos/large_matrix_1/config/config.json```
 
 Optionally launch one or more findNeighbour3-dbmanager processes  
-```python findNeighbour3-dbmanager.py ../demos/large_matrix_1/config/config.json```  
+```python findNeighbour3-dbmanager.py demos/large_matrix_1/config/config.json```  
 Then run the test.
 
 **Note**: at present, the server which the test runs against isn't configurable.
@@ -50,15 +51,15 @@ the client url needs to be be passed to the call instantiating the fn3Client().
 The below inserts until 500 samples are present in the server.
 The below inserts 100 samples, then pauses for 1 hour.  
 Set the third parameter to 0 to avoid pausing.  
-```python demo_large_matrix.py 500 ../demos/large_matrix_1/output  100 3600```
+```python demo_large_matrix.py 500 demos/large_matrix_1/output  100 3600```
 
 If we now do this, then 250 more will be added
-```python demo_large_matrix.py 750 ../demos/large_matrix_1/output  100 3600```
+```python demo_large_matrix.py 750 demos/large_matrix_1/output  100 3600```
 
 #### How the output is analysed  
 
 This will analyse all output from the above:
-```Rscript demo_depict_timings.R ../demos/large_matrix_1/output```
+```Rscript demo_depict_timings.R demos/large_matrix_1/output```
 
 
 ### lss_tb
@@ -88,13 +89,13 @@ Simulate the samples to be added:
 The above will create 50,000 samples; adjust parameters as needed to create more or fewer samples.
 Parameter 1 is the number of ancestor sequences.
 Parameter 4 is the number of children of each ancestor.  Increasing this to 1000 will produce 1M samples.
-``` python make_large_sequence_set.py 1000 500 3 50 1e-8 ../output/lss_tb/seqs```   
+``` python make_large_sequence_set.py 1000 500 3 50 1e-8 output/lss_tb/seqs```   
 
 To run the test, start up a server, e.g.
-```python findNeighbour3-server.py ../demos/lss_tb/config/config.json```
+```python findNeighbour3-server.py demos/lss_tb/config/config.json```
 
 Optionally launch one or more findNeighbour3-dbmanager processes  
-```python findNeighbour3-dbmanager.py ../demos/lss_tb/config/config.json```
+```python findNeighbour3-dbmanager.py demos/lss_tb/config/config.json```
 Then run the test.
 
 
@@ -105,14 +106,14 @@ The client url needs to be be passed to the call instantiating the fn3Client().
 The below inserts until 500 samples are present in the server.
 The below inserts 100 samples, then pauses for 1 hour.  
 Set the third parameter to 0 to avoid pausing.
-```python demo_large_matrix.py 500 ../demos/large_matrix_1/output  100 0```
+```python demo_large_matrix.py 500 demos/large_matrix_1/output  100 0```
 
 If we now do this, then 250 more will be added
-```python demo_large_matrix.py 750 ../demos/large_matrix_1/output  100 0```
+```python demo_large_matrix.py 750 demos/large_matrix_1/output  100 0```
 
 * How the output is analysed  
 
 This will analyse all output from the above:
-```Rscript demo_depict_timings.R ../demos/large_matrix_1/output```
+```Rscript demo_depict_timings.R demos/large_matrix_1/output```
 
 

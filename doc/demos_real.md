@@ -1,5 +1,6 @@
 # Demonstrations of server functioning
 
+## TODO: THIS DOCUMENT NEEDS CHECKING
 
 ## Using real data
 Due to their size, the real data is not included in github.  It can at present be downloaded from the below links:
@@ -19,13 +20,12 @@ a collection of 43 mapped samples containing related TB isolates, as well as unr
 The latter are added before the 43 related samples, as they are used by the server to estimate expected N frequencies in real data.
 To run the demo:
 - make sure mongodb is running
-- from the src directory  
 -- start the server  
-``` pipenv run python findNeighbour4-server.py ../demos/AC587/config/config.json ```
+``` pipenv run python findNeighbour4-server.py demos/AC587/config/config.json ```
 
 or without clustering
 
-``` pipenv run python findNeighbour4-server.py ../demos/AC587/config/config_nocl.json ```  
+``` pipenv run python findNeighbour4-server.py /demos/AC587/config/config_nocl.json ```  
 
 -- run the software adding samples to the server  
 ``` pipenv run python demo_ac587.py ```
@@ -33,12 +33,11 @@ or without clustering
 ### AA041
 a larger collection of ~ 1000 mapped samples containing related TB data.
 To run the demo:
-- make sure mongodb is running
-- from the src directory  
+- make sure mongodb is running  
 -- start the server  
-``` pipenv run python findNeighbour4-server.py ../demos/AA041/config/config.json ```   
+``` pipenv run python findNeighbour4-server.py demos/AA041/config/config.json ```   
 or (faster, without clustering)
-``` pipenv run python findNeighbour4-server.py ../demos/AA041/config/config_nocl.json ```
+``` pipenv run python findNeighbour4-server.py demos/AA041/config/config_nocl.json ```
 
 -- run the software adding samples to the server  
 ``` pipenv run python demo_aa041.py ```
@@ -51,7 +50,7 @@ These fasta files can be loaded by scripts similar to those above.
 -- the script demo_pheall.py is suitable for doing this.
 
 -- if not already running start the server with 
-```./fn4_startup.sh ../demos/phe_dev/config_phe_dev_nocl.json```		
+```./fn4_startup.sh demos/phe_dev/config_phe_dev_nocl.json```		
 Note: (1) this config file does not do clustering; (2) it will run processes in the background using pipenv.  
 
 -- edit demo_pheall.py to change the fastadir to the directory in which they are contained  
