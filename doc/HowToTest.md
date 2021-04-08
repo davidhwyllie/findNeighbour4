@@ -2,20 +2,20 @@
 Description of how to test and use the system
 =============================================
 
+### TODO:  retest this all
+
 Python version
 --------------
-This application does not work with python 2.7.  
-It has been tested with python 3.5 and 3.7, and with Mongodb v 3.6.1 and 4.0
+Requires python 3.8 + on Linux
 
 Operating system
 ----------------
-The code has been tested on Linux (Ubuntu 16.04, 18.04).  
-It is not expected to run on Windows, as it uses unix-specific concepts and libraries.
+The code has been tested on Linux (Ubuntu 16.04, 18.04, 20.04).  
 The below instruction include linux-specific commands.
 
 Dependencies
 ------------
-* Python >= 3.5.  
+* Python >= 3.8.  
 You may need to install pip3 with: ```sudo apt-get install python3-pip```
 
 Note, Ubuntu 18 users, there is a [known issue](https://github.com/pypa/pipenv/issues/2122) and you may need to unisntall pip first, e.g.  
@@ -24,7 +24,8 @@ Note, Ubuntu 18 users, there is a [known issue](https://github.com/pypa/pipenv/i
 
 Database backend
 ----------------
-The server requires a mongodb database to work.  Tested with v. 4.02 and 4.2.
+
+* Mongo 4.4 (note: tested at very large scale only on this version; 4.02 and 4.2 also appear to work at small scale)
 [These instructions](mongoinstall.md) describe installation of mongodb.
 This server has been tested both with a local mongodb database and with a free cloud instance of mongodb, Mongo Atlas.
 
@@ -43,6 +44,9 @@ Virtual environments and dependencies
 It is strongly recommended, but not essential, to use a virtual environment.
 A pipenv Pipfile is provided which specifies dependencies.  See also [section](dependencies.md).
 
+cd /mydir/fn4       # or whatever you've installed into
+pipenv install
+pipenv install -e /mydir/fn4             # put fn4 packages in virtualenv (essential)
 In the root of your directory, you will need to create a .env file.  This sets environment variables required for the code to run.
 Here is an example:
 ```

@@ -1,8 +1,6 @@
 *.komodoproject
-unittest_tmp
-unittest_Tmp
-.Rproj.user
-Pipfile.lock
+unittest_tmp/*
+unittest_Tmp/*
 *.out
 *.log
 *.sqlite
