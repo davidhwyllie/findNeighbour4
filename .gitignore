@@ -5,10 +5,10 @@ unittest_Tmp
 Pipfile.lock
 *.out
 *.log
-src/*.out
-src/*.log
-src/*.sqlite
-src/*.xlsx
-src/*.so
-src/*.nim
+*.sqlite
+*.xlsx
+*.so
+*.nim
+findn/*.pyc
 .env
+
