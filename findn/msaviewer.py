@@ -39,8 +39,6 @@ from bokeh.embed import file_html
 from bokeh.plotting import show
 from bokeh.resources import CDN
 
-import unittest
-
 class SimulateSequenceData():
     """ makes simulated sequence data for testing """
     def make_seq(self, alignment_width=40):    
@@ -91,9 +89,7 @@ class SimulateSequenceData():
             msa_dict[seq_name]['p_value4'] = 10^-msa_dict[seq_name]['mlp_value4']
 
         return pd.DataFrame.from_dict(msa_dict, orient= 'index')
-            
-
-
+        
 class DepictMSA():
        """ depicts a multi sequence alignment """
        def __init__(self, msar_df, iupac=None, positions_analysed=None, identify_sequence_by=None, max_elements_in_plot=300000):
@@ -452,94 +448,3 @@ class DepictMSA():
            html = file_html(g, CDN, "Multisequence alignment")
            # show(g)
            return html
-
-class Test_SimulateSequenceData_1(unittest.TestCase):
-    """ tests make_seq """
-    def runTest(self):
-        ssd = SimulateSequenceData()
-        
-        seq = ssd.make_seq(30)
-        self.assertIsInstance(seq , str)
-        self.assertEqual(30, len(seq))  
-class Test_SimulateSequenceData_2(unittest.TestCase):
-    """ tests mutate_seq """
-    def runTest(self):
-        ssd = SimulateSequenceData()
-        
-        seq = ssd.make_seq(100)
-        mseq = ssd.mutate_seq(seq)
-
-        self.assertIsInstance(mseq , str)
-        self.assertEqual(100, len(mseq))
-
-        seq = ssd.make_seq(100)
-        mseq = ssd.mutate_seq(seq, iupac=True)
-
-        self.assertIsInstance(mseq , str)
-        self.assertEqual(100, len(mseq))
-class Test_SimulateSequenceData_3(unittest.TestCase):
-    """ tests msa generation """
-    def runTest(self):
-        ssd = SimulateSequenceData()
-        msa = ssd.make_msa(10,40)
-        self.assertIsInstance(msa, pd.DataFrame)
-        self.assertEqual(len(msa.index), 10)
-
-class Test_DepictMSA_1(unittest.TestCase):
-    """ tests msa object """
-    def runTest(self):
-        ssd = SimulateSequenceData()
-        nSeqs = 20
-        alignLen = 200
-
-        x_labels = ["seq{0}".format(x) for x in range(alignLen)]
-        x_labels_int = [x for x in range(alignLen)]
-
-        msa = ssd.make_msa(nSeqs, alignLen)
-        dep_msa = DepictMSA(msa)
-        self.assertEqual(dep_msa.align_width,alignLen)
-        self.assertEqual(dep_msa.nSeqs, nSeqs)
-        self.assertIsInstance(dep_msa.composition, collections.Counter)
-        self.assertIsInstance(dep_msa.rectangles, pd.DataFrame)
-        retVal = dep_msa.render_msa()
-
-        self.assertIsInstance(retVal, str)
-
-        retVal = dep_msa.render_msa()
-        self.assertIsInstance(retVal, str)
-
-
-        msa = ssd.make_msa(nSeqs, alignLen)
-        dep_msa = DepictMSA(msa)
-
-        self.assertEqual(dep_msa.align_width,alignLen)
-        self.assertEqual(dep_msa.nSeqs, nSeqs)
-        self.assertIsInstance(dep_msa.composition, collections.Counter)
-        self.assertIsInstance(dep_msa.rectangles, pd.DataFrame)
-        retVal = dep_msa.render_msa()
-        self.assertIsInstance(retVal, str)
-
-        dep_msa = DepictMSA(msa, positions_analysed  = x_labels)
-        retVal = dep_msa.render_msa()
-        self.assertIsInstance(retVal, str)
-
-        dep_msa = DepictMSA(msa, positions_analysed  = x_labels_int)
-        retVal = dep_msa.render_msa()
-        self.assertIsInstance(retVal, str)
-
-
-        with self.assertRaises(ValueError):
-            dep_msa = DepictMSA(msa, identify_sequence_by = ['no field'])
-            retVal = dep_msa.render_msa()
-            self.assertIsInstance(retVal, str)
-
-        dep_msa = DepictMSA(msa, identify_sequence_by = ['Surname','Forename'])
-        retVal = dep_msa.render_msa()
-        self.assertIsInstance(retVal, str)
-        self.assertTrue('</html>' in retVal)
-        
-        dep_msa = DepictMSA(msa, identify_sequence_by = ['Surname','Forename'], max_elements_in_plot=20)
-        retVal = dep_msa.render_msa()
-        self.assertIsInstance(retVal, str)
-        self.assertTrue('</html>' in retVal)
-

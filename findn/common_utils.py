@@ -258,18 +258,3 @@ class ConfigManager():
                 raise KeyError(f"Configuration object must be either a dictionary or a JSON string encoding a dictionary, but is {type(CONFIG)}")
         return CONFIG
 
-
-class Test_RC_1(unittest.TestCase):
-    """ tests the ReadConfig class"""
-    def runTest(self):
-
-        rc = ConfigManager("config/default_test_config.json")           # first run
-        res = rc.read_config()
-        self.assertTrue(isinstance(res,dict))
-
- 
-        rc = ConfigManager("config/default_test_config.json")           # second run
-        res = rc.read_config()
-        self.assertTrue(isinstance(res,dict))
-
-

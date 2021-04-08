@@ -1,6 +1,6 @@
 *.komodoproject
-unittest_tmp
-unittest_Tmp
+unittest_tmp/*
+unittest_Tmp/*
 *.out
 *.log
 findn/*.sqlite
