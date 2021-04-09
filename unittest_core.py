@@ -14,6 +14,9 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU Affero General Public License for more details.
 
+Some tests, such as test_server and test_fn4client, require a server running.
+The unittest_all.sh script will launch and shut down such.
+
 """
 
 import unittest
@@ -33,6 +36,8 @@ from test import test_nucleicacid
 from test import test_visualisenetwork
 from test import test_malinkage
 from test import test_clusternomenclature
+from test import test_server
+from test import test_fn4client
 
 # initialize the test suite
 loader = unittest.TestLoader()
@@ -40,6 +45,7 @@ suite  = unittest.TestSuite()
 
 
 # add tests to the test suite
+
 suite.addTests(loader.loadTestsFromModule(test_persistence))
 suite.addTests(loader.loadTestsFromModule(test_depiction))
 suite.addTests(loader.loadTestsFromModule(test_pycw_client))
@@ -55,10 +61,15 @@ suite.addTests(loader.loadTestsFromModule(test_nucleicacid))
 suite.addTests(loader.loadTestsFromModule(test_visualisenetwork))
 suite.addTests(loader.loadTestsFromModule(test_malinkage))
 suite.addTests(loader.loadTestsFromModule(test_clusternomenclature))
+suite.addTests(loader.loadTestsFromModule(test_server))
+suite.addTests(loader.loadTestsFromModule(test_fn4client))
+
 
 # initialize a runner, pass it your suite and run it
 runner = unittest.TextTestRunner(verbosity=3)
 result = runner.run(suite)
-exit()
 
 ## TODO: start up server, run integration tests
+
+
+## this then completes CI

@@ -121,7 +121,7 @@ Checks for new sequences are conducted once per minute.
             warnings.warn("No config file name supplied ; using a configuration ('default_test_config.json') suitable only for testing, not for production. ")
 
     cfm = ConfigManager(config_file)  
-    CONFIG = cfm.read_config()
+    CONFIG = cfm.read_config(not_debug_mode = True)        # never start in debug mode, which wipes all data; as we need data in the server to do any tests
 
 
     ########################### SET UP LOGGING #####################################  

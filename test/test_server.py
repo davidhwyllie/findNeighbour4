@@ -9,10 +9,9 @@ There are unit tests for it.  To run them:
 pipenv run python3 findNeighbour4_server.py
 
 # And then (e.g. in a different terminal) launching unit tests with
-pipenv run python3 -m unittest findNeighbour4_server-tests.py
+pipenv run python3 -m unittest test/test_server.py
 """
  
-
 # import libraries
 import os
 import sys
@@ -153,7 +152,7 @@ class test_reset(unittest.TestCase):
         
         guid_to_insert = "guid_{0}".format(n_pre+1)
         
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
             for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
@@ -192,7 +191,7 @@ class test_guids(unittest.TestCase):
         
         guid_to_insert = "valid"
         
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
             for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
@@ -230,7 +229,7 @@ class test_guid_validity(unittest.TestCase):
         
         guid_to_insert = "valid_guid"
         
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
             for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
@@ -265,7 +264,7 @@ class test_cl2network(unittest.TestCase):
         res = do_POST(relpath, payload={})
         
         # add four samples, two mixed
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
             for record in SeqIO.parse(f,'fasta' ):               
                     originalseq = list(str(record.seq))
@@ -338,7 +337,7 @@ class test_msa_2(unittest.TestCase):
         res = do_GET(relpath)
         n_pre = len(json.loads(str(res.text)))      # get all the guids
 
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
             for record in SeqIO.parse(f,'fasta' ):               
                     originalseq = list(str(record.seq))
@@ -546,7 +545,7 @@ class test_msa_1(unittest.TestCase):
         res = do_GET(relpath)
         n_pre = len(json.loads(str(res.text)))      # get all the guids
         #print("There are {0} existing samples".format(n_pre))
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
             for record in SeqIO.parse(f,'fasta' ):               
                     originalseq = list(str(record.seq))
@@ -611,6 +610,7 @@ class test_server_config(unittest.TestCase):
         
         relpath = "/api/v2/server_config"
         res = do_GET(relpath)
+        
         self.assertTrue(isjson(content = res.content))
 
         config_dict = json.loads(res.content.decode('utf-8'))
@@ -675,7 +675,7 @@ class test_server_name(unittest.TestCase):
     def runTest(self):
         relpath = "/api/v2/server_name"
         res = do_GET(relpath)
-        #print(res)
+        
         self.assertTrue(isjson(content = res.content))
         config_dict = json.loads(res.content.decode('utf-8'))
         self.assertTrue('server_name' in config_dict.keys())
@@ -731,7 +731,7 @@ class test_get_all_guids_examination_time_1(unittest.TestCase):
 
         guid_to_insert = "guid_{0}".format(n_pre+1)
 
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
             for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
@@ -765,7 +765,7 @@ class test_get_matching_guids_1(unittest.TestCase):
 
         guid_to_insert = "guid_{0}".format(n_pre+1)
 
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
             for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
@@ -841,7 +841,7 @@ class test_clusters_sample(unittest.TestCase):
 
         guid_to_insert = "guid_{0}".format(n_pre+1)
 
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
             for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
@@ -903,7 +903,7 @@ class test_clusters_what(unittest.TestCase):
 
         guid_to_insert = "guid_{0}".format(n_pre+1)
 
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
             for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
@@ -969,7 +969,7 @@ class test_what_tested(unittest.TestCase):
 
         guid_to_insert = "guid_{0}".format(n_pre+1)
 
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
             for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
@@ -1021,12 +1021,11 @@ class test_g2c(unittest.TestCase):
                 res = do_GET(relpath)
                 guid_to_insert = "guid_{0}".format(n_pre+1)
 
-                inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+                inputfile = "COMPASS_reference/R39/R00000039.fasta"
                 with open(inputfile, 'rt') as f:
                     for record in SeqIO.parse(f,'fasta' ):               
                             seq = str(record.seq)
 
-                #print("Adding TB reference sequence of {0} bytes".format(len(seq)))
                 self.assertEqual(len(seq), 4411532)     # check it's the right sequence
 
                 relpath = "/api/v2/insert"
@@ -1039,8 +1038,6 @@ class test_g2c(unittest.TestCase):
         # Do clustering
         os.system("pipenv run python3 findNeighbour4_clustering.py")
         
-
-        
         relpath = "/api/v2/clustering/SNV12_ignore/guids2clusters"
         res = do_GET(relpath)
         self.assertEqual(res.status_code, 200)
@@ -1052,6 +1049,7 @@ class test_g2c(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         retVal = json.loads(str(res.text))
         self.assertEqual(len(retVal),3)
+        
         self.assertEqual(retVal[0]['clusterSize'],3)
 
         self.assertTrue(isinstance(retVal, list))
@@ -1071,7 +1069,7 @@ class test_clusters2cnt(unittest.TestCase):
 
         guid_to_insert = "guid_{0}".format(n_pre+1)
 
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
             for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
@@ -1175,7 +1173,7 @@ class test_g2ca(unittest.TestCase):
 
         guid_to_insert = "guid_{0}".format(n_pre+1)
 
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
             for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
@@ -1236,7 +1234,7 @@ class test_compare_two(unittest.TestCase):
 
         guid_to_insert = "guid_{0}".format(n_pre+1)
 
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
             for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
@@ -1291,7 +1289,7 @@ class test_insert_1(unittest.TestCase):
 
         guid_to_insert = "guid_{0}".format(n_pre+1)
 
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
             for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
@@ -1332,7 +1330,7 @@ class test_insert_10(unittest.TestCase):
         res = do_GET(relpath)
         n_pre = len(json.loads(str(res.text)))      # get all the guids
 
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
             for record in SeqIO.parse(f,'fasta' ):               
                     originalseq = list(str(record.seq))
@@ -1386,7 +1384,7 @@ class test_insert_10a(unittest.TestCase):
         res = do_GET(relpath)
         n_pre = len(json.loads(str(res.text)))      # get all the guids
 
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
             for record in SeqIO.parse(f,'fasta' ):               
                     originalseq = list(str(record.seq))
@@ -1441,7 +1439,7 @@ class test_insert_60(unittest.TestCase):
         res = do_GET(relpath)
         n_pre = len(json.loads(str(res.text)))      # get all the guids
 
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
             for record in SeqIO.parse(f,'fasta' ):               
                     originalseq = list(str(record.seq))
@@ -1628,7 +1626,7 @@ class test_neighbours_within_6(unittest.TestCase):
         res = do_GET(relpath)
         n_pre = len(json.loads(str(res.text)))
 
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
             for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
@@ -1712,7 +1710,7 @@ class test_sequence_1(unittest.TestCase):
 
         guid_to_insert = "guid_{0}".format(n_pre+1)
 
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
             for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
@@ -1758,7 +1756,7 @@ class test_sequence_3(unittest.TestCase):
 
         guid_to_insert = "guid_{0}".format(n_pre+1)
 
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
             for record in SeqIO.parse(f,'fasta' ):               
                     seq = str(record.seq)
@@ -1791,7 +1789,7 @@ class test_sequence_4(unittest.TestCase):
         #print(res)
         n_pre = len(json.loads(res.content.decode('utf-8')))        # get all the guids
 
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
             for record in SeqIO.parse(f,'fasta' ):               
                     seq2 = str(record.seq)
@@ -1842,7 +1840,7 @@ class test_sequence_5(unittest.TestCase):
         #print(res)
         n_pre = len(json.loads(res.content.decode('utf-8')))        # get all the guids
 
-        inputfile = "../COMPASS_reference/R39/R00000039.fasta"
+        inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
             for record in SeqIO.parse(f,'fasta' ):               
                     seq2 = str(record.seq)
