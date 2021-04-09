@@ -255,6 +255,7 @@ class findNeighbour4():
         
         # store the persistence object as part of this object
         self.PERSIST=PERSIST
+        self.CONFIG=CONFIG
         
         # set up an MSA store
         self.ms = MSAStore(PERSIST=PERSIST, in_ram_persistence_time=300)        # max time to store msas in seconds
@@ -571,7 +572,10 @@ class findNeighbour4():
         """
         
         if self.debugMode==2:
-            return self.CONFIG
+            retVal = self.CONFIG.copy()
+            retVal['excludePositions'] = list(retVal['excludePositions'])       # can't serialise a set
+            return retVal
+
         else:
             return None
     def server_nucleotides_excluded(self):
@@ -1081,7 +1085,7 @@ if __name__ == '__main__':
         if res is None:     # not allowed to see it
             return make_response(tojson({'NotAvailable':"Endpoint is only available in debug mode"}), 404)
         else:
-            return make_response(tojson(CONFIG))
+            return make_response(tojson(res))
 
 
 

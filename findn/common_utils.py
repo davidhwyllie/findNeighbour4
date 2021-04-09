@@ -92,10 +92,12 @@ class ConfigManager():
         self.config_fpath = config_fpath
         self.CONFIG=None
 
-    def read_config(self):
+    def read_config(self, not_debug_mode=False):
         """ reads a configuration dictionary from file, with persistence to disc in first-run situations
         
             returns: configuration dictionary
+
+            override_disable_debug_mode is required for unit testing of clustering, but should not otherwise be needed
         
         """
 
@@ -116,11 +118,15 @@ class ConfigManager():
                 raise KeyError("Precomparer parameters were supplied, but the required keys were not found . Missing are {0}".format(missing))
         
         print("Connecting to backend data store")
+        debug_status = self.CONFIG['DEBUGMODE']
+        if not_debug_mode:
+            debug_status = 0
+
         try:
                 self.PERSIST=fn3persistence(
                         dbname = self.CONFIG['SERVERNAME'],           
                         connString=self.CONFIG['FNPERSISTENCE_CONNSTRING'],
-                        debug=self.CONFIG['DEBUGMODE'])
+                        debug=debug_status)
         except Exception as e:
                logging.exception("Error raised on creating persistence object")
                raise
