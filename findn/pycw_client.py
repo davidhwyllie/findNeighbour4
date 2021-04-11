@@ -121,7 +121,7 @@ in either
         """ returns true if  response is received by the server, otherwise returns False """
 
         try:
-            result=self.info()
+            self.info()
             return True
         except requests.exceptions.ConnectionError: 
             return False

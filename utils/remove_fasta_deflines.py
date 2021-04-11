@@ -24,13 +24,9 @@ GNU Affero General Public License for more details.
 
 import os
 import glob
-import gzip
 import argparse
-
 from Bio import SeqIO
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
-     
+    
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="""Produce gzipped fasta files with sanitised deflines

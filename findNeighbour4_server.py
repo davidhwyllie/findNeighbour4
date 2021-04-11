@@ -592,7 +592,7 @@ class findNeighbour4():
 
         # check the query is of good quality
         inScore = self.PERSIST.guid_quality_check(guid,float(cutoff))
-        if inScore == None:
+        if inScore is None:
             raise KeyError("{0} not found".format(guid))    # that's an error, raise KeyError
         elif inScore == False:
             return []       # bad sequence; just to report no links
@@ -660,7 +660,7 @@ class findNeighbour4():
     
     def guids_with_quality_over(self,cutoff=0):
         rs=self.PERSIST.guid2propACTG_filtered(float(cutoff))
-        if rs==None:
+        if rs is None:
             return []
         else:
             return list(rs.keys())

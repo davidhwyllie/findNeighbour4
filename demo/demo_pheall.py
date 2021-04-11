@@ -9,7 +9,6 @@ if __name__ == '__main__':
     import os
     import glob
     import datetime
-    import pandas as pd
     from fn4client import fn4Client
 
     ### Modify this line to reflect where the fasta files are 
@@ -31,7 +30,7 @@ if __name__ == '__main__':
         guid = os.path.basename(fastafile).replace('.mfasta.gz','')
         if guid[0:3] == 'cf0':
             print(guid)
-        if not guid in existing_guids:
+        if guid not in existing_guids:
             print(guid)
             read_failed = False
             try:

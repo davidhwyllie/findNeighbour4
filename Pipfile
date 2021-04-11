@@ -39,6 +39,7 @@ sentry-sdk = "*"
 pytest = "*"
 flake8 = "*"
 pytest-cov = "*"
+black = "*"
 
 [requires]
 python_version = "3.8"

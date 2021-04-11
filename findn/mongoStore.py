@@ -249,10 +249,10 @@ class fn3persistence():
         def _store(self, collection, key, object):
             """ stores key:object in collection. It is assumed object is a dictionary.  Updates if appropriate."""
             if not isinstance(object, dict):
-                raise TypeError(" .. TypeError: object passed must be a dictionary".format(object))  
+                raise TypeError(" object{0}  passed must be a dictionary".format(object))  
             object['_id'] = key
             res = self.db[collection].replace_one({'_id':key}, object, upsert=True)
-            if not res.acknowledged is True:
+            if res.acknowledged is not True:
                 raise IOError("Mongo {0} did not acknowledge write of data: {1}".format(self.db, object))        
             return res
         
@@ -625,7 +625,7 @@ class fn3persistence():
             metadataObj['sequence_meta'][nameSpace] = {**metadataObj['sequence_meta'][nameSpace], **annotDict}
                 
             res = self.db.guid2meta.replace_one({'_id':guid}, metadataObj, upsert=True)
-            if not res.acknowledged is True:
+            if res.acknowledged is not True:
                 raise IOError("Mongo {0} did not acknowledge write of data: {1}".format(self.db, self.metadataObj))
         
         def guids(self):
@@ -965,7 +965,7 @@ class fn3persistence():
                 # when complete, do update
                 if len(to_insert)>0:
                     res = self.db.guid2neighbour.insert_many(to_insert, ordered=False)
-                    if not res.acknowledged is True :
+                    if res.acknowledged is not True :
                        raise IOError("Mongo {0} did not acknowledge write of data: {1}".format(self.db, to_insert))
                 # check there is a metadata object for the guid
                 metadataObj = self.db.guid2meta.find_one({'_id':guid})
@@ -973,7 +973,7 @@ class fn3persistence():
                     # it doesn't exist.  we create a new one.
                     metadataObj = {'_id':guid, 'created':{'created_at':datetime.datetime.now().isoformat()}}
                     res = self.db.guid2meta.insert_one({'_id':guid}, metadataObj)
-                    if not res.acknowledged is True :
+                    if res.acknowledged is not True :
                        raise IOError("Mongo {0} did not acknowledge write of data: {1}".format(self.db, metadataObj))
 
                 return {'records_written':len(to_insert)}

@@ -12,7 +12,6 @@ testdata/pca/cog_metadata.csv.gz, and requires access to an fn3persistence objec
 """
 
 import os
-import json
 import pandas as pd
 import datetime
 import gzip

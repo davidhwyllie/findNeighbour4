@@ -17,7 +17,7 @@ if __name__ == '__main__':
         try:
             logfile = data['LOGFILE']
         except KeyError:
-            exit(0);
+            exit(0)
 
         print(os.path.abspath(os.path.dirname(logfile))+"/")
         

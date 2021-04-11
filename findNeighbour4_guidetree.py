@@ -44,7 +44,7 @@ from findn.common_utils import ConfigManager
 # startup
 from findn.mongoStore import fn3persistence
 from findn.hybridComparer import hybridComparer
-from tree.manipulate_tree import ManipulateTree
+#from tree.manipulate_tree import ManipulateTree
 
 if __name__ == '__main__':
 
@@ -220,7 +220,7 @@ Checks for new sequences are conducted once per minute.
             # it is valid
             sample_quality_cutoff =  args.snp_cutoff 
         else:
-            raise ValueError("Invalid snp_cutoff: must be either omitted; or 0 to 1 inclusive.  It was {1}".format(CONFIG['SNPCEILING'], args.sample_quality_cutoff))
+            raise ValueError("Invalid snp_cutoff: must be either omitted; or 0 to 1 inclusive.  Config file states {0}, passed was {1}".format(CONFIG['SNPCEILING'], args.sample_quality_cutoff))
     else:
         sample_quality_cutoff = 0.9     # default value
     logging.info("Quality cutoff set to {0}".format(sample_quality_cutoff))

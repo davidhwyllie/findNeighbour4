@@ -79,4 +79,4 @@ class NucleicAcid():
                         self.isValid=True
                 else:
                         self.isValid=False
-                        raise ValueError ("nucleicAcidString must be of type str, and consist only of ACGTN-.  There are %i invalid characters".format(self.composition['invalid']))       
+                        raise ValueError ("nucleicAcidString must be of type str, and consist only of ACGTN-.  There are {0} invalid characters".format(self.composition['invalid']))       

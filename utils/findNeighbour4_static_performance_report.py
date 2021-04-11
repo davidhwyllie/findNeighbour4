@@ -6,20 +6,13 @@ import os
 import sys
 import logging
 import warnings
-import pymongo
 import pandas as pd
-import numpy as np
 import pathlib
 import sentry_sdk
 import json
-import random
-import dateutil.parser
-import datetime
-import unittest
 
 # fn3 storage module
 from mongoStore import fn3persistence
-from depictStatus import MakeHumanReadable, DepictServerStatus
 
 
 if __name__ == '__main__':
@@ -89,7 +82,7 @@ if __name__ == '__main__':
                 sentry_sdk.init(CONFIG['SENTRY_URL'])
 
         # set min logging interval if not supplied
-        if not 'SERVER_MONITORING_MIN_INTERVAL_MSEC' in CONFIG.keys():
+        if 'SERVER_MONITORING_MIN_INTERVAL_MSEC' not in CONFIG.keys():
                CONFIG['SERVER_MONITORING_MIN_INTERVAL_MSEC']=0
 
         # determine whether a FNPERSISTENCE_CONNSTRING environment variable is present,
@@ -117,9 +110,9 @@ if __name__ == '__main__':
         print("Connecting to backend data store at {0}".format(CONFIG['SERVERNAME']))
         try:
              PERSIST=fn3persistence(dbname = CONFIG['SERVERNAME'],
-									connString=CONFIG['FNPERSISTENCE_CONNSTRING'],
-									debug=CONFIG['DEBUGMODE'],
-									server_monitoring_min_interval_msec = CONFIG['SERVER_MONITORING_MIN_INTERVAL_MSEC'])
+                                        connString=CONFIG['FNPERSISTENCE_CONNSTRING'],
+                                        debug=CONFIG['DEBUGMODE'],
+                                        server_monitoring_min_interval_msec = CONFIG['SERVER_MONITORING_MIN_INTERVAL_MSEC'])
         except Exception as e:
              logger.exception("Error raised on creating persistence object")
              if e.__module__ == "pymongo.errors":

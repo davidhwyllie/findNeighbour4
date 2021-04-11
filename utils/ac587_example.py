@@ -13,18 +13,10 @@ instance.
 import os
 import glob
 import datetime
-import pandas as pd
 from fn4client import fn4Client
 from seqComparer import seqComparer
 from preComparer import preComparer
 from Bio import SeqIO
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
-import unittest
-from urllib.parse import urlparse as urlparser
-from urllib.parse import urljoin as urljoiner
-import uuid
-import time
 
 if __name__ == '__main__':
         
@@ -78,7 +70,7 @@ if __name__ == '__main__':
         for i,fastafile in enumerate(sorted(glob.glob(os.path.join(fastadir, 'test', '*.mfasta.gz')))):
             guid = os.path.basename(fastafile).replace('.mfasta.gz','')
             seq = fn4c.read_fasta_file(fastafile)['seq']
-            if not guid in guids:   # not already entered
+            if guid not in guids:   # not already entered
                 print("Test",datetime.datetime.now(), i, guid)
                 fn4c.insert(guid=guid,seq=seq)
              

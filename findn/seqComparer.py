@@ -920,7 +920,7 @@ class seqComparer():
         elif output=='df_dict':
             return(df.to_dict(orient='index'))
         else:
-            raise ValueError("Don't know how to format {0}.  Valid options are {'df','df_dict', 'dict'}".format(output))
+            raise ValueError("Don't know how to format {0}.  Valid options are:'df','df_dict', 'dict'".format(output))
     def raise_error(self,token):
         """ raises a ZeroDivisionError, with token as the message.
             useful for unit tests of error logging """

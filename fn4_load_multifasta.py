@@ -214,7 +214,7 @@ python updating_covid_load.py "http://localhost:5023"
                     t2 = datetime.datetime.now()
                     i1 = t2-t1
                     s = i1.total_seconds()
-                    logger.info("Scanned {0} Adding #{1} ({2}) {3} in {4:.2f} secs.".format(i, nGood, guid, msg, s, counter))
+                    logger.info("Scanned {0} Adding #{1} ({2}) {3} in {4:.2f} secs.".format(i, nGood, guid, msg, s))
 
 
                     # build in pause if high storage ratio ('fragmentation')
