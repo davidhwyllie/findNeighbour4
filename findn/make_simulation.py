@@ -39,8 +39,6 @@ import json
 import copy
 import networkx as nx
 from Bio import SeqIO
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
 
 def delete_single_child_internal(t):
     """Utility function that removes internal nodes
@@ -151,7 +149,7 @@ def birth_death_tree(birth, death, nsize=10, max_time=None, remlosses=True, r=Tr
 
     leaf_nodes = tree.get_leaves()
     leaf_compteur = 1
-    for ind, node in enumerate(leaf_nodes):
+    for node in leaf_nodes:
         # label only extant leaves
         if not node.extinct:
             # node.dist += wtime
@@ -218,7 +216,7 @@ def seq2distmat(seqdict, output_filename, mixed):
         for j in seqdict.keys():
             if i<j:
                edge = {'node1':i,'node2':j,'snv':snv_distance(seqdict[i], seqdict[j])}
-               if not mixed in [i,j]:       # don't link mixed samples.
+               if mixed not in [i,j]:       # don't link mixed samples.
                    obs_dist_list.append(edge)
   
     df = pd.DataFrame.from_records(obs_dist_list)
@@ -230,7 +228,6 @@ def edgelist2graph(node_list, el, snp_cutoff):
     # perform SNV based clustering using mixed and unmixed samples
     G1= nx.Graph()      # mixed included
     nEdges = 0
-    node_names= set()
     for item in node_list:
         G1.add_node(item)
 
@@ -580,24 +577,5 @@ python make_simulation.py 50 10000 0.02 0.01 0.001 0.05 0.1 20 1 ../output/simul
         with open(params_filename,'wt') as f:
             json.dump(params,f)
         
-        # produce little SNV matrices for each cluster identified.
-        print("Exporting distance matrices")
-        obs = pd.read_csv(observed_filename, sep='\t')
-        for clustering_method in ['cluster_all','cluster_no_mix']:
-            clusters = obs[clustering_method].unique()
-            for this_cluster in clusters:
 
-                cl_data = obs.query("{0}=={1}".format(clustering_method,this_cluster))
-                node_names = cl_data['node'].unique()
-                mat = obs_distmat.query("node1 in @node_names")
-                if len(mat.index)>0:
-                    mat =     mat.query("node2 in @node_names")
-                if len(mat.index)>0:
-                    piv = mat.pivot(index='node1', columns='node2', values='snv')
-                    clusterdir = os.path.join(outputdir,'clusters')
-                    if not os.path.exists(clusterdir):
-                         os.makedirs(clusterdir)
-                    pivot_output_file =  os.path.join(outputdir,'clusters','{0}_{1}.xlsx'.format(clustering_method, this_cluster))
-                    piv.to_excel(pivot_output_file)
-                    
                     

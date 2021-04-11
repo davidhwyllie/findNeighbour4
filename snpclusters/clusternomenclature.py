@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """ produces cluster numbers 
 
+Clusters numbers are codes  of the type AB123
+and are generated from an integer. 
+System used by PHE/UKHSA to name TB clusters.
+
 A component of the findNeighbour4 system for bacterial relatedness monitoring
 Copyright (C) 2021 David Wyllie david.wyllie@phe.gov.uk
 repo: https://github.com/davidhwyllie/findNeighbour4
@@ -16,17 +20,8 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU Affero General Public License for more details.
 
 """
-import glob
-import hashlib
-import hmac
 
-# objective is to generate a code of the type AB123
-# from an integer as part of the new TB coding system.
-import random
-import logging
-import unittest
-import pickle
-import os
+
 import pandas as pd
 from collections import Counter
 
@@ -159,7 +154,7 @@ class ClusterNomenclature():
         if deserialise_from is not None and existing_labels is not None:
             raise ValueError("You can either deserialise from a string, or supply existing_labels, but not both")
         implemented_cluster_nomenclature_methods = ['integer','WBS','TB']
-        if not cluster_nomenclature_method in implemented_cluster_nomenclature_methods:
+        if cluster_nomenclature_method not in implemented_cluster_nomenclature_methods:
             raise ValueError("implemented ClusterNomenclature methods are {0}; {1} is not".format(implemented_cluster_nomenclature_methods, cluster_nomenclature_method))
         
         self.cluster_nomenclature_method = cluster_nomenclature_method

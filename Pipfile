@@ -36,6 +36,9 @@ pyvolve = "*"
 ete3 = "*"
 sip = "*"
 sentry-sdk = "*"
+pytest = "*"
+flake8 = "*"
+pytest-cov = "*"
 
 [requires]
 python_version = "3.8"

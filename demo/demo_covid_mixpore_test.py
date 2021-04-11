@@ -3,17 +3,8 @@ assumes a findNeighbour4 server is running
 """
 
 if __name__ == '__main__':
-    import os
-    import glob
-    import datetime
-    import json
-    import pandas as pd
+    
     import random
-    from Bio import SeqIO
-    from Bio.Seq import Seq
-    from Bio.SeqRecord import SeqRecord
-
-    from collections import Counter
     from fn4client import fn4Client
 
     # instantiate client
@@ -45,7 +36,5 @@ if __name__ == '__main__':
         msa_df.set_index('guid',inplace = True)
         print(this_guid, msa_df.at[this_guid, 'p_value2'])
 
-    print("Complete.  Output is in {0} and {1}".format(fasta_outputfile, excel_outputfile))
-    print("iqtree build command is \n{0}".format(cmd))
 
  

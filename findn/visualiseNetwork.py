@@ -15,8 +15,6 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU Affero General Public License for more details.
 """
 import networkx as nx
-import datetime
-import logging
 
 class snvNetwork():
     """ build and output Cytoscape compatible  networks """

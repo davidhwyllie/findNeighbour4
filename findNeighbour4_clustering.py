@@ -25,46 +25,17 @@ GNU Affero General Public License for more details.
 
 # import libraries
 import os
-import sys
-import requests
-import json
-
 import warnings
-import datetime
-import glob
-import sys
-import hashlib
-import queue
-import threading
-import gc
-import io
-import pymongo
 import pandas as pd
-import numpy as np
-import copy
 import pathlib
-import markdown
-import codecs
 import sentry_sdk
-import matplotlib
-import dateutil.parser
 import argparse
 import progressbar
 import time
-import progressbar
-
-from Bio import SeqIO
-from Bio.Seq import Seq
-from sentry_sdk import capture_message, capture_exception
-from sentry_sdk.integrations.flask import FlaskIntegration
 
 # logging
 import logging
 import logging.handlers
-from logging.config import dictConfig
-
-# utilities for file handling and measuring file size
-import psutil
 
 # startup
 from findn.mongoStore import fn3persistence
@@ -83,7 +54,6 @@ if __name__ == '__main__':
         formatter_class= argparse.RawTextHelpFormatter,
         description="""Runs findNeighbour4_clustering, a findNeighbour4 component.
                                      
-
 Example usage: 
 ============== 
 
@@ -160,7 +130,7 @@ Checks for new sequences are conducted once per minute.
     # launch sentry if API key provided
     if 'SENTRY_URL' in CONFIG.keys():
             logger.info("Launching communication with Sentry bug-tracking service")
-            sentry_sdk.init(CONFIG['SENTRY_URL'], integrations=[FlaskIntegration()])
+            sentry_sdk.init(CONFIG['SENTRY_URL'])
 
     ########################### read file containing labels, if it exists ##########
     relabel = False  
@@ -193,7 +163,7 @@ Checks for new sequences are conducted once per minute.
                 debug=0
                                    )  # if in debug mode wipes all data.  This is not what is wanted here, even if we are using unittesting database
 
-    except Exception as e:
+    except Exception:
             logger.exception("Error raised on creating persistence object")
             raise
 
@@ -305,7 +275,7 @@ Checks for new sequences are conducted once per minute.
                 if len(guids)>2:
                     whitelist.add(token)        # we need to retain this msa, if it exists
                     
-                    if not token in stored_msa:     # if we haven't already computed it 
+                    if token not in stored_msa:     # if we haven't already computed it 
                         msa_result = hc.multi_sequence_alignment(guids, expected_p1=estimated_p1, uncertain_base_type= malr.parameters['uncertain_base_type'])
                         ms.persist(token, msa_result)   
                         nbuilt+=1

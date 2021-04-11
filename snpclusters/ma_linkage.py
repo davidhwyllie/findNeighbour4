@@ -16,26 +16,15 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU Affero General Public License for more details.
 """
 import networkit as nk
-import unittest
 import uuid
 import random
-import os
-import json
-import hashlib
 import datetime
 import scipy.stats
 import statistics
-import warnings
 import pandas as pd
 import progressbar
 import logging
 from findn.identify_sequence_set import IdentifySequenceSet
-
-# for unittesting only
-from findn.hybridComparer import hybridComparer
-from findn.common_utils import ConfigManager
-from findn.mongoStore import fn3persistence
-from findn.pycw_client import CatWalk
 
 class MockPersistence():
     """ simulates the fnPersistence class which provides access to findNeighbour stored data;
@@ -139,7 +128,7 @@ class NoMixtureChecker(MixtureChecker):
         """ does nothing """
         self.info="No check"
 
-class TestMixtureChecker(MixtureChecker):   
+class MixtureCheckerTest(MixtureChecker):   
     """ a class which implements a MixtureChecker which sets guids as mixed if they begin with a number """
     def __init__(self):
         """ does nothing """
@@ -176,7 +165,7 @@ class MixPOREMixtureChecker(MixtureChecker):
                              valid values are 'N' 'M' 'N_or_M'.
 
                 mixture_criterion: pvalue_n, where p = 1,2,3 or 4.  refers to the nature of the statistical test peformed; see  hybridComparer.msa() function for details.  pvalue_2 is recommended.    
-		cutoff:  the p value at which the result is considered mixed.  not corrected for multiple comparisons.  one comparison is performed per sample analysed. consider 1e-8
+                cutoff:  the p value at which the result is considered mixed.  not corrected for multiple comparisons.  one comparison is performed per sample analysed. consider 1e-8
                 snv_cutoff:  if >0, the result will not be considered mixed if align{what} < snv_cutoff.  For example, if less than 4 mixed bases in the alignment do not compromise clustering, snv_cutoff could be set to 4.
                 max_seqs_mixpore:  how many sequences the test sequence will be compared with to perform mixpore.  2 minimum.  recommended: 10
 
@@ -235,7 +224,7 @@ class MixPOREMixtureChecker(MixtureChecker):
             neighbours_analysed = neighbours[:self.max_seqs_mixpore]	# take up to specific number
             to_msa = neighbours_analysed.copy()
             to_msa.append([guid,0])	
-		
+
             guids_to_msa = [x[0] for x in to_msa]
             msa_result = self.hc.multi_sequence_alignment(guids_to_msa,  uncertain_base_type=self.uncertain_base_type)
             res = msa_result.df.loc[guid].to_dict()
@@ -254,7 +243,7 @@ class MixPOREMixtureChecker(MixtureChecker):
                 else:
                     enough_bases_mixed = False
                 if res[self.mixture_criterion]<self.p_value_cutoff and enough_bases_mixed:
-	                res.update({'is_mixed':True})
+                    res.update({'is_mixed':True})
             res['enough_bases_mixed'] = enough_bases_mixed
             
             ## return result
@@ -382,7 +371,7 @@ cluster
         for guid in self.guid2cluster.keys():
             cluster_ids = self.guid2cluster[guid]['cluster_id']
             for cluster_id in cluster_ids:
-                if not cluster_id in self.cluster2guid.keys():
+                if cluster_id not in self.cluster2guid.keys():
                     self.cluster2guid[cluster_id] = []
                 self.cluster2guid[cluster_id].append(guid)
         self.current_version_load_time = datetime.datetime.now()
@@ -862,9 +851,9 @@ a guid to metadata lookup (including mixture and if appropriate clustering data)
             
             self._name2meta[guid]['nneighbours'] = len(neighbours)
             if len(neighbours)>0:		# we don't assess samples with zero edges
-    	        guids_potentially_requiring_evaluation.add(guid)
+                guids_potentially_requiring_evaluation.add(guid)
             for neighbour in neighbours:  
-    	        guids_potentially_requiring_evaluation.add(neighbour[0])
+                guids_potentially_requiring_evaluation.add(neighbour[0])
         bar.finish()
 
         #print("Counting neighbours")
@@ -889,8 +878,8 @@ a guid to metadata lookup (including mixture and if appropriate clustering data)
        # remove anything known to be mixed from what needs to be mixture checked.
         already_mixed = set()
         for guid in self._name2meta.keys():
-	        if self._name2meta[guid]['is_mixed'] is True:		# already mixed
-		        already_mixed.add(guid)
+            if self._name2meta[guid]['is_mixed'] is True:		# already mixed
+                already_mixed.add(guid)
 
         guids_potentially_requiring_evaluation = guids_potentially_requiring_evaluation - already_mixed
         
@@ -959,7 +948,6 @@ a guid to metadata lookup (including mixture and if appropriate clustering data)
         node_ids_added = set()
 
         # add any guids which are not present as nodes
-        nLoaded =0
         for guid_to_add in remaining_guids_to_add:
             node_id = self.g.addNode()
             self._node2name[node_id]=guid_to_add
@@ -1091,7 +1079,7 @@ a guid to metadata lookup (including mixture and if appropriate clustering data)
         for name in self.name2cluster.keys():
             cluster_ids = self.name2cluster[name]['cluster_id']
             for cluster_id in cluster_ids:
-                if not cluster_id in self.cluster2names.keys():
+                if cluster_id not in self.cluster2names.keys():
                     self.cluster2names[cluster_id] = {'guids':[]}        # starting
                 self.cluster2names[cluster_id]['guids'].append(name)
 
@@ -1148,8 +1136,6 @@ a guid to metadata lookup (including mixture and if appropriate clustering data)
         self.cc.run()
         retVal = {}
         for item in self.cc.getComponents():
-            min_node_id = min(item)
-
             if what == 'name':
                 # then we return the guids
                 returned_list = [self._node2name[x] for x in item]
@@ -1265,12 +1251,10 @@ a guid to metadata lookup (including mixture and if appropriate clustering data)
                 if node_id in node2min_element_in_cluster:
                     # it is part of a cluster
                     if not node_id == node2min_element_in_cluster[node_id]:     # it's not the first element
-                        rewire_edges = True
                         # if the desired edge is the single edge present
                         if degree == 1 and self.g.hasEdge(node_id,node2min_element_in_cluster[node_id]):
-                            rewire_edges=  False
+                            pass
                         else:
-                            rewire_edges = True
                             to_add.add(frozenset([node2min_element_in_cluster[node_id],node_id]))
                             for neighbour in self.g.iterNeighbors(node_id):
                                 to_remove.add(frozenset([node_id,neighbour]))
@@ -1332,7 +1316,7 @@ a guid to metadata lookup (including mixture and if appropriate clustering data)
             label_dict = cl2label[cluster_id]
             if not isinstance(label_dict, dict):
                 raise ValueError("Must supply a dictionary, not a {0} as the value of cl2label".format(type(cl2label)))
-            if not 'cluster_label' in label_dict.keys():
+            if 'cluster_label' not in label_dict.keys():
                 raise KeyError("cluster_label must be a key; got {0}".format(label_dict))
 
         # checks: 1:1 mapping of cluster_id to cluster_labels;
@@ -1340,7 +1324,7 @@ a guid to metadata lookup (including mixture and if appropriate clustering data)
         cluster_ids = set(cl2label.keys())
         if not len(cluster_ids) == len(cluster_labels):
             # there is not a 1:1 mapping between cluster_id and cluster_label
-            raise KeyError("There is not a 1:1 mapping between cluster_ids and cluster_labels. In _labels but not in _ids:  {0} ; in _ids but not in _labels {1)".format(cluster_labels-cluster_ids, cluster_ids-cluster_labels))
+            raise KeyError("There is not a 1:1 mapping between cluster_ids and cluster_labels. In _labels but not in _ids:  {0}; in _ids but not in _labels {1}".format(cluster_labels-cluster_ids, cluster_ids-cluster_labels))
 
         # check: all clusters exist
         non_referenced_cluster_ids = cluster_ids - set(self.cluster2names.keys())

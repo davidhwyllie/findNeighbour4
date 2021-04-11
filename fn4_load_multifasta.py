@@ -35,7 +35,6 @@ import os
 import glob
 import datetime
 import dateutil
-import pandas as pd
 import shutil
 import Bio
 import logging
@@ -199,7 +198,7 @@ python updating_covid_load.py "http://localhost:5023"
             counter = Counter(list(seq))
            
             res = {'record_id':record.id,'guid':guid, 'seqlen':len(seq), **counter}
-            if not guid in existing_guids:
+            if guid not in existing_guids:
 
                 if len(seq) == reflen:
                     res = fn4c.insert(guid=guid,seq=seq)

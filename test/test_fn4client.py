@@ -20,7 +20,7 @@ pipenv run python3 -m unittest test/test_fn4client.py
 import unittest
 import os
 import pandas as pd
-import json
+
 import uuid
 
 from fn4client import fn4Client
@@ -29,13 +29,14 @@ class test_fn4_client_init1(unittest.TestCase):
     def runTest(self):
         """ initialise an fn4 object.  Will unittest against localhost mongodb server on 5020 """
         fn4c =fn4Client()         # expect success
+        self.assertIsInstance(fn4c, fn4Client)
 
 class test_fn4_client_init2(unittest.TestCase):
     def runTest(self):
         """ initialise an fn4 client, against mongodb which doesn't exist """
         with self.assertRaises(Exception):
-            fn4c =fn4Client(baseurl = 'http://example.com')         # fails, does not exist
-        
+            fn4Client(baseurl = 'http://example.com')         # fails, does not exist
+
 class test_fn4_client_mirror(unittest.TestCase):
     def runTest(self):
         """ tests mirror function - which just sends back the POSTed payload """
@@ -211,6 +212,9 @@ class test_fn4_client_guids2clusters(unittest.TestCase):
         fn4c.insert(uuid3, seq2)
         c3 = fn4c.change_id(clustering['algorithms'][0])
        
+        self.assertIsInstance(c1, dict)
+        self.assertIsInstance(c2, dict)
+        self.assertIsInstance(c3, dict)
         self.assertTrue(uuid1 in fn4c.guids())
         self.assertTrue(uuid2 in fn4c.guids())
         self.assertTrue(uuid3 in fn4c.guids())
@@ -273,6 +277,7 @@ class test_fn4_client_network(unittest.TestCase):
             cluster_ids = fn4c.cluster_ids(algorithm)
             for cluster_id in cluster_ids:
                 network = fn4c.network(algorithm, cluster_id)
+                self.assertIsInstance(network, dict)
                 #print(network.keys())
                 #print(algorithm, network['nNodes'], network['nEdges'])
                 #print(network['elements'])

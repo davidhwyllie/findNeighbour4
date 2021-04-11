@@ -2,21 +2,16 @@
 """
 
 if __name__ == '__main__':
-    import os
-    import glob
-    import datetime
-    import pandas as pd
-    import Bio
-    from collections import Counter
+    
     import requests
+    import datetime
     from fn4client import fn4Client
 
-    import sentry_sdk
   
     # instantiate client
-    fn4c = fn4Client("http://localhost:5025")      # expects operation on local host; pass baseurl if somewhere else. ## 5023 for covid ## 5027 for TB
+    fn4c = fn4Client("http://localhost:5025")      # expects operation on local host; pass baseurl if somewhere else.
 
-    cw_url = "http://localhost:5026"        # 5024 for covid, 5007 for TB
+    cw_url = "http://localhost:5026"        
      
     existing_guids = set(fn4c.guids())
     clustering_created = False

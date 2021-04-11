@@ -13,7 +13,7 @@ Functionality is provided in following classes:
 * PCARunner - runs PCA on VariantMatrix
 
 Unit testing is facilitated by a 
-* TestPersistence class.  This exposes a small subset of the fn3persist object's methods, sufficient to test PCA.  It can be used to store subsets of data for testing purposes 
+* PersistenceTest class.  This exposes a small subset of the fn3persist object's methods, sufficient to test PCA.  It can be used to store subsets of data for testing purposes 
 without then need to access a real fn3persistence data store.
 
 A component of the findNeighbour4 system for bacterial relatedness monitoring
@@ -34,57 +34,26 @@ GNU Affero General Public License for more details.
  
 # import libraries
 import os
-import io
-import sys
-import json
 import logging
 import warnings
 import datetime
-import glob
-import time
 import random
-from pathlib import Path
-from typing import List, Tuple, Set
-from collections import defaultdict, Counter
+from typing import  Tuple, Set
+from collections import defaultdict
 import pickle
 import hashlib
 
 import pandas as pd
 import numpy as np
 from scipy.stats import poisson
-from Bio import Phylo
-
-import argparse
 import progressbar
-
 import sqlalchemy
 
 from scipy.stats import binom_test, median_abs_deviation
-from scipy.cluster import hierarchy
-from scipy.cluster.hierarchy import dendrogram, linkage, ClusterWarning
-from scipy.cluster.hierarchy import ClusterWarning
-
-from sklearn import linear_model
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
-from sklearn.metrics.pairwise import euclidean_distances
 
-from sentry_sdk import capture_message, capture_exception
-from sentry_sdk.integrations.flask import FlaskIntegration
-
-# ignore clusterwarnings
-warnings.simplefilter("ignore", ClusterWarning)     # nonsensical cluster warnings get issued
-
-# logging
-from logging.config import dictConfig
-
-# reference based compression storage and clustering modules
-from findn.mongoStore import fn3persistence
-from findn import DEFAULT_CONFIG_FILE
-from findn.common_utils import ConfigManager
-
-
-class TestPersistence():
+class PersistenceTest():
     """ a class which mimics some methods available in an fn3persistence object, sufficient to unit test PCA generation.
 
     Only these methods are implemented:
@@ -120,7 +89,7 @@ class TestPersistence():
 
     def refcompressedsequence_read(self, guid):
         """ read a single sequence """
-        if not guid in self.sample_ids:
+        if guid not in self.sample_ids:
             return None
         return self.seqs[guid]
 
@@ -168,7 +137,6 @@ class MNStats():
             not_model = self.analysed_reference_length- len(self.select_positions)
             p_expected = (missing["{0}_total".format(base)]-missing["{0}_in_model".format(base)])/not_model
             missing["{0}_expected_proportion".format(base)]=p_expected
-            in_model = len(self.select_positions)
             p_observed = missing["{0}_in_model".format(base)]/len(self.select_positions)
             missing["{0}_observed_proportion".format(base)]=p_observed
             p_val = binom_test(
@@ -238,7 +206,7 @@ class VariationModel():
 
         # configure sqlite file for output.
         sqlite_file = os.path.join(outputdir,'{0}.sqlite'.format(analysis_name))
-        engine = sqlalchemy.create_engine("sqlite:///{0}".format( sqlite_file, echo=True))
+        engine = sqlalchemy.create_engine("sqlite:///{0}".format( sqlite_file), echo=True)
 
         # run checks on sqlite file
         if rebuild_databases_if_present:
@@ -298,7 +266,7 @@ class VariantMatrix:
         Parameters:
         CONFIG: a configuration dictionary, as produced by findn.common_utils.ConfigManager.read_config()
         PERSIST: a persistence object providing access to stored sequence data.  
-                Either a findn.mongoStore.fn3persistence object, or a TestPersistence object, the latter being useful for unit testing.
+                Either a findn.mongoStore.fn3persistence object, or a PersistenceTest object, the latter being useful for unit testing.
         show_bar: whether or not to show a progress bar
 
         """
@@ -501,7 +469,7 @@ class VariantMatrix:
                             try:
                                 mmodel[pos]=mmodel[pos]+1
                             except KeyError:
-                                if not pos in vmodel.keys():
+                                if pos not in vmodel.keys():
                                     mmodel[pos]=1       # first occurrence at this position
                 except KeyError:
                     pass        # if there are no M,N then we can ignore these
@@ -604,8 +572,6 @@ class PCARunner():
         variant_matrix = self.vm["variant_matrix"]
         pca.fit(variant_matrix)
         contribs = []
-        nz_columns = {}
-
         # summarise the positions and variants responsible for each pc
         pc2contributing_pos = {}
         contributing_basepos = set()

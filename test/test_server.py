@@ -1,63 +1,30 @@
 #!/usr/bin/env python
-""" 
-findNeighbour4 is a  server providing relatedness information for bacterial genomes via a Restful API.
+"""  findNeighbour4 is a  server providing relatedness information for bacterial genomes via a Restful API.
 See documentation for full details of its functionality.
 
-There are unit tests for it.  To run them:
+There are unit tests for the server component.  To run them:
 
 # starting a test RESTFUL server
-pipenv run python3 findNeighbour4_server.py
+nohup pipenv run python3 findNeighbour4_server.py &
 
-# And then (e.g. in a different terminal) launching unit tests with
+# And then  launching unit tests with
 pipenv run python3 -m unittest test/test_server.py
 """
  
 # import libraries
 import os
-import sys
 import requests
 import json
-import logging
 import warnings
 import datetime
-import glob
-import sys
-import hashlib
-import queue
-import threading
-import gc
-import io
-import pymongo
 import pandas as pd
-import numpy as np
-import copy
-import pathlib
 import markdown
 import codecs
-import sentry_sdk
-import matplotlib
-import dateutil.parser
-import argparse
-import networkx as nx
-import progressbar
-from sentry_sdk import capture_message, capture_exception
-from sentry_sdk.integrations.flask import FlaskIntegration
-
-# logging
-from logging.config import dictConfig
-
-# utilities for file handling and measuring file size
-import psutil
 
 # only used for unit testing
 from Bio import SeqIO
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
 import unittest
-from urllib.parse import urlparse as urlparser
 from urllib.parse import urljoin as urljoiner
-import uuid
-import time
         
 # default parameters for unit testing only.
 RESTBASEURL   = "http://127.0.0.1:5020"
@@ -68,7 +35,7 @@ LISTEN_TO = '127.0.0.1'     # only local addresses
 def isjson(content):
         """ returns true if content parses as json, otherwise false. used by unit testing. """
         try:
-            x = json.loads(content.decode('utf-8'))
+            json.loads(content.decode('utf-8'))
             return True
  
         except json.decoder.JSONDecodeError:
@@ -102,7 +69,7 @@ def do_GET(relpath):
     #print("code: {0}".format(response.status_code))
     #print("reason: {0}".format(response.reason))
     try:     
-        res = "text: {0}".format(response.text[:100])
+        "text: {0}".format(response.text[:100])
 
     except UnicodeEncodeError:
         # which is what happens if you try to display a gz file as text, which it isn't
@@ -354,6 +321,7 @@ class test_msa_2(unittest.TestCase):
                 muts = 0
                 seq = originalseq           
                 # make i mutations at position 500,000
+                offset = 500000
                 if k==1:
                     for j in range(1000000,1000100):        # make 100 mutants at position 1m
                         mutbase = offset+j
@@ -364,7 +332,7 @@ class test_msa_2(unittest.TestCase):
                             seq[mutbase] = 'A'
                         muts+=1
     
-                offset = 500000
+
                 for j in range(i):
                     mutbase = offset+j
                     ref = seq[mutbase]
@@ -750,6 +718,7 @@ class test_get_all_guids_examination_time_1(unittest.TestCase):
         relpath = "/api/v2/guids_and_examination_times"
         res = do_GET(relpath)
         et= len(json.loads(res.content.decode('utf-8')))
+        self.assertTrue(et>0)
 
 
 class test_get_matching_guids_1(unittest.TestCase):
@@ -1230,10 +1199,6 @@ class test_compare_two(unittest.TestCase):
         
         relpath = "/api/v2/guids"
         res = do_GET(relpath)
-        n_pre = len(json.loads(str(res.text)))      # get all the guids
-
-        guid_to_insert = "guid_{0}".format(n_pre+1)
-
         inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, 'rt') as f:
             for record in SeqIO.parse(f,'fasta' ):               
@@ -1523,7 +1488,7 @@ class test_insert_60(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertTrue(isjson(res.content))
         d = json.loads(res.content.decode('utf-8'))
-        df = pd.DataFrame.from_records(d)
+        pd.DataFrame.from_records(d)
 
         #print("running mixed checks:")
         for item in retVal:

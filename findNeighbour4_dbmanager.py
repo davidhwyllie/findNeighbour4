@@ -31,33 +31,22 @@ GNU Affero General Public License for more details.
  
 # import libraries
 import os
-import sys
 import logging
 import logging.handlers
 import warnings
-import sys
 import pymongo
 import pathlib
 import sentry_sdk
-from sentry_sdk import capture_message, capture_exception
-import json
+from sentry_sdk import capture_exception
 import time
-import random
 import datetime 
 import hashlib
 import argparse
-
-# logging
-from logging.config import dictConfig
 
 # config
 from findn.common_utils import ConfigManager
 # reference based compression, storage and clustering modules
 from findn.mongoStore import fn3persistence
-
-# only used for unit testing
-import unittest
-            
 
 # startup
 if __name__ == '__main__':
@@ -86,13 +75,13 @@ python findNeighbour4_dbmanager.py --help
 # run using settings in myconfig_file.json.   
 python findNeighbour4_dbmanager.py ../config/myconfig_file.json          # this config file should be the same as that used by the server.  recompress everything needing it.    
 
-python findNeighbour4_server.py ../config/myconfig_file.json \ 
+python findNeighbour4_server.py ../config/myconfig_file.json  
                         --recompress_subset 0123456789abcdef            # effects same as above
 
 # two processes, which can be run simultaneously; they will not recompress the same samples
-python findNeighbour4_server.py ../config/myconfig_file.json \ 
+python findNeighbour4_server.py ../config/myconfig_file.json  
                         --recompress_subset 01234567            # one process only compresses samples if the hash of the sample_id begins with 0,1,..7
-python findNeighbour4_server.py ../config/myconfig_file.json \ 
+python findNeighbour4_server.py ../config/myconfig_file.json  
                         --recompress_subset 89abcdef            # one process only compresses samples if the hash of the sample_id begins with 8,9, a, ... f
 
 """)

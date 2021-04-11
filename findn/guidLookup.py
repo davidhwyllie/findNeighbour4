@@ -25,11 +25,6 @@ GNU Affero General Public License for more details.
 
 import bisect
 
-# for unit tests only
-import uuid
-import unittest
-import datetime
-
 class guidSearcher():
     """ maintains a list of sample numbers (such as guids) and provides
     methods to search them rapidly """
@@ -70,7 +65,7 @@ class guidSearcher():
         if not already_exists:
             self.guids.insert(insertion_point, guid)
 
-    def search(self, search_string, max_returned=30, return_subset=False):
+    def search(self, search_string, max_returned=30, return_subset=True):
         """
         search_string  the substring in self.guids sought at the beginning of the string
         max_returned   the maximum number of matches returned
@@ -86,9 +81,11 @@ class guidSearcher():
             else:
                 if self.guids[search_point].startswith(search_string):
                     retVal.append(self.guids[search_point])
-        if len(retVal) == max_returned and return_subset == False:
-            # don't return partial lists of matches
-            return []
-        else:
-            return retVal
+            if len(retVal) == max_returned and return_subset is True:
+                return retVal
+            elif len(retVal) == max_returned and return_subset is False:
+                # don't return partial lists of matches
+                return []
+        
+        return retVal
 

@@ -18,27 +18,15 @@ GNU Affero General Public License for more details.
 
 # import libraries
 import os
-import sys
 import logging
-import warnings
-import pymongo
 import pandas as pd
 import numpy as np
-import pathlib
-import sentry_sdk
-import json
-import time
-import random
 import dateutil.parser
 import datetime
-import unittest
-from bokeh.io import output_file, show, save
-from bokeh.layouts import widgetbox, gridplot,layout,column
-from bokeh.models import ColumnDataSource, CDSView, IndexFilter, DataTable, TableColumn, Span
+from bokeh.layouts import gridplot
+from bokeh.models import ColumnDataSource, CDSView, IndexFilter, DataTable, TableColumn
 from bokeh.models.widgets import Div, Panel, Tabs
-from bokeh.plotting import figure, show, curdoc
-from bokeh.resources import CDN
-from bokeh.embed import file_html
+from bokeh.plotting import figure
 
 class MakeHumanReadable():
     """ converts server monitoring codes into human readable formats """
@@ -109,7 +97,7 @@ class DepictServerStatus():
         server_url: the server url.  only used to display info
         server_port:server port.  only used to display info
         server_description: server description.  only used as display info
-	    max_interval: don't plot intervals more than this (seconds)
+        max_interval: don't plot intervals more than this (seconds)
         returns:
         nothing
         """
@@ -201,17 +189,17 @@ class DepictServerStatus():
         
     def _create_cds(self,data_tag):
         """ creates interval data & columnar data source for the data set with data_tag"""
-        if not data_tag in self.monitoring_data.keys():
+        if data_tag not in self.monitoring_data.keys():
                 # no data
                 self.source[data_tag] = ColumnDataSource()
                 return
 
         if len(self.monitoring_data[data_tag].index) > 0:
 
-        	# reindex
+            # reindex
             self.monitoring_data[data_tag].reset_index(drop=True, inplace=True)
 
-        	# compute timings between events ('interval')
+            # compute timings between events ('interval')
             if 't' in self.monitoring_data[data_tag].columns.tolist():
                     self.monitoring_data[data_tag].loc[:,'interval']=None   
                     n=0
@@ -305,7 +293,7 @@ class DepictServerStatus():
         output:     a Bokeh tab containing graphics of server function
         """
 
-        if not data_tag in self.monitoring_data.keys():
+        if data_tag not in self.monitoring_data.keys():
                 # no data: a special case
                 text = "No data for {0}".format(data_tag)
                 div = Div(text= text, render_as_text=False, width=1000, height=800)
@@ -439,7 +427,7 @@ class DepictServerStatus():
 
         # logging
         n_latest_lines = 100
-        tab_list = tabs=[s1,tab_rserver,tab_rmemory,tab_server, tab_memory,tab_dbmon, tab_g2n, tab_g2m, tab_sm]
+        tab_list = [s1,tab_rserver,tab_rmemory,tab_server, tab_memory,tab_dbmon, tab_g2n, tab_g2m, tab_sm]
         for process in self.logfiles.keys():
             res = self.logfile_tail(process,n_latest_lines)
             div = Div(text= "[last {0} lines of log file are shown]<br/>".format(n_latest_lines) + res.replace('\n','<br />'), render_as_text=False, width=1000, height=800)

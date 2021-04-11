@@ -43,53 +43,17 @@ GNU Affero General Public License for more details.
  
 # import libraries
 import os
-import io
-import sys
-import json
 import logging
 import warnings
-import datetime
-import glob
-import time
-import random
 from pathlib import Path
-from typing import List, Tuple, Set
-from collections import defaultdict
-import hashlib
-
-import pandas as pd
-import numpy as np
-from Bio import Phylo
-
+import sentry_sdk
 import argparse
-import progressbar
-
-import sqlalchemy
-
-from scipy.stats import binom_test, median_abs_deviation
-from scipy.cluster import hierarchy
-from scipy.cluster.hierarchy import dendrogram, linkage, ClusterWarning
-from scipy.cluster.hierarchy import ClusterWarning
-
-from sklearn import linear_model
-from sklearn.decomposition import PCA
-from sklearn.cluster import DBSCAN
-from sklearn.metrics.pairwise import euclidean_distances
-
-from sentry_sdk import capture_message, capture_exception
-from sentry_sdk.integrations.flask import FlaskIntegration
-
-# ignore clusterwarnings
-warnings.simplefilter("ignore", ClusterWarning)     # nonsensical cluster warnings get issued
-
-# logging
-from logging.config import dictConfig
 
 # reference based compression storage and clustering modules
 from findn.mongoStore import fn3persistence
 from findn import DEFAULT_CONFIG_FILE
 from findn.common_utils import ConfigManager
-from pca import VariationModel, VariantMatrix, MNStats, PCARunner
+from pca import VariantMatrix, PCARunner
 
 def main():
     # command line usage.  Pass the location of a config file as a single argument.
@@ -173,6 +137,34 @@ pipenv run python3 pca/fn4_pca.py demos/covid/covid_config_v3.json --outputdir /
             elif CONFIG['LOGLEVEL']=='DEBUG':
                     loglevel=logging.DEBUG
 
+
+    # configure logging object
+    logger = logging.getLogger()
+    logger.setLevel(loglevel)
+    logfile = os.path.join(logdir, "pca-{0}".format(os.path.basename(CONFIG['LOGFILE'])))
+    print("Logging to {0} with rotation".format(logfile))
+    file_handler = logging.handlers.RotatingFileHandler(logfile, mode = 'a', maxBytes = 1e7, backupCount = 7)
+
+    formatter = logging.Formatter( "%(asctime)s | %(pathname)s:%(lineno)d | %(funcName)s | %(levelname)s | %(message)s ")
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+    logger.addHandler(logging.StreamHandler())
+
+
+    ######################### launch sentry if API key provided ##################################
+    # determine whether a FN_SENTRY_URLenvironment variable is present,
+    # if so, the value of this will take precedence over any values in the config file.
+    # This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuraton file.
+    if os.environ.get("FN_SENTRY_URL") is not None:
+            CONFIG["SENTRY_URL"] = os.environ.get("FN_SENTRY_URL")
+            print("Set Sentry connection string from environment variable")
+    else:
+            print("Using Sentry connection string from configuration file.")
+
+    if 'SENTRY_URL' in CONFIG.keys():
+            logger.info("Launching logger")
+            sentry_sdk.init(CONFIG['SENTRY_URL'])
+
     # prepare to connection
     print("Connecting to backend data store")
     try:
@@ -180,7 +172,7 @@ pipenv run python3 pca/fn4_pca.py demos/covid/covid_config_v3.json --outputdir /
                                     connString=CONFIG['FNPERSISTENCE_CONNSTRING'],
                                     debug=CONFIG['DEBUGMODE'],
                                     server_monitoring_min_interval_msec = 0)
-    except Exception as e:
+    except Exception:
             print("Error raised on creating persistence object")
             raise
 
@@ -191,7 +183,7 @@ pipenv run python3 pca/fn4_pca.py demos/covid/covid_config_v3.json --outputdir /
     if rebuild:
         try:
             var_matrix = VariantMatrix(CONFIG, PERSIST)
-        except Exception as e:
+        except Exception:
             print("Error raised on instantiating findNeighbour3 distance estimator object")
             raise
 
@@ -203,7 +195,7 @@ pipenv run python3 pca/fn4_pca.py demos/covid/covid_config_v3.json --outputdir /
         vm = pca_runner.cluster()
 
         print("Exporting sqlite")
-        fn = vm.to_sqlite(outputdir = args.outputdir, analysis_name = args.analysis_name)
+        vm.to_sqlite(outputdir = args.outputdir, analysis_name = args.analysis_name)
         
 # startup
 if __name__ == '__main__':

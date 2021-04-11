@@ -17,29 +17,18 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU Affero General Public License for more details.
  """
           
-import os
+
 import datetime
-import hashlib
-import uuid
 import json
 import pandas as pd
 import logging
 import pymongo
-from collections import Counter
-from bson.objectid import ObjectId
 import gridfs
 import pickle
 import psutil
-import copy
 import io
 import statistics
 import numpy as np
-
-# used for unit testing only
-import unittest
-import time
-
-from findn.NucleicAcid import NucleicAcid 
 
 class NPEncoder(json.JSONEncoder):
     """ encodes Numpy types as jsonisable equivalents """
@@ -51,7 +40,7 @@ class NPEncoder(json.JSONEncoder):
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
         else:
-            return super(NpEncoder, self).default(obj)
+            return super(NPEncoder, self).default(obj)
 
 
 class fn3persistence():
@@ -329,7 +318,7 @@ class fn3persistence():
                     retDict = {'recompression_data':False, 'latest_stats':{'storage_ratio':1}}   # if there's no data, record as 1 (optimal)
 
             # store the ratio as 1 if we can't compute it 
-            if not 'dstats|guid2meta|count' in res_df.columns.tolist():
+            if 'dstats|guid2meta|count' not in res_df.columns.tolist():
                 retDict['latest_stats']['storage_ratio']=1
             elif res_df.at[0, 'dstats|guid2meta|count'] == 0:
                 retDict['latest_stats']['storage_ratio']=1
@@ -465,7 +454,7 @@ class fn3persistence():
                 """
                 to_delete= set()
                 for id in self.msa_stored_ids():
-                    if not id in whitelist:
+                    if id not in whitelist:
                         to_delete.add(id)
                 for msa_token in to_delete:
                     self.msa.delete(msa_token)
@@ -625,11 +614,11 @@ class fn3persistence():
                 # it doesn't exist.  we create a new one.
                 metadataObj = {'_id':guid, 'sequence_meta':{nameSpace:annotDict}}
 
-            if not 'sequence_meta' in metadataObj.keys():       # this is key is mandatory and is always present
+            if 'sequence_meta' not in metadataObj.keys():       # this is key is mandatory and is always present
                 metadataObj['sequence_meta']={}
 
             # if the namespace does not exist as a subsidiary of sequence_meta, then we create it
-            if not nameSpace in metadataObj['sequence_meta'].keys():
+            if nameSpace not in metadataObj['sequence_meta'].keys():
                 metadataObj['sequence_meta'][nameSpace] = {}
 
             # we add any annotations to the existing data
@@ -652,7 +641,7 @@ class fn3persistence():
                 1 = guid is invalid
 
             """
-            if not validity in [0,1]:
+            if validity not in [0,1]:
                 raise ValueError("Validity must be 0 or 1, not {0}".format(validity))
 
             retVal = [x['_id'] for x in self.db.guid2meta.find({"sequence_meta.DNAQuality.invalid":validity}, {'_id':1})]
@@ -687,7 +676,7 @@ class fn3persistence():
                 raise TypeError("return_top is {0}; this must be an integer not a {1}".format(return_top, type(return_top)))
             if not return_top>0:
                 raise TypeError("return_top is {0}; this must be a non zero positive integer".format(return_top))
-            if not method in ['exact','approximate']:
+            if method not in ['exact','approximate']:
                 raise ValueError("Method must be either 'exact' or 'approximate', not {0}".format(method))
 
             # use mongodb pipeline
@@ -793,7 +782,7 @@ class fn3persistence():
                 raise KeyError("DNA quality is not present in the sequence metadata {0}: {1}".format(guid, res))
             
             # check the DNA quality metric expected is present
-            if not 'propACTG' in dnaq.keys():
+            if 'propACTG' not in dnaq.keys():
                 raise KeyError("propACTG is not present in DNAQuality namespace of guid {0}: {1}".format(guid, dnaq))
             
             # report whether it is larger or smaller than cutoff
@@ -822,7 +811,7 @@ class fn3persistence():
                    raise KeyError("{2} is not present in the sequence metadata {0}: {1}".format(guidList, res, namespace))
                
                # check the DNA quality metric expected is present
-               if not tag in namespace_content.keys():
+               if tag not in namespace_content.keys():
                    raise KeyError("{2} is not present in {3} namespace of guid {0}: {1}".format(guidList, namespace_content, tag, namespace))
                
                # return property
@@ -1144,8 +1133,6 @@ class fn3persistence():
                 # We assign all the to_optimise ids ('s' single records, and 'm' partially full records) for destruction, 
                 # and repartition all of their contents across new rows in the collection. 
                 # This prevents any updating: only insert and delete operations are used
-                #logging.info("analysing")
-                n_optimised = 0
                 current_m = None            # the record to store the records in
                 to_write = []
                 for ix in content_df.index:
@@ -1221,9 +1208,9 @@ class fn3persistence():
                 reported_already = set()
                 for result in results:
                         for otherGuid in result['neighbours'].keys():
-                                if not otherGuid in reported_already:           # exclude duplicates
+                                if otherGuid not in reported_already:           # exclude duplicates
                                         if result['neighbours'][otherGuid]['dist']<=cutoff:        # if distance < cutoff
-                                                available_fields = result['neighbours'][otherGuid].keys()
+                                                # available_fields = result['neighbours'][otherGuid].keys()
                                                 reported_fields={}
                                                 for desired_field in desired_fields:
                                                         try:

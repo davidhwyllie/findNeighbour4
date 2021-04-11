@@ -10,24 +10,16 @@ instance.
 
 """
 
-import os
-import glob
-import uuid
-import time
-import gzip
 import unittest
-import pickle
 import pandas as pd
-
 from findn import DEFAULT_CONFIG_FILE
-
-from pca.pca import TestPersistence, MNStats, VariationModel, VariantMatrix, PCARunner 
+from pca.pca import PersistenceTest, MNStats, VariantMatrix, PCARunner 
 from findn.common_utils import ConfigManager
 
-class Test_TestPersistence_1(unittest.TestCase):
-    """ tests the TestPersistence class"""
+class Test_PersistenceTest_1(unittest.TestCase):
+    """ tests the PersistenceTest class"""
     def runTest(self):
-        tp = TestPersistence(connstring='thing',number_samples=251)
+        tp = PersistenceTest(connstring='thing',number_samples=251)
         tp.load_data(
             sample_ids_file = "/data/software/fn4dev/testdata/pca/seqs_5000test_ids.pickle",
             sequences_file = "/data/software/fn4dev/testdata/pca/seqs_5000test.pickle"
@@ -69,7 +61,7 @@ class Test_VariantMatrix_1(unittest.TestCase):
     """ tests the VariantMatrix and PCARunner classes"""
     def runTest(self):
         
-        TPERSIST = TestPersistence(connstring='thing',number_samples=251)
+        TPERSIST = PersistenceTest(connstring='thing',number_samples=251)
         TPERSIST.load_data(
             sample_ids_file = "/data/software/fn4dev/testdata/pca/seqs_5000test_ids.pickle",
             sequences_file = "/data/software/fn4dev/testdata/pca/seqs_5000test.pickle"

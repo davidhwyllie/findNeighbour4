@@ -19,10 +19,6 @@ GNU Affero General Public License for more details.
 import unittest
 import pandas as pd
 from Bio import SeqIO
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
-
-
 from findn.seqComparer import seqComparer
 
 
@@ -48,8 +44,7 @@ class test_seqComparer_51(unittest.TestCase):
         res = sc.mcompare(guids[0])      # defaults to sample size 30
         self.assertEqual(len(res), len(originals)-1)
         print("completed")
-	
-  
+
 class test_seqComparer_49(unittest.TestCase):
     """ tests reporting on stored contents """
     def runTest(self):
@@ -432,6 +427,7 @@ class test_seqComparer_2(unittest.TestCase):
         sc=seqComparer( maxNs = 1e8, snpCeiling = 20,reference=refSeq)
         with self.assertRaises(TypeError):
             retVal=sc.compress(sequence='AC')
+            self.assertTrue(retVal is not None)
 class test_seqComparer_3(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
@@ -514,7 +510,7 @@ class test_seqComparer_6d(unittest.TestCase):
 
             compressed_sequence=sc.compress(sequence=original)
             with self.assertRaises(ValueError):
-                roundtrip = sc.uncompress(compressed_sequence)
+                sc.uncompress(compressed_sequence)
            
 class test_seqComparer_16(unittest.TestCase):
     """ tests the comparison of two sequences where both differ from the reference. """
@@ -732,7 +728,7 @@ class test_seqComparer_47(unittest.TestCase):
         with self.assertRaises(ZeroDivisionError):
             sc.raise_error("token")
 
-class test_seqComparer_48(unittest.TestCase):
+class test_seqComparer_47dist(unittest.TestCase):
     """ tests distmat, a function yielding a distance matrix."""
     def runTest(self):
         

@@ -16,11 +16,9 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU Affero General Public License for more details.
 """
 
-import unittest
+
 import pandas as pd
 import datetime
-import time
-from findn.mongoStore import fn3persistence
 from findn.identify_sequence_set import IdentifySequenceSet
 from findn.msaviewer import DepictMSA
 
@@ -71,7 +69,7 @@ class MSAStore():
         self.purge_ram()
         now = datetime.datetime.now()
         expiry_time = now + datetime.timedelta(seconds = self.in_ram_persistence_time)
-        if not token in self.cache.keys():
+        if token not in self.cache.keys():
             self.cache[token]={'expiry_time':expiry_time, 'MSA':msa_result  }
         else:         
             self.cache[token]['expiry_time']  = expiry_time     # update expiry time

@@ -1,15 +1,15 @@
-""" illustrates use of findNeighbour3
-assumes a findNeighbour3 server is running, with the connection string stated in ../config/config.json.
+""" illustrates use of findNeighbour4
+assumes a findNeighbour4 server is running, with a relevant configuration.
 
-An example command doing this would be (starting from /src)
+An example command doing this would be 
 
-python3 findNeighbour3-server.py ../demos/AC587/config/config.json
+pipenv run python3 findNeighbour4_server.py demos/AC587/config/config.json
 """
 
 import os
 import glob
 import datetime
-import pandas as pd
+
 from fn4client import fn4Client
 
 if __name__ == '__main__':

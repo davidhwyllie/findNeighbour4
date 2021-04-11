@@ -17,6 +17,8 @@ GNU Affero General Public License for more details.
 Some tests, such as test_server and test_fn4client, require a server running.
 The unittest_all.sh script will launch and shut down such.
 
+# using pytest is a better solution
+pipenv run pytest
 """
 
 import unittest
@@ -36,6 +38,7 @@ from test import test_nucleicacid
 from test import test_visualisenetwork
 from test import test_malinkage
 from test import test_clusternomenclature
+from test import test_pca
 from test import test_server
 from test import test_fn4client
 
@@ -61,6 +64,7 @@ suite.addTests(loader.loadTestsFromModule(test_nucleicacid))
 suite.addTests(loader.loadTestsFromModule(test_visualisenetwork))
 suite.addTests(loader.loadTestsFromModule(test_malinkage))
 suite.addTests(loader.loadTestsFromModule(test_clusternomenclature))
+suite.addTests(loader.loadTestsFromModule(test_pca))
 suite.addTests(loader.loadTestsFromModule(test_server))
 suite.addTests(loader.loadTestsFromModule(test_fn4client))
 
@@ -69,7 +73,3 @@ suite.addTests(loader.loadTestsFromModule(test_fn4client))
 runner = unittest.TextTestRunner(verbosity=3)
 result = runner.run(suite)
 
-## TODO: start up server, run integration tests
-
-
-## this then completes CI
