@@ -8,6 +8,10 @@ on:
     branches: [ $default-branch ]
   pull_request:
     branches: [ $default-branch ]
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: 'Lint and unit test fn4 application'  
 
 jobs:
   build:
