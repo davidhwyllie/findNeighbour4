@@ -29,29 +29,27 @@ import pandas as pd
 import io
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     # load cluster designations
-    filename  = "v14_eigenvalues.csv"
+    filename = "v14_eigenvalues.csv"
     ev = pd.read_csv(filename)
-    ev.set_index('guid',inplace=True)
+    ev.set_index("guid", inplace=True)
     guids = set(ev.index)
-    
+
     # load tree
-    filename = '/srv/data/mixfiles/covid/milk_micro.fas.treefile'
-    with (open(filename,'r')) as f:
-        Tree=Phylo.read(f, format='newick')
+    filename = "/srv/data/mixfiles/covid/milk_micro.fas.treefile"
+    with (open(filename, "r")) as f:
+        Tree = Phylo.read(f, format="newick")
 
-    for i,node in enumerate(Tree.get_terminals()):
-        if len(node.name)>0:
-            if node.name in guids:        
-                node.name  = "{0} # {1}".format(node.name, ev.at[node.name,'cluster'])
+    for i, node in enumerate(Tree.get_terminals()):
+        if len(node.name) > 0:
+            if node.name in guids:
+                node.name = "{0} # {1}".format(node.name, ev.at[node.name, "cluster"])
 
-    with io.StringIO(initial_value = '') as f:
-        Phylo.write(Tree, f, format='newick')
+    with io.StringIO(initial_value="") as f:
+        Phylo.write(Tree, f, format="newick")
         retVal = f.getvalue()
 
     print(retVal)
 
-#tree.write(format=0, outfile='v14_named_tree.nwk')
-
+# tree.write(format=0, outfile='v14_named_tree.nwk')

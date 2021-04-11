@@ -34,27 +34,46 @@ import psutil
 import uuid
 import warnings
 
+
 class CatWalkServerInsertError(Exception):
     """ insert failed """
+
     def __init__(self, expression, message):
-        self.expression= expression
-        self.message =message
+        self.expression = expression
+        self.message = message
+
 
 class CatWalkServerDidNotStartError(Exception):
     """ the catwalk server did not start """
+
     def __init__(self, expression, message):
-        self.expression= expression
-        self.message =message
+        self.expression = expression
+        self.message = message
+
 
 class CatWalkBinaryNotAvailableError(Exception):
     """ no catwalk binary """
-    def __init__(self, expression, message):
-        self.expression= expression
-        self.message =message
 
-class CatWalk():
+    def __init__(self, expression, message):
+        self.expression = expression
+        self.message = message
+
+
+class CatWalk:
     """ start, stop, and communicate with a CatWalk server"""
-    def __init__(self, cw_binary_filepath, reference_name, reference_filepath, mask_filepath, max_distance, bind_host, bind_port, identity_token=None, unittesting = False):
+
+    def __init__(
+        self,
+        cw_binary_filepath,
+        reference_name,
+        reference_filepath,
+        mask_filepath,
+        max_distance,
+        bind_host,
+        bind_port,
+        identity_token=None,
+        unittesting=False,
+    ):
         """
         Start the catwalk process in the background, if it not running.
         Parameters:
@@ -69,7 +88,7 @@ class CatWalk():
         identity_token: a string identifying the process.  If not provided, a guid is generated
         unittesting: if True, will shut down and restart (empty) any catwalk on bind_port on creation
         """
-       
+
         no_catwalk_exe_message = """
 The catWalk client could not find a CatWalk server application.  This is because either:
 i) the cw_binary_filepath parameter was None
@@ -81,22 +100,24 @@ in either
           This file is not committed into the repository, so you'll have to create it once in your installation.
 """
         # if cw_binary_filepath is "", we regard it as not specified (None)
-        if cw_binary_filepath == "": 
-            cw_binary_filepath = None   
- 
+        if cw_binary_filepath == "":
+            cw_binary_filepath = None
+
         # if cw_binary_filepath is None, we check the env. variable CW_BINARY_FILEPATH and use that if present.
         if cw_binary_filepath is None:
-            if 'CW_BINARY_FILEPATH' in os.environ:
-                cw_binary_filepath = os.environ['CW_BINARY_FILEPATH']
+            if "CW_BINARY_FILEPATH" in os.environ:
+                cw_binary_filepath = os.environ["CW_BINARY_FILEPATH"]
             else:
-                raise CatWalkBinaryNotAvailableError(expression = None, message = no_catwalk_exe_message)
+                raise CatWalkBinaryNotAvailableError(expression=None, message=no_catwalk_exe_message)
         if not os.path.exists(cw_binary_filepath):
-                raise FileNotFoundError("Was provided a cw_binary_filepath, but there is no file there {0}".format(cw_binary_filepath))
+            raise FileNotFoundError(
+                "Was provided a cw_binary_filepath, but there is no file there {0}".format(cw_binary_filepath)
+            )
 
         # store parameters
         self.bind_host = bind_host
         self.bind_port = bind_port
-        self.cw_url = "http://{0}:{1}".format(bind_host,bind_port)      
+        self.cw_url = "http://{0}:{1}".format(bind_host, bind_port)
         self.cw_binary_filepath = cw_binary_filepath
         self.reference_filepath = reference_filepath
         self.mask_filepath = mask_filepath
@@ -109,24 +130,24 @@ in either
 
         # start up if not running
         if unittesting and self.server_is_running():
-            self.stop()     # removes any data from server  and any other running cws
+            self.stop()  # removes any data from server  and any other running cws
 
         if not self.server_is_running():
             self.start()
 
-        if not self.server_is_running():        # startup failed
+        if not self.server_is_running():  # startup failed
             raise CatWalkServerDidNotStartError()
 
     def server_is_running(self):
         """ returns true if  response is received by the server, otherwise returns False """
 
         try:
-            result=self.info()
+            self.info()
             return True
-        except requests.exceptions.ConnectionError: 
+        except requests.exceptions.ConnectionError:
             return False
         except Exception as e:
-            raise e      # something else when wrong
+            raise e  # something else when wrong
 
     def start(self):
         """ starts a catwalk process in the background """
@@ -136,8 +157,8 @@ in either
         mask_filepath = shlex.quote(self.mask_filepath)
 
         cmd = f"nohup {cw_binary_filepath} --instance_name {instance_name}  --bind_host {self.bind_host} --bind_port {self.bind_port} --reference_filepath {reference_filepath}  --mask_filepath {mask_filepath} --max_distance {self.max_distance} > cw_server_nohup.out &"
-        logging.info("Attempting startup of CatWalk server : {0}".format(cmd)) 
-       
+        logging.info("Attempting startup of CatWalk server : {0}".format(cmd))
+
         os.system(cmd)
 
         time.sleep(1)
@@ -146,27 +167,37 @@ in either
             raise CatWalkServerDidNotStartError()
         else:
             logging.info("Catwalk server running: {0}".format(info))
- 
+
     def stop(self):
         """ stops the catwalk server launched by this process, if running.  The process is identified by a uuid, so only one catwalk server will be shut down. """
         for proc in psutil.process_iter():
-            if 'cw_server' in proc.name():
+            if "cw_server" in proc.name():
                 cmdline_parts = proc.cmdline()
-                for i,cmdline_part in enumerate(proc.cmdline()):
-                    if cmdline_part == '--instance_name':
-                        if cmdline_parts[i+1].startswith(self.instance_stem):
+                for i, cmdline_part in enumerate(proc.cmdline()):
+                    if cmdline_part == "--instance_name":
+                        if cmdline_parts[i + 1].startswith(self.instance_stem):
                             proc.kill()
         if self.server_is_running():
-            warnings.warn("Attempt to shutdown a catwalk process with name cw_server and --instance_name beginning with {0} failed.  It may be that another process (with a different instance name) is running on port {1}.  Review running processes (ps x) and kill residual processes on this port  manually if appropriate".format(self.instance_stem, self.bind_port))
+            warnings.warn(
+                "Attempt to shutdown a catwalk process with name cw_server and --instance_name beginning with {0} failed.  It may be that another process (with a different instance name) is running on port {1}.  Review running processes (ps x) and kill residual processes on this port  manually if appropriate".format(
+                    self.instance_stem, self.bind_port
+                )
+            )
+
     def stop_all(self):
         """ stops all catwalk servers """
         nKilled = 0
         for proc in psutil.process_iter():
-            if 'cw_server' in proc.name():
-                    proc.kill()
-                    nKilled +=1
+            if "cw_server" in proc.name():
+                proc.kill()
+                nKilled += 1
         if nKilled > 0:
-            warnings.warn("Catwalk client.stop_all() executed. Kill instruction issues on {0} processes.  Beware, this will kill all cw_server processes on the server, not any specific one".format(nKilled))
+            warnings.warn(
+                "Catwalk client.stop_all() executed. Kill instruction issues on {0} processes.  Beware, this will kill all cw_server processes on the server, not any specific one".format(
+                    nKilled
+                )
+            )
+
     def info(self):
         """
         Get status information from catwalk
@@ -184,22 +215,20 @@ in either
         """
 
         # note particular of creating json, but catwalk accepts this (refcomp has to be in '')
-        payload = { "name": name,
-                             "refcomp": json.dumps(refcomp),
-                             "keep": True }
+        payload = {"name": name, "refcomp": json.dumps(refcomp), "keep": True}
 
-        r = requests.post("{0}/add_sample_from_refcomp".format(self.cw_url),json=payload)
+        r = requests.post("{0}/add_sample_from_refcomp".format(self.cw_url), json=payload)
         r.raise_for_status()
-        if r.status_code not in [200,201]:
-            raise CatWalkServerInsertError(message = "Failed to insert {0}; return code was {1}".format(name, r.text)) 
+        if r.status_code not in [200, 201]:
+            raise CatWalkServerInsertError(message="Failed to insert {0}; return code was {1}".format(name, r.text))
         return r.status_code
 
     def neighbours(self, name, distance=None):
-        """ get neighbours.  neighbours are recomputed on demand.
+        """get neighbours.  neighbours are recomputed on demand.
 
-            Parameters:
-            name:  the name of the sample to search for
-            distance: the maximum distance reported.  if distance is not supplied, self.max_distance is used.
+        Parameters:
+        name:  the name of the sample to search for
+        distance: the maximum distance reported.  if distance is not supplied, self.max_distance is used.
         """
         if distance is None:
             distance = self.max_distance
@@ -209,9 +238,7 @@ in either
         return [(sample_name, int(distance_str)) for (sample_name, distance_str) in j]
 
     def sample_names(self):
-        """ get neighbours
-        """
+        """get neighbours"""
         r = requests.get("{0}/list_samples".format(self.cw_url))
         r.raise_for_status()
         return r.json()
-

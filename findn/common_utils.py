@@ -23,12 +23,14 @@ import logging
 from findn.mongoStore import fn3persistence
 from pathlib import Path
 from typing import Union
+
 PathLike = Union[str, Path]
 ConfigLike = Union[str, dict]
 
-class ConfigManager():
-    """ 
-    reads, and where approporiate modified from environmental variables containing secret 
+
+class ConfigManager:
+    """
+     reads, and where approporiate modified from environmental variables containing secret 
     configuration parameters etc, a findNeighbour config dictionary
 
     Can read from file, or (where configuration is present) from database.
@@ -80,16 +82,16 @@ class ConfigManager():
     """
 
     def __init__(self, config_fpath):
-        """ creates a config manager, which reads data from either
+        """creates a config manager, which reads data from either
         - the fn3persistence object PERSIST (a class accessing a mongodb, or None) OR
-        - on disc config files, except in first-run situations """
+        - on disc config files, except in first-run situations"""
 
         self.config_fpath = config_fpath
-        self.CONFIG=None
-        
+        self.CONFIG = None
+
     def _enforce_key_presence(self, key_dict: dict, required_keys: dict) -> None:
         """check that the required keys are in config file"""
-        missing_keys=set(required_keys.keys())-set(key_dict.keys())
+        missing_keys = set(required_keys.keys()) - set(key_dict.keys())
         if len(missing_keys) > 0:
             raise KeyError(f"Keys: {missing_keys} are required but were not found.")
 
@@ -97,133 +99,145 @@ class ConfigManager():
         """ require that the config object is valid json, or a dictionary """
         CONFIG = config_like
         if isinstance(CONFIG, str):
-            CONFIG=json.loads(CONFIG)   # assume JSON string; convert.
+            CONFIG = json.loads(CONFIG)  # assume JSON string; convert.
 
         if not isinstance(CONFIG, dict):
-                raise KeyError(f"Configuration object must be either a dictionary or a JSON string encoding a dictionary, but is {type(CONFIG)}")
+            raise KeyError(
+                f"Configuration object must be either a dictionary or a JSON string encoding a dictionary, but is {type(CONFIG)}"
+            )
         return CONFIG
 
-
     def read_config(self, not_debug_mode=False):
-        """ reads a configuration dictionary from file, with persistence to disc in first-run situations
-        
-            returns: configuration dictionary
+        """reads a configuration dictionary from file, with persistence to disc in first-run situations
 
-            override_disable_debug_mode is required for unit testing of clustering, but should not otherwise be needed
-        
+        returns: configuration dictionary
+
+        override_disable_debug_mode is required for unit testing of clustering, but should not otherwise be needed
+
         """
 
         # read the results from disc
-        required_keys= {'IP':True, 'REST_PORT':True, 'DEBUGMODE':True, 'LOGFILE':True, 'MAXN_PROP_DEFAULT':True}
-        self.CONFIG= self._read_config_from_file(self.config_fpath, required_keys=required_keys)
+        required_keys = {"IP": True, "REST_PORT": True, "DEBUGMODE": True, "LOGFILE": True, "MAXN_PROP_DEFAULT": True}
+        self.CONFIG = self._read_config_from_file(self.config_fpath, required_keys=required_keys)
 
         # check precomparer parameters
-        if len(self.CONFIG['PRECOMPARER_PARAMETERS'])>0:
+        if len(self.CONFIG["PRECOMPARER_PARAMETERS"]) > 0:
             # these are supplied
-            observed_keys = set(list(self.CONFIG['PRECOMPARER_PARAMETERS'].keys()))
-            expected_keys = set(["selection_cutoff",
-                                "over_selection_cutoff_ignore_factor",
-                                "uncertain_base"])
+            observed_keys = set(list(self.CONFIG["PRECOMPARER_PARAMETERS"].keys()))
+            expected_keys = set(["selection_cutoff", "over_selection_cutoff_ignore_factor", "uncertain_base"])
 
             missing = expected_keys - observed_keys
             if len(missing) > 0:
-                raise KeyError("Precomparer parameters were supplied, but the required keys were not found . Missing are {0}".format(missing))
-        
-        debug_status = self.CONFIG['DEBUGMODE']
+                raise KeyError(
+                    "Precomparer parameters were supplied, but the required keys were not found . Missing are {0}".format(
+                        missing
+                    )
+                )
+
+        debug_status = self.CONFIG["DEBUGMODE"]
         if not_debug_mode:
             debug_status = 0
 
         try:
-                self.PERSIST=fn3persistence(
-                        dbname = self.CONFIG['SERVERNAME'],           
-                        connString=self.CONFIG['FNPERSISTENCE_CONNSTRING'],
-                        debug=debug_status)
+            self.PERSIST = fn3persistence(
+                dbname=self.CONFIG["SERVERNAME"], connString=self.CONFIG["FNPERSISTENCE_CONNSTRING"], debug=debug_status
+            )
         except Exception:
-               logging.exception("Error raised on creating persistence object")
-               raise
+            logging.exception("Error raised on creating persistence object")
+            raise
 
-        do_not_persist_keys=set(['IP',"SERVERNAME",'FNPERSISTENCE_CONNSTRING',
-                            'LOGFILE','LOGLEVEL','REST_PORT',
-                            'SENTRY_URL', 'SERVER_MONITORING_MIN_INTERVAL_MSEC'])
+        do_not_persist_keys = set(
+            [
+                "IP",
+                "SERVERNAME",
+                "FNPERSISTENCE_CONNSTRING",
+                "LOGFILE",
+                "LOGLEVEL",
+                "REST_PORT",
+                "SENTRY_URL",
+                "SERVER_MONITORING_MIN_INTERVAL_MSEC",
+            ]
+        )
 
         if self.PERSIST.first_run():
             # we don't persist some things; some are secret, others might change
             self._first_run(do_not_persist_keys)
 
         # load the result from database
-        stored_config = self.PERSIST.config_read('config')
-        stored_config['excludePositions']=set(stored_config['excludePositions'])
-        for key in do_not_persist_keys:     # update stored config with any of the do_not_persist_keys
+        stored_config = self.PERSIST.config_read("config")
+        stored_config["excludePositions"] = set(stored_config["excludePositions"])
+        for key in do_not_persist_keys:  # update stored config with any of the do_not_persist_keys
             if key in self.CONFIG.keys():
-                stored_config[key] = self.CONFIG[key] 
+                stored_config[key] = self.CONFIG[key]
         self.CONFIG = stored_config
 
         # set min logging interval if not supplied
-        if 'SERVER_MONITORING_MIN_INTERVAL_MSEC' not in self.CONFIG.keys():
-                self.CONFIG['SERVER_MONITORING_MIN_INTERVAL_MSEC']=0
+        if "SERVER_MONITORING_MIN_INTERVAL_MSEC" not in self.CONFIG.keys():
+            self.CONFIG["SERVER_MONITORING_MIN_INTERVAL_MSEC"] = 0
 
         return self.CONFIG
+
     def _first_run(self, do_not_persist_keys):
         """ first run actions.  Stores CONFIG to database, minus any keys in do_not_persist_keys """
 
         # create a config dictionary
-        config_settings= {}
-        
-        # store start time 
-        config_settings['createTime']= datetime.datetime.now()
-        
+        config_settings = {}
+
+        # store start time
+        config_settings["createTime"] = datetime.datetime.now()
+
         # store description
-        config_settings['description']=self.CONFIG['DESCRIPTION']
+        config_settings["description"] = self.CONFIG["DESCRIPTION"]
 
         # store clustering settings
-        self.clustering_settings=self.CONFIG['CLUSTERING']
-        config_settings['clustering_settings']= self.clustering_settings
+        self.clustering_settings = self.CONFIG["CLUSTERING"]
+        config_settings["clustering_settings"] = self.clustering_settings
 
         # store precomparer settings
-        self.PERSIST.config_store('preComparer', self.CONFIG['PRECOMPARER_PARAMETERS'])
+        self.PERSIST.config_store("preComparer", self.CONFIG["PRECOMPARER_PARAMETERS"])
 
         # load the excluded bases
-        excluded=set()
-        if self.CONFIG['EXCLUDEFILE'] is not None:
-            with open(self.CONFIG['EXCLUDEFILE'],'rt') as f:
-                rows=f.readlines()
+        excluded = set()
+        if self.CONFIG["EXCLUDEFILE"] is not None:
+            with open(self.CONFIG["EXCLUDEFILE"], "rt") as f:
+                rows = f.readlines()
             for row in rows:
                 excluded.add(int(row))
 
         logging.info("Noted {0} positions to exclude.".format(len(excluded)))
-       
+
         # load reference
-        with open(self.CONFIG['INPUTREF'],'rt') as f:
-            for r in SeqIO.parse(f,'fasta'):
-                config_settings['reference']=str(r.seq)
+        with open(self.CONFIG["INPUTREF"], "rt") as f:
+            for r in SeqIO.parse(f, "fasta"):
+                config_settings["reference"] = str(r.seq)
 
         # persist other config settings.
         for item in self.CONFIG.keys():
             if item not in do_not_persist_keys:
-                config_settings[item]=self.CONFIG[item]
-        config_settings['excludePositions'] = list(sorted(excluded))
-   
-        self.PERSIST.config_store('config',config_settings)
+                config_settings[item] = self.CONFIG[item]
+        config_settings["excludePositions"] = list(sorted(excluded))
+
+        self.PERSIST.config_store("config", config_settings)
 
     def _read_config_from_file(self, config_fpath: PathLike, required_keys: dict = dict()) -> dict:
-        """ read a config file 
+        """read a config file
 
         input:      config_fpath, a path to a configuration file
         returns:    the config file as a dictionary"""
 
         used_fpath = Path(config_fpath)
         if not used_fpath.exists():
-                raise FileNotFoundError(f"Config file {used_fpath} not found")
+            raise FileNotFoundError(f"Config file {used_fpath} not found")
 
-        with used_fpath.open('r') as f:
-                CONFIG=f.read()
+        with used_fpath.open("r") as f:
+            CONFIG = f.read()
 
         CONFIG = self._enforce_config_object_type(CONFIG)
         self._enforce_key_presence(CONFIG, required_keys)
         CONFIG = self._environment_variables_override_config_defaults(CONFIG)
 
         return CONFIG
-        
+
     def _environment_variables_override_config_defaults(self, config_like: ConfigLike) -> dict:
         """ if environment variables are present containing connection strings, use these in precedence to results in CONFIG """
         CONFIG = config_like
@@ -248,14 +262,15 @@ class ConfigManager():
         # if the CW_BINARY_FILEPATH is present, replace whatever is in the config file
         if os.environ.get("CW_BINARY_FILEPATH") is not None:
 
-            try: 
-                CONFIG['PRECOMPARER_PARAMETERS']['catWalk_parameters']['cw_binary_filepath'] = os.environ.get("CW_BINARY_FILEPATH")
+            try:
+                CONFIG["PRECOMPARER_PARAMETERS"]["catWalk_parameters"]["cw_binary_filepath"] = os.environ.get(
+                    "CW_BINARY_FILEPATH"
+                )
             except KeyError:
-                pass        # no key
+                pass  # no key
 
         return CONFIG
 
     def validate_server_config(self, config_like: ConfigLike, required_keys: dict = dict()) -> None:
         CONFIG = self._enforce_config_object_type(config_like)
         self._enforce_key_presence(CONFIG, required_keys)
-
