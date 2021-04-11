@@ -1,5 +1,8 @@
 *.komodoproject
 .coverage
+coverage.xml
+htmlcov/
+
 .pytest_cache
 external_software/
 unittest_tmp/*

@@ -45,8 +45,6 @@ jobs:
         # clone catwalk relatedness engine
         mkdir external_software
         sudo apt-get install nim
-        # check version
-        nim -v
         cd external_software
         git clone https://gitea.mmmoxford.uk/dvolk/catwalk.git
         cd catwalk
@@ -63,6 +61,21 @@ jobs:
 
     - name: Test with pytest
       run: |
-        nohup pipenv run findNeighbour4_server.py &
+        nohup pipenv run python3 findNeighbour4_server.py &
         sleep 15
-        pipenv run pytest
+        pipenv run pytest --cov=./ --cov-report=xml
+        pipenv run coverage report
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ./coverage1.xml,./coverage2.xml
+        directory: ./coverage/reports/
+        flags: unittests
+        env_vars: OS,PYTHON
+        name: codecov-umbrella
+        fail_ci_if_error: true
+        path_to_write_report: ./coverage/codecov_report.txt
+        verbose: true
+
