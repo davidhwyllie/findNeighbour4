@@ -58,7 +58,7 @@ This will analyse all output from the above:
 
 
 """
-import copy
+
 import os
 import glob
 import random
@@ -67,8 +67,6 @@ import argparse
 import pathlib
 import time
 from Bio import SeqIO
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
 from fn4client import fn4Client
     
 if __name__ == '__main__':

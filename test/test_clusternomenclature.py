@@ -16,9 +16,7 @@ GNU Affero General Public License for more details.
 
 """
 
-import os
 import unittest
-import json
 from snpclusters.clusternomenclature import ClusterNameAssigner, ClusterNomenclature
 
 # unittests

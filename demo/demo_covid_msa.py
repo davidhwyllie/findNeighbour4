@@ -6,15 +6,12 @@ assumes a findNeighbour4 server is running
 if __name__ == '__main__':
 
     import os
-    import glob
     import datetime
-    import json
     import pandas as pd
+    import warnings
     from Bio import SeqIO
     from Bio.Seq import Seq
     from Bio.SeqRecord import SeqRecord
-
-    from collections import Counter
     from fn4client import fn4Client
 
 
@@ -36,7 +33,7 @@ if __name__ == '__main__':
     print("Analysing {0} samples, obtaining neighbourhood, and constructing msa.".format(len(my_special_samples)))
     missing_special_samples = my_special_samples - existing_guids
     if not len(missing_special_samples) == 0:
-        warning("Not all of my special samples are present in the server; missing are: {0}".format(missing_special_samples))
+        warnings.warning("Not all of my special samples are present in the server; missing are: {0}".format(missing_special_samples))
 
     # get the neighbours of my_special_samples
     for_msa = my_special_samples.copy()
@@ -85,9 +82,7 @@ if __name__ == '__main__':
     excel_outputfile = '{0}.xlsx'.format(output_file_stem)
     msa_df.to_excel(excel_outputfile)       #  study this carefully.  The p-values, if significant, are indicative of various types of mixture.
                                             # see https://github.com/davidhwyllie/findNeighbour4/blob/master/doc/mixtureTesting.md
-                                            # I am not sure that the impact of mixtures on transmission has been thought about
-                                            # I think test 3 (p_value3) is probably the most appropriate
-                                            # and I think there is variation compatible with microvariation in at least 5% of sequences  - happy to discuss
+                                            
 
     # note: the column aligned_seq may contain M characters if there is an IUPAC code
     # the column aligned_mseq will contain actual IUPAC code

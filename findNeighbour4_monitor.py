@@ -19,24 +19,14 @@ GNU Affero General Public License for more details.
 
 # import libraries
 import os
-import sys
 import argparse
 import logging
 import logging.handlers
 import warnings
-import pymongo
-import pandas as pd
-import numpy as np
 import pathlib
 import sentry_sdk
-import json
 import time
-import random
-import dateutil.parser
-import datetime
-import unittest
 from bokeh.embed import file_html
-from bokeh.plotting import show
 from bokeh.resources import CDN
 
 # config
@@ -44,7 +34,7 @@ from findn.common_utils import ConfigManager
 
 # fn3 storage module
 from findn.mongoStore import fn3persistence
-from findn.depictStatus import MakeHumanReadable, DepictServerStatus
+from findn.depictStatus import DepictServerStatus
 
 # startup
 if __name__ == '__main__':
@@ -101,11 +91,9 @@ if __name__ == '__main__':
         # launch sentry if API key provided
         if 'SENTRY_URL' in CONFIG.keys():
                 logger.info("Launching sentry client")
+                sentry_sdk.init(CONFIG['SENTRY_URL'])
 
-        #########################  CONFIGURE HELPER APPLICATIONS ######################
-
-
-        ########################  START Operations ###################################
+        # #######################  START Operations ###################################
         logger.info("Preparing to produce visualisations")
 
         logger.info("Connecting to backend data store at {0}".format(CONFIG['SERVERNAME']))

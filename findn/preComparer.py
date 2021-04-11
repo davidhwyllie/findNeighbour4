@@ -15,16 +15,10 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU Affero General Public License for more details.
 """
-import os, io, glob, gzip
-import unittest
+
 import copy
-import json
 import logging
-import requests
 from findn.pycw_client import CatWalk
-from Bio import SeqIO
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
 
 class preComparer():
     """ compares reference compressed sequences.  
@@ -66,11 +60,11 @@ class preComparer():
         over_selection_cutoff_ignore_factor:
             SNP distances more than over_selection_cutoff_ignore_factor * selection_cutoff do not need to be further analysed.  For example, if a SNP cutoff was 20, and over_selection_cutoff_ignore_factor is 5, we can safely consider with SNV distances > 100 (=20*5) as being unrelated.
 
-    	for optimal performance, over_selection_cutoff_ignore_factor cutoffs need to be tuned.  Code doing so is available in preComparer_calibrator.py.
+            for optimal performance, over_selection_cutoff_ignore_factor cutoffs need to be tuned.  Code doing so is available in preComparer_calibrator.py.
 
-	> if over_selection_cutoff_ignore_factor is very large ( > genome_length/selection_cutoff )
-	then preComparer will report all distances as requirng additional computation.
-	> if over_selection_cutoff_ignore_factor is 1, then preComparer will use the estimated snp distance computed as the basis for its decision as to whether additional testing is needed.
+        if over_selection_cutoff_ignore_factor is very large ( > genome_length/selection_cutoff )
+            then preComparer will report all distances as requirng additional computation.
+        if over_selection_cutoff_ignore_factor is 1, then preComparer will use the estimated snp distance computed as the basis for its decision as to whether additional testing is needed.
 
         catWalk_parameters: a dictionary.  If empty, catWalk doesn't run.  To run catWalk, the following keys are needed:
         cw_binary_filepath : path to the catwalk binary.  If present, the CW_BINARY_FILEPATH environment variable will be used instead.  To set this, edit or create an .env file next to the Pipfile (if using a virtual environment)
@@ -213,9 +207,9 @@ class preComparer():
 
         # store uncertain bases - either Us, Ns, or both
         # if there are no M or N keys, add them
-        if not 'N' in obj.keys():
+        if 'N' not in obj.keys():
                 obj['N']=set()
-        if not 'M' in obj.keys():
+        if 'M' not in obj.keys():
                 obj['Ms']=set()
         else:
                 obj['Ms']=set(obj['M'].keys())       # make a set of the positions of us
@@ -238,9 +232,6 @@ class preComparer():
                 for key in smaller_obj.keys():                    
                     to_catwalk[key_mapping[key]]=list(smaller_obj[key])     # make a dictionary for catwalk
 
-                info_message = f"""Loading into catWalk: {guid}.  Uncertain_base is {self.uncertain_base}, encoded as N for cw.  A:{len(to_catwalk['A'])};C:{len(to_catwalk['C'])};G:{len(to_catwalk['G'])};T:{len(to_catwalk['T'])};N:{len(to_catwalk['N'])}""" 
-                
-                #print(info_message)
                 self.catWalk.add_sample_from_refcomp(guid, to_catwalk)  # add it
            
             self.seqProfile[guid]={'invalid':obj['invalid']}      # that's all we store in python if catWalk is in use
@@ -280,17 +271,17 @@ class preComparer():
     def _classify(self, key1, key2, dist):
         """ returns a dictionary classifying our reponse to the observed dEstim between key1 and key2"""
         res= {
-        	'guid1_invalid':self.seqProfile[key1]['invalid'],
-			'guid2_invalid':self.seqProfile[key2]['invalid'],
-			'guid1_Ms':self.composition[key1]['M'],
-			'guid2_Ms':self.composition[key2]['M'],
-			'guid1_Ns':self.composition[key1]['N'],
-			'guid2_Ns':self.composition[key2]['N'],
-			'guid1_Us':self.composition[key1]['U'],
-			'guid2_Us':self.composition[key2]['U'],
-            'no_retest':False,
-			'reported_category':'not assigned',
-            'distances_are_exact':self.distances_are_exact
+        'guid1_invalid':self.seqProfile[key1]['invalid'],
+        'guid2_invalid':self.seqProfile[key2]['invalid'],
+        'guid1_Ms':self.composition[key1]['M'],
+        'guid2_Ms':self.composition[key2]['M'],
+        'guid1_Ns':self.composition[key1]['N'],
+        'guid2_Ns':self.composition[key2]['N'],
+        'guid1_Us':self.composition[key1]['U'],
+        'guid2_Us':self.composition[key2]['U'],
+        'no_retest':False,
+        'reported_category':'not assigned',
+        'distances_are_exact':self.distances_are_exact
         }
 
         if self.uncertain_base == 'N_or_M':
@@ -322,7 +313,7 @@ class preComparer():
         if guids is None:
             guids = set(self.seqProfile.keys())     # guids are all guids which have been successfully inserted.  
         
-        if not guid in self.seqProfile.keys():      # seqProfile keys do include all the samples stored in catWalk + the invalid ones; what we're asked for should be in here
+        if guid not in self.seqProfile.keys():      # seqProfile keys do include all the samples stored in catWalk + the invalid ones; what we're asked for should be in here
             raise KeyError("Asked to compare {0}  but guid requested has not been stored.  call .persist() on the sample to be added before using mcompare.")
         
         if self.seqProfile[guid]['invalid']==1:     # sequence is invalid
@@ -342,9 +333,6 @@ class preComparer():
                     neighbours.append(res)
         else:
             # use python comparison engine
-      
-            sampleCount = len(guids)
-            
             for key2 in guids:
                 if not guid==key2:
                     res=self.compare(guid,key2)
@@ -393,9 +381,10 @@ class preComparer():
         # determine whether we can 'exit fast' - stop computation at an early stage
         # optimisation discussed with Denis Volk
         # assign default return values
-        res = {'guid1':key1, 
-			'guid2':key2, 
-			'dist':None}
+        res = {
+                'guid1':key1, 
+                'guid2':key2, 
+                'dist':None}
 
         # if it is invalid, we can exit fast
         if self.seqProfile[key1]['invalid']+self.seqProfile[key2]['invalid']>0:
@@ -420,13 +409,12 @@ class preComparer():
         """
 
         # check keys are present
-        if not key1 in self.seqProfile.keys():
+        if key1 not in self.seqProfile.keys():
             raise KeyError("{0} not present in preComparer".format(key1))
-        if not key2 in self.seqProfile.keys():
+        if key2 not in self.seqProfile.keys():
             raise KeyError("{0} not present in preComparer".format(key2))
  
         # compute positions which differ;
-        nDiff=0
 
         differing_positions = set()
         for nucleotide in ['C','G','A','T']:

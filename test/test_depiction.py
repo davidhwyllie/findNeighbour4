@@ -2,7 +2,7 @@
 import os
 import json
 import unittest
-from bokeh.io import output_file, show, save
+from bokeh.io import output_file
 from bokeh.models.widgets import Div, Panel, Tabs
 from findn.depictStatus import DepictServerStatus
 
@@ -11,7 +11,7 @@ class test_init(unittest.TestCase):
     def runTest(self):
         """ tests init """
         
-        dss = DepictServerStatus()
+        DepictServerStatus()
 
 class test_logfile(unittest.TestCase):
     def runTest(self):
@@ -73,7 +73,7 @@ class test_depict_1(unittest.TestCase):
 
 
         doc = Tabs(tabs=tab_list)
-
+        self.assertTrue(doc is not None)
         #show(doc)
 
 class test_depict_2(unittest.TestCase):
@@ -96,7 +96,7 @@ class test_depict_2(unittest.TestCase):
         tab_list = [tab_g2n_all]
         
         doc = Tabs(tabs=tab_list)
-
+        self.assertTrue(doc is not None)
         #show(doc)
 
 class test_tail(unittest.TestCase):
@@ -112,6 +112,7 @@ class test_tail(unittest.TestCase):
 
         div = Div(text= res.replace('\n','<br />'), render_as_text=False, width=1000, height=800)
         tab1 = Panel(child=div, title='Log tail')        
-        doc = tabs = Tabs(tabs=[ tab1 ])
+        doc = Tabs(tabs=[ tab1 ])
 
+        self.assertTrue(doc is not None)
         #show(doc)

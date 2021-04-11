@@ -37,7 +37,8 @@ class Test_Server_Monitoring_1(unittest.TestCase):
                 self.assertEqual(res2['recompression_data'], True)
                 self.assertEqual(res2['latest_stats']['storage_ratio'], 1)
                 
-                retVal = json.dumps(res2)               # should succeed
+                json.dumps(res2)               # should succeed
+
 
 
 class Test_Server_Monitoring_2(unittest.TestCase):
@@ -48,7 +49,6 @@ class Test_Server_Monitoring_2(unittest.TestCase):
                 p.server_monitoring_store(message='two')
                 p.server_monitoring_store(message='three')
                 
-                   
                 res = p.recent_server_monitoring(0)
                 self.assertEqual(len(res),0)
                 self.assertTrue(isinstance(res,list))
@@ -137,6 +137,7 @@ class Test_SeqMeta_guid2neighbour_8(unittest.TestCase):
                 self.assertEqual(5, len(res1['neighbours']))
                 with self.assertRaises(NotImplementedError):
                     res2 = p.guid2neighbours('srcguid',returned_format=2)
+                    self.assertTrue(res2 is not None)
 
                 res3 = p.guid2neighbours('srcguid',returned_format=3)
                 self.assertEqual(5, len(res3['neighbours']))
@@ -317,7 +318,7 @@ class Test_SeqMeta_guid2neighbour_4e(unittest.TestCase):
                 self.assertEqual(res, 2) 
 
 
-class Test_SeqMeta_guid2neighbour_4e(unittest.TestCase):
+class Test_SeqMeta_guid2neighbour_4f(unittest.TestCase):
         """ tests creation of new guid2neighbour entries """
         def runTest(self):
                 p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)
@@ -403,6 +404,8 @@ class Test_SeqMeta_file_store2(unittest.TestCase):
                 guid ="guid1"
                 p.rcs.delete({'filename':guid})              # delete if present
                 pickled_obj = pickle.dumps(obj1, protocol=2)
+                self.assertTrue(pickled_obj is not None)
+
                 p.refcompressedseq_store(guid, obj1)
                 with self.assertRaises(FileExistsError):
                         p.refcompressedseq_store(guid, obj1)
@@ -770,6 +773,9 @@ class Test_Clusters(unittest.TestCase):
 
                 payload1b = {'2_one':1, '2_two':2}
                 y = p.cluster_store('cl2', payload1b)
+                self.assertTrue(y is not None)
+
+
 
                 self.assertIsNotNone(p.cluster_latest_version('cl1'))
                 clv = p.cluster_latest_version('cl1')
@@ -851,10 +857,15 @@ class Test_summarise_stored_items(unittest.TestCase):
         def runTest(self):
                 p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)                
                 res = p.summarise_stored_items()
+                self.assertTrue(res is not None)
+
+
 
 class Test_rotate_log(unittest.TestCase):
         """ adds server monitoring info"""
         def runTest(self):
                 p = fn3persistence(connString=UNITTEST_MONGOCONN, debug= 2)                
-                res = p.rotate_log()
+                p.rotate_log()
+                
+
 

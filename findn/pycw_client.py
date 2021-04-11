@@ -23,15 +23,12 @@ GNU Affero General Public License for more details.
 
 
 """
-import argparse
-import threading
-import subprocess
+
 import shlex
 import time
 import json
 import requests
 import logging
-import unittest
 import os
 import psutil
 import uuid
@@ -193,13 +190,16 @@ in either
 
         r = requests.post("{0}/add_sample_from_refcomp".format(self.cw_url),json=payload)
         r.raise_for_status()
-        if not r.status_code in [200,201]:
-            raise CatWalkServerInsertError(message = "Failed to insert {0}; return code was {1}".format(guid, result)) 
+        if r.status_code not in [200,201]:
+            raise CatWalkServerInsertError(message = "Failed to insert {0}; return code was {1}".format(name, r.text)) 
         return r.status_code
 
     def neighbours(self, name, distance=None):
         """ get neighbours.  neighbours are recomputed on demand.
-	if distance is not supplied, self.max_distance is used.
+
+            Parameters:
+            name:  the name of the sample to search for
+            distance: the maximum distance reported.  if distance is not supplied, self.max_distance is used.
         """
         if distance is None:
             distance = self.max_distance

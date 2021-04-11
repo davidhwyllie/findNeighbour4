@@ -17,18 +17,10 @@ GNU Affero General Public License for more details.
 """
 
 import unittest
-import os
-import glob
-import sys
-
-from Bio import SeqIO
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
-
-from findn.hybridComparer import hybridComparer, UNITTEST_MONGOCONN
+from findn.hybridComparer import hybridComparer
 from findn.pycw_client import CatWalk
 from findn.msa import MSAResult
-
+from Bio import SeqIO
 class test_hybridComparer_update_preComparer_settings(unittest.TestCase):
     """ tests update preComparer settings """
     def runTest(self):
@@ -469,7 +461,7 @@ class test_hybridComparer_2(unittest.TestCase):
         refSeq='ACTG'
         sc=hybridComparer(unittesting= True,  maxNs = 1e8, snpCeiling = 20,reference=refSeq,preComparer_parameters={'selection_cutoff':20,'uncertain_base':'M', 'over_selection_cutoff_ignore_factor':5, 'catWalk_parameters':{}})
         with self.assertRaises(TypeError):
-            retVal=sc.compress(sequence='AC')
+            sc.compress(sequence='AC')
 class test_hybridComparer_3(unittest.TestCase):
     def runTest(self):
         refSeq='ACTG'
@@ -552,7 +544,7 @@ class test_hybridComparer_6d(unittest.TestCase):
 
             compressed_sequence=sc.compress(sequence=original)
             with self.assertRaises(ValueError):
-                roundtrip = sc.uncompress(compressed_sequence)
+                sc.uncompress(compressed_sequence)
            
 class test_hybridComparer_16(unittest.TestCase):
     """ tests the comparison of two sequences where both differ from the reference. """
@@ -667,7 +659,7 @@ class test_hybridComparer_remove_all(unittest.TestCase):
 
         compressedObj =sc.compress(sequence='ACTT')
         sc.persist(compressedObj, 'two' )     
-        retVal=sc.load(guid='two' )
+        sc.load(guid='two' )
         self.assertEqual(len(sc.pc.seqProfile.keys()),2)    # two entry in the preComparer     
     
         sc.remove_all_temporary_seqs()
@@ -1018,7 +1010,7 @@ class test_hybridComparer_54(unittest.TestCase):
         with open(inputfile, 'rt') as f:
             for record in SeqIO.parse(f,'fasta'):
                     refSeq = str(record.seq)               
-                    originalseq = list(str(record.seq))
+                    
         hc=hybridComparer( maxNs = 1e8,
                        reference=refSeq,
                        snpCeiling =10,
@@ -1027,7 +1019,6 @@ class test_hybridComparer_54(unittest.TestCase):
                        disable_insertion=True)
         self.assertFalse(hc.pc.catWalk_enabled)
 
-        inserted_guids = ['guid_ref']
         obj = hc.compress(refSeq)
         with self.assertRaises(NotImplementedError):
             hc.persist(obj,'guid_ref')

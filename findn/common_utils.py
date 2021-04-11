@@ -19,22 +19,17 @@ import os
 import json
 import datetime
 from Bio import SeqIO
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
-import json
 import logging
-import unittest
 from findn.mongoStore import fn3persistence
-
 from pathlib import Path
-from typing import Union, Optional
-
+from typing import Union
 PathLike = Union[str, Path]
 ConfigLike = Union[str, dict]
 
 class ConfigManager():
-    """ reads, and where approporiate modified from environmental variables containing secret 
-	configuration parameters etc, a findNeighbour config dictionary
+    """ 
+    reads, and where approporiate modified from environmental variables containing secret 
+    configuration parameters etc, a findNeighbour config dictionary
 
     Can read from file, or (where configuration is present) from database.
 
@@ -43,44 +38,44 @@ class ConfigManager():
     CONFIG files are json files with fomrat similar to the below:
 
 
-		An example CONFIG is below:
-		
-		{			
-		"DESCRIPTION":"A test server operating in ../unittest_tmp, only suitable for testing",
-		"IP":"127.0.0.1",
-		"INPUTREF":"../reference/TB-ref.fasta",
-		"EXCLUDEFILE":"../reference/TB-exclude.txt",
-		"DEBUGMODE":0,
-		"SERVERNAME":"TBSNP",
-		"FNPERSISTENCE_CONNSTRING":"mongodb://127.0.0.1",
-		"MAXN_STORAGE":100000,
-		"MAXN_PROP_DEFAULT":0.70,
-		"PRECOMPARER_PARAMETERS":{},
-		"LOGFILE":"../unittest_tmp/logfile.log",
-		"LOGLEVEL":"INFO",
-		"SNPCEILING": 20,
-		"SERVER_MONITORING_MIN_INTERVAL_MSEC":0,
-		"SENTRY_URL":"https://c******************@sentry.io/1******",
-		"CLUSTERING":{'SNV12_ignore' :{'snv_threshold':12, 'mixed_sample_management':'ignore', 'mixture_criterion':'pvalue_1', 'cutoff':0.001},
-					  'SNV12_include':{'snv_threshold':12, 'mixed_sample_management':'include', 'mixture_criterion':'pvalue_1', 'cutoff':0.001}
-					 },
-		"LISTEN_TO":"127.0.0.1"
-		}
-		
-		where the database connection binds to
-		FNPERSISTENCE_CONNSTRING
-		Note: if a FNPERSISTENCE_CONNSTRING environment variable is present, then the value of this will take precedence over any values in the config file.
-		This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuration file.
-		
-		related to what monitoring the server uses
-		SERVER_MONITORING_MIN_INTERVAL_MSEC (optional)
-		
-		related to error handling
-		SENTRY_URL (optional)
-		Note: if a FN_SENTRY URL environment variable is present, then the value of this will take precedence over any values in the config file.
-		This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuraton file.
-		PERSIST is a storage object needs to be supplied.  The fn3Persistence class in mongoStore is one suitable object.
-		PERSIST=fn3persistence(connString=CONFIG['FNPERSISTENCE_CONNSTRING'])
+    An example CONFIG is below:
+
+    {			
+    "DESCRIPTION":"A test server operating in ../unittest_tmp, only suitable for testing",
+    "IP":"127.0.0.1",
+    "INPUTREF":"../reference/TB-ref.fasta",
+    "EXCLUDEFILE":"../reference/TB-exclude.txt",
+    "DEBUGMODE":0,
+    "SERVERNAME":"TBSNP",
+    "FNPERSISTENCE_CONNSTRING":"mongodb://127.0.0.1",
+    "MAXN_STORAGE":100000,
+    "MAXN_PROP_DEFAULT":0.70,
+    "PRECOMPARER_PARAMETERS":{},
+    "LOGFILE":"../unittest_tmp/logfile.log",
+    "LOGLEVEL":"INFO",
+    "SNPCEILING": 20,
+    "SERVER_MONITORING_MIN_INTERVAL_MSEC":0,
+    "SENTRY_URL":"https://c******************@sentry.io/1******",
+    "CLUSTERING":{'SNV12_ignore' :{'snv_threshold':12, 'mixed_sample_management':'ignore', 'mixture_criterion':'pvalue_1', 'cutoff':0.001},
+                    'SNV12_include':{'snv_threshold':12, 'mixed_sample_management':'include', 'mixture_criterion':'pvalue_1', 'cutoff':0.001}
+                    },
+    "LISTEN_TO":"127.0.0.1"
+    }
+
+    where the database connection binds to
+    FNPERSISTENCE_CONNSTRING
+    Note: if a FNPERSISTENCE_CONNSTRING environment variable is present, then the value of this will take precedence over any values in the config file.
+    This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuration file.
+
+    related to what monitoring the server uses
+    SERVER_MONITORING_MIN_INTERVAL_MSEC (optional)
+
+    related to error handling
+    SENTRY_URL (optional)
+    Note: if a FN_SENTRY URL environment variable is present, then the value of this will take precedence over any values in the config file.
+    This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuraton file.
+    PERSIST is a storage object needs to be supplied.  The fn3Persistence class in mongoStore is one suitable object.
+    PERSIST=fn3persistence(connString=CONFIG['FNPERSISTENCE_CONNSTRING'])
 
     """
 
@@ -91,6 +86,23 @@ class ConfigManager():
 
         self.config_fpath = config_fpath
         self.CONFIG=None
+        
+    def _enforce_key_presence(self, key_dict: dict, required_keys: dict) -> None:
+        """check that the required keys are in config file"""
+        missing_keys=set(required_keys.keys())-set(key_dict.keys())
+        if len(missing_keys) > 0:
+            raise KeyError(f"Keys: {missing_keys} are required but were not found.")
+
+    def _enforce_config_object_type(self, config_like: ConfigLike) -> dict:
+        """ require that the config object is valid json, or a dictionary """
+        CONFIG = config_like
+        if isinstance(CONFIG, str):
+            CONFIG=json.loads(CONFIG)   # assume JSON string; convert.
+
+        if not isinstance(CONFIG, dict):
+                raise KeyError(f"Configuration object must be either a dictionary or a JSON string encoding a dictionary, but is {type(CONFIG)}")
+        return CONFIG
+
 
     def read_config(self, not_debug_mode=False):
         """ reads a configuration dictionary from file, with persistence to disc in first-run situations
@@ -117,7 +129,6 @@ class ConfigManager():
             if len(missing) > 0:
                 raise KeyError("Precomparer parameters were supplied, but the required keys were not found . Missing are {0}".format(missing))
         
-        print("Connecting to backend data store")
         debug_status = self.CONFIG['DEBUGMODE']
         if not_debug_mode:
             debug_status = 0
@@ -127,7 +138,7 @@ class ConfigManager():
                         dbname = self.CONFIG['SERVERNAME'],           
                         connString=self.CONFIG['FNPERSISTENCE_CONNSTRING'],
                         debug=debug_status)
-        except Exception as e:
+        except Exception:
                logging.exception("Error raised on creating persistence object")
                raise
 
@@ -148,7 +159,7 @@ class ConfigManager():
         self.CONFIG = stored_config
 
         # set min logging interval if not supplied
-        if not 'SERVER_MONITORING_MIN_INTERVAL_MSEC' in self.CONFIG.keys():
+        if 'SERVER_MONITORING_MIN_INTERVAL_MSEC' not in self.CONFIG.keys():
                 self.CONFIG['SERVER_MONITORING_MIN_INTERVAL_MSEC']=0
 
         return self.CONFIG
@@ -188,7 +199,7 @@ class ConfigManager():
 
         # persist other config settings.
         for item in self.CONFIG.keys():
-            if not item in do_not_persist_keys:
+            if item not in do_not_persist_keys:
                 config_settings[item]=self.CONFIG[item]
         config_settings['excludePositions'] = list(sorted(excluded))
    
@@ -238,7 +249,6 @@ class ConfigManager():
         if os.environ.get("CW_BINARY_FILEPATH") is not None:
 
             try: 
-                existing_cw_binary = CONFIG['PRECOMPARER_PARAMETERS']['catWalk_parameters']['cw_binary_filepath']
                 CONFIG['PRECOMPARER_PARAMETERS']['catWalk_parameters']['cw_binary_filepath'] = os.environ.get("CW_BINARY_FILEPATH")
             except KeyError:
                 pass        # no key
@@ -246,22 +256,6 @@ class ConfigManager():
         return CONFIG
 
     def validate_server_config(self, config_like: ConfigLike, required_keys: dict = dict()) -> None:
-        CONFIG = _enforce_config_object_type(config_like)
+        CONFIG = self._enforce_config_object_type(config_like)
         self._enforce_key_presence(CONFIG, required_keys)
-
-    def _enforce_key_presence(self, key_dict: dict, required_keys: dict) -> None:
-        """check that the required keys are in config file"""
-        missing_keys=set(required_keys.keys())-set(key_dict.keys())
-        if len(missing_keys) > 0:
-            raise KeyError(f"Keys: {missing_keys} are required but were not found.")
-
-    def _enforce_config_object_type(self, config_like: ConfigLike) -> dict:
-        """ require that the config object is valid json, or a dictionary """
-        CONFIG = config_like
-        if isinstance(CONFIG, str):
-            CONFIG=json.loads(CONFIG)   # assume JSON string; convert.
-
-        if not isinstance(CONFIG, dict):
-                raise KeyError(f"Configuration object must be either a dictionary or a JSON string encoding a dictionary, but is {type(CONFIG)}")
-        return CONFIG
 

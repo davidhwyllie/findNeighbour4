@@ -29,21 +29,9 @@ GNU Affero General Public License for more details.
 
 """
 
-import glob
-import hashlib
-import hmac
-import base64
-import datetime
-import collections
 import requests
 import json
 import urllib.parse
-import codecs
-import unittest
-import os
-import time
-import pymongo
-import warnings
 import logging
 import gzip
 import io
@@ -51,11 +39,7 @@ import pandas as pd
 
 # used for loading fasta files.
 from Bio import SeqIO
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
 
-# used for unittesting
-import uuid
 
 class fn4Client():
     """ python3 API to the findNeighbour3 + -server REST endpoint.
@@ -89,7 +73,7 @@ class fn4Client():
     def _isjson(self, content):
         """ returns true if content parses as json, otherwise false """
         try:
-            x = json.loads(content.decode('utf-8'))
+            json.loads(content.decode('utf-8'))
             return True
 
         except json.decoder.JSONDecodeError:
@@ -103,14 +87,13 @@ class fn4Client():
 
     def getpost(self, relpath, method='GET', payload=None, timeout=None):
         """ issues GET or POST against url.  returns a response object
-	    will raise errors if generated, but does not raise errors if a valid
+            will raise errors if generated, but does not raise errors if a valid
             response object is returned, even if it has a status_code indicating the call failed
         """
         
         session = requests.Session()
         session.trust_env = False
     
-        sc = -1
         url = self.absurl(relpath)
         if method == 'GET':
             response = session.get(url=url)

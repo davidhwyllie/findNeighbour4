@@ -18,6 +18,8 @@ GNU Affero General Public License for more details.
 """
 
 import unittest
+import datetime
+import uuid
 from findn.guidLookup import guidSearcher
 
 
@@ -54,20 +56,28 @@ class test_gm_2(unittest.TestCase):
         retVal = gs.search('b', max_returned=30)
         self.assertEqual(retVal, ['b1','b2','b3'])
         retVal = gs.search('b', max_returned=1)
-        self.assertEqual(retVal, [])
+        print(retVal)
+        self.assertEqual(retVal, ['b1'])
         retVal = gs.search('b', max_returned=1, return_subset=True)
         self.assertEqual(len(retVal),1)
+        retVal = gs.search('b', max_returned=1, return_subset=False)
+        self.assertEqual(len(retVal),0)
+
+        retVal = gs.search('b', max_returned=2, return_subset=True)
+        self.assertEqual(len(retVal),2)
+        retVal = gs.search('b', max_returned=2, return_subset=False)
+        self.assertEqual(len(retVal),0)
         retVal = gs.search('z')
         self.assertEqual(retVal, [])
 
-class test_gm_2(unittest.TestCase):
+class test_gm_3(unittest.TestCase):
     def runTest(self):
 
         gs = guidSearcher()
         gs.add('b1')
          
         retVal = gs.search('b1')
-        self.assertEqual(retVal, ['b1'])
+        self.assertEqual(len(retVal),1)
                
 @unittest.skip("benchmark disabled")       
 class test_gm_benchmark(unittest.TestCase):
@@ -80,7 +90,7 @@ class test_gm_benchmark(unittest.TestCase):
         gs = guidSearcher()
         
         print("generating list of guids")
-        t1=  datetime.datetime.now()
+
         added = []
         for i in range(1000000):
             new_guid = str(uuid.uuid4())

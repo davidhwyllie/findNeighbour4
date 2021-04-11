@@ -15,28 +15,22 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU Affero General Public License for more details.
 """
 
-import os, io, random
-import string
+import random
 import numpy as np
 import pandas as pd
-import time
 import faker
 import collections
 
-from Bio.Seq import Seq
-from Bio import AlignIO, SeqIO
-
-from bokeh.plotting import figure, save, output_file
-from bokeh.models import ColumnDataSource, Plot, Grid, Range1d, Span, Panel, Tabs, RangeTool
-from bokeh.models.glyphs import Text, Rect
+from bokeh.plotting import figure
+from bokeh.models import ColumnDataSource, Span, Panel, Tabs, RangeTool
+from bokeh.models.glyphs import Rect
 from bokeh.models.widgets import Div, Button
-from bokeh.models.widgets import DataTable, DateFormatter, TableColumn
+from bokeh.models.widgets import DataTable,  TableColumn
 from bokeh.models.callbacks import CustomJS
 from bokeh.events import ButtonClick
 
 from bokeh.layouts import grid
 from bokeh.embed import file_html
-from bokeh.plotting import show
 from bokeh.resources import CDN
 
 class SimulateSequenceData():
@@ -120,7 +114,7 @@ class DepictMSA():
            self.iupac = iupac
            self.positions_analysed = positions_analysed
            self.max_elements_in_plot = max_elements_in_plot
-	   
+
            # note: by default, the index will become the y-labels.  To display in a different order, reindex.
            self.df['msa_id']=self.df.index.tolist()
            if identify_sequence_by is not None:
@@ -167,7 +161,7 @@ class DepictMSA():
            self.compositions = pd.DataFrame.from_dict(self.compositions, orient='index')
            self.compositions.fillna(0, inplace=True)
            for compulsory_column in ['A','C','G','T']:
-                if not compulsory_column in self.compositions.columns.tolist():
+                if compulsory_column not in self.compositions.columns.tolist():
                     self.compositions[compulsory_column]=0
            self.df = self.df.merge(self.compositions, left_index=True,right_index=True)
            self.compositions['msa_id'] = self.compositions.index
@@ -316,7 +310,7 @@ class DepictMSA():
                xx, yy = np.meshgrid(x,y)
                gx = xx.ravel()
                gy = yy.flatten()
-               h = 1/self.nSeqs
+
                nucl = [i for s in self.df['aligned_mseq'].tolist() for i in s]
 
                # create a dataframe and link to colours           

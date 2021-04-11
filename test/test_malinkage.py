@@ -23,7 +23,7 @@ from findn.common_utils import ConfigManager
 from findn.mongoStore import fn3persistence
 from findn.hybridComparer import hybridComparer
 from findn.pycw_client import CatWalk
-from snpclusters.ma_linkage import MockPersistence, MixtureChecker, NoMixtureChecker, TestMixtureChecker, MixPOREMixtureChecker, MixtureAwareLinkageResult, MixtureAwareLinkage
+from snpclusters.ma_linkage import MockPersistence, MixtureCheckerTest, MixPOREMixtureChecker, MixtureAwareLinkageResult, MixtureAwareLinkage
 
 # unittests
 
@@ -251,7 +251,7 @@ class Test_MAL_10(unittest.TestCase):
  
         # check update adds remaining guids
         m = MixtureAwareLinkage(PERSIST=p, snv_threshold=20)
-        guids_to_add = list(p.guids())    
+        #guids_to_add = list(p.guids())    
         m.update()
         self.assertEqual(len(m.guids()), n_guids)     
 
@@ -276,7 +276,7 @@ class Test_MAL_11(unittest.TestCase):
  
         # check update adds remaining guids
         m = MixtureAwareLinkage(PERSIST=p, snv_threshold=20)
-        guids_to_add = list(p.guids())    
+        #guids_to_add = list(p.guids())    
         m.update()
         
         retVal = m.serialise()
@@ -315,7 +315,7 @@ class Test_MAL_12(unittest.TestCase):
         # check update adds remaining guids
         #print("Creating",datetime.datetime.now())    
         m = MixtureAwareLinkage(PERSIST=p, snv_threshold=20)
-        guids_to_add = list(p.guids())    
+        #guids_to_add = list(p.guids())    
         m.update()
         #print("Done",datetime.datetime.now())
          
@@ -354,7 +354,7 @@ class Test_MAL_13(unittest.TestCase):
         # check update adds remaining guids
         #print("Creating",datetime.datetime.now())    
         m = MixtureAwareLinkage(PERSIST=p, snv_threshold=20)
-        guids_to_add = list(p.guids())    
+        #guids_to_add = list(p.guids())    
         m.update()
        
         retVal = m.centrality()
@@ -382,7 +382,7 @@ class Test_MAL_14a(unittest.TestCase):
         guids_to_remove = guids_to_add[0:200]
 
         # check it works
-        pre = m._connectedComponents(what = 'node_id')
+        m._connectedComponents(what = 'node_id')
         m.remove_edges(set(guids_to_remove))
         edges_post = m.g.numberOfEdges()
         self.assertTrue(edges_post < edges_pre)
@@ -397,7 +397,7 @@ class Test_MAL_14a(unittest.TestCase):
         guids_to_remove = guids_to_add[200:400]
 
         # check it works post simplification
-        pre = m._connectedComponents(what = 'node_id')
+        m._connectedComponents(what = 'node_id')
         m.remove_edges(set(guids_to_remove))
         edges_post = m.g.numberOfEdges()
 
@@ -411,8 +411,8 @@ class Test_MAL_14b(unittest.TestCase):
         p = MockPersistence(n_guids = n_guids)
  
         # check update adds remaining guids
-        m1 = MixtureAwareLinkage(PERSIST=p, MIXCHECK=TestMixtureChecker(), snv_threshold=20, mixed_sample_management = 'include')  # with this setting, mixtures are  not evaluated and edge removals don't occur
-        guids_to_add = list(p.guids())    
+        m1 = MixtureAwareLinkage(PERSIST=p, MIXCHECK=MixtureCheckerTest(), snv_threshold=20, mixed_sample_management = 'include')  # with this setting, mixtures are  not evaluated and edge removals don't occur
+        #guids_to_add = list(p.guids())    
         m1.update()
         self.assertEqual(len(m1.guids()), n_guids)     
       
@@ -420,8 +420,8 @@ class Test_MAL_14b(unittest.TestCase):
         self.assertFalse(m1.is_simplified)
  
         # check update adds remaining guids
-        m2 = MixtureAwareLinkage(PERSIST=p, MIXCHECK=TestMixtureChecker(), snv_threshold=20, mixed_sample_management = 'ignore')  # with this setting, mixtures are  not evaluated and edge removals don't occur
-        guids_to_add = list(p.guids())    
+        m2 = MixtureAwareLinkage(PERSIST=p, MIXCHECK=MixtureCheckerTest(), snv_threshold=20, mixed_sample_management = 'ignore')  # with this setting, mixtures are  not evaluated and edge removals don't occur
+        #guids_to_add = list(p.guids())    
         m2.update()
         self.assertEqual(len(m2.guids()), n_guids)     
       
@@ -438,7 +438,7 @@ class Test_MAL_15(unittest.TestCase):
  
         # check update adds remaining guids
         m = MixtureAwareLinkage(PERSIST=p, snv_threshold=20)
-        guids_to_add = list(p.guids())    
+        #guids_to_add = list(p.guids())    
         m.update()
         self.assertEqual(len(m.guids()), n_guids)     
         self.assertEqual(len(m.name2meta()), n_guids)
@@ -452,7 +452,7 @@ class Test_TMT_1(unittest.TestCase):
     """ tests the setting of mixed samples by the test mixture checker"""
     def runTest(self):
 
-        MIXCHECK = TestMixtureChecker()
+        MIXCHECK = MixtureCheckerTest()
         res = MIXCHECK.is_mixed('a12')
         self.assertFalse(res['is_mixed'])       # doesn't begin with a number
         res = MIXCHECK.is_mixed('1a2')
@@ -470,9 +470,9 @@ class Test_MAL_16(unittest.TestCase):
         p = MockPersistence(n_guids = n_guids)
  
         # check update adds remaining guids
-        m = MixtureAwareLinkage(PERSIST=p, MIXCHECK = TestMixtureChecker(), snv_threshold=20,
+        m = MixtureAwareLinkage(PERSIST=p, MIXCHECK = MixtureCheckerTest(), snv_threshold=20,
                                     mixed_sample_management = 'include')
-        guids_to_add = list(p.guids())    
+        #guids_to_add = list(p.guids())    
         m.update()
 
         self.assertEqual(len(m.guids()), n_guids)     
@@ -497,7 +497,7 @@ class Test_MAL_16(unittest.TestCase):
                 self.assertIsNone(res.at[guid,'is_mixed'])
 
         cl = m.cluster()
-
+        self.assertTrue(cl is not None)
         # now: the guids which begin with 0-2 should be mixed.
         # the others are not mixed.
         # the unmixed samples should all be in 1 cluster.
@@ -525,9 +525,9 @@ class Test_MAL_17(unittest.TestCase):
         p = MockPersistence(n_guids = n_guids)
  
         # check update adds remaining guids
-        m = MixtureAwareLinkage(PERSIST=p, MIXCHECK = TestMixtureChecker(), snv_threshold=20,
+        m = MixtureAwareLinkage(PERSIST=p, MIXCHECK = MixtureCheckerTest(), snv_threshold=20,
                                     mixed_sample_management = 'ignore')
-        guids_to_add = list(p.guids())    
+        #guids_to_add = list(p.guids())    
         m.update()
 
         self.assertEqual(len(m.guids()), n_guids)     
@@ -553,11 +553,11 @@ class Test_MAL_17(unittest.TestCase):
                 self.assertIsNone(res.at[guid,'is_mixed'])
 
         cl = m.cluster()
-
+        self.assertTrue(cl is not None)
         # now: the guids which begin with 0-2 should be ignored and treated like all the others.
         # the others are not mixed.
         # the unmixed samples should all be in 1 cluster.
-        in_clusters = set()
+       
         for guid in res.index:
             begins_with_number = guid[0] in ['0','1','2']
             has_neighbours = res.loc[guid, 'nneighbours'] >0
@@ -577,9 +577,9 @@ class Test_MAL_18(unittest.TestCase):
         p = MockPersistence(n_guids = n_guids)
  
         # check update adds remaining guids
-        m = MixtureAwareLinkage(PERSIST=p, MIXCHECK = TestMixtureChecker(), snv_threshold=20,
+        m = MixtureAwareLinkage(PERSIST=p, MIXCHECK = MixtureCheckerTest(), snv_threshold=20,
                                     mixed_sample_management = 'exclude')
-        guids_to_add = list(p.guids())    
+        #guids_to_add = list(p.guids())    
         m.update()
 
         self.assertEqual(len(m.guids()), n_guids)     
@@ -604,11 +604,12 @@ class Test_MAL_18(unittest.TestCase):
             else:
                 self.assertIsNone(res.at[guid,'is_mixed'])
         cl = m.cluster()
+        self.assertTrue(cl is not None)
 
         # now: the guids which begin with 0-2 should be mixed.
         # the others are not mixed.
         # all samples should be in 1 cluster.
-        in_clusters = set()
+       
         for guid in res.index:
             begins_with_number = guid[0] in ['0','1','2']
             has_neighbours = res.loc[guid, 'nneighbours'] >0
@@ -629,9 +630,9 @@ class Test_MAL_19(unittest.TestCase):
         p = MockPersistence(n_guids = n_guids)
  
         # check update adds remaining guids
-        m = MixtureAwareLinkage(PERSIST=p, MIXCHECK = TestMixtureChecker(), snv_threshold=20,
+        m = MixtureAwareLinkage(PERSIST=p, MIXCHECK = MixtureCheckerTest(), snv_threshold=20,
                                     mixed_sample_management = 'include', parameters={'Param1':1,'Param2':2,'snv_threshold':12,'uncertain_base_type':'M'}, name='MAL_19')
-        guids_to_add = list(p.guids())    
+        #guids_to_add = list(p.guids())    
         m.update()
 
         self.assertEqual(len(m.guids()), n_guids)     
@@ -661,9 +662,9 @@ class Test_MAL_20(unittest.TestCase):
         p = MockPersistence(n_guids = n_guids)
  
         # check update adds remaining guids
-        m = MixtureAwareLinkage(PERSIST=p, MIXCHECK = TestMixtureChecker(), snv_threshold=20,
+        m = MixtureAwareLinkage(PERSIST=p, MIXCHECK = MixtureCheckerTest(), snv_threshold=20,
                                     mixed_sample_management = 'include', parameters={'Param1':1,'Param2':2,'snv_threshold':12,'uncertain_base_type':'M'}, name='MAL_20')
-        guids_to_add = list(p.guids())    
+        #guids_to_add = list(p.guids())    
         m.update()
 
         # check output after clustering
@@ -674,7 +675,7 @@ class Test_MAL_20(unittest.TestCase):
         m.remove_legacy()
 
         # reload from persistence
-        m = MixtureAwareLinkage(PERSIST=p, MIXCHECK = TestMixtureChecker(), snv_threshold=20,
+        m = MixtureAwareLinkage(PERSIST=p, MIXCHECK = MixtureCheckerTest(), snv_threshold=20,
                                     mixed_sample_management = 'include', parameters={'Param1':1,'Param2':2,'snv_threshold':12,'uncertain_base_type':'M'}, name='MAL_20')
         self.assertEqual(m.guids(),p.guids())
 
@@ -703,7 +704,7 @@ class Test_MAL_20(unittest.TestCase):
         m.remove_legacy()
 
         # reload from persistence
-        m = MixtureAwareLinkage(PERSIST=p, MIXCHECK = TestMixtureChecker(), snv_threshold=20,
+        m = MixtureAwareLinkage(PERSIST=p, MIXCHECK = MixtureCheckerTest(), snv_threshold=20,
                                     mixed_sample_management = 'include', parameters={'Param1':1,'Param2':2,'snv_threshold':12,'uncertain_base_type':'M'}, name='MAL_20')
 
         # test that the guid2cluster maps are the same
@@ -711,9 +712,9 @@ class Test_MAL_20(unittest.TestCase):
 
         # test apply_cluster_labels()
         # check update adds remaining guids
-        m = MixtureAwareLinkage(PERSIST=p, MIXCHECK = TestMixtureChecker(), snv_threshold=20,
+        m = MixtureAwareLinkage(PERSIST=p, MIXCHECK = MixtureCheckerTest(), snv_threshold=20,
                                     mixed_sample_management = 'include', parameters={'Param1':1,'Param2':2,'snv_threshold':12,'uncertain_base_type':'M'}, name='MAL_20_v2')
-        guids_to_add = list(p.guids())    
+        #guids_to_add = list(p.guids())    
         m.update()
 
         # check output after clustering
@@ -744,7 +745,7 @@ class test_Raise_error(unittest.TestCase):
        p = MockPersistence(n_guids = 50)
  
        # check update adds remaining guids
-       m = MixtureAwareLinkage(PERSIST=p, MIXCHECK = TestMixtureChecker(), snv_threshold=20)
+       m = MixtureAwareLinkage(PERSIST=p, MIXCHECK = MixtureCheckerTest(), snv_threshold=20)
                      
        with self.assertRaises(ZeroDivisionError):
             m.raise_error("token")
@@ -837,6 +838,7 @@ class test_MIXCHECK_1(unittest.TestCase):
                 obj = hc.compress(seq)	
                 loginfo = hc.persist(obj, guid_to_insert)
                 #print(loginfo)
+                self.assertTrue(loginfo is not None)
             # test the mixporemixture checker.
             for guid in guids_inserted:
                 res = mpmc.is_mixed(guid)
@@ -869,9 +871,9 @@ class Test_MALR_1(unittest.TestCase):
         # generate something to analyse
         n_guids = 10  
         p = MockPersistence(n_guids = n_guids)
-        m = MixtureAwareLinkage(PERSIST=p, MIXCHECK = TestMixtureChecker(), snv_threshold=20,
+        m = MixtureAwareLinkage(PERSIST=p, MIXCHECK = MixtureCheckerTest(), snv_threshold=20,
                                     mixed_sample_management = 'include', parameters={'Param1':1,'Param2':2,'snv_threshold':12,'uncertain_base_type':'M'}, name='test')
-        guids_to_add = list(p.guids())    
+        # guids_to_add = list(p.guids())    
         m.update()
         m.cluster()   
         serialisation = m.serialise_output()
@@ -921,8 +923,7 @@ class Test_MALR_1(unittest.TestCase):
         res = malr.clusters2guidmeta()
         self.assertEqual(len(res), len(p.guids()))
 
-
-	# load an empty or missing data set
+        # load an empty or missing data set
         malr = MixtureAwareLinkageResult(PERSIST=p, name='nodata')
         self.assertTrue(isinstance(malr.change_id, int))
         self.assertTrue(isinstance(malr.guids(), set))
@@ -933,8 +934,7 @@ class Test_MALR_1(unittest.TestCase):
         res = malr.clusters2guidmeta()
         self.assertEqual(len(res), 0)
 
-
-	# load an empty or missing data set
+        # load an empty or missing data set
         p.latest_version_behaviour='nochange'       # don't increment version
 
         malr = MixtureAwareLinkageResult(PERSIST=p, name='test')
@@ -959,8 +959,7 @@ class Test_MALR_1(unittest.TestCase):
         t2 = malr.current_version_load_time		# should not reload
         self.assertEqual(t1,t2)
 
-
-	    # load an empty or missing data set
+        # load an empty or missing data set
         p.latest_version_behaviour='increment'       # increment version
 
         malr = MixtureAwareLinkageResult(PERSIST=p, name='test')

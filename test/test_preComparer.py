@@ -18,14 +18,10 @@ GNU Affero General Public License for more details.
 
 import unittest
 import os
-import json
 import io
 import glob
-import pandas as pd
+import gzip
 from Bio import SeqIO
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
-
 
 from findn.preComparer import preComparer
 
@@ -38,6 +34,7 @@ class test_preComparer_1(unittest.TestCase):
         # initialise comparer
         sc=preComparer(  selection_cutoff = 20,
                     over_selection_cutoff_ignore_factor= 5, uncertain_base='M')
+        self.assertIsInstance(sc, preComparer)
 
 class test_preComparer_1b(unittest.TestCase):
     """ tests check_operating_parameters method"""
@@ -243,7 +240,7 @@ class test_preComparer_5(unittest.TestCase):
         sc.persist(obj,'guid3')
 
         res = sc.compare('guid2','guid3')
-
+        self.assertTrue(res is not None)
 
 class test_preComparer_6(unittest.TestCase):
     """ tests comparison """
@@ -258,6 +255,9 @@ class test_preComparer_6(unittest.TestCase):
         sc.persist(obj,'guid3')
 
         res = sc.compare('guid2','guid3')
+        self.assertTrue(res is not None)
+
+
 
 class test_preComparer_7(unittest.TestCase):
     """ tests comparison """

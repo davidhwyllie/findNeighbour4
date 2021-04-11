@@ -1,5 +1,5 @@
-""" runs  findNeighbour3 benchmark
-assumes a findNeighbour3 server is running, with the connection string stated in the config file passed as the single argument.
+""" runs  findNeighbour4 benchmark
+assumes a findNeighbour4 server is running, with the connection string stated in the config file passed as the single argument.
 
 """
 
@@ -14,7 +14,7 @@ from fn4client import fn4Client
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         formatter_class= argparse.RawTextHelpFormatter,
-        description="""Runs benchmarks against findNeighbour3-server""")
+        description="""Runs benchmarks against findNeighbour4_server""")
     parser.add_argument('path_to_server_config_file', type=str, action='store', nargs='?',help='the path to the configuration file',default='')
     args = parser.parse_args()
     if len(args.path_to_server_config_file)>0:
@@ -25,8 +25,7 @@ if __name__ == '__main__':
     with open(configFile,'r') as f:
         CONFIG=f.read()
     CONFIG=json.loads(CONFIG)
-    description= CONFIG['SERVERNAME']
-			    
+    description= CONFIG['SERVERNAME']		    
     def ll2s(x):
         """ converts a list of lists, e.g. [['guid1',2],['guid2',0]] into a set {'guid1','guid2'} """
         neighbour_set = set()
@@ -61,7 +60,7 @@ if __name__ == '__main__':
             read_failed = True
         
         if not read_failed:    
-            if not guid in existing_guids:
+            if  guid not in existing_guids:
                 fn4c.insert(guid=guid,seq=seq)
                 result= 'inserted'
             else:

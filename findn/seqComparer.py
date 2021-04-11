@@ -16,7 +16,6 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU Affero General Public License for more details.
 """
 # python3 code to compare fasta sequences
-import unittest
 import hashlib
 import json
 import numpy as np
@@ -96,7 +95,7 @@ class seqComparer():
 
         # older databases don't store the M/N combination positions in the 'U' key
         # we create it on load into RAM
-        if not 'U' in object.keys():
+        if 'U' not in object.keys():
             object['U'] = set()
             if 'N' in object.keys():
                 object['U']=object['N']     # if no Ms, then this is a reference taking ~ no memory
@@ -142,11 +141,10 @@ class seqComparer():
         if guids is None:
             guids = set(self.seqProfile.keys())
         
-        if not guid in self.seqProfile.keys():
+        if guid not in self.seqProfile.keys():
             raise KeyError("Asked to compare {0}  but guid requested has not been stored.  call .persist() on the sample to be added before using mcompare.".format(guid))
         
         guids = list(set(guids))       
-        sampleCount = len(guids)
         neighbours = []
         
         for key2 in guids:
@@ -269,7 +267,7 @@ class seqComparer():
                     diffDict['U'].add(i)
             if sequence[i] == 'N':
                 diffDict['U'].add(i)
-			                 
+                 
         # check how many Ns or Ms  
         if len(diffDict['U'])>self.maxNs:
             # we store it, but not with sequence details if is invalid
@@ -323,9 +321,9 @@ class seqComparer():
         
         ## test the keys exist
         (key1,key2)=keyPair
-        if not key1 in self.seqProfile.keys():
+        if key1 not in self.seqProfile.keys():
             raise KeyError("Key1={0} does not exist in the in-memory store.".format(key1))
-        if not key2 in self.seqProfile.keys():
+        if key2 not in self.seqProfile.keys():
             raise KeyError("Key1={0} does not exist in the in-memory store.".format(key1))
          
         # if cutoff is not specified, we use snpCeiling
@@ -351,7 +349,7 @@ class seqComparer():
         
         Ns and Ms (uncertain bases) are ignored in snp computations.
 
-	"""
+        """
         #  if cutoff is not specified, we use snpCeiling
         if cutoff is None:
             cutoff = self.snpCeiling
@@ -428,7 +426,6 @@ class seqComparer():
         guids = list(set(self.seqProfile.keys())-set(exclude_guids))
         np.random.shuffle(list(guids))
         
-        retVal = None       # cannot compute 
         unks = []
         for guid in guids:
             this_unk = 0
@@ -457,7 +454,6 @@ class seqComparer():
         guids = list(set(self.seqProfile.keys())-set(exclude_guids))
         np.random.shuffle(list(guids))
   
-        retVal = None       # cannot compute 
         unks = []
         for guid in guids:
             try:
@@ -699,7 +695,7 @@ class seqComparer():
             for base in ['A','C','T','G']:
                 positions = self.seqProfile[guid][base]
                 for position in positions:
-                  if not position in nrps.keys():     # if it's non-reference, and we've got no record of this position
+                  if position not in nrps.keys():     # if it's non-reference, and we've got no record of this position
                      nrps[position]=set()             # then we generate a set of bases at this position                   
                   nrps[position].add(base)            # either way add the current non-reference base there
                   
@@ -729,8 +725,7 @@ class seqComparer():
         for i,base in enumerate(['A','C','G','T']):
             if base in fconst_dict.keys():
                 fconst[i] = fconst_dict[base]
-        fconst_str = "{0},{1},{2},{3}".format(fconst[0],fconst[1],fconst[2],fconst[3])
-        
+
         # step 4: determine the sequences of all variant positions.
         ordered_variant_positions = sorted(list(variant_positions))
         guid2seq = {}

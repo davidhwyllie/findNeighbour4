@@ -16,23 +16,11 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU Affero General Public License for more details.
 
 """
-import unittest
-import os
-import glob
-import sys
-
 import datetime
-import pickle
 import hashlib
-import math
-import multiprocessing
-import uuid
 import json
-import psutil
 import copy
-from gzip import GzipFile
 import random
-import itertools
 import numpy as np
 from scipy.stats import binom_test
 import pandas as pd
@@ -41,9 +29,7 @@ import logging
 from collections import Counter
 from findn.mongoStore import fn3persistence
 from findn.preComparer import preComparer     # catwalk enabled
-from findn.identify_sequence_set import IdentifySequenceSet
 from findn.msa import MSAResult
-from findn.pycw_client import CatWalk
 
 # connection to mongodb on localhost; used for unittesting
 UNITTEST_MONGOCONN = "mongodb://localhost"
@@ -313,7 +299,7 @@ class hybridComparer():
         if guids is None:
             guids = set(self.pc.seqProfile.keys())
         
-        if not guid in self.pc.seqProfile.keys():
+        if guid not in self.pc.seqProfile.keys():
             raise KeyError("Asked to compare {0}  but guid requested has not been stored in the preComparer.  call .persist() on the sample to be added before using mcompare.".format(guid))
         
         # mcompare using preComparer
@@ -337,7 +323,6 @@ class hybridComparer():
         if not exact_comparison:
             # need to do second phase computation to determine neighbours
             guids = list(set(guids))       
-            sampleCount = len(guids)
 
             # load guid
             load_time =0 
@@ -524,8 +509,6 @@ class hybridComparer():
         nDiff = len(differing_positions)
         
         if nDiff<=cutoff:
-            seq1_uncertain = seq1['N'] | set(seq1['M'].keys())
-            seq2_uncertain = seq2['N'] | set(seq2['M'].keys())
             return((key1, key2, nDiff))
         else:
             return((key1, key2, nDiff))
@@ -580,7 +563,7 @@ e
         Note: this is a very fast method, if there are sequences in the preComparer.
         """
         
-        if not unk_type in ['N', 'M', 'N_or_M']:
+        if unk_type not in ['N', 'M', 'N_or_M']:
             raise KeyError("unk_type can be one of 'N' 'M' 'N_or_M'")
         current_composition = copy.copy(self.pc.composition)             # can be changed by flask, so duplicate it
         composition = pd.DataFrame.from_dict(current_composition, orient='index')       # preComparer maintains a composition list
@@ -642,6 +625,10 @@ e
         for guid in to_test:
 
             obj = self.PERSIST.refcompressedsequence_read(guid)
+
+            if obj is None:
+                # that's an error, should never happen.
+                raise KeyError("A guid {0} found in the preComparer, selected in to_test {1}, was not found in the PERSIST object (call returned None).  Internal software error.".format(guid, to_test))
             
             try:
                 N_sites = set(obj['N']).intersection(sites)
@@ -871,7 +858,7 @@ e
             for base in ['A','C','T','G']:
                 positions = self.seqProfile[guid][base]
                 for position in positions:
-                  if not position in nrps.keys():     # if it's non-reference, and we've got no record of this position
+                  if position not in nrps.keys():     # if it's non-reference, and we've got no record of this position
                      nrps[position]=set()             # then we generate a set of bases at this position                   
                   nrps[position].add(base)            # either way add the current non-reference base there
                   
@@ -903,7 +890,6 @@ e
         for i,base in enumerate(['A','C','G','T']):
             if base in fconst_dict.keys():
                 fconst[i] = fconst_dict[base]
-        fconst_str = "{0},{1},{2},{3}".format(fconst[0],fconst[1],fconst[2],fconst[3])
 
         # step 4: determine the sequences of all bases.
         ordered_variant_positions = sorted(list(variant_positions))

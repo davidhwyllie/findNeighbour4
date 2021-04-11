@@ -4,12 +4,10 @@ assumes a findNeighbour4 server is running
 
 if __name__ == '__main__':
     import os
-    import glob
     import datetime
     import pandas as pd
     from Bio import SeqIO
     from collections import Counter
-    import sentry_sdk
 
     CONFIG={}
     if os.environ.get("FN_SENTRY_URL") is not None:

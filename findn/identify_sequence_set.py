@@ -41,9 +41,9 @@ class IdentifySequenceSet():
             has_outgroup: bool, whether there is an outgroup
             x: a collection of sample names, excluding any outgroup  """
                
-        if not collection_type in self.permitted_collection_types:
+        if collection_type not in self.permitted_collection_types:
             raise ValueError("collection type {0} is not allowed".format(collection_type))
-        if not what in self.permitted_what:
+        if what not in self.permitted_what:
             raise ValueError("what {0} is not allowed".format(what))
         if not isinstance(has_outgroup,bool):
             raise TypeError("has_outgroup must be boolean")

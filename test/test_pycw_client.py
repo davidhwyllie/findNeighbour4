@@ -102,7 +102,7 @@ class test_cw_3(test_cw):
 
         payload1 = {'A':[1000,1001,1002], 'G':[], 'T':[], 'C':[], 'N':[20000,20001,20002]}
         payload2 = {'A':[1003,1004,1005], 'G':[], 'T':[], 'C':[], 'N':[20000,20001,20002]}
-        res = self.cw.add_sample_from_refcomp('guid1',payload1)
-        res = self.cw.add_sample_from_refcomp('guid2',payload1)
+        self.cw.add_sample_from_refcomp('guid1',payload1)
+        self.cw.add_sample_from_refcomp('guid2',payload2)
 
         self.assertEqual(set(self.cw.sample_names()), set(['guid1','guid2']))	# order doesn't matter      

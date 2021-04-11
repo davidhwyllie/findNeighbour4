@@ -1,6 +1,9 @@
 *.komodoproject
+.coverage
+.pytest_cache
 unittest_tmp/*
-unittest_Tmp/*
+unitTest_tmp/*
+.vscode/*
 *.out
 *.log
 *.sqlite
@@ -9,4 +12,6 @@ unittest_Tmp/*
 *.nim
 findn/*.pyc
 .env
-
+*.snippet
+flake8*
+Pipfile.lock
