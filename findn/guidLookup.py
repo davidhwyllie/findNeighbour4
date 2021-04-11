@@ -25,15 +25,16 @@ GNU Affero General Public License for more details.
 
 import bisect
 
-class guidSearcher():
-    """ maintains a list of sample numbers (such as guids) and provides
-    methods to search them rapidly """
-    
+
+class guidSearcher:
+    """maintains a list of sample numbers (such as guids) and provides
+    methods to search them rapidly"""
+
     def __init__(self):
-        """ initialise a guidSearcher.
-        
+        """initialise a guidSearcher.
+
         Example usage:
-        
+
         gs = guidSearcher()
         gs.add('b1')
         gs.add('b3')
@@ -42,18 +43,18 @@ class guidSearcher():
         gs.add('a1')
         gs.add('c1')
         print(gs.guids)
-        
-        
+
+
         """
         self.guids = []
-    
-    def add(self,guid):
+
+    def add(self, guid):
         """ add a string ('guid') into an ordered list """
         insertion_point = bisect.bisect_left(self.guids, guid)
-       
+
         if not isinstance(guid, str):
             raise TypeError("added item must be a string, not a {0}".format(type(guid)))
-        
+
         # test whether the item exists
         already_exists = False
         try:
@@ -73,10 +74,10 @@ class guidSearcher():
         """
         search_start = bisect.bisect_left(self.guids, search_string)
         retVal = []
-        
-        for i in range(max_returned+1):
+
+        for i in range(max_returned + 1):
             search_point = i + search_start
-            if search_point > len(self.guids)-1:      # got to the end
+            if search_point > len(self.guids) - 1:  # got to the end
                 break
             else:
                 if self.guids[search_point].startswith(search_string):
@@ -86,6 +87,5 @@ class guidSearcher():
             elif len(retVal) == max_returned and return_subset is False:
                 # don't return partial lists of matches
                 return []
-        
-        return retVal
 
+        return retVal

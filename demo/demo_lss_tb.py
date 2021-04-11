@@ -68,21 +68,25 @@ import pathlib
 import time
 from Bio import SeqIO
 from fn4client import fn4Client
-    
-if __name__ == '__main__':
-    
+
+if __name__ == "__main__":
+
     # maximum number to add
-    parser = argparse.ArgumentParser(description='Generate and add to the server groups of sequences which have evolved from each other')
-    parser.add_argument('max_sequences', type=int, nargs=1,
-                        help='sequences will be added until max_sequences exist in the server.')
-    parser.add_argument('inputdir', type=str, nargs=1,
-                        help='input fasta files will be read from the inputdir')
-    parser.add_argument('outputdir', type=str, nargs=1,
-                        help='output will be written to the outputdir')
-    parser.add_argument('pause_after', type=int, nargs=1,
-                        help='insertion will pause after adding pause_after sequences (set to zero to never pause)')
-    parser.add_argument('pause_duration', type=int, nargs=1,
-                        help='pause_duration in seconds')
+    parser = argparse.ArgumentParser(
+        description="Generate and add to the server groups of sequences which have evolved from each other"
+    )
+    parser.add_argument(
+        "max_sequences", type=int, nargs=1, help="sequences will be added until max_sequences exist in the server."
+    )
+    parser.add_argument("inputdir", type=str, nargs=1, help="input fasta files will be read from the inputdir")
+    parser.add_argument("outputdir", type=str, nargs=1, help="output will be written to the outputdir")
+    parser.add_argument(
+        "pause_after",
+        type=int,
+        nargs=1,
+        help="insertion will pause after adding pause_after sequences (set to zero to never pause)",
+    )
+    parser.add_argument("pause_duration", type=int, nargs=1, help="pause_duration in seconds")
 
     args = parser.parse_args()
     max_sequences = args.max_sequences[0]
@@ -96,17 +100,21 @@ if __name__ == '__main__':
     p.mkdir(parents=True, exist_ok=True)
     p = pathlib.Path(inputdir)
     p.mkdir(parents=True, exist_ok=True)
-        
+
     # determine input files
-    inputfiles = glob.glob(os.path.join(inputdir,'*.fasta'))
-    random.shuffle(inputfiles)      # read them in order
-    if len(inputfiles)<max_sequences:
-        raise ValueError("Asked to add {0} sequences, but only {1} are available in the input directory {2}".format(max_sequences, len(inputfiles), inputdir))
+    inputfiles = glob.glob(os.path.join(inputdir, "*.fasta"))
+    random.shuffle(inputfiles)  # read them in order
+    if len(inputfiles) < max_sequences:
+        raise ValueError(
+            "Asked to add {0} sequences, but only {1} are available in the input directory {2}".format(
+                max_sequences, len(inputfiles), inputdir
+            )
+        )
     else:
         inputfiles = inputfiles[0:max_sequences]
 
     print("opening connection to fn3 server")
-    fn4c = fn4Client(baseurl = "http://127.0.0.1:5020")
+    fn4c = fn4Client(baseurl="http://127.0.0.1:5020")
 
     # determine all masked positions
     excluded_positions = fn4c.nucleotides_excluded()
@@ -116,47 +124,53 @@ if __name__ == '__main__':
     print("There are {0} existing samples.  Adding more ..".format(nSamples))
 
     # create output file with header line
-    outputfile = os.path.join(outputdir, 'timings_{0}.tsv'.format(nSamples))
+    outputfile = os.path.join(outputdir, "timings_{0}.tsv".format(nSamples))
     nAdded_this_batch = 0
-    with open(outputfile, 'w+t') as f:
-        output_line = "{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\n".format('nSamples', 's_insert', 'e_insert', 'd_insert', 's_read', 'e_read', 'd_read')
-        f.write(output_line) 
-        while nAdded_this_batch < max_sequences:   
-        
-            if pause_after >0:
-                if nAdded_this_batch % pause_after==0:
-                     print("Insert paused; will resume after {0} seconds.".format(pause_duration))
-                     time.sleep(pause_duration)
-        
+    with open(outputfile, "w+t") as f:
+        output_line = "{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\n".format(
+            "nSamples", "s_insert", "e_insert", "d_insert", "s_read", "e_read", "d_read"
+        )
+        f.write(output_line)
+        while nAdded_this_batch < max_sequences:
+
+            if pause_after > 0:
+                if nAdded_this_batch % pause_after == 0:
+                    print("Insert paused; will resume after {0} seconds.".format(pause_duration))
+                    time.sleep(pause_duration)
+
             # read samples
             inputfile = inputfiles[nAdded_this_batch]
-            nSamples +=1  
-            nAdded_this_batch +=1      
-            with open(inputfile, 'rt') as f_in:
-                for record in SeqIO.parse(f_in,'fasta'):               
+            nSamples += 1
+            nAdded_this_batch += 1
+            with open(inputfile, "rt") as f_in:
+                for record in SeqIO.parse(f_in, "fasta"):
                     seq = str(record.seq)
                     guid = str(record.id)
-       
+
                     # add
-                    print("Inserting", guid, "(samples in this batch = ",nAdded_this_batch,"); will pause every ",pause_after)
+                    print(
+                        "Inserting", guid, "(samples in this batch = ", nAdded_this_batch, "); will pause every ", pause_after
+                    )
                     stime1 = datetime.datetime.now()
-                    resp = fn4c.insert(guid=guid, seq=seq)  
-                   
+                    resp = fn4c.insert(guid=guid, seq=seq)
+
                     etime1 = datetime.datetime.now()
-                    delta1= etime1-stime1
+                    delta1 = etime1 - stime1
                     print("Insert yielded status code {0} after {1}".format(resp.status_code, delta1))
-    
+
                     # recover neighbours of guid
                     stime2 = datetime.datetime.now()
                     # check it exists
                     if not fn4c.guid_exists(guid):
-                        print("Guid {0} was not inserted".format(guid))   
+                        print("Guid {0} was not inserted".format(guid))
                     else:
                         neighbours = fn4c.guid2neighbours(guid, threshold=10000000)
                         etime2 = datetime.datetime.now()
                         delta2 = etime2 - stime2
-                        print("Recovered {1} neighbours of {0}".format(guid, len(neighbours)))            
-                        output_line = "{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\n".format(nSamples, stime1, etime1, delta1, stime2, etime2, delta2)
+                        print("Recovered {1} neighbours of {0}".format(guid, len(neighbours)))
+                        output_line = "{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\n".format(
+                            nSamples, stime1, etime1, delta1, stime2, etime2, delta2
+                        )
                         f.write(output_line)
                         f.flush()
             # delete the source file - keep disc space down
@@ -166,4 +180,4 @@ if __name__ == '__main__':
             except PermissionError:
                 print("Fasta input file not deleted, as locked")
         print("Have added {0} sequences, stopping.".format(nSamples))
-        exit(0)              
+        exit(0)

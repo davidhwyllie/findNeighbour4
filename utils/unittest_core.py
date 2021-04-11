@@ -34,7 +34,7 @@ from test import test_seqComparer
 from test import test_preComparer
 from test import test_msa
 from test import test_msaviewer
-from test import test_nucleicacid 
+from test import test_nucleicacid
 from test import test_visualisenetwork
 from test import test_malinkage
 from test import test_clusternomenclature
@@ -44,7 +44,7 @@ from test import test_fn4client
 
 # initialize the test suite
 loader = unittest.TestLoader()
-suite  = unittest.TestSuite()
+suite = unittest.TestSuite()
 
 
 # add tests to the test suite
@@ -72,4 +72,3 @@ suite.addTests(loader.loadTestsFromModule(test_fn4client))
 # initialize a runner, pass it your suite and run it
 runner = unittest.TextTestRunner(verbosity=3)
 result = runner.run(suite)
-
