@@ -1,7 +1,7 @@
 # This workflow will install Python dependencies, run tests and lint with a variety of Python versions
 # For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
 
-name: Python package
+name: Test findNeighbour4
 
 on:
   push:
@@ -34,9 +34,28 @@ jobs:
 
         # locking takes ages and has no benefit in the ci situation
         pipenv install --skip-lock
+
+    - name: Install cloned findNeighbour4 package
+      run: |
         # install the findNeighbour package
         pipenv install -e `pwd` --skip-lock
-       
+
+    - name: Install catwalk
+      run: |
+        # clone catwalk relatedness engine
+        mkdir external_software
+        sudo apt-get install nim
+        # check version
+        nim -v
+        cd external_software
+        git clone https://gitea.mmmoxford.uk/dvolk/catwalk.git
+        cd catwalk
+        nimble build -d:release -d:danger -d:no_serialisation
+        # add path to executable to .env file 
+        echo CW_BINARY_FILEPATH=\"`pwd`/cw_server\" > ../../.env
+        # back to original directory
+        cd ../..
+
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
