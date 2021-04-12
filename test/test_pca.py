@@ -124,7 +124,7 @@ class Test_VariantMatrix_1(unittest.TestCase):
 
         # test get_missingness_cutoff
         m = v.get_missingness_cutoff(positions=vmodel.keys(), mmodel=mmodel)  # the missingness model
-        self.assertEqual(m, 27)
+        self.assertEqual(m, 30)
 
         # test build
         v.build()
@@ -132,6 +132,47 @@ class Test_VariantMatrix_1(unittest.TestCase):
 
         # test run
         pcr = PCARunner(v)
+        pcr.run(n_components=10, pca_parameters={})
+
+        # test cluster
+        v = pcr.cluster()
+
+        v.to_sqlite("unittest_tmp")
+
+class Test_VariantMatrix_2(unittest.TestCase):
+    """ tests the VariantMatrix and PCARunner classes"""
+
+    def runTest(self):
+
+        TPERSIST = PersistenceTest(connstring="thing", number_samples=251)
+        TPERSIST.load_data(
+            sample_ids_file="/data/software/fn4dev/testdata/pca/seqs_5000test_ids.pickle",
+            sequences_file="/data/software/fn4dev/testdata/pca/seqs_5000test.pickle",
+        )
+        cfm = ConfigManager(DEFAULT_CONFIG_FILE)
+        CONFIG = cfm.read_config()
+
+        v = VariantMatrix(CONFIG, TPERSIST, show_bar=True)
+
+        # test guids() method
+        self.assertEqual(set(v.guids()), set(TPERSIST.refcompressedsequence_guids()))
+
+        # test get_position_counts
+        guids, vmodel, mmodel = v.get_position_counts()
+        self.assertEqual(guids, set(TPERSIST.refcompressedsequence_guids()))
+        self.assertIsInstance(vmodel, dict)
+        self.assertIsInstance(mmodel, dict)
+
+        # test get_missingness_cutoff
+        m = v.get_missingness_cutoff(positions=vmodel.keys(), mmodel=mmodel)  # the missingness model
+        self.assertEqual(m, 30)
+
+        # test build
+        v.build()
+        self.assertIsInstance(v.vm["variant_matrix"], pd.DataFrame)
+
+        # test run
+        pcr = PCARunner(v, show_bar=True)
         pcr.run(n_components=10, pca_parameters={})
 
         # test cluster

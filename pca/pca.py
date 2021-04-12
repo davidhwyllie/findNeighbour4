@@ -77,6 +77,7 @@ class PersistenceTest:
             self.seqs = pickle.load(f)
         with open(sample_ids_file, "rb") as f:
             self.sample_ids = set(pickle.load(f))
+
         # sanity check
         # check there are no samples in sample_ids which are not present in seqs
         # sample_ids are allowed to be a subset of seqs, but
@@ -216,7 +217,7 @@ class VariationModel:
 
         # configure sqlite file for output.
         sqlite_file = os.path.join(outputdir, "{0}.sqlite".format(analysis_name))
-        engine = sqlalchemy.create_engine("sqlite:///{0}".format(sqlite_file), echo=True)
+        engine = sqlalchemy.create_engine("sqlite:///{0}".format(sqlite_file), echo=False)
 
         # run checks on sqlite file
         if rebuild_databases_if_present:
@@ -580,10 +581,14 @@ class VariantMatrix:
         #########################################################################################################
         # build a variation matrix for variant sites using pandas - may take several minutes for giant matrices
         logging.info("Building variant matrix as pandas DataFrame.  May take several minutes for huge matrices.")
+        t0 = datetime.datetime.now()
+       
         vmodel = pd.DataFrame.from_dict(vmodel, orient="index")
         vmodel.fillna(value=0, inplace=True)  # if not completed, then it's reference
         # unless it's null, which we are ignoring at present- we have preselected sites as having low null frequencies
-        logging.info("Matrix construction complete.  There are {0} sequences in the variation model".format(len(vmodel.index)))
+        t1 = datetime.datetime.now()
+        elapsed = (t1 - t0).total_seconds()
+        logging.info("Matrix construction complete.  There are {0} sequences in the variation model, which took {1} seconds to build".format(len(vmodel.index), elapsed))
         self.vm["variant_matrix"] = vmodel
         return None
 
@@ -591,9 +596,10 @@ class VariantMatrix:
 class PCARunner:
     """ Performs PCA on a VariantMatrix """
 
-    def __init__(self, snp_matrix: VariantMatrix):
+    def __init__(self, snp_matrix: VariantMatrix, show_bar=False):
         self.vm = snp_matrix.vm
         self.eigenvalues = None
+        self.show_bar = show_bar
 
     def run(self, n_components, pca_parameters={}, deterministic=True) -> VariationModel:
         """conducts pca on a snp_matrix, storing the results in the snp_matrix's VariantModel object.
@@ -607,7 +613,11 @@ class PCARunner:
         self.vm["n_pca_components"] = n_components
 
         # if necessary, can perform incremental PCA see https://stackoverflow.com/questions/31428581/incremental-pca-on-big-data
+        t0 = datetime.datetime.now()
         pca = PCA(n_components=n_components, **pca_parameters)
+        t1 = datetime.datetime.now()
+        elapsed = (t1 - t0).total_seconds()
+        logging.info("PCA took {0} seconds".format(elapsed))
         variant_matrix = self.vm["variant_matrix"]
         pca.fit(variant_matrix)
         contribs = []
@@ -679,7 +689,7 @@ class PCARunner:
         self.vm["built_with_guids"] = variant_matrix.index.tolist()
         self.vm["pos_per_pc"] = [len(x) for x in self.vm.model["pc2_contributing_positions"].values()]
 
-        print("PCA completed, identified {0} strongly contributing base/positions".format(len(contributing_basepos)))
+        logging.info("PCA completed, identified {0} strongly contributing base/positions".format(len(contributing_basepos)))
         self.vm.finish()
 
         return self.vm
@@ -711,12 +721,19 @@ class PCARunner:
         if self.eigenvalues is None:
             raise NotImplementedError("No eigenvalues.  You must call .run() before calling .cluster()")
 
+        t0 = datetime.datetime.now()        # startup time
+        
         # prepare data for clustering
-
         ev = self.eigenvalues.copy()  # eigenvalues.  option to drop PCs of technical origin could be dropped.
+        if self.show_bar:
+            bar = progressbar.ProgressBar(max_value=len(self.eigenvalues.columns.to_list()))
 
-        for col in ev.columns:
-            logging.info("Clustering eigenvalue {0}".format(col))
+        logging.info("Clustering eigenvalues")
+        for i, col in enumerate(ev.columns):
+
+            if self.show_bar:
+                bar.update(i)
+
             this_ev = ev[col].to_frame()
             this_ev.columns = ["eigenvalue"]
             this_ev["pc"] = col
@@ -743,4 +760,11 @@ class PCARunner:
         self.vm["eigenvalue_categories"] = evs
         self.vm["eigenvalue_category_meta"] = categories
         self.vm.finish()
+        if self.show_bar:
+            bar.finish()
+
+        t1 = datetime.datetime.now()
+        elapsed = (t1 - t0).total_seconds()
+        logging.info("Eigenvalue clustering took {0} seconds".format(elapsed))
+
         return self.vm

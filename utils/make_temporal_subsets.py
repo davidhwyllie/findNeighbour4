@@ -22,7 +22,7 @@ from findn.mongoStore import fn3persistence
 from findn.common_utils import ConfigManager
 
 # open connection to existing covid datastore
-config_file = os.path.join("..", "demos", "covid", "covid_config_v3.json")
+config_file = os.path.join("demos", "covid", "covid_config_v3.json")
 cfm = ConfigManager(config_file)
 CONFIG = cfm.read_config()
 PERSIST = fn3persistence(dbname=CONFIG["SERVERNAME"], connString=CONFIG["FNPERSISTENCE_CONNSTRING"], debug=CONFIG["DEBUGMODE"])
@@ -39,10 +39,12 @@ df["sample_id"] = [x.split("/")[1] for x in sample_ids]
 
 # load a small subset of the reference compressed sequences, for testing purposes
 # load the reference compressed sequences
+print("Dumping 5,000 sample test set")
 storage_dict = {}
 sampled = random.sample(df["sample_id"].to_list(), 5000)
 bar = progressbar.ProgressBar(max_value=len(sampled))
 
+print("Dumping all samples")
 for i, sample_id in enumerate(sampled):
     res = PERSIST.refcompressedsequence_read(sample_id)
     bar.update(i)
@@ -55,7 +57,8 @@ with open(outputfile, "wb") as f:
 outputfile = "/data/software/fn4dev/testdata/pca/seqs_5000test_ids.pickle"
 with open(outputfile, "wb") as f:
     pickle.dump(sampled, f)
-exit()
+
+
 # load the reference compressed sequences
 storage_dict = {}
 bar = progressbar.ProgressBar(max_value=len(df.index))
@@ -66,8 +69,8 @@ for i, sample_id in enumerate(df["sample_id"]):
 bar.finish()
 
 # write out the dictionary
-outputfile = os.path.join(outputdir, "seqs_20210401.pickle.gz")
-with gzip.open(outputfile, "wb") as f:
+outputfile = os.path.join(outputdir, "seqs_20210401.pickle")
+with open(outputfile, "wb") as f:
     pickle.dump(storage_dict, f)
 
 # construct counts between 1 June 2020 and end March 2021
@@ -85,7 +88,7 @@ for cutoff_date in cnts.index:
     df_subset = df[df["sample_date"] < cutoff_date]
     sample_ids = df_subset["sample_id"].to_list()
 
-    outputfile = os.path.join(outputdir, "{0}-{1}.picklen.gz".format(dow, cutoff_date))
-    with gzip.open(outputfile, "wb") as f:
+    outputfile = os.path.join(outputdir, "{0}-{1}.pickle".format(dow, cutoff_date))
+    with open(outputfile, "wb") as f:
         pickle.dump(sample_ids, f)
         print(outputfile)
