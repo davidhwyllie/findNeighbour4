@@ -23,10 +23,10 @@ outputdir = "/data/data/pca/subsets_output"  # or wherever
 # for each Sunday (sequence file begins with 0_), run pca.
 for i, sample_id_file in enumerate(sample_id_files):
 
-    analysis_name = os.path.basename(sample_id_file).replace('.pickle', '.sqlite')
+    analysis_name = os.path.basename(sample_id_file).replace('.pickle', '')
     print(i, sample_id_file, analysis_name)
 
-    if not os.path.exists(os.path.join(outputdir, "{0}.sqlite".format(analysis_name))):
+    if not os.path.exists(os.path.join(outputdir, analysis_name)):
         TPERSIST = PersistenceTest()
         TPERSIST.load_data(
             sample_id_file,

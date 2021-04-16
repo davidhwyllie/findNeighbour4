@@ -26,7 +26,7 @@ by the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.  See see <https://www.gnu.org/licenses/>.
 
 This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
+but WITHOUT ANY WARRANTY; without tcen the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU Affero General Public License for more details.
 
@@ -164,7 +164,7 @@ class VariationModel:
     """Stores a VariantMatrix, the output of a PCA of the matrix, and (optionally) a clustering of the principal components.
     You should not normally have to call this class directly to create a VariationModel - the VariantMatrix class would do this for you.
 
-    - You might wish to instantiate this class directly if you are restoring a previously serialised VariationModel - see constructor"""
+    - You might wish to instantiate this class directly if you are restoring a prtciously serialised VariationModel - see constructor"""
 
     def __init__(self):
         """
@@ -233,8 +233,9 @@ class VariationModel:
         for key in self.model:
 
             if not (
-                key == "variant_matrix" or isinstance(self.model[key], PCA)
+                key == "variant_matrix" or isinstance(self.model[key], PCA) or key == "transformed_coordinates"
             ):  # we don't serialise these; one is massive and the other can't be serialised
+
                 logging.info("Writing {0}".format(key))
                 native_type = type(self.model[key])
                 if native_type in [bool, int, float, str]:
@@ -265,7 +266,12 @@ class VariationModel:
 
                 elif type(self.model[key]) == np.int64:
                     metadata.append({"variable": key, "value": str(int(self.model[key]))})
+
                 elif type(self.model[key]) == pd.core.frame.DataFrame:
+
+                    # these types of dataframe have indices which are sample_ids.  We relabel the index sample_id
+                    if key in ['mix_quality_info', 'suspect_quality_seqs']:
+                        self.model[key].rename_axis('sample_id')
                     self.model[key].to_sql(key, conn, if_exists="fail")
                 else:
                     warnings.warn("Not handled {0} with class {1}".format(key, type(self.model[key])))
@@ -305,7 +311,7 @@ class VariantMatrix:
         """ clears existing variation model and pca result """
         self.vm = VariationModel()
         self._invalid = set()  # invalid guids for which we can't compute pcs
-        self.model = {"built": False, "built_with_guids": []}
+        self.model = {"built": False, "sample_id": []}
         self.validation_data = None
 
     def guids(self):
@@ -362,10 +368,10 @@ class VariantMatrix:
         return guids_analysed, vmodel, mmodel
 
     def get_missingness_cutoff(self, positions: Set[int], mmodel: dict) -> int:
-        """computes a missingness cutoff, applicable at a per-sequence level.
+        """computes a missingness cutoff, applicable at a per-sequence ltcel.
 
-        Samples which have high levels of missingness (i.e. N, -, or IUPAC mixture codes)
-        may be unsuitable for incorporation into PCA models.  Some level of missingness is expected,
+        Samples which have high ltcels of missingness (i.e. N, -, or IUPAC mixture codes)
+        may be unsuitable for incorporation into PCA models.  Some ltcel of missingness is expected,
         but samples with very high missingness may compromise modelling.
 
         Parameters:
@@ -381,7 +387,7 @@ class VariantMatrix:
 
 
         Note:      This criterion is somewhat arbitrary.
-                   The impact of this approximation has not been systematically evaluated, and could be the subject of further work.
+                   The impact of this approximation has not been systematically tcaluated, and could be the subject of further work.
         """
 
         missingness = list(map(lambda pos: mmodel.get(pos, 0), positions))
@@ -427,7 +433,7 @@ class VariantMatrix:
 
         #########################################################################################################
         # determine the variation model.  In the first stage, we analyse by position
-        # positions with unexpectedly high levels of missingness are excluded, as these may be hard to call.
+        # positions with unexpectedly high ltcels of missingness are excluded, as these may be hard to call.
         logging.info("Assessing per-base variation from {0} samples".format(num_train_on))
         guids_analysed_stage1, vmodel, mmodel = self.get_position_counts(guids)
 
@@ -458,7 +464,7 @@ class VariantMatrix:
         self.vm["max_ok_missingness"] = float(upper_cutoff)
         self.vm["max_ok_missingness_pc"] = int(100 * upper_cutoff / num_train_on)
 
-        # remove any positions with high levels of missingness from the variation model to be used in the PCA
+        # remove any positions with high ltcels of missingness from the variation model to be used in the PCA
         num_removed = 0
         for pos in mmodel.keys():  # positions
             if mmodel[pos] > upper_cutoff and pos in select_positions:
@@ -521,7 +527,7 @@ class VariantMatrix:
         # identify any mixed samples.  we don't build the model from these.
         # mixed are defined as having significantly more N or M in the variant
         # positions than in other bases.
-        # Note: this impact of this step has been evaluated in TB, but not as extensively in SARS-COV-2
+        # Note: this impact of this step has been tcaluated in TB, but not as extensively in SARS-COV-2
         mix_quality_cutoff = 0.01 / len(
             mix_quality_info.index
         )  # 0.01 divided by the number of samples analysed;  Bonferroni adj.
@@ -549,7 +555,7 @@ class VariantMatrix:
         if self.show_bar:
             bar = progressbar.ProgressBar(max_value=len(guids_analysed_stage2))
 
-        self.model["built_with_guids"] = []
+        self.model["sample_id"] = []
         for guid in guids_analysed_stage2:
             nLoaded += 1
 
@@ -579,8 +585,8 @@ class VariantMatrix:
             bar.finish()
 
         #########################################################################################################
-        # build a variation matrix for variant sites using pandas - may take several minutes for giant matrices
-        logging.info("Building variant matrix as pandas DataFrame.  May take several minutes for huge matrices.")
+        # build a variation matrix for variant sites using pandas - may take stceral minutes for giant matrices
+        logging.info("Building variant matrix as pandas DataFrame.  May take stceral minutes for huge matrices.")
         t0 = datetime.datetime.now()
        
         vmodel = pd.DataFrame.from_dict(vmodel, orient="index")
@@ -598,7 +604,7 @@ class PCARunner:
 
     def __init__(self, snp_matrix: VariantMatrix, show_bar=False):
         self.vm = snp_matrix.vm
-        self.eigenvalues = None
+        self.transformed_coordinates = None
         self.show_bar = show_bar
 
     def run(self, n_components, pca_parameters={}, deterministic=True) -> VariationModel:
@@ -659,7 +665,7 @@ class PCARunner:
                 )
             pc2contributing_pos[i] = sorted(list(pc2contributing_pos[i]))  # can be json serialised, unlike set
 
-        # report eigenvectors which are different from median +- 3 median absolute deviations
+        # report eigenvectors which are different from median +- 3 median absolute dtciations
         self.eigenvectors = pd.DataFrame.from_records(contribs)
 
         if len(self.eigenvectors.index) == 0:
@@ -669,16 +675,16 @@ class PCARunner:
                 )
             )
 
-        # compute eigenvalues for the samples on which the fit was performed.
-        logging.info("Computing eigenvalues")
-        eigenvalues_dict = {}
-        for guid, evs in zip(variant_matrix.index, pca.transform(variant_matrix)):
-            eigenvalues_dict[guid] = evs
-        self.eigenvalues = pd.DataFrame.from_dict(eigenvalues_dict, orient="index")
-        self.eigenvalues.columns = range(n_components)
+        # compute transformed_coordinates for the samples on which the fit was performed.
+        logging.info("Computing transformed_coordinates")
+        transformed_coordinates_dict = {}
+        for guid, tcs in zip(variant_matrix.index, pca.transform(variant_matrix)):
+            transformed_coordinates_dict[guid] = tcs
+        self.transformed_coordinates = pd.DataFrame.from_dict(transformed_coordinates_dict, orient="index")
+        self.transformed_coordinates.columns = range(n_components)
 
         self.vm["pca"] = pca
-        self.vm["eigenvalues"] = self.eigenvalues
+        self.vm["transformed_coordinates"] = self.transformed_coordinates
         self.vm["eigenvectors"] = self.eigenvectors
         self.vm["explained_variance_ratio"] = list(pca.explained_variance_ratio_)
         self.vm["n_contributing_positions"] = len(contributing_pos)
@@ -686,7 +692,7 @@ class PCARunner:
         self.vm["n_contributing_variants"] = len(contributing_basepos)
         self.vm["contributing_basepos"] = contributing_basepos
         self.vm["contributing_pos"] = contributing_pos
-        self.vm["built_with_guids"] = variant_matrix.index.tolist()
+        self.vm["sample_id"] = variant_matrix.index.tolist()
         self.vm["pos_per_pc"] = [len(x) for x in self.vm.model["pc2_contributing_positions"].values()]
 
         logging.info("PCA completed, identified {0} strongly contributing base/positions".format(len(contributing_basepos)))
@@ -695,11 +701,11 @@ class PCARunner:
         return self.vm
 
     def cluster(self, initial_cats_per_unit=8):
-        """clusters the eigenvalues obtained by run()
+        """clusters the transformed_coordinates obtained by run()
 
-        Categorises eigenvalues.  Uses kmeans clustering, and uses a crude approximation to estimate the number of clusters.
+        Categorises transformed_coordinates.  Uses kmeans clustering, and uses a crude approximation to estimate the number of clusters.
 
-        The technique used operates per pc; we bin eigenvalues into bins 1/initial_cats_per_unit wide, and count the non-zero bins.  This is used as an estimate of
+        The technique used operates per pc; we bin transformed_coordinates into bins 1/initial_cats_per_unit wide, and count the non-zero bins.  This is used as an estimate of
         the numbers of clusters, and the pca is provided with the bin centres as a set of starting values.
 
         Empirically, the technique was found to provide better discrimination of emerging SARS-CoV-2 genomes than approaches based on model fitting,
@@ -712,59 +718,55 @@ class PCARunner:
             None
 
         Sets:
-            self.eigenvalue_categories: a data frame containing cluster names for each cluster
-            self.eigenvalue_category_meta: a data frame containging centroids of each cluster and other metadata
+            self.transformed_coordinate_categories: a data frame containing cluster names for each cluster
 
         """
 
         # check there is a model
-        if self.eigenvalues is None:
-            raise NotImplementedError("No eigenvalues.  You must call .run() before calling .cluster()")
+        if self.transformed_coordinates is None:
+            raise NotImplementedError("No transformed_coordinates.  You must call .run() before calling .cluster()")
 
         t0 = datetime.datetime.now()        # startup time
         
         # prepare data for clustering
-        ev = self.eigenvalues.copy()  # eigenvalues.  option to drop PCs of technical origin could be dropped.
+        tc = self.transformed_coordinates.copy()  # transformed_coordinates.  option to drop PCs of technical origin could be dropped.
         if self.show_bar:
-            bar = progressbar.ProgressBar(max_value=len(self.eigenvalues.columns.to_list()))
+            bar = progressbar.ProgressBar(max_value=len(self.transformed_coordinates.columns.to_list()))
 
-        logging.info("Clustering eigenvalues")
-        for i, col in enumerate(ev.columns):
+        logging.info("Clustering transformed_coordinates")
+        for i, col in enumerate(tc.columns):
 
             if self.show_bar:
                 bar.update(i)
 
-            this_ev = ev[col].to_frame()
-            this_ev.columns = ["eigenvalue"]
-            this_ev["pc"] = col
-            this_ev["initial_cat"] = [int(x * initial_cats_per_unit) for x in this_ev["eigenvalue"]]
+            this_tc = tc[col].to_frame()
+            this_tc.columns = ["transformed_coordinate"]
+            this_tc["pc"] = col
+            this_tc["initial_cat"] = [int(x * initial_cats_per_unit) for x in this_tc["transformed_coordinate"]]
 
             # how many non-zero categories
-            cats = this_ev.groupby(["initial_cat"])["eigenvalue"].describe()
+            cats = this_tc.groupby(["initial_cat"])["transformed_coordinate"].describe()
 
             # convert to arrays to fit
-            to_fit = this_ev["eigenvalue"].to_numpy().reshape(-1, 1)
+            to_fit = this_tc["transformed_coordinate"].to_numpy().reshape(-1, 1)
             centres = cats["mean"].to_numpy().reshape(-1, 1)
             km = KMeans(n_clusters=len(cats.index), n_init=1, init=centres).fit(to_fit)
-            this_ev["cat"] = km.labels_
-            this_ev["sample_id"] = this_ev.index
-            cats = this_ev.groupby(["cat"])["eigenvalue"].describe()
-            this_ev.drop(["initial_cat"], axis=1)
+            this_tc["cat"] = km.labels_
+            this_tc["sample_id"] = this_tc.index
+            this_tc.drop(["initial_cat"], axis=1)
             if col == 0:
-                evs = this_ev
-                categories = cats
-            else:
-                evs = evs.append(this_ev, ignore_index=True)
-                categories = categories.append(cats, ignore_index=True)
+                tcs = this_tc
 
-        self.vm["eigenvalue_categories"] = evs
-        self.vm["eigenvalue_category_meta"] = categories
+            else:
+                tcs = tcs.append(this_tc, ignore_index=True)
+
+        self.vm["transformed_coordinate_categories"] = tcs
         self.vm.finish()
         if self.show_bar:
             bar.finish()
 
         t1 = datetime.datetime.now()
         elapsed = (t1 - t0).total_seconds()
-        logging.info("Eigenvalue clustering took {0} seconds".format(elapsed))
+        logging.info("Transformed coordinate clustering took {0} seconds".format(elapsed))
 
         return self.vm

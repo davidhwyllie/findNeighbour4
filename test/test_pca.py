@@ -1,12 +1,4 @@
-""" integration test for findNeighbour4
-assumes a findNeighbour4 server is running, with the connection string stated in demos/AC587/config/config_nocl.json.
-
-An example command doing this would be 
-pipenv run python3 findNeighbour4_server.py demos/AC587/config/config_nocl.json
-
-The test loads the server with data from the AC587 test data
-and compares the SNP distances and links with those from a seqComparer
-instance.
+""" tests pca.py - software to do PCA
 
 """
 
