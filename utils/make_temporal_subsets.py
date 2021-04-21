@@ -9,6 +9,10 @@ unit testing purposes.
 Also useful for investigating how PCA detected the ingress of new strains over time.
 Uses public cog metadata downloaded from COG-UK 7/4/2021, saved in
 testdata/pca/cog_metadata.csv.gz, and requires access to an fn3persistence object containing the same data.
+
+To run: 
+pipenv run python3 utils/make_temporal_subsets.py
+
 """
 
 import os
@@ -29,13 +33,29 @@ PERSIST = fn3persistence(dbname=CONFIG["SERVERNAME"], connString=CONFIG["FNPERSI
 inputfile = "/data/software/fn4dev/testdata/pca/cog_metadata.csv.gz"
 outputdir = "/data/data/pca/subsets"  # or wherever
 
+# get samples which are in server
+extant_sample_ids = PERSIST.guids()
+print("There are {0} samples in the server".format(len(extant_sample_ids)))
+
 # read metadata file into pandas
 with gzip.open(inputfile, "rt") as f:
     df = pd.read_csv(f)
-
 # we are using the middle part of the cog_id as the sample name as the sample_id; extract this.
 sample_ids = df["sequence_name"].to_list()
 df["sample_id"] = [x.split("/")[1] for x in sample_ids]
+
+print("There are {0} samples in the COG-UK list".format(len(df.index)))
+
+# what is in the server & not in the list?
+server_sample_ids = set(extant_sample_ids)
+inputfile_sample_ids = set(df['sample_id'])
+
+missing = server_sample_ids - inputfile_sample_ids
+print("Missing samples: n=", len(missing))
+
+missing_df = pd.DataFrame({'missing':list(missing)})
+print(missing_df)
+missing_df.to_csv("/data/data/inputfasta/missing_meta.csv")
 
 # load a small subset of the reference compressed sequences, for testing purposes
 # load the reference compressed sequences
@@ -69,7 +89,7 @@ for i, sample_id in enumerate(df["sample_id"]):
 bar.finish()
 
 # write out the dictionary
-outputfile = os.path.join(outputdir, "seqs_20210401.pickle")
+outputfile = os.path.join(outputdir, "seqs_20210421.pickle")
 with open(outputfile, "wb") as f:
     pickle.dump(storage_dict, f)
 
