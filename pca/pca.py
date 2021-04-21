@@ -42,6 +42,7 @@ from typing import Tuple, Set
 from collections import defaultdict
 import pickle
 import hashlib
+import pathlib
 
 import pandas as pd
 import numpy as np
@@ -164,7 +165,7 @@ class VariationModel:
     """Stores a VariantMatrix, the output of a PCA of the matrix, and (optionally) a clustering of the principal components.
     You should not normally have to call this class directly to create a VariationModel - the VariantMatrix class would do this for you.
 
-    - You might wish to instantiate this class directly if you are restoring a prtciously serialised VariationModel - see constructor"""
+    - You might wish to instantiate this class directly if you are restoring a previously serialised VariationModel - see constructor"""
 
     def __init__(self):
         """
@@ -206,7 +207,7 @@ class VariationModel:
 
         Inputs
         =======
-        persistdir                         the directory the SQLite database goes into
+        outputdir                          the directory the SQLite database goes into.  will create if it does not exist
         analysis_name                      name of the analysis.  Will become the first part of the file name
         rebuild_databases_if_present       delete any existing SQLite database
 
@@ -214,6 +215,9 @@ class VariationModel:
         =======
         path to sqlite database
         """
+
+        # ensure the outputdir exists
+        pathlib.Path(outputdir).mkdir(parents= True, exist_ok=True)
 
         # configure sqlite file for output.
         sqlite_file = os.path.join(outputdir, "{0}.sqlite".format(analysis_name))
@@ -426,9 +430,9 @@ class VariantMatrix:
         #########################################################################################################
 
         #########################################################################################################
-        # if minimum variation is not set, only analyse variants seen at least 3 times.
+        # if minimum variation is not set, only analyse variants seen at least 2 times.
         if min_variant_freq is None:
-            min_variant_freq = 3 / num_train_on
+            min_variant_freq = 2 / num_train_on
         #########################################################################################################
 
         #########################################################################################################
@@ -585,8 +589,8 @@ class VariantMatrix:
             bar.finish()
 
         #########################################################################################################
-        # build a variation matrix for variant sites using pandas - may take stceral minutes for giant matrices
-        logging.info("Building variant matrix as pandas DataFrame.  May take stceral minutes for huge matrices.")
+        # build a variation matrix for variant sites using pandas - may take minutes for giant matrices
+        logging.info("Building variant matrix as pandas DataFrame.  May take several minutes for huge matrices.")
         t0 = datetime.datetime.now()
        
         vmodel = pd.DataFrame.from_dict(vmodel, orient="index")
@@ -621,11 +625,11 @@ class PCARunner:
         # if necessary, can perform incremental PCA see https://stackoverflow.com/questions/31428581/incremental-pca-on-big-data
         t0 = datetime.datetime.now()
         pca = PCA(n_components=n_components, **pca_parameters)
+        variant_matrix = self.vm["variant_matrix"]
+        pca.fit(variant_matrix)
         t1 = datetime.datetime.now()
         elapsed = (t1 - t0).total_seconds()
         logging.info("PCA took {0} seconds".format(elapsed))
-        variant_matrix = self.vm["variant_matrix"]
-        pca.fit(variant_matrix)
         contribs = []
         # summarise the positions and variants responsible for each pc
         pc2contributing_pos = {}
@@ -753,6 +757,10 @@ class PCARunner:
             km = KMeans(n_clusters=len(cats.index), n_init=1, init=centres).fit(to_fit)
             this_tc["cat"] = km.labels_
             this_tc["sample_id"] = this_tc.index
+
+            # store a pc_cat field.  useful for searching later.
+            pc_cats = [str(col) + '_' + str(x) for x in this_tc["cat"]]
+            this_tc['pc_cat'] = pc_cats
             this_tc.drop(["initial_cat"], axis=1)
             if col == 0:
                 tcs = this_tc

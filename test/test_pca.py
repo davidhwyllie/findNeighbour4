@@ -116,7 +116,7 @@ class Test_VariantMatrix_1(unittest.TestCase):
 
         # test get_missingness_cutoff
         m = v.get_missingness_cutoff(positions=vmodel.keys(), mmodel=mmodel)  # the missingness model
-        self.assertEqual(m, 30)
+        self.assertEqual(m, 27)
 
         # test build
         v.build()
@@ -157,7 +157,7 @@ class Test_VariantMatrix_2(unittest.TestCase):
 
         # test get_missingness_cutoff
         m = v.get_missingness_cutoff(positions=vmodel.keys(), mmodel=mmodel)  # the missingness model
-        self.assertEqual(m, 30)
+        self.assertEqual(m, 27)
 
         # test build
         v.build()
