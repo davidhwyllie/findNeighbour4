@@ -28,7 +28,6 @@ class Test_PersistenceTest_1(unittest.TestCase):
         res = tp.refcompressedsequence_read(guids[0])
         self.assertIsInstance(res, dict)
 
-
 class Test_MNStats_1(unittest.TestCase):
     """ tests the MNStats class"""
 
@@ -88,7 +87,6 @@ class Test_MNStats_1(unittest.TestCase):
         self.assertIsInstance(res, dict)
         self.assertEqual(res["N_total"], 19)
         self.assertEqual(res["M_total"], 0)
-
 
 class Test_VariantMatrix_1(unittest.TestCase):
     """ tests the VariantMatrix and PCARunner classes"""

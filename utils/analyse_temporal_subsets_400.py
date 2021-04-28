@@ -4,6 +4,7 @@ Uses data sets collated by make_temporal_subset
 """
 
 import os
+import pathlib
 import glob
 
 from pca.pca import PersistenceTest, VariantMatrix, PCARunner
@@ -19,10 +20,9 @@ inputdir = "/data/data/pca/subsets"  # or wherever
 seqfile = os.path.join(inputdir, "seqs_20210401.pickle")
 globpath = os.path.join(inputdir, "0-*.pickle")
 sample_id_files = glob.glob(globpath)
-outputdir = "/data/data/pca/subsets_output_pca2"  # or wherever
-# for each Sunday (sequence file begins with 0_), run pca.
-sample_id_files.sort(reverse=True)      # backwards in time
+outputdir = "/data/data/pca/subsets_output_400"  # or wherever
 
+# for each Sunday (sequence file begins with 0_), run pca.
 for i, sample_id_file in enumerate(sample_id_files):
 
     analysis_name = os.path.basename(sample_id_file).replace('.pickle', '')
@@ -38,7 +38,7 @@ for i, sample_id_file in enumerate(sample_id_files):
         v = VariantMatrix(CONFIG, TPERSIST, show_bar=True)
         v.build()       # build matrix
         pcr = PCARunner(v, show_bar=True)  # run pca
-        pcr.run(n_components=200, pca_parameters={})    # extract pcs
+        pcr.run(n_components=400, pca_parameters={})    # extract pcs
         v = pcr.cluster()   # cluster pcs
         v.to_sqlite(outputdir = outputdir, analysis_name = analysis_name)
 

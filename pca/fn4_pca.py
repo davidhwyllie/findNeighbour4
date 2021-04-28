@@ -44,7 +44,9 @@ GNU Affero General Public License for more details.
 # import libraries
 import os
 import logging
+import logging.handlers
 import warnings
+import datetime
 from pathlib import Path
 import sentry_sdk
 import argparse
@@ -76,7 +78,8 @@ python fn4_pca.py ../config/myConfigFile.json  # all samples, 200 pcs, output to
 python fn4_pca.py ../config/myConfigFile.json  --outputdir /data/data/pca --analysis_name 2021-04-08 --num_train_on 50 --n_components 5
 
 # covid
-pipenv run python3 pca/fn4_pca.py demos/covid/covid_config_v3.json --outputdir /data/data/pca --analysis_name 2021-04-10 --n_components 200
+pipenv run python3 pca/fn4_pca.py demos/covid/covid_config_v3.json --outputdir /data/data/pca --analysis_name 2021-04-10 --n_components 400
+pipenv run python3 pca/fn4_pca.py demos/covid/covid_config_v3.json --outputdir /data/data/pca/realtime_400 --analysis_name 2021-04-10 --n_components 400
 
 """,
     )
@@ -92,7 +95,7 @@ pipenv run python3 pca/fn4_pca.py demos/covid/covid_config_v3.json --outputdir /
         action="store",
         nargs="?",
         help="the name of the analysis.  used as the stem of the .sqlite file into which the output is written.",
-        default="pca_output",
+        default=datetime.datetime.now().isoformat()[0:10],
     )
     parser.add_argument(
         "--num_train_on",
