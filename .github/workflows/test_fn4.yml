@@ -48,7 +48,7 @@ jobs:
         cd external_software
         git clone https://gitea.mmmoxford.uk/dvolk/catwalk.git
         cd catwalk
-        nimble build -d:release -d:danger -d:no_serialisation
+        nimble -y build -d:release -d:danger -d:no_serialisation
         # add path to executable to .env file 
         echo CW_BINARY_FILEPATH=\"`pwd`/cw_server\" > ../../.env
         # back to original directory
