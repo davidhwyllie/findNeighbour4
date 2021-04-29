@@ -1,3 +1,5 @@
+[![Test findNeighbour4](https://github.com/davidhwyllie/findNeighbour4/actions/workflows/test_fn4.yml/badge.svg?branch=master)](https://github.com/davidhwyllie/findNeighbour4/actions/workflows/test_fn4.yml)
+
 # Abstract
 findNeighbour4 is a server application for investigating bacterial relatedness using reference-mapped data.
 Accessible via RESTful webservices, findNeighbour4 maintains a sparse distance matrix in a database
