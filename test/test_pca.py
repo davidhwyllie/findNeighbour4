@@ -15,8 +15,8 @@ class Test_PersistenceTest_1(unittest.TestCase):
     def runTest(self):
         tp = PersistenceTest(connstring="thing", number_samples=251)
         tp.load_data(
-            sample_ids_file="/data/software/fn4dev/testdata/pca/seqs_5000test_ids.pickle",
-            sequences_file="/data/software/fn4dev/testdata/pca/seqs_5000test.pickle",
+            sample_ids_file="testdata/pca/seqs_5000test_ids.pickle",
+            sequences_file="testdata/pca/seqs_5000test.pickle",
         )
         self.assertEqual(len(tp.seqs.keys()), 5000)
         self.assertEqual(len(tp.sample_ids), 5000)
@@ -95,8 +95,8 @@ class Test_VariantMatrix_1(unittest.TestCase):
 
         TPERSIST = PersistenceTest(connstring="thing", number_samples=251)
         TPERSIST.load_data(
-            sample_ids_file="/data/software/fn4dev/testdata/pca/seqs_5000test_ids.pickle",
-            sequences_file="/data/software/fn4dev/testdata/pca/seqs_5000test.pickle",
+            sample_ids_file="testdata/pca/seqs_5000test_ids.pickle",
+            sequences_file="testdata/pca/seqs_5000test.pickle",
         )
         cfm = ConfigManager(DEFAULT_CONFIG_FILE)
         CONFIG = cfm.read_config()
@@ -136,8 +136,8 @@ class Test_VariantMatrix_2(unittest.TestCase):
 
         TPERSIST = PersistenceTest(connstring="thing", number_samples=251)
         TPERSIST.load_data(
-            sample_ids_file="/data/software/fn4dev/testdata/pca/seqs_5000test_ids.pickle",
-            sequences_file="/data/software/fn4dev/testdata/pca/seqs_5000test.pickle",
+            sample_ids_file="testdata/pca/seqs_5000test_ids.pickle",
+            sequences_file="testdata/pca/seqs_5000test.pickle",
         )
         cfm = ConfigManager(DEFAULT_CONFIG_FILE)
         CONFIG = cfm.read_config()
