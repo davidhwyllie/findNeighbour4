@@ -25,28 +25,52 @@ parser$add_argument('-d', "--searchdir", default="/data/data/pca/realtime_400/",
 
 parser$add_argument('-f', "--filepattern", default="*.sqlite", type="character",
         metavar="pattern to search for in order to identify sqlite files",
-    help="file pattern to glob to look for sqlite files. Example: 2021*.sqlite")
+        help="file pattern to glob to look for sqlite files. Example: 2021*.sqlite")
 
 parser$add_argument('-m', "--cogfile", default="/data/data/inputfasta/cog_metadata.csv", type="character",
         metavar="metadata file; format used by cog-uk is currently expected",
-    help="metadata file")
+        help="metadata file")
 
 parser$add_argument('-i', "--interval", default=30, type="integer",
         metavar="number of days prior to today that the Poisson regression models examine",
-    help="interval to compute trends over")
+        help="interval to compute trends over")
+
+parser$add_argument('-e', "--highlight_min_estimate_IRR", default=3, type="double",
+        metavar="highlight trending pc_cats with incidence rate ratio more than ",
+        help="illustrate trending pc_cats above a rate ratio cutoff.  Suitable values 2-10")
+
+parser$add_argument('-n', "--highlight_max_samples", default=300, type="double",
+        metavar="highlight trending pcs_cats with fewer than max_samples cases ",
+        help="highlight trending pc_cats with fewer than highlight_max_samples cutoff.  Suitable values 30 - 300")
+
+parser$add_argument('-r', "--highlight_min_recent_proportion", default=0.5, type="double",
+        metavar="highlight trending pcs_cats where > than highlight_min_recent_proportion cases are within --interval days",
+        help="highlight trending pcs_cats where > than highlight_min_recent_proportion cases are within --interval days")
+
+    
 # get command line options, if help option encountered print help and exit,
 # otherwise if options not found on command line then set defaults, 
 # example usage: 
 # Rscript plot_strain_emergence_realtime.R --filepattern "2021-04-27.sqlite" --interval 30 --searchdir /data/data/pca/realtime_400/ --cogfile /data/data/inputfasta/cog_metadata.csv
+# Rscript plot_strain_emergence.R --searchdir /data/data/pca/cp_subsets_output_400_plus/ --filepattern 2020*.sqlite --interval 30 -n 100 -r 0.5 -e 5
 
 args <- parser$parse_args()
 
 ## -----    example usage: loading, iteration  ------------------------
 # set up parameters
-# set up parameters
 BASE_DIR <- args$searchdir   # "/data/data/pca/realtime_400/"  # where the databases are
 cogfile <- args$cogfile #  "/data/data/inputfasta/cog_metadata.csv"
 interval <- args$interval
+min_estimate_IRR <- args$highlight_min_estimate_IRR
+max_samples <- args$highlight_max_samples
+min_recent_proportion <- args$highlight_min_recent_proportion  
+
+#min_estimate_IRR <- 5
+#max_samples <- 100
+#min_recent_proportion <- 0.5
+
+print("Subset selection criteria")
+print(paste(min_estimate_IRR, max_samples,min_recent_proportion))
 
 # find all sqlite dbs
 glob_path <- paste0(BASE_DIR,args$filepattern)
@@ -80,12 +104,7 @@ for (dbfile in sort(Sys.glob(glob_path), decreasing=FALSE)){
   #test_lineages <- c('B.1.351')
   for (lineage_to_depict in  test_lineages){
 
-    ## start of future function
-    # parameters controlling enhanced depiction options
-    # lineage_to_depict
-    min_estimate_IRR <- 3
-    max_samples <- 300
-    min_recent_proportion <- 0.5
+
 
     # function starts
     res <- plot_counts_per_lineage(db_connection = db_conn,
@@ -167,6 +186,7 @@ for (dbfile in sort(Sys.glob(glob_path), decreasing=FALSE)){
 
     assoc_long$proportion_feature_explained <- assoc_long$a/ assoc_long$a_c
     assoc_long$is_lineage <- ifelse(grepl("lineage:", assoc_long$feature), "Lineage", "Variant")
+    assoc_long$is_lineage <- ifelse(grepl("mutations:", assoc_long$feature), "Mutation", assoc_long$is_lineage)
     assoc_long$feature <- gsub("lineage:","", assoc_long$feature, fixed=TRUE)
     assoc_long <- subset(assoc_long, !feature == "NA")
 
@@ -237,9 +257,13 @@ for (dbfile in sort(Sys.glob(glob_path), decreasing=FALSE)){
       p2 <- p2 + geom_segment(colour='red', size= 3, lty=1, aes(x = marker_x, y=marker_y, xend=marker_xend, yend=marker_yend), data = trend_subset)
 
 
-      p3 <- ggplot(assoc_long, aes(y=pc_cat, x=feature))
+      plotted <- subset(assoc_long, is_lineage %in% c('Lineage'))
+      depicted_associations <- subset(depicted_associations, feature %in% unique(plotted$feature))
+      #print(unique(depicted_associations$feature))
+      
+      p3 <- ggplot(plotted, aes(y=pc_cat, x=feature))
       p3 <- p3 + geom_blank()   # fill the grid
-      p3 <- p3 + geom_tile(aes(fill=log_or), data=subset(assoc_long, truncated_odds_ratio > depiction_or_cutoff))
+      p3 <- p3 + geom_tile(aes(fill=log_or), data=subset(plotted, truncated_odds_ratio > depiction_or_cutoff))
       p3 <- p3 + geom_point(aes(size=proportion_feature_explained), colour='yellow', data= depicted_associations)
       p3 <- p3 + ggtitle("Sequence patterns\nassociations with lineage")
       p3 <- p3 + scale_y_discrete("Sequence pattern (pc_cat)")
@@ -251,6 +275,7 @@ for (dbfile in sort(Sys.glob(glob_path), decreasing=FALSE)){
       p3 <- p3 + facet_grid(.~is_lineage, scales='free')
 
     } else {
+
         p2 <- ggplot() + theme_void()   # nothing
         p3 <- ggplot() + theme_void()   # nothing
 
@@ -268,6 +293,7 @@ for (dbfile in sort(Sys.glob(glob_path), decreasing=FALSE)){
 
   
   # example code to dump trending sample lists
+  if (FALSE) {
   print("Dumping contents of trending pc_cats to file")
   for (this_pc_cat in unique(assoc_long$pc_cat)){
     print(this_pc_cat)
@@ -282,7 +308,7 @@ for (dbfile in sort(Sys.glob(glob_path), decreasing=FALSE)){
     outfile <- paste0(PLOT_DIR,"/members_of_",this_pc_cat,".tsv")
     write.table(res, file=outfile, sep="\t", row.names=FALSE)
   }
-
+  }
   dbDisconnect(db_conn)
 
 }
