@@ -9,6 +9,10 @@ unit testing purposes.
 Also useful for investigating how PCA detected the ingress of new strains over time.
 Uses public cog metadata downloaded from COG-UK 7/4/2021, saved in
 testdata/pca/cog_metadata.csv.gz, and requires access to an fn3persistence object containing the same data.
+
+To run: 
+pipenv run python3 utils/make_temporal_subsets.py
+
 """
 
 import os
@@ -22,27 +26,45 @@ from findn.mongoStore import fn3persistence
 from findn.common_utils import ConfigManager
 
 # open connection to existing covid datastore
-config_file = os.path.join("..", "demos", "covid", "covid_config_v3.json")
+config_file = os.path.join("demos", "covid", "covid_config_v3.json")
 cfm = ConfigManager(config_file)
 CONFIG = cfm.read_config()
 PERSIST = fn3persistence(dbname=CONFIG["SERVERNAME"], connString=CONFIG["FNPERSISTENCE_CONNSTRING"], debug=CONFIG["DEBUGMODE"])
 inputfile = "/data/software/fn4dev/testdata/pca/cog_metadata.csv.gz"
 outputdir = "/data/data/pca/subsets"  # or wherever
 
+# get samples which are in server
+extant_sample_ids = PERSIST.guids()
+print("There are {0} samples in the server".format(len(extant_sample_ids)))
+
 # read metadata file into pandas
 with gzip.open(inputfile, "rt") as f:
     df = pd.read_csv(f)
-
 # we are using the middle part of the cog_id as the sample name as the sample_id; extract this.
 sample_ids = df["sequence_name"].to_list()
 df["sample_id"] = [x.split("/")[1] for x in sample_ids]
 
+print("There are {0} samples in the COG-UK list".format(len(df.index)))
+
+# what is in the server & not in the list?
+server_sample_ids = set(extant_sample_ids)
+inputfile_sample_ids = set(df['sample_id'])
+
+missing = server_sample_ids - inputfile_sample_ids
+print("Missing samples: n=", len(missing))
+
+missing_df = pd.DataFrame({'missing': list(missing)})
+print(missing_df)
+missing_df.to_csv("/data/data/inputfasta/missing_meta.csv")
+
 # load a small subset of the reference compressed sequences, for testing purposes
 # load the reference compressed sequences
+print("Dumping 5,000 sample test set")
 storage_dict = {}
 sampled = random.sample(df["sample_id"].to_list(), 5000)
 bar = progressbar.ProgressBar(max_value=len(sampled))
 
+print("Dumping all samples")
 for i, sample_id in enumerate(sampled):
     res = PERSIST.refcompressedsequence_read(sample_id)
     bar.update(i)
@@ -55,7 +77,8 @@ with open(outputfile, "wb") as f:
 outputfile = "/data/software/fn4dev/testdata/pca/seqs_5000test_ids.pickle"
 with open(outputfile, "wb") as f:
     pickle.dump(sampled, f)
-exit()
+
+
 # load the reference compressed sequences
 storage_dict = {}
 bar = progressbar.ProgressBar(max_value=len(df.index))
@@ -66,8 +89,8 @@ for i, sample_id in enumerate(df["sample_id"]):
 bar.finish()
 
 # write out the dictionary
-outputfile = os.path.join(outputdir, "seqs_20210401.pickle.gz")
-with gzip.open(outputfile, "wb") as f:
+outputfile = os.path.join(outputdir, "seqs_20210421.pickle")
+with open(outputfile, "wb") as f:
     pickle.dump(storage_dict, f)
 
 # construct counts between 1 June 2020 and end March 2021
@@ -85,7 +108,7 @@ for cutoff_date in cnts.index:
     df_subset = df[df["sample_date"] < cutoff_date]
     sample_ids = df_subset["sample_id"].to_list()
 
-    outputfile = os.path.join(outputdir, "{0}-{1}.picklen.gz".format(dow, cutoff_date))
-    with gzip.open(outputfile, "wb") as f:
+    outputfile = os.path.join(outputdir, "{0}-{1}.pickle".format(dow, cutoff_date))
+    with open(outputfile, "wb") as f:
         pickle.dump(sample_ids, f)
         print(outputfile)

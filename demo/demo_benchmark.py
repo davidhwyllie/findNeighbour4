@@ -35,7 +35,7 @@ if __name__ == "__main__":
     description = CONFIG["SERVERNAME"]
 
     def ll2s(x):
-        """ converts a list of lists, e.g. [['guid1',2],['guid2',0]] into a set {'guid1','guid2'} """
+        """converts a list of lists, e.g. [['guid1',2],['guid2',0]] into a set {'guid1','guid2'}"""
         neighbour_set = set()
         for neighbour in x:
             neighbour_set.add(neighbour[0])

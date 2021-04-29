@@ -20,6 +20,8 @@ jobs:
     strategy:
       matrix:
         python-version: [3.8]
+        mongodb-version: [4.4.4]
+
 
     steps:
     - uses: actions/checkout@v2
@@ -35,10 +37,20 @@ jobs:
         # locking takes ages and has no benefit in the ci situation
         pipenv install --skip-lock
 
+    - name: Start MongoDB
+      uses: supercharge/mongodb-github-action@1.3.0
+      with:
+        mongodb-version: ${{ matrix.mongodb-version }}
+
     - name: Install cloned findNeighbour4 package
       run: |
         # install the findNeighbour package
         pipenv install -e `pwd` --skip-lock
+
+    - name: Lint with flake8
+      run: |
+        # stop the build if there are Python syntax errors or undefined names
+        pipenv run flake8 . --count --ignore=W293,E266,E302,E251,E225,E265,W291,E501,W503,C901 --show-source --max-complexity=200 --statistics
 
     - name: Install catwalk
       run: |
@@ -48,34 +60,27 @@ jobs:
         cd external_software
         git clone https://gitea.mmmoxford.uk/dvolk/catwalk.git
         cd catwalk
-        nimble build -d:release -d:danger -d:no_serialisation
+        nimble -y build -d:release -d:danger -d:no_serialisation
         # add path to executable to .env file 
         echo CW_BINARY_FILEPATH=\"`pwd`/cw_server\" > ../../.env
         # back to original directory
         cd ../..
 
-    - name: Lint with flake8
-      run: |
-        # stop the build if there are Python syntax errors or undefined names
-        pipenv run flake8 . --count --ignore=W293,E266,E302,E251,E225,E265,W291,E501,W503,C901 --show-source --max-complexity=200 --statistics
-
     - name: Test with pytest
       run: |
         nohup pipenv run python3 findNeighbour4_server.py &
         sleep 15
-        pipenv run pytest --cov=./ --cov-report=xml
-        pipenv run coverage report
-
+        pipenv run pytest test --cov=./ --cov-report=xml
+        
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v1
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        files: ./coverage1.xml,./coverage2.xml
-        directory: ./coverage/reports/
+        files: coverage.xml
+        directory: ./
         flags: unittests
         env_vars: OS,PYTHON
         name: codecov-umbrella
         fail_ci_if_error: true
-        path_to_write_report: ./coverage/codecov_report.txt
+        path_to_write_report: codecov_report.txt
         verbose: true
-

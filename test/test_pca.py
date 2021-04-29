@@ -1,12 +1,4 @@
-""" integration test for findNeighbour4
-assumes a findNeighbour4 server is running, with the connection string stated in demos/AC587/config/config_nocl.json.
-
-An example command doing this would be 
-pipenv run python3 findNeighbour4_server.py demos/AC587/config/config_nocl.json
-
-The test loads the server with data from the AC587 test data
-and compares the SNP distances and links with those from a seqComparer
-instance.
+""" tests pca.py - software to do PCA
 
 """
 
@@ -23,8 +15,8 @@ class Test_PersistenceTest_1(unittest.TestCase):
     def runTest(self):
         tp = PersistenceTest(connstring="thing", number_samples=251)
         tp.load_data(
-            sample_ids_file="/data/software/fn4dev/testdata/pca/seqs_5000test_ids.pickle",
-            sequences_file="/data/software/fn4dev/testdata/pca/seqs_5000test.pickle",
+            sample_ids_file="testdata/pca/seqs_5000test_ids.pickle",
+            sequences_file="testdata/pca/seqs_5000test.pickle",
         )
         self.assertEqual(len(tp.seqs.keys()), 5000)
         self.assertEqual(len(tp.sample_ids), 5000)
@@ -35,7 +27,6 @@ class Test_PersistenceTest_1(unittest.TestCase):
         guids = list(tp.sample_ids)
         res = tp.refcompressedsequence_read(guids[0])
         self.assertIsInstance(res, dict)
-
 
 class Test_MNStats_1(unittest.TestCase):
     """ tests the MNStats class"""
@@ -97,7 +88,6 @@ class Test_MNStats_1(unittest.TestCase):
         self.assertEqual(res["N_total"], 19)
         self.assertEqual(res["M_total"], 0)
 
-
 class Test_VariantMatrix_1(unittest.TestCase):
     """ tests the VariantMatrix and PCARunner classes"""
 
@@ -105,8 +95,8 @@ class Test_VariantMatrix_1(unittest.TestCase):
 
         TPERSIST = PersistenceTest(connstring="thing", number_samples=251)
         TPERSIST.load_data(
-            sample_ids_file="/data/software/fn4dev/testdata/pca/seqs_5000test_ids.pickle",
-            sequences_file="/data/software/fn4dev/testdata/pca/seqs_5000test.pickle",
+            sample_ids_file="testdata/pca/seqs_5000test_ids.pickle",
+            sequences_file="testdata/pca/seqs_5000test.pickle",
         )
         cfm = ConfigManager(DEFAULT_CONFIG_FILE)
         CONFIG = cfm.read_config()
@@ -132,6 +122,47 @@ class Test_VariantMatrix_1(unittest.TestCase):
 
         # test run
         pcr = PCARunner(v)
+        pcr.run(n_components=10, pca_parameters={})
+
+        # test cluster
+        v = pcr.cluster()
+
+        v.to_sqlite("unittest_tmp")
+
+class Test_VariantMatrix_2(unittest.TestCase):
+    """ tests the VariantMatrix and PCARunner classes"""
+
+    def runTest(self):
+
+        TPERSIST = PersistenceTest(connstring="thing", number_samples=251)
+        TPERSIST.load_data(
+            sample_ids_file="testdata/pca/seqs_5000test_ids.pickle",
+            sequences_file="testdata/pca/seqs_5000test.pickle",
+        )
+        cfm = ConfigManager(DEFAULT_CONFIG_FILE)
+        CONFIG = cfm.read_config()
+
+        v = VariantMatrix(CONFIG, TPERSIST, show_bar=True)
+
+        # test guids() method
+        self.assertEqual(set(v.guids()), set(TPERSIST.refcompressedsequence_guids()))
+
+        # test get_position_counts
+        guids, vmodel, mmodel = v.get_position_counts()
+        self.assertEqual(guids, set(TPERSIST.refcompressedsequence_guids()))
+        self.assertIsInstance(vmodel, dict)
+        self.assertIsInstance(mmodel, dict)
+
+        # test get_missingness_cutoff
+        m = v.get_missingness_cutoff(positions=vmodel.keys(), mmodel=mmodel)  # the missingness model
+        self.assertEqual(m, 27)
+
+        # test build
+        v.build()
+        self.assertIsInstance(v.vm["variant_matrix"], pd.DataFrame)
+
+        # test run
+        pcr = PCARunner(v, show_bar=True)
         pcr.run(n_components=10, pca_parameters={})
 
         # test cluster

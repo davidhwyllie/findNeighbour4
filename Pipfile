@@ -12,7 +12,7 @@ blinker = "*"
 urllib3 = "*"
 requests = "*"
 pymongo = "==3.11.3"
-pandas = "*"
+pandas = ">=1.2.4"
 Markdown = "*"
 matplotlib = "*"
 networkx = "*"
@@ -40,7 +40,7 @@ pytest = "*"
 flake8 = "*"
 pytest-cov = "*"
 coverage = "*"
+black = "*"
 
 [requires]
 python_version = "3.8"
-
