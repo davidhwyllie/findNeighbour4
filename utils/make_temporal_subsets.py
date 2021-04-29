@@ -53,7 +53,7 @@ inputfile_sample_ids = set(df['sample_id'])
 missing = server_sample_ids - inputfile_sample_ids
 print("Missing samples: n=", len(missing))
 
-missing_df = pd.DataFrame({'missing':list(missing)})
+missing_df = pd.DataFrame({'missing': list(missing)})
 print(missing_df)
 missing_df.to_csv("/data/data/inputfasta/missing_meta.csv")
 

@@ -4,7 +4,6 @@ Uses data sets collated by make_temporal_subset
 """
 
 import os
-import pathlib
 import glob
 
 from pca.pca import PersistenceTest, VariantMatrix, PCARunner

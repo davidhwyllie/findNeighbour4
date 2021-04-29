@@ -13,22 +13,35 @@
 
 rm(list=ls())
 
+library(gridExtra)
+library(argparse)
 # functions
 source('pca_depiction_functions.R')
+
+parser <- ArgumentParser()
+parser$add_argument('-f', "--filepattern", default="*.sqlite", type="character",
+        metavar="pattern to search for",
+    help="file pattern to glob to look for sqlite files")
+
+# get command line options, if help option encountered print help and exit,
+# otherwise if options not found on command line then set defaults, 
+args <- parser$parse_args()
 
 ## -----    example usage: loading, iteration  ------------------------
 # set up parameters
 # set up parameters
-BASE_DIR <- "/data/data/pca/subsets_output"  # where the databases are
+BASE_DIR <- "/data/data/pca/subsets_output_pca2_plus/"  # where the databases are
 cogfile <- "/data/data/inputfasta/cog_metadata.csv"
 interval <- 30
+
 # find all sqlite dbs
-glob_path <- paste0(BASE_DIR,"/0*.sqlite")
+glob_path <- paste0(BASE_DIR,args$filepattern)
+print(paste0("Searching ",glob_path))
 for (dbfile in sort(Sys.glob(glob_path), decreasing=FALSE)){
     
   db_stem <- substr(basename(dbfile), 3, 12) # used for output; the way these files are 
                                              # labelled, this is the date.
-  PLOT_DIR <- paste0("pc_plots/strain_emergence") # where the output goes
+  PLOT_DIR <- paste0(BASE_DIR,"pc_plots/strain_emergence") # where the output goes
   dir.create(PLOT_DIR, recursive=TRUE)
   
   db_conn <- connect_to_fn4sqlitedb(dbfile) # connect
@@ -42,23 +55,17 @@ for (dbfile in sort(Sys.glob(glob_path), decreasing=FALSE)){
                                                 max_pcs = NA,
                                                 overwrite = FALSE)
   make_contingency_tables(db_conn, overwrite=FALSE)
-  
-  # ------- example plots -----
-  
-  # strains from https://www.gov.uk/government/publications/covid-19-variants-genomically-confirmed-case-numbers/variants-distribution-of-cases-data
-  
-  p1 <- plot_pc_cat_size_vs_change_marking_selected_lineages(
-    db_connection =db_conn,
-    date_end = db_stem,
-    target_strains = c('B.1.1.7','B.1.351','P.1','P.1','B.1.1.318','P.3','B.1.617'),
-    only_show_significant_trending = FALSE) 
-  p1 <- p1 + ggtitle(db_stem) 
-  to_tiff(to_plot=p1, 
-            outputdir=PLOT_DIR, 
-            db_name=db_stem, 
-            plot_name='pc_cats_size_vs_change_all_marking_selected_lineages')
-    
+
+  trends <- load_trend_summary(db_conn)
+  t1 <- subset(trends, param=='Rate ratio relative to ref at baseline')
+  head(t1)
+
+  print(t1[1:5,])
+  print(table(t1$earliest_date))       # controls from a date window round the date - symmetric? will have > 20 controlsr 
+
+  #get a list of similar 
+
   dbDisconnect(db_conn)
-  
-  }
+  stop()
+}
 stop('FINISHED')

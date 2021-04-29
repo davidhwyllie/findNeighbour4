@@ -82,9 +82,7 @@ if __name__ == "__main__":
 
     # export to excel
     excel_outputfile = "{0}.xlsx".format(output_file_stem)
-    msa_df.to_excel(
-        excel_outputfile
-    )  
+    msa_df.to_excel(excel_outputfile)
     #  study this carefully.  The p-values, if significant, are indicative of various types of mixture.
     # see https://github.com/davidhwyllie/findNeighbour4/blob/master/doc/mixtureTesting.md
 
