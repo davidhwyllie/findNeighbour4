@@ -31,6 +31,8 @@ library(svglite)
 library(scales)
 library(gridExtra)
 library(rjson)
+library(rms)
+library(MASS)
 # functions
 
 # ---- helper functions for visualisation ----
@@ -38,6 +40,9 @@ library(rjson)
 pc_cat_levels <- function(x){
   # for pc_cats like 1_10, 1_1, 11_2, 2_3 return in the correct order (pc first, then cat)
   # useful for assigning levels to pc_cat fields
+  if (length(x)==0){
+    return(x)
+  }
   x <- as.character(x)
   x <- unique(x)
   x <- x[!is.na(x)]
@@ -104,6 +109,14 @@ to_svg <- function(to_plot, outputdir, db_name, plot_name) {
 
 }
 # ---- queries used multiply by visualisation and analysis ----
+all_pc_cats <- function(db_connection){
+  cmd <- "select distinct tcc.pc_cat pc_cat
+                          from 
+                          transformed_coordinate_categories tcc 
+                          group by tcc.pc_cat;"
+  database_query(db_connection, cmd, params=NA)
+
+}
 load_trend_summary <- function(db_connection, date_end=Sys.Date()) {
   # loads an integrated dataset including trends and the number of samples
   # 
@@ -121,101 +134,99 @@ load_trend_summary <- function(db_connection, date_end=Sys.Date()) {
   date_ends <- convert_date(date_end) 
   
   # this query can have to collate large amounts of data.  the result is small.  we cache the result.
-  target_table_name <- paste0('trend_summary_', date_ends[['iso']])
+  target_table_name <- paste0('trend_summary')
   target_table_name <- gsub('-','_',target_table_name)
   if (!db_has_table(db_connection, target_table_name)) {
-    print("Recovering model fits")
+    print("Computing trend summary as no cached result exists")
+    print(" Recovering model fits, currently for all models")
       # recover details of the Poisson model fitted
     cmd = "SELECT smm.analysis_id, analysis, analysis_type, date_end, interval_analysed_days, 
-           pc_cat, param, Estimate, Estimate_CI_low, Estimate_CI_high, p_value,
+           pc_cat, param, param_desc, Estimate, Estimate_CI_low, Estimate_CI_high, p_value,
            is_reference, has_ci, Estimate2NaturalSpace
            FROM statistical_model_fits smf
     inner join statistical_model_metadata smm
-    on smf.analysis_id = smm.analysis_id
-    where analysis = 'fit_recent_trend_wrt_most_common_pcat';"
+    on smf.analysis_id = smm.analysis_id;"
     trend <- database_query(
       db_connection = db_connection, 
       cmd = cmd)
-
-    print("Computing trend summary as no cached result exists")
-
-    print("Computing numbers of samples occurring > 14,30,60,90 and 120 days ago")
-    intervals <- c(120, 90, 60, 30, 14)
-
-    print("Computing number of pc_cats")
-    cmd <- "select tcc.pc_cat pc_cat
-                        from 
-                        transformed_coordinate_categories tcc
-                        group by tcc.pc_cat"
-    all_pcs <- database_query(db_connection, cmd, params=NA)
-
-    cmd <- "select tcc.pc_cat pc_cat, count(*) n_samples
-                        from 
-                        transformed_coordinate_categories tcc 
-                        LEFT JOIN
-                        clinical_metadata cm
-                        on cm.sample_id = tcc.sample_id
-                        where cm.sample_date <= ?
-                        group by tcc.pc_cat"
-    for (interval in intervals){
-      print(paste0("Computing numbers of samples occurring > ",interval," days ago"))
-      cutoff_date <- date_ends[['dt']]-interval
-      cutoff_date_iso <- lubridate::format_ISO8601(cutoff_date,usetz=FALSE, precision='ymd')
-      historical_counts <- database_query(db_connection, cmd, params=list(cutoff_date_iso))
-      col_name <- paste0('n_gt_',interval,'_days_before')
-      names(historical_counts)[2] <- col_name
-      all_pcs <- merge(all_pcs, historical_counts, all.x=TRUE, by='pc_cat')
-      all_pcs[[col_name]][is.na(all_pcs[[col_name]])] <- 0
-    }
-
-    print(paste("load_trend_summary; including clinical data up to ",date_ends[['iso']]))
+    print(paste0("Recovered ",nrow(trend)," rows"))
+  
     check_table_present(db_connection, 'transformed_coordinate_categories','Table should be present, produced by fn4pca.py')
     check_table_present(db_connection, 'statistical_model_fits','Call fit_recent_trend_wrt_most_common_pcat_all_pcs() first')
     print('running query 1: properties of transformed coordinates')
     cmd = "
-              select pc, cat, pc_cat, count(*) n_samples, 
+              select pc_cat, count(*) n_samples, 
               min(transformed_coordinate) min_trans_coord, 
               max(transformed_coordinate) max_trans_coord, 
               avg(transformed_coordinate) mean_trans_coord
               from transformed_coordinate_categories
-              group by pc, cat, pc_cat;"
+              group by pc_cat;"
 
     summary_trends <- database_query(
       db_connection = db_connection, 
       cmd = cmd)
     print('query 1 complete')
-
+    print(paste0("Recovered ",nrow(summary_trends)," rows"))
+ 
 
     if (!db_has_table(db_connection, 'clinical_metadata')){
       summary_trends$earliest_sample_date <- NA
       summary_trends$latest_sample_date <- NA
-      summary_trends$n_available_sample_dates <- 0
+      summary_trends$n_gt_14_days_before <- NA
+      summary_trends$n_gt_30_days_before <- NA
+      summary_trends$n_gt_60_days_before <- NA
+      summary_trends$n_gt_90_days_before <- NA
+      summary_trends$n_gt_120_days_before <- NA
+      summary_trends$n_days_observed <- NA
+
     } else {
       print('running query 2: date range of each transformed coordinate category')
-      cmd <- "select tcc.pc_cat pc_cat,
-                        min(sample_date) earliest_date, 
-                        max(sample_date) latest_date, 
-                        count(sample_date) n_available_sample_dates 
-                        from 
-                        transformed_coordinate_categories tcc 
-                        LEFT JOIN
-                        clinical_metadata cm
-                        on cm.sample_id = tcc.sample_id
-                        where cm.sample_date <= ?
-                        group by tcc.pc_cat;"
-      extra_dates <- database_query(
-        db_connection = db_connection,
-        cmd = cmd, 
-        params = list(date_ends[['iso']]))
-      print("query 2 complete")
+      intervals <- c(120, 90, 60, 30, 14)
+
+      print("Computing number of pc_cats")
+      all_pcs <- all_pc_cats(db_connection)
+
+      cmd <- "select tcc.pc_cat pc_cat, 
+  sum(case when cm.sample_date < ? then 1 else 0 end) n_gt_14_days_before,
+  sum(case when cm.sample_date < ? then 1 else 0 end) n_gt_30_days_before,
+  sum(case when cm.sample_date < ? then 1 else 0 end) n_gt_60_days_before,
+  sum(case when cm.sample_date < ? then 1 else 0 end) n_gt_90_days_before,
+  sum(case when cm.sample_date < ? then 1 else 0 end) n_gt_120_days_before,
+  min(sample_date) earliest_date, 
+  max(sample_date) latest_date,
+  count(distinct sample_date) n_days_observed
+                          from 
+                          transformed_coordinate_categories tcc 
+                          LEFT JOIN
+                          clinical_metadata cm
+                          on cm.sample_id = tcc.sample_id
+                          group by tcc.pc_cat;"
+      print("Computing numbers of samples occurring > 14,30,60,90 and 120 days ago")
   
-      summary_trends <- merge(summary_trends, extra_dates,  all.x=TRUE, by=c('pc_cat'))
+      datelist <- list()
+      for (interval in intervals){
+        cutoff_date <- date_ends[['dt']]-interval
+        cutoff_date_iso <- lubridate::format_ISO8601(cutoff_date,usetz=FALSE, precision='ymd')
+        datelist <- append(datelist, cutoff_date_iso)
+      }
+      historical_counts <- database_query(db_conn, cmd, params=datelist)
+      all_pcs <- merge(all_pcs, historical_counts, all.x=TRUE, by='pc_cat')
+      for (i in 2:6){
+      all_pcs[,i][is.na(all_pcs[,i])] <- 0
+      }
+
+      print("query 2 complete")
+      print(paste0("Recovered ",nrow(summary_trends)," rows"))
+ 
       summary_trends <- merge(summary_trends, all_pcs, all.x=TRUE, by=c('pc_cat'))
+      print(paste0("merge 1 completed, leaving ",nrow(summary_trends)," rows"))
+ 
     }
     
     print("Merging")
     summary_trends <- merge(summary_trends, trend, by='pc_cat')
-
+    print(paste0("merge 2 completed, leaving ",nrow(summary_trends)," rows"))
+ 
     # convert the date fields to dates
     # this is required by SQLite, which doesn't have a native date format and requires that
     # dates are stored as strings.  We do this in ymd iso format, and and cast as date using as.Date
@@ -231,7 +242,7 @@ load_trend_summary <- function(db_connection, date_end=Sys.Date()) {
     table_details <-  list()
     table_details[[target_table_name]] <- list(
         "data_table"=summary_trends, 
-        "appropriate_indices"=c("pc","cat", "pc_cat")
+        "appropriate_indices"=c("pc_cat")
     )
     
     add_database_tables(db_connection, table_details, overwrite=FALSE)   # should not have to overwrite - should be once only
@@ -244,7 +255,8 @@ load_trend_summary <- function(db_connection, date_end=Sys.Date()) {
   # due to SQLite limitations, we store the dates in YMD iso format.  Convert back to date
   summary_trends$earliest_date <- as.Date(summary_trends$earliest_date)
   summary_trends$latest_date <- as.Date(summary_trends$latest_date)
-
+  print(paste0("Loaded from database table; recovered ",nrow(summary_trends)," rows"))
+ 
   # apply p-value cutoff
   summary_trends$is_sig <- ifelse(summary_trends$p_value <= 0.01, 1, 0)
   summary_trends$pc_cat <- factor(summary_trends$pc_cat, levels=pc_cat_levels(summary_trends$pc_cat))
@@ -345,7 +357,8 @@ count_per_pc_cats_in_time_interval <- function(db_connection,
   # dates may be passed in iso format as strings.
 
   print("Recovering counts by pc_cats")
-
+  print("analysing")
+  
   if (length(these_pc_cats)==0){
     return(list('success' = FALSE, 'count_df' = NA, 'reason' = "No pc_cats provided"))
   }
@@ -401,6 +414,75 @@ count_per_pc_cats_in_time_interval <- function(db_connection,
   count_df$sample_date <-  as.Date(count_df$sample_date)
 
   
+  return(list('success' = TRUE, 'count_df' = count_df, 'reason' = "Success"))
+
+} 
+
+count_per_all_pc_cats_in_time_interval <- function(db_connection, 
+                                          date_end=Sys.Date(),
+                                          interval_analysed=30){
+  # construct a data.table comprising all date/category combinations
+  # for the period interval_analysed days prior to date_end
+  #
+  # useful for regression modelling.
+  #
+  # parameters:
+  #   db_connection: the database connection
+  #   date_end: the last day analysed
+  #   interval_analysed:  the number of days prior to date_end analysed
+  # 
+  ### NOT TESTEDF
+  ### TODO Add pc_cat into transformed_coordinate_categories
+
+  # dates may be passed in iso format as strings.
+
+  print("Recovering counts by all pc_cats.  May take a few minutes.")
+
+  cats <- data.table(pc_cat=all_pc_cats(db_connection)$pc_cat)
+  cats$unity <- 1
+
+  date_ends <- convert_date(date_end) 
+  date_start <- date_ends[['dt']] - interval_analysed
+  date_sequence <- seq(date_start, to = date_ends[['dt']], by =1)
+  date_t <- as.numeric(as.integer(date_sequence-date_ends[['dt']]))/30 #per month
+  last_week <- ifelse(date_t<= -7, 1, 0)
+  date_cat <- as.integer(date_sequence-date_ends[['dt']])
+  dow_sequence <- lubridate::wday(date_sequence)
+  time_series_meta <- data.table(
+    sample_date = lubridate::format_ISO8601(date_sequence,usetz=FALSE, precision='ymd'),
+    date_t = date_t,
+    date_cat = factor(date_cat),
+    last_week = last_week,
+    sample_dow = factor(dow_sequence)
+  )
+
+ # recover counts to model
+  cmd <- "select ec.pc_cat, cm.sample_date, count(*) n
+  from transformed_coordinate_categories ec 
+  INNER JOIN
+  clinical_metadata cm
+  ON cm.sample_id = ec.sample_id
+  where cm.sample_date >= ? and cm.sample_date < ? 
+  group by ec.pc_cat, cm.sample_date;"
+   
+  params <- list(
+      lubridate::format_ISO8601(date_start, usetz=FALSE, precision='ymd'),
+      date_ends[['iso']]
+  )
+  
+  # load count data
+  count_df <- database_query(
+    db_connection = db_connection, 
+    cmd = cmd, 
+    params = params)
+
+  time_series_meta$unity <- 1
+  time_series_meta <- merge(time_series_meta, cats, allow.cartesian=TRUE, by='unity') # cross join
+  
+  count_df <- merge(time_series_meta, count_df, by = c('pc_cat','sample_date'), all.x=TRUE)
+  count_df$n[is.na(count_df$n)] <- 0  # missing date in the SQL query means count 0
+  count_df$sample_date <-  as.Date(count_df$sample_date)
+
   return(list('success' = TRUE, 'count_df' = count_df, 'reason' = "Success"))
 
 } 
@@ -511,6 +593,7 @@ plot_pc_cat_size_vs_change_marking_selected_lineages <- function(
                                         date_end,
                                         target_lineages = c(),
                                         reporting_or_cutoff = 1,
+                                        mark_top = 40,
                                         only_show_significant_trending = FALSE){  
   # plots pc_categories relative to the most common category
   # over the time period analysed
@@ -592,43 +675,52 @@ plot_pc_cat_size_vs_change_marking_selected_lineages <- function(
   } 
 
   # bespoke for this analysis: need to edit if different statistical models are added
-  summary_trends <- subset(summary_trends, param == "Trend over time relative to ref category")
+  summary_trends <- subset(summary_trends, param_desc == "Incidence rate ratio")
+  summary_trends <- summary_trends[order(-summary_trends$natural_space_Estimate),]
 
   y_axis_breaks <- c(100,30,10,3,2,1, 0.5,0.3,0.1,0.03,0.01)
-  ss <- scale_shape_manual(name = paste('First seen w.r.t ',date_ends[['iso']]), 
-                                    values = list('0 to 7 days before'=0, 
-                                    '8 to 14 days before'=1,
-                                    '15 to 28 days ago'=2,
-                                    '>28 days before'=3
-                                      )
-                                    )
-
-  # omitted shape=first_seen_days_ago_cat, 
-  # shape=first_seen_days_ago_cat
   p1<-ggplot(summary_trends,aes(x=n_samples,y=plot_natural_space_Estimate)) + 
-    geom_point(alpha = 0.3, aes()) + 
-    geom_point(size=2, aes(colour = lineage),
-               data=subset(summary_trends, !is.na(lineage)))
+    geom_point(alpha = 0.3, aes()) + theme(legend.position = "none") 
 
-  #  scale_colour_discrete(name="Lineage associations")+
-  p1 <- p1 + geom_point(size=4, shape=1, aes(colour = lineage),
-               data=subset(summary_trends, !is.na(lineage))) + 
-    
+  p1 <- p1 +
     geom_hline(yintercept =1, lty =1) +
-    geom_rug(alpha = 0.05)+
-    facet_grid(analysis_type~param) +
-    scale_x_continuous("Total sample counts in category",trans='log10', limits=c(1,1e6)) + 
-    scale_y_log10("30-day growth rate of samples, relative to the most common \ncategory in each principal component [Rate ratios > 100 plotted at 100]",
-                  breaks=y_axis_breaks, labels=y_axis_breaks, limits = c(0.09, 120)) +
-    theme(legend.position = "none") +
-    ggtitle(paste0("Change relative to  common cat.\nLineage specific pc_cats = ", n_specific_pcs))
+    geom_rug(alpha = 0.05)
+  p1 <- p1 + scale_x_continuous("Total sample counts in category",trans='log10', limits=c(1,1e6)) 
 
-  p1 <- p1 + geom_text_repel(size=4, shape=1, aes(label = pc_cat, colour = lineage),
-               data=subset(summary_trends, !is.na(lineage))) 
+  p1 <- p1 +
+    scale_y_log10("30-day growth rate of samples, relative to total\n [Rate ratios > 100 plotted at 100]",
+                  breaks=y_axis_breaks, labels=y_axis_breaks, limits = c(0.09, 120)) 
+  
+  p1 <- p1 + ggtitle(paste0("Change relative to total\nLineage specific pc_cats = ", n_specific_pcs))
+  marked <- subset(summary_trends, Estimate > 0 & !is.na(lineage))
+  top_changers <- subset(summary_trends, Estimate>0)
+  if (mark_top > 0){
+    if (mark_top>nrow(top_changers)){
+      mark_top <- nrow(top_changers)
+    }
+    
+    top_changers <- top_changers[1:mark_top,]
+ 
+    p1 <- p1 + geom_text_repel(size=3,  aes(label = pc_cat),
+                               data=subset(top_changers, !pc_cat %in% marked$pc_cat)) 
+    
+  }
+  
 
+  if (nrow(marked)>0){
+    
+    p1 <- p1 +  geom_point(size=2, aes(colour = lineage),
+                           data=marked)
+    
+    p1 <- p1 + geom_point(size=4, shape=1, aes(colour = lineage),
+                          data=marked)  
+    p1 <- p1 + geom_text_repel(size=4, aes(label = pc_cat, colour = lineage),
+                               data=marked) 
+    
+  }
   associated_pc_cats <- unique(summary_trends$pc_cat[!is.na(summary_trends$lineage)])
   summary_trends$pc_cat <- factor(summary_trends$pc_cat, levels=pc_cat_levels(summary_trends$pc_cat))
-  res = list(trends = summary_trends, p= p1, associated_pc_cats = associated_pc_cats)
+  res = list(trends = summary_trends, top_changers = as.character(top_changers$pc_cat), p= p1, associated_pc_cats = associated_pc_cats)
 }
 plot_counts_per_lineage <- function(db_connection,
                                         target_lineage, 
@@ -689,16 +781,13 @@ order by sample_date;"
   total_cnts <- sum(cnts$n)
 
   cmd = "
-  select sample_date, value lineage_variant, count(*) n from 
+  select sample_date, count(*) n from 
   clinical_metadata cm 
-INNER JOIN
-sequence_metadata sm
-WHERE
-cm.sample_id = sm.sample_id 
-and sample_date <= ?
+  where
+sample_date <= ?
 and sample_date <= ?
 and sample_date >= ?
-group by sample_date, value
+group by sample_date
 order by sample_date;"
 
   df_total_cnts <- database_query(db_connection,
@@ -720,7 +809,7 @@ order by sample_date;"
   # make labels appropriate to whether we have a lineage to mark
   if ( !target_lineage == '-- No lineage specified --'
    ){
-    y_axis_title <-  paste0("Number samples sequenced per day (gray = total, coloured = ", target_lineage)
+    y_axis_title <-  paste0("Number samples sequenced per day (gray = total, coloured ", target_lineage,")")
     title_text <- paste0("Date: ", db_stem,": ",target_lineage, "  n=", total_cnts)
   } else {
     y_axis_title <- "Number of samples sequenced per day"
@@ -1183,7 +1272,7 @@ ensure_important_indices <- function(db_connection){
   # transformed_coordinates (pc, pos)
   important_indices = list(
     "eigenvectors" = c('pc','pos'),
-    "transformed_coordinate_categories" = c('pc','cat','pc_cat','sample_id'),
+    "transformed_coordinate_categories" = c('pc_cat','sample_id'),
     "sample_id" = c('sample_id')
   )
   
@@ -1193,8 +1282,17 @@ ensure_important_indices <- function(db_connection){
       create_ix_sql = paste0("CREATE INDEX IF NOT EXISTS ", table_name,"_",index_field, " ON ", table_name, "(", index_field, ");")
       print(paste("Ensuring there is an index on table ", table_name, " field ", index_field))
       dbExecute(db_connection, create_ix_sql)
+
     }
   }
+  # compound indexes
+  print("Building compound indices")
+  cmds = c("CREATE INDEX IF NOT EXISTS ix1 on transformed_coordinate_categories ( pc, sample_id );"
+  )
+  for (create_ix_sql in cmds){
+  dbExecute(db_connection, create_ix_sql)
+  }
+           
 }
 list_tables <- function(db_connection){
   # list tables in database to which you are connected
@@ -1318,7 +1416,17 @@ add_cog_metadata <- function(db_connection, cogfile, date_end){
     print("Loading cogfile metadata")
     metadata_tables <- read_cog_metadata(cogfile, date_end)
     add_database_tables(db_conn, metadata_tables)
-    
+    # compound indexes
+    print("Building compound indices")
+    cmds = c(
+            "CREATE INDEX IF NOT EXISTS ix3 on clinical_metadata ( sample_id, sample_date );",
+            "CREATE INDEX IF NOT EXISTS ix2 on sequence_metadata ( variable, sample_id );"
+    )
+    for (create_ix_sql in cmds){
+    dbExecute(db_connection, create_ix_sql)
+    }
+
+           
   } else {
     print("sequence metadata is already present.")
   }
@@ -1367,8 +1475,9 @@ fit_recent_trend_wrt_most_common_pcat_all_pcs <- function(db_connection,
   
   n_pcs <- number_of_pcs(db_connection)
   print(paste("There are", n_pcs, "principal components.  Fitting poisson models of trends."))
-  
+
   # optionally restrict to a smaller number of pcs
+
   if (!is.na(max_pcs)){
     if (max_pcs < n_pcs) {
     n_pcs <- max_pcs
@@ -1376,10 +1485,12 @@ fit_recent_trend_wrt_most_common_pcat_all_pcs <- function(db_connection,
     }
   }
 
+
   ## fit models
   meta <- list()
   fits <- list()
-  
+
+
   # iterate over each pc
   for (this_pc in 1:n_pcs) {
     print(this_pc)
@@ -1423,6 +1534,270 @@ fit_recent_trend_wrt_most_common_pcat_all_pcs <- function(db_connection,
   print("Model fits written to database.")
   return(0)
 }
+fit_recent_trend_in_counts <- function(db_connection,
+                                                  date_end,
+                                                  interval_analysed,
+                                                  analysis_family_id= 'Not provided',
+                                                  overwrite=FALSE)                                                          {
+  # fits a Poisson regression model estimating the 
+  # count for pc_cat category 
+  
+  # Parameters
+  #  db_connnection: the database connection
+  #  this_pc:  the principal component to analyse
+  #  interval_analysed: the number of days' data to analyse
+  #  date_end: the last day of of the analysis period.  For today, set to 
+  #     Sys.Date().  Note that date_end must be a Date, not an ISO format 
+  #     string representing a date.
+  #  analysis_family_id : optional, a reference number for this analysis.
+  #                       can be used to link together analysis for different 
+  #                       pcs in a database
+  
+
+  # startup
+  if (!db_has_table(db_connection, "statistical_model_fits")){
+
+    # generate guid for this analysis
+    analysis_uuid <- as.character(uuid::UUIDgenerate())
+
+    date_ends <- convert_date(date_end)
+    count_result <- count_per_all_pc_cats_in_time_interval(
+        db_connection = db_connection,
+        date_end = date_ends[['dt']], 
+        interval_analysed= interval_analysed)
+    
+    if (!count_result$success==TRUE){
+        return(count_result)  # failed, maybe no data
+    } else {
+        all_count_df <- count_result$count_df
+    }
+
+    saveRDS(all_count_df, file = "count_data_for_negbin.rds")
+    print("Wrote data to count_data_for_negbin.rds")
+
+    all_count_df$pc <- sapply(strsplit(all_count_df$pc_cat, '_', fixed=TRUE), `[`, 1)
+
+    all_coeffs <- list()
+    # fitting all the pcs at once is unnecessary and very slow.
+    for (this_pc in unique(all_count_df$pc)){
+        print(paste("Examining ",this_pc))
+        count_df <- subset(all_count_df, pc == this_pc)
+        
+        # compute counts per pc_cat.  We don't fit if < 3 counts in the interval studied, as we can't fit a regression line
+        # meaningfully to less than 3 points
+        
+        total_cnts <- dcast(count_df, pc_cat ~ ., fun.aggregate=sum,  value.var='n')
+        names(total_cnts)[2] <- 'total_n'
+        total_cnts <- subset(total_cnts, total_n>=3)
+        count_df <- merge(total_cnts, count_df, by='pc_cat')
+        
+        perday_cnts <- dcast(count_df, sample_date ~ ., fun.aggregate=sum,  value.var='n')
+        names(perday_cnts)[2] <- 'per_day_n'
+        perday_cnts <- subset(perday_cnts, per_day_n > 0) # no information if no observations
+        count_df <- merge(perday_cnts, count_df, by='sample_date')
+        
+        all_pc_cats <- unique(count_df$pc_cat)
+        # model secular time as a spline (there will be less data at the end).  
+        # use negative binomial models, as poisson assumptions will be violated due to outbreaks (non-independence)
+        # include day of the week
+
+        # model pc_cat as a factor, and regard the most frequenct pc_cat as the reference
+        #total_counts <- count_df %>% group_by(pc_cat) %>% summarise(total_n=sum(n)) %>% arrange(total_n)
+        #count_df$pc_cat <- factor(count_df$pc_cat,levels=rev(total_counts$pc_cat))
+  
+        fit <- glm.nb(n ~ date_t*pc_cat + sample_dow,  offset(log(per_day_n)), data=count_df)
+
+        # extract coefficients into a common framework, suitable for storage in a generic data model.
+        coeffs<- tibble(data.frame(summary(fit)$coeff)) %>% 
+          mutate(param=rownames(summary(fit)$coeff)) %>%
+          mutate(Estimate=Estimate,Estimate_CI_low=Estimate-1.96*Std..Error, Estimate_CI_high=Estimate+1.96*Std..Error) %>%
+          rename(p_value=Pr...z..) %>%
+          rename(Std_Error=Std..Error) %>%
+          filter(!grepl("sample_dow",param))
+
+        coeffs <- subset(coeffs, select = c('param', 'Estimate', 'Std_Error', 'Estimate_CI_low', 'Estimate_CI_high', 'p_value'))
+        
+        coeffs$pc_cat <- gsub('pc_cat','',coeffs$param)
+        coeffs$pc_cat <- gsub(':date_t','',coeffs$pc_cat)
+        model_pc_cats <- unique(coeffs$pc_cat)
+        reference_cat <- setdiff(all_pc_cats, model_pc_cats)[1]
+        
+        coeffs$param_desc <- ifelse(grepl(':date_t|date_t',coeffs$param), "Trend over time relative to ref category", "Rate ratio relative to ref at end of time period")
+        coeffs$param_desc[coeffs$pc_cat=='(Intercept)'] <- 'Rate in reference pc_cat at end of time period'
+        coeffs$param_desc[coeffs$pc_cat=='date_t'] <- 'Rate of change in reference pc_cat'
+        coeffs$pc_cat <- gsub('(Intercept)',reference_cat, coeffs$pc_cat, fixed= TRUE)
+        coeffs$pc_cat <- gsub('^date_t$', reference_cat, coeffs$pc_cat)
+        coeffs$is_reference <- ifelse(coeffs$pc_cat == reference_cat,TRUE, FALSE)
+        
+        coeffs$comments <- "Estimates are ln IRRs"
+  
+        
+        # now Var(X+Y) = Var(X) + Var(Y) + 2 Cov(X,Y)
+        # but for Var(X*Y) we need to use Delta methods (essentially approximation by Taylor expansion).
+        # https://stats.stackexchange.com/questions/62916/confidence-interval-for-the-product-of-two-parameters
+        # now we compute rates over time for each component - not relative to the reference category
+        # Var(XY) ~= MLE(Y)^2.Var(X) + MLE(X)^2.Var(Y) + 2 MLE(X)MLE(Y)COV(X,Y)
+        # Background:  https://migariane.github.io/DeltaMethodEpiTutorial.nb.html
+        
+        # start with rate ratios
+        vc <- vcov(fit)
+        
+        extract_element<- function(vc, row_name, col_name) {
+            r_id <- which(rownames(vc) == row_name)
+            c_id <- which(colnames(vc) == col_name)
+            vc[r_id, c_id]
+        }
+        
+        MLE_X <- as.numeric(subset(coeffs, param=="date_t")['Estimate'])
+        VAR_X <- extract_element(vc, 'date_t','date_t')
+        
+        res <- list(
+            param = paste0("IRR:", reference_cat),
+            Estimate = MLE_X,
+            Std_Error = as.numeric(subset(coeffs, param=="date_t")['Std_Error']),
+            Estimate_CI_low = as.numeric(subset(coeffs, param=="date_t")['Estimate_CI_low']),
+            Estimate_CI_high = as.numeric(subset(coeffs, param=="date_t")['Estimate_CI_high']),
+            p_value = as.numeric(subset(coeffs, param=="date_t")['p_value']),
+            pc_cat = reference_cat,
+            param_desc = "Incidence rate ratio",
+            is_reference = 0,
+            comments = "Incidence ratio ratio computed by Delta method"
+        )
+        results <- list()
+        results[[1]] <- res
+        
+        i <- 1
+        for (this_param in coeffs$param[grepl("date_t:",coeffs$param)]){
+            i <- i  +1
+            this_pc_cat <- gsub("date_t:pc_cat","",this_param)
+            MLE_Y <- as.numeric(subset(coeffs, param==this_param)['Estimate'])
+            VAR_Y <- extract_element(vc, this_param,this_param)
+            COV_XY <- extract_element(vc, 'date_t',this_param)
+            VAR_XY <- (MLE_Y^2)*VAR_X + (MLE_X^2)*VAR_Y + 2*MLE_X*MLE_Y*COV_XY
+            SE_XY <- sqrt(VAR_XY)
+            MLE_XY <- MLE_X * MLE_Y
+            Estimate_CI_low <- MLE_XY  - 1.96*SE_XY
+            Estimate_CI_high <- MLE_XY + 1.96*SE_XY
+            Z <- MLE_XY / SE_XY
+            p_value <- pnorm(as.numeric(Z))
+            
+            res <- list(
+            param = paste0("IRR:", this_pc_cat),
+            Estimate = MLE_XY,
+            Std_Error = SE_XY,
+            Estimate_CI_low = Estimate_CI_low,
+            Estimate_CI_high = Estimate_CI_high,
+            p_value = p_value,
+            pc_cat = this_pc_cat,
+            param_desc = "Incidence rate ratio",
+            is_reference = 0,
+            comments = "Incidence ratio ratio computed by Delta method"
+            )
+            results[[i]] <- res
+        
+        }
+        
+        
+        ## next we consider the rate estimates themselves
+        MLE_X <- as.numeric(subset(coeffs, param=="(Intercept)")['Estimate'])
+        VAR_X <- extract_element(vc, '(Intercept)','(Intercept)')
+        
+        res <- list(
+            param = paste0("countPerDay:", reference_cat),
+            Estimate = MLE_X,
+            Std_Error = as.numeric(subset(coeffs, param=="(Intercept)")['Std_Error']),
+            Estimate_CI_low = as.numeric(subset(coeffs, param=="(Intercept)")['Estimate_CI_low']),
+            Estimate_CI_high = as.numeric(subset(coeffs, param=="(Intercept)")['Estimate_CI_high']),
+            p_value = p_value,
+            pc_cat = reference_cat,
+            param_desc = "Estimated Counts per day",
+            is_reference = 0,
+            comments = "Estimated counts per day computed by Delta method"
+        )
+        i <- i + 1
+        results[[i]] <- res
+        
+        
+        for (this_param in coeffs$param[grepl("^pc_cat",coeffs$param)]){
+            i <- i  +1
+            this_pc_cat <- gsub("pc_cat","",this_param)
+            MLE_Y <- as.numeric(subset(coeffs, param==this_param)['Estimate'])
+            VAR_Y <- extract_element(vc, this_param,this_param)
+            COV_XY <- extract_element(vc, '(Intercept)',this_param)
+            VAR_XY <- (MLE_Y^2)*VAR_X + (MLE_X^2)*VAR_Y + 2*MLE_X*MLE_Y*COV_XY
+            SE_XY <- sqrt(VAR_XY)
+            MLE_XY <- MLE_X * MLE_Y
+            Estimate_CI_low <- MLE_XY  - 1.96*SE_XY
+            Estimate_CI_high <- MLE_XY + 1.96*SE_XY
+            Z <- MLE_XY / SE_XY
+            p_value <- pnorm(as.numeric(Z))
+            
+            res <- list(
+            param = paste0("countPerDay:", this_pc_cat),
+            Estimate = MLE_XY,
+            Std_Error = SE_XY,
+            Estimate_CI_low = Estimate_CI_low,
+            Estimate_CI_high = Estimate_CI_high,
+            p_value = p_value,
+            pc_cat = this_pc_cat,
+            param_desc = "Estimated Counts per day",
+            is_reference = 0,
+            comments = "Estimated counts per day computed by Delta method"
+            )
+            results[[i]] <- res
+            
+        }
+        
+    results_df <- data.frame(do.call(rbind.data.frame, results))
+
+    coeffs <- data.frame(rbind(coeffs,results_df
+            ))
+
+    coeffs$analysis_id <- analysis_uuid
+    coeffs$has_CI <- 1
+    coeffs$Estimate2NaturalSpace <- "exp"
+    all_coeffs[[this_pc]] <- coeffs
+    }
+
+    all_coeffs_df <- data.frame(do.call(rbind.data.frame, all_coeffs))
+    rownames(all_coeffs_df) <- 1:nrow(all_coeffs_df)
+
+    metadata <- data.frame(list(
+        'analysis_family_id' = analysis_family_id,
+        'analysis_id' = analysis_uuid,
+        'analysis' = 'fit_recent_trend_in_counts',
+        'analysis_type' = 'Negative binomial regression',
+        'readable_info' = 'Estimates rate of change of isolations of each pc_cat.  Rates relative to most common cat, and overall, are provided.  Assmues linear trend.  Controls for numbers of samples analysed each day and so reflects rates per sampled population',
+        'other_parameters'='{}',
+        'pc' = this_pc,
+        'date_end' = date_ends[['iso']],
+        'interval_analysed_days' = interval_analysed
+    ))
+    retVal <- list('fitted' = 1, 'reason' = 'Success','meta'= metadata, 'model_fit'= all_coeffs_df)
+    saveRDS(retVal, file = "megbin_model.rds")
+    print("Wrote data to negbin_model.rds")
+
+
+    add_database_tables(
+    db_connection,
+        list(
+            statistical_model_metadata=list(
+                                        data_table=metadata,
+                                        appropriate_indices=list('analysis_id')
+                                    ),
+            statistical_model_fits=list(
+                                        data_table=all_coeffs_df,
+                                        appropriate_indices=list('analysis_id','pc_cat','param','p_value','Estimate')
+                                    )
+        ),
+        overwrite=TRUE)
+  } else {
+      print("Using stored model")
+  }
+
+}
+
+
 fit_recent_trend_wrt_most_common_pcat <- function(db_connection,
                                                   this_pc,
                                                   date_end,
@@ -1446,6 +1821,8 @@ fit_recent_trend_wrt_most_common_pcat <- function(db_connection,
   #                       pcs in a database
   
 
+  ## DEPRECATED
+  stop("Deprecated fucntion")
   # startup
 
   # generate guid for this analysis
@@ -1530,6 +1907,7 @@ compute_or <- function(rowid, a,b,c,d){
   #
   #
   mat <- matrix(c(a,b,c,d),nrow=2, ncol=2)
+  
   gt <- DescTools::GTest(mat)
   res <- list(G=gt$statistic,
               df=gt$parameter,
@@ -1584,10 +1962,11 @@ make_contingency_tables <- function(db_connection,
   #         N |     c            d          c+d
   #               a+c           b+d       a+b+c+d
   
+  
   # Parameters:
   #  db_connection: the database connection
   #  date_end: do not use samples with collection dates later 
-  #            than this.  Defaults to today.
+  #            than this.  Defaults to today.  ** CURRENTLY IGNORED **
   #  overwrite: whether to re-write data if present.
   
   # We use a series of SQL queries to measure
@@ -1606,47 +1985,29 @@ make_contingency_tables <- function(db_connection,
   
   date_ends <- convert_date(date_end) 
   
-  a_b_c_d_cmd = "select count(*) n from sample_id sm
-  inner join clinical_metadata cm
-  on cm.sample_id = sm.sample_id
-  where cm.sample_date <= ?;"
+  a_b_c_d_cmd = "select count(distinct sample_id) n from sample_id;"
   
   # count by feature - restrict to lineages
-  a_c_cmd = "select sm.feature, count(*) n from 
+  a_c_cmd = "select sm.feature, count(distinct sm.sample_id) n from 
   sequence_metadata sm
   INNER JOIN sample_id
   ON sm.sample_id = sample_id.sample_id
-  INNER JOIN clinical_metadata cm 
-  on cm.sample_id = sm.sample_id
-  where cm.sample_date <= ?
   and  sm.variable = 'lineage'
-  and not sm.value='NA'
   group by sm.feature;"
   
-  a_b_cmd = "select pc,cat, count(*) n from 
+  a_b_cmd = "select pc_cat, count(*) n from 
   transformed_coordinate_categories tcc
-  INNER JOIN sample_id sm
-  ON tcc.sample_id = sm.sample_id
-  INNER JOIN clinical_metadata cm 
-  on cm.sample_id = sm.sample_id
-  where cm.sample_date <= ?
-  group by pc, cat;"
+  group by pc_cat;"
   
-  a_cmd= "select pc,cat,sm.feature, count(*) n from 
+  a_cmd= "select pc_cat,sm.feature, count(distinct sm.sample_id) n from 
   transformed_coordinate_categories tcc
   INNER JOIN 
   sequence_metadata sm
   on tcc.sample_id = sm.sample_id
-  INNER JOIN sample_id
-  ON sm.sample_id = sample_id.sample_id
-  INNER JOIN clinical_metadata cm 
-  on cm.sample_id = sm.sample_id
-  where cm.sample_date <= ?
-  and pc = ? 
-  and  sm.variable = 'lineage'
-  and not sm.value='NA'
-  group by pc,cat, sm.feature;"
-  
+  and tcc.pc=? 
+  and  sm.variable = 'lineage' 
+  group by pc_cat, sm.feature;"
+ 
   
   # check the relevant data exists
   check_table_present(db_connection, 'transformed_coordinate_categories','Table should be present, produced by fn4pca.py')
@@ -1656,42 +2017,38 @@ make_contingency_tables <- function(db_connection,
   print("Recovering counts")
   a_b_c_d <- database_query(
     db_connection = db_connection, 
-    cmd = a_b_c_d_cmd, 
-    params = list(date_ends[['iso']]))
+    cmd = a_b_c_d_cmd 
+    )
   print(paste("number of sequences from which the model was built is ",a_b_c_d))
   
   print("Recovering marginal totals")
   a_c <- database_query(db_connection = db_connection, 
-                        cmd = a_c_cmd, 
-                        params = list(date_ends[['iso']]))
+                        cmd = a_c_cmd)
   names(a_c)[2] <- 'a_c'
   
   print(paste("number of features (restricted to lineages) is ",nrow(a_c)))
   a_b <- database_query(db_connection = db_connection, 
-                        cmd = a_b_cmd, 
-                        params = list(date_ends[['iso']]))
+                        cmd = a_b_cmd)
 
-  names(a_b)[3] <- 'a_b'
-  a_b$pc_cat <- paste(a_b$pc, a_b$cat, sep='_')
- 
+  names(a_b)[2] <- 'a_b'
+
   print(paste("number of pc_cats is ",nrow(a_b)))
   n_pc <- number_of_pcs(db_connection = db_connection)
   print(paste("number of pcs is ",n_pc))
   print("Recovering co-existence of pc_cats and features, pc by pc")
   
  coexistence = list()
-  for (this_pc in 1:n_pc){ #DEBUG 3
+  for (this_pc in 1:n_pc){
     print(this_pc)
     coexistence[[this_pc]] <- database_query(
       db_connection = db_connection,
-      cmd = a_cmd, 
-      params = list(date_ends[['iso']], this_pc)) 
+      cmd = a_cmd,
+      params = list(this_pc)) 
   }
   
   coexistence_df <- do.call(rbind, coexistence)
-  names(coexistence_df)[4] <- 'a'
-  coexistence_df$pc_cat <- paste(coexistence_df$pc, coexistence_df$cat, sep='_')
-
+  names(coexistence_df)[3] <- 'a'
+  
   coexistence_df <- merge(coexistence_df, a_c, by = 'feature')
 
   coexistence_df <- merge(coexistence_df, subset(a_b, select=c('a_b','pc_cat')), by = 'pc_cat')
@@ -1708,11 +2065,17 @@ make_contingency_tables <- function(db_connection,
   stopifnot(coexistence_df$a +
           coexistence_df$b + 
           coexistence_df$c + coexistence_df$d==coexistence_df$a_b_c_d)
-  
+
+  print(subset(coexistence_df, a<0 | b<0 | c<0 | d<0)) 
+ 
   # compute OR for each row.
+  print("Computing ORs")
   coexistence_df$rowid <-1:nrow(coexistence_df)
   ors <- list()
   for (rowid in 1:nrow(coexistence_df)){
+    if (rowid %% 100000 ==0){
+      print(rowid)
+    }
     ors[[rowid]] <- compute_or(rowid,
                                coexistence_df$a[rowid],
                                coexistence_df$b[rowid],
@@ -1726,7 +2089,7 @@ make_contingency_tables <- function(db_connection,
   add_database_tables(
     db_connection,
     list(feature_associations=list(data_table=coexistence_df,
-                                   appropriate_indices=c('pc',
+                                   appropriate_indices=c(
                                                          'pc_cat',
                                                          'feature',
                                                          'p_value')
