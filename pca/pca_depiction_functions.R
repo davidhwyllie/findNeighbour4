@@ -1,15 +1,15 @@
 # methodscompare methods of clustering of transformed_coordinates
 # resulting from pca of SARS-CoV-2 genomes.
 
-# packages code from Brice Letcher, refactored to generate a 
+# include code from Brice Letcher, refactored to generate a 
 # database backed application with a range of helpful functions
        
 # consumes data in SQLite format exported by fn4pca.py, a component 
 # of the findNeighbour4 server system
 
-# note: if would be possible to code all this as part of a pure python
-# web application, with the possible exception of some of the graphics produced
-# by ggtree
+# note: if would be easily possible to code all this as part of a pure python
+# application
+# but effort would need to be put into some of the more complex graphics
 
 rm(list=ls())
 library(uuid)
@@ -55,7 +55,6 @@ pc_cat_levels <- function(x){
   reorder <- order(separated$pc,separated$cat)
   separated <- separated[reorder,]
   separated$pc_cat
- 
 }
 
 make_output_filename <- function(outputdir, db_name, plot_name, file_type){
@@ -126,6 +125,7 @@ load_trend_summary <- function(db_connection, date_end=Sys.Date()) {
   #                   this is typically useful for removing malformatted dates (e.g. wrong year) from 
   #                   summary analyses
   
+
   # set today's date as a default date_end if we're not given one.
   if (is.na(date_end)){
     date_end <- Sys.Date()
@@ -262,6 +262,322 @@ load_trend_summary <- function(db_connection, date_end=Sys.Date()) {
   summary_trends$pc_cat <- factor(summary_trends$pc_cat, levels=pc_cat_levels(summary_trends$pc_cat))
   summary_trends     
 }
+depict_current_trends <- function(
+    db_connection,
+    db_stem,
+    PLOT_DIR,
+    lineage_to_depict = NA,
+    export_sequence_identifiers = TRUE,
+    axis_start = '2020-06-01',
+    axis_end = Sys.Date(),
+    max_samples = 1e6,
+    reporting_OR_cutoff = 100){
+   
+    # db_connection: database connection
+    # db_stem: the part of the base name of the database, an isodate
+    # PLOT_DIR: a writeable directory
+    # lineage_to_depict: optionally, highlights a particular lineage & its association with trending pc_cats
+    # export_sequence_identifiers:  writes sequence names belonging to trending pc_cats to file.
+    # max_samples : do not highlight trends if > max_samples in the category
+    # axis_start, axis_end - used for depiction.
+    # reporting OR cutoff: report pc_cat/ lineage associations with OR > this
+
+    # return value
+    retVal = list()
+    res <- plot_counts_per_lineage(db_connection = db_connection,
+                                          target_lineage=lineage_to_depict, 
+                                          date_end = db_stem,
+                                          axis_end = axis_end,
+                                          axis_start = axis_start
+    )
+    
+    p0 <- res[['p']]
+
+    res <- plot_pc_cat_size_vs_change_marking_selected_lineages(
+      db_connection =db_connection,
+      date_end = db_stem,
+      reporting_or_cutoff = reporting_OR_cutoff,
+      target_lineages = c(lineage_to_depict),
+      only_show_significant_trending = TRUE) 
+    
+    p1 <- res[['p']]
+    p1 <- p1 + geom_vline(xintercept = max_samples, lty =2)
+    p1 <- p1 + geom_hline(yintercept = min_estimate_IRR, lty=2)
+
+    top_changers <- res[['top_changers']]
+    print(top_changers)
+    trends <- res[['trends']]
+    trends$pc_cat <- as.character(trends$pc_cat)
+    trends$recent_proportion <- 1-(trends$n_gt_60_days_before / trends$n_samples)
+    print(paste0("Found ", nrow(trends), " trends in the database."))
+
+    trends <- subset(trends, 
+        is_sig==1 & 
+        natural_space_Estimate >= min_estimate_IRR & 
+        recent_proportion >= min_recent_proportion & 
+        n_samples <= max_samples & 
+        pc_cat %in% top_changers)
+    print(paste0("Found ", nrow(trends), " trending pc_cats."))
+
+    selection_criterion <- paste0(
+            "* IRR estimate > ",
+            min_estimate_IRR,
+            "& significant;\n",
+            "* prop seen in last 60d >= ",
+            min_recent_proportion,
+            " of total \n* < ",
+            max_samples,
+          " samples totals"
+          )
+
+    if (nrow(trends)>0){
+      date_ends <- convert_date(db_stem)
+      trends$marker_x <- date_ends[['dt']]-interval
+      trends$marker_xend <- date_ends[['dt']]
+      trends$marker_y <- 0
+      trends$marker_yend <-0
+
+      print(paste0("Trends highlighted = ", nrow(trends)))
+      print(paste0("Highlighted pc cats: ", paste(trends$pc_cat, collapse=';')))
+      print(paste0("Lineage associated pc cats: ", paste(res$associated_pc_cats, collapse=';')))
+
+      # load data
+      analyse_pc_cats <- trends$pc_cat
+      cnts_overall <- list()
+
+      print("Depicting daily count data for these pc_cats:")
+      print(analyse_pc_cats)
+      analyse_pc_cats_df <- data.frame(pc_cat = analyse_pc_cats)
+
+      ############################ basis of an external function #################################
+
+      ### basis of external function possibly without the option to highlight a single association
+
+      # recover data about lineage associations
+      cmd <- "
+          select * 
+          from feature_associations
+        
+          order by feature, pc_cat;"
+            
+        # get long dataset
+      assoc_long <- database_query(
+          db_connection = db_connection, 
+          cmd = cmd) # recover everything, irrespective of p-value
+      assoc_long <- subset(assoc_long, pc_cat %in% analyse_pc_cats)
+      assoc_long$pc_cat <- factor(assoc_long$pc_cat, levels = pc_cat_levels(assoc_long$pc_cat))
+      assoc_long$log_or <- log10(assoc_long$truncated_odds_ratio)
+
+      assoc_long$proportion_feature_explained <- assoc_long$a/ assoc_long$a_c
+      assoc_long$is_lineage <- ifelse(grepl("lineage:", assoc_long$feature), "Lineage", "Variant")
+      assoc_long$is_lineage <- ifelse(grepl("mutations:", assoc_long$feature), "Mutation", assoc_long$is_lineage)
+      assoc_long$feature <- gsub("lineage:","", assoc_long$feature, fixed=TRUE)
+      assoc_long <- subset(assoc_long, !feature == "NA")
+
+      # recover data about counts
+      cnt_result <- count_per_pc_cats_in_time_interval(
+          db_connection = db_connection,
+          these_pc_cats = analyse_pc_cats,
+          date_end = date_ends[['dt']], 
+          interval_analysed= 3*interval
+        )
+
+      ## if there are counts
+      if (cnt_result$success){
+        # there are trending pc_cats
+        cnts <- cnt_result$count_df
+        cnts$pc_cat <- factor(cnts$pc_cat, levels = pc_cat_levels(cnts$pc_cat))
+        print('plotting counts')
+        
+        p <- ggplot(cnts, aes(x=sample_date, y= n+1))+ theme_classic()
+        p <- p + geom_col()
+        p <- p + geom_hline(colour='black', lty=2,yintercept = c(6,16,26))
+        p <- p + scale_x_date(limits = c(date_ends[['dt']]-4*interval, date_ends[['dt']])) 
+        p <- p + scale_y_log10()
+        p <- p + geom_vline(colour='black', lty=1, xintercept = c( date_ends[['dt']]-4*interval))
+        p <- p + geom_vline(colour='red', lty=1, xintercept = c(date_ends[['dt']]))
+
+        p <- p + geom_hline(colour='black', lty=1,yintercept = 1)
+        p <- p + facet_wrap(~pc_cat)
+        p <- p + theme(
+            axis.text.x=element_blank(),
+            axis.text.y=element_blank(),
+            axis.title.x=element_blank(),
+            axis.title.y=element_blank(),
+            axis.ticks.x=element_blank(),
+            axis.ticks.y=element_blank(),
+            legend.position="none",
+            panel.background=element_blank(),
+            panel.grid.major=element_blank(),
+            panel.grid.minor=element_blank()
+        )
+        if (is.na(lineage_to_depict)){
+          p2_title <- paste0("Highlighted count profiles for:\n",
+          selection_criterion,
+          "\nBar: last ",
+          interval,
+          " days. \nHorizontal dashes: 5, 15, 25 cases/day")
+
+        } else {
+          p2_title <- paste0("Highlighted count profiles for:\n",
+          selection_criterion,
+          "\nBar: last ",
+          interval,
+          " days. Red bar = assoc with ",
+          lineage_to_depict,
+          "\n",
+          "Horizontal dashes: 5, 15, 25 cases/day")
+        }
+        p2 <- p + ggtitle(
+          p2_title
+        )
+
+        p2 <- p2 + geom_col(colour = 'black')
+        p2 <- p2 + geom_segment(colour='gray', size= 3, lty=1, aes(x = marker_x, y=marker_y, xend=marker_xend, yend=marker_yend), data = trends)
+        
+        
+        # and depict associations
+        # check associations
+        depiction_or_cutoff <- 1e3
+
+        print("Checking associations with lineages")
+        check_table_present(db_connection, 'feature_associations','run make_contingency_tables() first')
+        depicted_associations <- subset(assoc_long,  truncated_odds_ratio > depiction_or_cutoff)
+        
+        trend_subset <- subset(trends, pc_cat %in% unique(depicted_associations$pc_cat))
+        trend_subset <- subset(trend_subset, lineage == lineage_to_depict)
+      
+        p2 <- p2 + geom_segment(colour='red', size= 3, lty=1, aes(x = marker_x, y=marker_y, xend=marker_xend, yend=marker_yend), data = trend_subset)
+
+
+        plotted <- subset(assoc_long, is_lineage %in% c('Lineage') )
+        depicted_associations <- subset(depicted_associations, feature %in% unique(plotted$feature))
+
+        trends$pc_cat <- as.character(trends$pc_cat)
+
+        sig_assoc <- as.data.table(subset(assoc_long, truncated_odds_ratio > depiction_or_cutoff))
+        collapse <- function(x){
+          paste(x,collapse=';')
+        }
+        collapsen <- function(x){
+          paste(x,collapse='\n')
+        }
+        if (nrow(sig_assoc)>0){
+          label_df <- reshape2::dcast(pc_cat~., value.var='feature', fun.aggregate=collapsen, data =sig_assoc)
+          label_df_n <- reshape2::dcast(pc_cat~., value.var='feature', fun.aggregate=length, data =sig_assoc)
+        
+          names(label_df)[2] <- 'associated_lineages'
+          names(label_df_n)[2] <- 'n_pc_cats'
+          label_df <- merge(label_df, label_df_n, by = 'pc_cat')
+          label_df$pc_cat <- as.character(label_df$pc_cat)
+          label_df$x <- date_ends[['dt']]-2*interval
+          label_df$y <- 1000
+
+          p2 <- p2 + geom_text(aes(x=x,y=y, label=associated_lineages), size=2, data=subset(label_df, n_pc_cats==1))
+          output_summary <- merge(trends, label_df, by='pc_cat', all.x=TRUE)
+          output_summary$associated_lineages[is.na(output_summary$associated_lineages)] <- 'No significant association found'  
+        } else {
+          output_summary <- trends
+        }
+
+        if (nrow(plotted)>0){
+          plotted$or_hi <- ifelse(plotted$truncated_odds_ratio > depiction_or_cutoff, 1, 0)
+          lineages_with_high_or <- reshape2::dcast(feature ~ ., value.var='or_hi', fun.aggregate=max, data=plotted)
+          names(lineages_with_high_or)[2] <- 'n'
+          lineages_with_high_or <- subset(lineages_with_high_or, n>0)
+          plotted_no_empty_cols <- subset(plotted, feature %in% lineages_with_high_or$feature)
+          p3 <- ggplot(plotted_no_empty_cols, aes(y=pc_cat, x=feature))
+          p3 <- p3 + geom_blank()   # fill the grid
+          p3 <- p3 + geom_tile(aes(fill=log_or), data=subset(plotted_no_empty_cols, truncated_odds_ratio > depiction_or_cutoff))
+          p3 <- p3 + geom_point(aes(size=proportion_feature_explained), colour='yellow', data= depicted_associations)
+          p3 <- p3 + ggtitle("Sequence patterns\nassociations with lineage")
+          p3 <- p3 + scale_y_discrete("Sequence pattern (pc_cat)")
+          p3 <- p3 + scale_x_discrete("Lineage or mutation")
+          p3 <- p3 + theme(axis.text.x=element_text(angle=90))
+          p3 <- p3 + scale_fill_continuous(name = "Log OR favouring\nlineage given sequence\npattern")
+          p3 <- p3 + theme(legend.position="top", legend.direction = 'vertical', legend.box='horizontal')
+          p3 <- p3 + scale_size_continuous("Proportion of\nlineage comprising\nsequence pattern")
+          #p3 <- p3 + facet_grid(.~is_lineage, scales='free')
+
+        # dump trending sample lists
+        if (export_sequence_identifiers){
+          date_ends <- convert_date(db_stem)
+          cutoff_date <- as.character(date_ends[['dt']]-interval)
+
+          print(paste0("Dumping contents of trending pc_cats to file, with sample_dates after ",cutoff_date))
+          samples <- list()
+          for (this_pc_cat in unique(plotted$pc_cat)){
+            sqlcmd = "select distinct pc_cat, cm.sample_id, cm.sample_date from transformed_coordinate_categories tcc
+                      inner join clinical_metadata cm 
+                      on cm.sample_id = tcc.sample_id
+                      inner join sequence_metadata sm
+                      on sm.sample_id = tcc.sample_id
+                      where tcc.pc_cat = ? and
+                      cm.sample_date > ?; "
+
+            samples[[this_pc_cat]] <- database_query(db_connection, sqlcmd, params=list(this_pc_cat, cutoff_date))
+          }
+          all_samples <- do.call(rbind, samples)
+          retVal[['total_sequences']] <- length(unique(all_samples$sample_id))
+          retVal[['sequences']] <- unique(all_samples$sample_id)
+          outfile <- paste0(PLOT_DIR,'/',db_stem,"_seqlist.tsv")
+          retVal[['sequences_list']] <- outfile
+          write.table(all_samples, outfile, sep='\t', row.names=FALSE)
+        }
+            
+
+    
+
+        } else {
+        p3 <- ggplot() + theme_void()
+        }
+      
+    } else {
+
+        p2 <- ggplot() + theme_void()   # nothing
+        p3 <- ggplot() + theme_void()   # nothing
+
+    }
+  
+
+
+    retVal[['trending_lineages']] <- unique(plotted$feature)
+    retVal[['trending_pc_cats']]  <- unique(plotted$pc_cat)
+    lineage_filename <- gsub('.','_',lineage_to_depict, fixed= TRUE)
+    outfile <- paste0(PLOT_DIR,'/',db_stem,'_pc_cats_highlighting_', lineage_filename,".tiff")
+
+    retVal[['depiction_tiff']] <- outfile
+    png('p0.png')
+    print(p0)
+    dev.off()
+        png('p1.png')
+    print(p1)
+    dev.off()
+        png('p2.png')
+    print(p2)
+    dev.off()
+        png('p30.png')
+    print(p3)
+    dev.off()
+
+    tiff(outfile,width=1600,height=1000, compression='lzw')
+    gridExtra::grid.arrange(grobs = list(p0,p1,p2,p3), nrow=1, ncol=4, widths=c(1.5,1.5,2,3) )
+    dev.off()
+    print("Plot rendered")
+    outfile <- paste0(PLOT_DIR,'/',db_stem,"_data.tsv")
+    retVal[['depiction_data']] <- outfile
+    write.table(output_summary, outfile, sep='\t', row.names=FALSE)
+    print(paste0("Output summary written to ",outfile))
+                    
+  }
+
+
+ 
+    
+  
+
+  retVal
+}
 count_per_pc_in_time_interval <- function(db_connection, 
                                           this_pc,
                                           date_end=Sys.Date(),
@@ -303,7 +619,6 @@ count_per_pc_in_time_interval <- function(db_connection,
   where cm.sample_date >= ? and cm.sample_date <= ? and pc= ?
   group by ec.cat, cm.sample_date;"
   
-
   params <- list(
     lubridate::format_ISO8601(date_start, usetz=FALSE, precision='ymd'),
     date_ends[['iso']],
@@ -413,7 +728,6 @@ count_per_pc_cats_in_time_interval <- function(db_connection,
   count_df$n[is.na(count_df$n)] <- 0  # missing date in the SQL query means count 0
   count_df$sample_date <-  as.Date(count_df$sample_date)
 
-  
   return(list('success' = TRUE, 'count_df' = count_df, 'reason' = "Success"))
 
 } 
@@ -436,7 +750,7 @@ count_per_all_pc_cats_in_time_interval <- function(db_connection,
 
   # dates may be passed in iso format as strings.
 
-  print("Recovering counts by all pc_cats.  May take a few minutes.")
+  print("Recovering counts by all pc_cats.")
 
   cats <- data.table(pc_cat=all_pc_cats(db_connection)$pc_cat)
   cats$unity <- 1
@@ -601,31 +915,38 @@ plot_pc_cat_size_vs_change_marking_selected_lineages <- function(
   # parameters:
   #   database connection, as returned (for example) by get_db_connection
   #   date_end:  the end of the analysis period
-  #   target_lineages: lineages to mark on the chart.  ex: c('B.1.1.380','B.1.1.97','B.1.9').  If c(), no lineages are marked
+  #   target_lineages: lineages to mark on the chart.  ex: c('B.1.1.380','B.1.1.97','B.1.9').  If c() or NA, no lineages are marked
   #   only_show_significant_trending : whether to only show pc_cats with significant trends
   # returns
   #   ggplot object
   # dates may be passed in iso format as strings.
 
-  print(paste("Marking trending lineages matching",paste(target_lineages, collapse=';')))
+  # SQL to recover counts
+
+  print(paste("Marking trending lineages matching ",paste(target_lineages, collapse=';')))
   date_ends <- convert_date(date_end) 
   
   sa_maps = list()
 
-  for (target_lineage in target_lineages){
-    if (!is.na(target_lineage)){
-      sa_maps[[target_lineage]] <- uniquely_linked_to(db_connection, 
-                                    target_lineage,
-                                    reporting_or_cutoff,
-                                    date_end)
+  if (!is.na(target_lineages)){
+    for (target_lineage in target_lineages){
+      if (!is.na(target_lineage)){
+        sa_maps[[target_lineage]] <- uniquely_linked_to(db_connection, 
+                                      target_lineage,
+                                      reporting_or_cutoff,
+                                      date_end)
+      }
     }
+    sa_map <- unique(do.call(rbind, sa_maps))
+    n_specific_pcs <- nrow(sa_map)
+    #label_df <- data.frame(x=1,
+    #                      y=110, label=paste0("Specific pc_cat=", n_specific_pcs))
+    p1_title <- paste0("Change relative to total\nLineage specific pc_cats = ", n_specific_pcs)
 
+  } else {  
+    n_specific_pcs <- 0
+    p1_title <- "Change relative to total"
   }
-  sa_map <- unique(do.call(rbind, sa_maps))
-  n_specific_pcs <- nrow(sa_map)
-  label_df <- data.frame(x=1,
-                         y=110, label=paste0("Specific pc_cat=", n_specific_pcs))
-
   # load trend summary 
   summary_trends <- load_trend_summary(
     db_connection = db_connection, 
@@ -668,7 +989,12 @@ plot_pc_cat_size_vs_change_marking_selected_lineages <- function(
                                                   summary_trends$natural_space_Estimate)
   
   # incorporate any lineages linked in summary_trends
+  if (!is.na(target_lineages)){
   summary_trends <- merge(summary_trends, sa_map, all.x=TRUE, by = 'pc_cat')
+  } else {
+    summary_trends$lineage <- NA
+    summary_trends$off_target <- NA
+  }
 
   if (only_show_significant_trending){
     summary_trends <- subset(summary_trends,  is_sig == 1)
@@ -691,7 +1017,7 @@ plot_pc_cat_size_vs_change_marking_selected_lineages <- function(
     scale_y_log10("30-day growth rate of samples, relative to total\n [Rate ratios > 100 plotted at 100]",
                   breaks=y_axis_breaks, labels=y_axis_breaks, limits = c(0.09, 120)) 
   
-  p1 <- p1 + ggtitle(paste0("Change relative to total\nLineage specific pc_cats = ", n_specific_pcs))
+  p1 <- p1 + ggtitle(p1_title)
   marked <- subset(summary_trends, Estimate > 0 & !is.na(lineage))
   top_changers <- subset(summary_trends, Estimate>0)
   if (mark_top > 0){
@@ -745,11 +1071,11 @@ plot_counts_per_lineage <- function(db_connection,
   axis_ends <- convert_date(axis_end)
   axis_starts <- convert_date(axis_start)
 
-  # SQL to recover counts
+# SQL to recover counts
   if (is.na(target_lineage)){
-    target_lineage <- '-- No lineage specified --'
+    target_lineage <- '-'
   
-  } else {
+ } else {
     y_axis_title <- "Number of samples sequenced per day"
 
   }
@@ -807,8 +1133,7 @@ order by sample_date;"
 
 
   # make labels appropriate to whether we have a lineage to mark
-  if ( !target_lineage == '-- No lineage specified --'
-   ){
+  if ( !target_lineage == '-'){
     y_axis_title <-  paste0("Number samples sequenced per day (gray = total, coloured ", target_lineage,")")
     title_text <- paste0("Date: ", db_stem,": ",target_lineage, "  n=", total_cnts)
   } else {
@@ -831,57 +1156,7 @@ order by sample_date;"
   p <- p + ggtitle(title_text)
   list(cnts = cnts, p = p)
 }
-plot_pc_cats_size_vs_change <- function(db_connection, 
-                                        date_end = Sys.Date(),
-                                        only_show_significant_trending = FALSE) {
-  # plots pc_categories relative to the most common category
-  # over the time period analysed
-  
-  # parameters:
-  #   database connection, as returned (for example) by get_db_connection
-  #   date_end:  the end of the analysis period
-  #   only_show_significant_trending : whether to only show pc_cats with significant trends
-  # returns
-  #   ggplot object
-  # dates may be passed in iso format as strings.
 
-  date_ends <- convert_date(date_end) 
-  
-  
-  summary_trends <- load_trend_summary(
-    db_connection = db_connection, 
-    date_end = date_ends[['dt']])
-  
-  summary_trends <- categorise_sample_dates(summary_trends, date_end = date_ends[['dt']])
-  if (only_show_significant_trending){
-    summary_trends <- subset(summary_trends,  is_sig==1)
-  }
-
-  print(summary_trends)
-  stop("NEEDS UPDATING")
-  summary_trends$plot_tr_IRR <- summary_trends$tr_IRR
-  summary_trends$plot_tr_IRR <- ifelse(summary_trends$tr_IRR> 10, 
-                                 10, 
-                                 summary_trends$tr_IRR)
-  summary_trends$plot_tr_IRR <- ifelse(summary_trends$plot_tr_IRR< 0.1, 
-                                 0.1, 
-                                 summary_trends$plot_tr_IRR)
-  
-  y_axis_breaks <- c(10,3,2,1.5,1.25,1.1,1, 0.9, 0.8, 0.7, 0.5,0.3)
-  x_axis_breaks <- c(1,10,100,1000,10000)
-  # omitted: shape=first_seen_days_ago_cat
-  p1<-ggplot(summary_trends,aes(x=n_samples,y=plot_tr_IRR)) + 
-    geom_point(alpha = 0.3, aes()) + 
-    geom_hline(yintercept =1, lty =1) +
-    geom_hline(yintercept =2, lty =2) +
-    geom_hline(yintercept =0.5, lty =2) +
-    geom_rug(alpha = 0.05)+
-    scale_x_continuous("Total sample counts in category",trans='log10', breaks=x_axis_breaks, labels= x_axis_breaks) + 
-    scale_y_log10("30-day growth rate of samples,\nrelative to the most common \ncategory in each principal component\n[Rate ratios > 10 plotted at 10]",
-                  breaks=y_axis_breaks, labels=y_axis_breaks) 
-    #scale_shape_discrete(paste('First seen w.r.t ',date_ends[['iso']]))
-  p1
-}
 plot_pc_cats_vs_size <- function(db_connection, 
                                     date_end=Sys.Date(),
                                     only_show_significant_trending=FALSE) {
@@ -1433,112 +1708,12 @@ add_cog_metadata <- function(db_connection, cogfile, date_end){
 }
 
 # ---- linear modelling of counts -----
-fit_recent_trend_wrt_most_common_pcat_all_pcs <- function(db_connection,
-                                                          interval_analysed=30,
-                                                          date_end=NA, 
-                                                          analysis_family_id= 'Not provided',
-                                                          max_pcs = NA,
-                                                          overwrite=FALSE
-                                                          ) {
-  # fits a Poisson regression model estimating the 
-  # proportion of samples of each category of all pcs, 
-  # relative to the most common category;
-  # as well as the incidence rate ratio (relative growth)
-  # over the past interval_analysed days to date_end
-  
-  # Parameters
-  #  this_pc:  the principal component to analyse
-  #  interval_analysed: the number of days' data to analyse
-  #  date_end: the last day of of the analysis period.  For today, set to 
-  #     Sys.Date().  Note that date_end can be a Date, or ISO format 
-  #     string representing a date.  If NA, uses the PCA build time 
-  #  analysis_family_id : optional, a reference number for this analysis.
-  #                       can be used to link together analysis for different 
-  #                       pcs in a database
-  #  max_pcs: if set, only analyse the first max_pcs.  Useful mainly for debugging.
-  #            If not set, all pcs will be analysed.
-  #  overwrite: recompute if estimates already present
-  #  returns:
-  #           Nothing.  Output is written to database.
-
-  if (overwrite==FALSE & db_has_table(db_connection, 'statistical_model_metadata')) {
-    # already computed
-    print("Using stored models.")
-    return(0)
-  }
-  if (is.na(date_end)){
-    date_end <- build_date(db_connection)
-    print(paste0("Set end of analysis period as PCA build date:", date_end))
-  }
-  
-  date_ends <- convert_date(date_end)
-  
-  n_pcs <- number_of_pcs(db_connection)
-  print(paste("There are", n_pcs, "principal components.  Fitting poisson models of trends."))
-
-  # optionally restrict to a smaller number of pcs
-
-  if (!is.na(max_pcs)){
-    if (max_pcs < n_pcs) {
-    n_pcs <- max_pcs
-    print(paste("Restricting analysis to the first ",n_pcs," components."))
-    }
-  }
-
-
-  ## fit models
-  meta <- list()
-  fits <- list()
-
-
-  # iterate over each pc
-  for (this_pc in 1:n_pcs) {
-    print(this_pc)
-   
-    date_end <- lubridate::ymd(db_stem)  # as constructed, the database includes the latest sample date
-    res <- fit_recent_trend_wrt_most_common_pcat(db_connection = db_connection,
-                                                 this_pc = this_pc, 
-                                                 date_end = date_ends[['dt']],
-                                                 interval_analysed = interval_analysed,
-                                                 analysis_family_id = analysis_family_id)
-  
-    if (res$fitted == TRUE){
-      meta[[this_pc]] <- res$meta
-      fits[[this_pc]] <- res$model_fit
-    } else {
-      print(paste0("Fitting failed for pc ", this_pc))
-      warning(paste("Fitting could not occur: ", res$reason))
-    }
-  }
-  
-  ## store fits to db
-  meta_all <- do.call(rbind, meta)
-  meta_all$rowid <- 1:nrow(meta_all)
-  fits_all <- do.call(rbind, fits)
-  fits_all$rowid <- 1:nrow(fits_all)
-  
-  add_database_tables(
-    db_connection,
-    list(
-      statistical_model_metadata=list(
-                                  data_table=meta_all,
-                                  appropriate_indices=c('analysis_id')
-                               ),
-      statistical_model_fits=list(
-                                  data_table=fits_all,
-                                  appropriate_indices=c('analysis_id','pc_cat','param','p_value','Estimate')
-                               )
-    ),
-    overwrite=TRUE)
- 
-  print("Model fits written to database.")
-  return(0)
-}
 fit_recent_trend_in_counts <- function(db_connection,
                                                   date_end,
                                                   interval_analysed,
-                                                  analysis_family_id= 'Not provided',
-                                                  overwrite=FALSE)                                                          {
+                                                  analysis_family_id= 'Not_provided',
+                                                  overwrite=FALSE, 
+                                                  fitting_failed_dir = '/tmp/')                                                          {
   # fits a Poisson regression model estimating the 
   # count for pc_cat category 
   
@@ -1572,8 +1747,6 @@ fit_recent_trend_in_counts <- function(db_connection,
         all_count_df <- count_result$count_df
     }
 
-    saveRDS(all_count_df, file = "count_data_for_negbin.rds")
-    print("Wrote data to count_data_for_negbin.rds")
 
     all_count_df$pc <- sapply(strsplit(all_count_df$pc_cat, '_', fixed=TRUE), `[`, 1)
 
@@ -1595,7 +1768,6 @@ fit_recent_trend_in_counts <- function(db_connection,
         names(perday_cnts)[2] <- 'per_day_n'
         perday_cnts <- subset(perday_cnts, per_day_n > 0) # no information if no observations
         count_df <- merge(perday_cnts, count_df, by='sample_date')
-        
         all_pc_cats <- unique(count_df$pc_cat)
         # model secular time as a spline (there will be less data at the end).  
         # use negative binomial models, as poisson assumptions will be violated due to outbreaks (non-independence)
@@ -1604,159 +1776,185 @@ fit_recent_trend_in_counts <- function(db_connection,
         # model pc_cat as a factor, and regard the most frequenct pc_cat as the reference
         #total_counts <- count_df %>% group_by(pc_cat) %>% summarise(total_n=sum(n)) %>% arrange(total_n)
         #count_df$pc_cat <- factor(count_df$pc_cat,levels=rev(total_counts$pc_cat))
-  
-        fit <- glm.nb(n ~ date_t*pc_cat + sample_dow,  offset(log(per_day_n)), data=count_df)
 
-        # extract coefficients into a common framework, suitable for storage in a generic data model.
-        coeffs<- tibble(data.frame(summary(fit)$coeff)) %>% 
-          mutate(param=rownames(summary(fit)$coeff)) %>%
-          mutate(Estimate=Estimate,Estimate_CI_low=Estimate-1.96*Std..Error, Estimate_CI_high=Estimate+1.96*Std..Error) %>%
-          rename(p_value=Pr...z..) %>%
-          rename(Std_Error=Std..Error) %>%
-          filter(!grepl("sample_dow",param))
+        fit <- tryCatch(
+                {
+                    # Just to highlight: if you want to use more than one 
+                    # R expression in the "try" part then you'll have to 
+                    # use curly brackets.
+                    # 'tryCatch()' will return the last evaluated expression 
+                    # in case the "try" part was completed successfully
 
-        coeffs <- subset(coeffs, select = c('param', 'Estimate', 'Std_Error', 'Estimate_CI_low', 'Estimate_CI_high', 'p_value'))
-        
-        coeffs$pc_cat <- gsub('pc_cat','',coeffs$param)
-        coeffs$pc_cat <- gsub(':date_t','',coeffs$pc_cat)
-        model_pc_cats <- unique(coeffs$pc_cat)
-        reference_cat <- setdiff(all_pc_cats, model_pc_cats)[1]
-        
-        coeffs$param_desc <- ifelse(grepl(':date_t|date_t',coeffs$param), "Trend over time relative to ref category", "Rate ratio relative to ref at end of time period")
-        coeffs$param_desc[coeffs$pc_cat=='(Intercept)'] <- 'Rate in reference pc_cat at end of time period'
-        coeffs$param_desc[coeffs$pc_cat=='date_t'] <- 'Rate of change in reference pc_cat'
-        coeffs$pc_cat <- gsub('(Intercept)',reference_cat, coeffs$pc_cat, fixed= TRUE)
-        coeffs$pc_cat <- gsub('^date_t$', reference_cat, coeffs$pc_cat)
-        coeffs$is_reference <- ifelse(coeffs$pc_cat == reference_cat,TRUE, FALSE)
-        
-        coeffs$comments <- "Estimates are ln IRRs"
-  
-        
-        # now Var(X+Y) = Var(X) + Var(Y) + 2 Cov(X,Y)
-        # but for Var(X*Y) we need to use Delta methods (essentially approximation by Taylor expansion).
-        # https://stats.stackexchange.com/questions/62916/confidence-interval-for-the-product-of-two-parameters
-        # now we compute rates over time for each component - not relative to the reference category
-        # Var(XY) ~= MLE(Y)^2.Var(X) + MLE(X)^2.Var(Y) + 2 MLE(X)MLE(Y)COV(X,Y)
-        # Background:  https://migariane.github.io/DeltaMethodEpiTutorial.nb.html
-        
-        # start with rate ratios
-        vc <- vcov(fit)
-        
-        extract_element<- function(vc, row_name, col_name) {
-            r_id <- which(rownames(vc) == row_name)
-            c_id <- which(colnames(vc) == col_name)
-            vc[r_id, c_id]
+                    message("Fitting ..")
+
+                    glm.nb(n ~ date_t*pc_cat + sample_dow,  offset(log(per_day_n)), data=count_df)
+
+                },
+                error=function(cond) {
+                    message(paste("Fitting failed"))
+                    message("Original error message:")
+                    message(cond)
+                    
+                    # write failing data for investigation
+                    return(NA)
+                    export_to <- paste0(fitting_failed_dir, paste0(analysis_family_id,'_',this_pc,'.csv'))
+                    write.table(count_df, outfile, sep='\t', row.names=FALSE)
+                },
+                finally={
+                    message("Fit completed")
+                }
+            )              
+        if (!is.na(fit)){
+          # extract coefficients into a common framework, suitable for storage in a generic data model.
+          coeffs<- tibble(data.frame(summary(fit)$coeff)) %>% 
+            mutate(param=rownames(summary(fit)$coeff)) %>%
+            mutate(Estimate=Estimate,Estimate_CI_low=Estimate-1.96*Std..Error, Estimate_CI_high=Estimate+1.96*Std..Error) %>%
+            rename(p_value=Pr...z..) %>%
+            rename(Std_Error=Std..Error) %>%
+            filter(!grepl("sample_dow",param))
+
+          coeffs <- subset(coeffs, select = c('param', 'Estimate', 'Std_Error', 'Estimate_CI_low', 'Estimate_CI_high', 'p_value'))
+          
+          coeffs$pc_cat <- gsub('pc_cat','',coeffs$param)
+          coeffs$pc_cat <- gsub(':date_t','',coeffs$pc_cat)
+          model_pc_cats <- unique(coeffs$pc_cat)
+          reference_cat <- setdiff(all_pc_cats, model_pc_cats)[1]
+          
+          coeffs$param_desc <- ifelse(grepl(':date_t|date_t',coeffs$param), "Trend over time relative to ref category", "Rate ratio relative to ref at end of time period")
+          coeffs$param_desc[coeffs$pc_cat=='(Intercept)'] <- 'Rate in reference pc_cat at end of time period'
+          coeffs$param_desc[coeffs$pc_cat=='date_t'] <- 'Rate of change in reference pc_cat'
+          coeffs$pc_cat <- gsub('(Intercept)',reference_cat, coeffs$pc_cat, fixed= TRUE)
+          coeffs$pc_cat <- gsub('^date_t$', reference_cat, coeffs$pc_cat)
+          coeffs$is_reference <- ifelse(coeffs$pc_cat == reference_cat,TRUE, FALSE)
+          
+          coeffs$comments <- "Estimates are ln IRRs"
+    
+          
+          # now Var(X+Y) = Var(X) + Var(Y) + 2 Cov(X,Y)
+          # but for Var(X*Y) we need to use Delta methods (essentially approximation by Taylor expansion).
+          # https://stats.stackexchange.com/questions/62916/confidence-interval-for-the-product-of-two-parameters
+          # now we compute rates over time for each component - not relative to the reference category
+          # Var(XY) ~= MLE(Y)^2.Var(X) + MLE(X)^2.Var(Y) + 2 MLE(X)MLE(Y)COV(X,Y)
+          # Background:  https://migariane.github.io/DeltaMethodEpiTutorial.nb.html
+          
+          # start with rate ratios
+          vc <- vcov(fit)
+          
+          extract_element<- function(vc, row_name, col_name) {
+              r_id <- which(rownames(vc) == row_name)
+              c_id <- which(colnames(vc) == col_name)
+              vc[r_id, c_id]
+          }
+          
+          MLE_X <- as.numeric(subset(coeffs, param=="date_t")['Estimate'])
+          VAR_X <- extract_element(vc, 'date_t','date_t')
+          
+          res <- list(
+              param = paste0("IRR:", reference_cat),
+              Estimate = MLE_X,
+              Std_Error = as.numeric(subset(coeffs, param=="date_t")['Std_Error']),
+              Estimate_CI_low = as.numeric(subset(coeffs, param=="date_t")['Estimate_CI_low']),
+              Estimate_CI_high = as.numeric(subset(coeffs, param=="date_t")['Estimate_CI_high']),
+              p_value = as.numeric(subset(coeffs, param=="date_t")['p_value']),
+              pc_cat = reference_cat,
+              param_desc = "Incidence rate ratio",
+              is_reference = 0,
+              comments = "Incidence ratio ratio computed by Delta method"
+          )
+          results <- list()
+          results[[1]] <- res
+          
+          i <- 1
+          for (this_param in coeffs$param[grepl("date_t:",coeffs$param)]){
+              i <- i  +1
+              this_pc_cat <- gsub("date_t:pc_cat","",this_param)
+              MLE_Y <- as.numeric(subset(coeffs, param==this_param)['Estimate'])
+              VAR_Y <- extract_element(vc, this_param,this_param)
+              COV_XY <- extract_element(vc, 'date_t',this_param)
+              VAR_XY <- (MLE_Y^2)*VAR_X + (MLE_X^2)*VAR_Y + 2*MLE_X*MLE_Y*COV_XY
+              SE_XY <- sqrt(VAR_XY)
+              MLE_XY <- MLE_X * MLE_Y
+              Estimate_CI_low <- MLE_XY  - 1.96*SE_XY
+              Estimate_CI_high <- MLE_XY + 1.96*SE_XY
+              Z <- MLE_XY / SE_XY
+              p_value <- pnorm(as.numeric(Z))
+              
+              res <- list(
+              param = paste0("IRR:", this_pc_cat),
+              Estimate = MLE_XY,
+              Std_Error = SE_XY,
+              Estimate_CI_low = Estimate_CI_low,
+              Estimate_CI_high = Estimate_CI_high,
+              p_value = p_value,
+              pc_cat = this_pc_cat,
+              param_desc = "Incidence rate ratio",
+              is_reference = 0,
+              comments = "Incidence ratio ratio computed by Delta method"
+              )
+              results[[i]] <- res
+          
+          }
+          
+          
+          ## next we consider the rate estimates themselves
+          MLE_X <- as.numeric(subset(coeffs, param=="(Intercept)")['Estimate'])
+          VAR_X <- extract_element(vc, '(Intercept)','(Intercept)')
+          
+          res <- list(
+              param = paste0("countPerDay:", reference_cat),
+              Estimate = MLE_X,
+              Std_Error = as.numeric(subset(coeffs, param=="(Intercept)")['Std_Error']),
+              Estimate_CI_low = as.numeric(subset(coeffs, param=="(Intercept)")['Estimate_CI_low']),
+              Estimate_CI_high = as.numeric(subset(coeffs, param=="(Intercept)")['Estimate_CI_high']),
+              p_value = p_value,
+              pc_cat = reference_cat,
+              param_desc = "Estimated Counts per day",
+              is_reference = 0,
+              comments = "Estimated counts per day computed by Delta method"
+          )
+          i <- i + 1
+          results[[i]] <- res
+          
+          
+          for (this_param in coeffs$param[grepl("^pc_cat",coeffs$param)]){
+              i <- i  +1
+              this_pc_cat <- gsub("pc_cat","",this_param)
+              MLE_Y <- as.numeric(subset(coeffs, param==this_param)['Estimate'])
+              VAR_Y <- extract_element(vc, this_param,this_param)
+              COV_XY <- extract_element(vc, '(Intercept)',this_param)
+              VAR_XY <- (MLE_Y^2)*VAR_X + (MLE_X^2)*VAR_Y + 2*MLE_X*MLE_Y*COV_XY
+              SE_XY <- sqrt(VAR_XY)
+              MLE_XY <- MLE_X * MLE_Y
+              Estimate_CI_low <- MLE_XY  - 1.96*SE_XY
+              Estimate_CI_high <- MLE_XY + 1.96*SE_XY
+              Z <- MLE_XY / SE_XY
+              p_value <- pnorm(as.numeric(Z))
+              
+              res <- list(
+              param = paste0("countPerDay:", this_pc_cat),
+              Estimate = MLE_XY,
+              Std_Error = SE_XY,
+              Estimate_CI_low = Estimate_CI_low,
+              Estimate_CI_high = Estimate_CI_high,
+              p_value = p_value,
+              pc_cat = this_pc_cat,
+              param_desc = "Estimated Counts per day",
+              is_reference = 0,
+              comments = "Estimated counts per day computed by Delta method"
+              )
+              results[[i]] <- res
+              
+          }
+          results_df <- data.frame(do.call(rbind.data.frame, results))
+          coeffs <- data.frame(rbind(coeffs,results_df
+                  ))
+
+          coeffs$analysis_id <- analysis_uuid
+          coeffs$has_CI <- 1
+          coeffs$Estimate2NaturalSpace <- "exp"
+          all_coeffs[[this_pc]] <- coeffs
+          
         }
-        
-        MLE_X <- as.numeric(subset(coeffs, param=="date_t")['Estimate'])
-        VAR_X <- extract_element(vc, 'date_t','date_t')
-        
-        res <- list(
-            param = paste0("IRR:", reference_cat),
-            Estimate = MLE_X,
-            Std_Error = as.numeric(subset(coeffs, param=="date_t")['Std_Error']),
-            Estimate_CI_low = as.numeric(subset(coeffs, param=="date_t")['Estimate_CI_low']),
-            Estimate_CI_high = as.numeric(subset(coeffs, param=="date_t")['Estimate_CI_high']),
-            p_value = as.numeric(subset(coeffs, param=="date_t")['p_value']),
-            pc_cat = reference_cat,
-            param_desc = "Incidence rate ratio",
-            is_reference = 0,
-            comments = "Incidence ratio ratio computed by Delta method"
-        )
-        results <- list()
-        results[[1]] <- res
-        
-        i <- 1
-        for (this_param in coeffs$param[grepl("date_t:",coeffs$param)]){
-            i <- i  +1
-            this_pc_cat <- gsub("date_t:pc_cat","",this_param)
-            MLE_Y <- as.numeric(subset(coeffs, param==this_param)['Estimate'])
-            VAR_Y <- extract_element(vc, this_param,this_param)
-            COV_XY <- extract_element(vc, 'date_t',this_param)
-            VAR_XY <- (MLE_Y^2)*VAR_X + (MLE_X^2)*VAR_Y + 2*MLE_X*MLE_Y*COV_XY
-            SE_XY <- sqrt(VAR_XY)
-            MLE_XY <- MLE_X * MLE_Y
-            Estimate_CI_low <- MLE_XY  - 1.96*SE_XY
-            Estimate_CI_high <- MLE_XY + 1.96*SE_XY
-            Z <- MLE_XY / SE_XY
-            p_value <- pnorm(as.numeric(Z))
-            
-            res <- list(
-            param = paste0("IRR:", this_pc_cat),
-            Estimate = MLE_XY,
-            Std_Error = SE_XY,
-            Estimate_CI_low = Estimate_CI_low,
-            Estimate_CI_high = Estimate_CI_high,
-            p_value = p_value,
-            pc_cat = this_pc_cat,
-            param_desc = "Incidence rate ratio",
-            is_reference = 0,
-            comments = "Incidence ratio ratio computed by Delta method"
-            )
-            results[[i]] <- res
-        
-        }
-        
-        
-        ## next we consider the rate estimates themselves
-        MLE_X <- as.numeric(subset(coeffs, param=="(Intercept)")['Estimate'])
-        VAR_X <- extract_element(vc, '(Intercept)','(Intercept)')
-        
-        res <- list(
-            param = paste0("countPerDay:", reference_cat),
-            Estimate = MLE_X,
-            Std_Error = as.numeric(subset(coeffs, param=="(Intercept)")['Std_Error']),
-            Estimate_CI_low = as.numeric(subset(coeffs, param=="(Intercept)")['Estimate_CI_low']),
-            Estimate_CI_high = as.numeric(subset(coeffs, param=="(Intercept)")['Estimate_CI_high']),
-            p_value = p_value,
-            pc_cat = reference_cat,
-            param_desc = "Estimated Counts per day",
-            is_reference = 0,
-            comments = "Estimated counts per day computed by Delta method"
-        )
-        i <- i + 1
-        results[[i]] <- res
-        
-        
-        for (this_param in coeffs$param[grepl("^pc_cat",coeffs$param)]){
-            i <- i  +1
-            this_pc_cat <- gsub("pc_cat","",this_param)
-            MLE_Y <- as.numeric(subset(coeffs, param==this_param)['Estimate'])
-            VAR_Y <- extract_element(vc, this_param,this_param)
-            COV_XY <- extract_element(vc, '(Intercept)',this_param)
-            VAR_XY <- (MLE_Y^2)*VAR_X + (MLE_X^2)*VAR_Y + 2*MLE_X*MLE_Y*COV_XY
-            SE_XY <- sqrt(VAR_XY)
-            MLE_XY <- MLE_X * MLE_Y
-            Estimate_CI_low <- MLE_XY  - 1.96*SE_XY
-            Estimate_CI_high <- MLE_XY + 1.96*SE_XY
-            Z <- MLE_XY / SE_XY
-            p_value <- pnorm(as.numeric(Z))
-            
-            res <- list(
-            param = paste0("countPerDay:", this_pc_cat),
-            Estimate = MLE_XY,
-            Std_Error = SE_XY,
-            Estimate_CI_low = Estimate_CI_low,
-            Estimate_CI_high = Estimate_CI_high,
-            p_value = p_value,
-            pc_cat = this_pc_cat,
-            param_desc = "Estimated Counts per day",
-            is_reference = 0,
-            comments = "Estimated counts per day computed by Delta method"
-            )
-            results[[i]] <- res
-            
-        }
-        
-    results_df <- data.frame(do.call(rbind.data.frame, results))
-
-    coeffs <- data.frame(rbind(coeffs,results_df
-            ))
-
-    coeffs$analysis_id <- analysis_uuid
-    coeffs$has_CI <- 1
-    coeffs$Estimate2NaturalSpace <- "exp"
-    all_coeffs[[this_pc]] <- coeffs
     }
 
     all_coeffs_df <- data.frame(do.call(rbind.data.frame, all_coeffs))
@@ -1774,8 +1972,8 @@ fit_recent_trend_in_counts <- function(db_connection,
         'interval_analysed_days' = interval_analysed
     ))
     retVal <- list('fitted' = 1, 'reason' = 'Success','meta'= metadata, 'model_fit'= all_coeffs_df)
-    saveRDS(retVal, file = "megbin_model.rds")
-    print("Wrote data to negbin_model.rds")
+    #saveRDS(retVal, file = "megbin_model.rds")
+    #print("Wrote data to negbin_model.rds")
 
 
     add_database_tables(
@@ -1985,75 +2183,94 @@ make_contingency_tables <- function(db_connection,
   
   date_ends <- convert_date(date_end) 
   
-  a_b_c_d_cmd = "select count(distinct sample_id) n from sample_id;"
+  a_b_c_d_cmd = "select count(distinct cm.sample_id) n from 
+  clinical_metadata cm
+  inner join sequence_metadata sm
+  on cm.sample_id = sm.sample_id
+  where cm.sample_date <= ?;"
   
   # count by feature - restrict to lineages
-  a_c_cmd = "select sm.feature, count(distinct sm.sample_id) n from 
+  a_c_cmd = "select sm.feature, count(distinct cm.sample_id) n from 
   sequence_metadata sm
-  INNER JOIN sample_id
-  ON sm.sample_id = sample_id.sample_id
+  INNER JOIN clinical_metadata cm 
+  on cm.sample_id = sm.sample_id
+  where cm.sample_date <= ?
   and  sm.variable = 'lineage'
   group by sm.feature;"
   
-  a_b_cmd = "select pc_cat, count(*) n from 
+  a_b_cmd = "select pc_cat, count(distinct cm.sample_id) n from 
   transformed_coordinate_categories tcc
+  INNER JOIN clinical_metadata cm 
+  on cm.sample_id = tcc.sample_id
+  where cm.sample_date <= ?
   group by pc_cat;"
   
-  a_cmd= "select pc_cat,sm.feature, count(distinct sm.sample_id) n from 
+  a_cmd= "select pc_cat,sm.feature, count(distinct cm.sample_id) n from 
   transformed_coordinate_categories tcc
   INNER JOIN 
   sequence_metadata sm
   on tcc.sample_id = sm.sample_id
-  and tcc.pc=? 
-  and  sm.variable = 'lineage' 
-  group by pc_cat, sm.feature;"
- 
+  INNER JOIN clinical_metadata cm 
+  on cm.sample_id = sm.sample_id
+  where cm.sample_date <= ?
+  and pc = ? 
+  and  sm.variable = 'lineage'
+  group by pc,cat, sm.feature;"
   
+
   # check the relevant data exists
   check_table_present(db_connection, 'transformed_coordinate_categories','Table should be present, produced by fn4pca.py')
   check_table_present(db_connection, 'statistical_model_fits','Call fit_recent_trend_wrt_most_common_pcat_all_pcs() first')
   check_table_present(db_connection, 'sequence_metadata','Call add_cog_metadata() or equivalent first')
   
   print("Recovering counts")
+  
   a_b_c_d <- database_query(
     db_connection = db_connection, 
-    cmd = a_b_c_d_cmd 
-    )
+    cmd = a_b_c_d_cmd, 
+    params = list(date_ends[['iso']]))
   print(paste("number of sequences from which the model was built is ",a_b_c_d))
-  
+
   print("Recovering marginal totals")
   a_c <- database_query(db_connection = db_connection, 
-                        cmd = a_c_cmd)
+                        cmd = a_c_cmd, 
+                        params = list(date_ends[['iso']]))
   names(a_c)[2] <- 'a_c'
-  
+
   print(paste("number of features (restricted to lineages) is ",nrow(a_c)))
   a_b <- database_query(db_connection = db_connection, 
-                        cmd = a_b_cmd)
+                        cmd = a_b_cmd, 
+                        params = list(date_ends[['iso']]))
 
   names(a_b)[2] <- 'a_b'
 
+  
   print(paste("number of pc_cats is ",nrow(a_b)))
   n_pc <- number_of_pcs(db_connection = db_connection)
   print(paste("number of pcs is ",n_pc))
   print("Recovering co-existence of pc_cats and features, pc by pc")
   
  coexistence = list()
-  for (this_pc in 1:n_pc){
+
+  for (this_pc in 1:n_pc){    
     print(this_pc)
     coexistence[[this_pc]] <- database_query(
       db_connection = db_connection,
-      cmd = a_cmd,
-      params = list(this_pc)) 
+      cmd = a_cmd, 
+      params = list(date_ends[['iso']], this_pc)) 
   }
   
   coexistence_df <- do.call(rbind, coexistence)
+ 
   names(coexistence_df)[3] <- 'a'
+ 
   
   coexistence_df <- merge(coexistence_df, a_c, by = 'feature')
 
   coexistence_df <- merge(coexistence_df, subset(a_b, select=c('a_b','pc_cat')), by = 'pc_cat')
+
   coexistence_df$a_b_c_d <- as.integer(a_b_c_d)
-  
+
   # now solve for b,c,d.
   coexistence_df$c <- coexistence_df$a_c - coexistence_df$a 
   coexistence_df$b <- coexistence_df$a_b - coexistence_df$a 
@@ -2066,8 +2283,7 @@ make_contingency_tables <- function(db_connection,
           coexistence_df$b + 
           coexistence_df$c + coexistence_df$d==coexistence_df$a_b_c_d)
 
-  print(subset(coexistence_df, a<0 | b<0 | c<0 | d<0)) 
- 
+  print(subset(coexistence_df, b<0 | c<0 |a<0 | d<0))
   # compute OR for each row.
   print("Computing ORs")
   coexistence_df$rowid <-1:nrow(coexistence_df)
@@ -2098,59 +2314,4 @@ make_contingency_tables <- function(db_connection,
     overwrite=TRUE)
     
   coexistence_df
-}
-barcode        <- function(x){
-  # given a vector x, concatenates the ordered elements of x, separated by pipes.  
-  # this is an identifier for the combination of the elements of x, and which we refer to
-  # in this code as a barcode
-  paste(sort(unique(x)), collapse='|')
-}
-
-barcode2lineage <- function(db_connection, reporting_or_cutoff=1e5){
-  # constructs a map of lineage --> combinations of pc_cats , and
-  #                     combinations of pc_cats ('barcodes') --> lineage
-  # useful for expressing whether individual pcs or pc_cats are predictive of lineages
-  # 
-  # parameters:
-  #  db_connection : a database connection
-  #  reporting_or_cutoff: reports association if OR > cutoff.  Suggest 1e5
-  # returns:
-  #  a list consisting of
-  #  lineage2barcode
-  #  barcode2lineage
-
-
-  print("Mapping lineages to barcodes of pc_cats")
-  cmd <- "select substr(feature, 9) lineage, 
-  pc_cat from 
-  feature_associations
-  where substr(feature,1,8)='lineage:' AND
-  truncated_odds_ratio >= ?;"
-  strong_associations <- database_query(db_connection,
-                                        cmd,
-                                        params=list(reporting_or_cutoff))
-  # compute the number of . in lineage
-  strong_associations$n_dots <- stringr::str_count(
-    strong_associations$lineage, fixed('.'))
-  
-  # what combination of pc_cats match each lineage?
-  barcodes <- reshape2::dcast(strong_associations, lineage + n_dots ~ ., value.var = 'pc_cat', fun.aggregate=barcode)
-  names(barcodes)[3] <- 'barcode'
-  
-  # how many lineages with the same number of dots map to > 1 barcode?
-  barcode2lineage <- reshape2::dcast(barcodes, lineage + n_dots ~ ., value.var = 'barcode', fun.aggregate = length)
-  names(barcode2lineage)[3] <- 'n_barcodes'
-
-  lineage2barcode <- reshape2::dcast(barcodes, barcode + n_dots ~ ., value.var = 'lineage', fun.aggregate = length)
-  names(lineage2barcode)[3] <- 'n_lineages'
-  lineage2barcode$barcode_components <- 1+stringr::str_count(
-    lineage2barcode$barcode, fixed('|'))
-  unique_mappings <- subset(lineage2barcode, n_lineages==1, select=c('barcode','n_dots'))
-  unique_mappings$is_unique <- 1
-  barcode2lineage_unique_status <- merge(barcodes, unique_mappings, by=c('n_dots','barcode'), all.x=TRUE)
-  barcode2lineage_unique_status$is_unique[is.na(barcode2lineage_unique_status$is_unique)] <- 0
-  list(barcode2lineage_unique_status=barcode2lineage_unique_status, 
-       lineage2barcode=lineage2barcode, 
-       barcode2lineage=barcode2lineage,
-       strong_associations =strong_associations)
 }
