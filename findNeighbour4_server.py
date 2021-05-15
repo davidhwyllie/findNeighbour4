@@ -1109,14 +1109,12 @@ if __name__ == "__main__":
         and these are stored."""
         try:
             result = fn.server_memory_usage(max_reported=nrows)
-            return make_response(tojson(result))
         except Exception as e:
 
             capture_exception(e)
             abort(500, e)
 
-        # reformat this into a long, human readable format.
-
+        # convert to a long, human readable format.
         resl = pd.melt(
             pd.DataFrame.from_records(result), id_vars=["_id", "context|time|time_now", "context|info|message"]
         ).dropna()  # drop any na values
@@ -1127,12 +1125,13 @@ if __name__ == "__main__":
         resl["detail"] = [fn.mhr.convert(x) for x in resl["event_description"].tolist()]
         resl = resl.drop(["event_description"], axis=1)
 
-        if output_format == "html":
-            return resl.to_html()
-        elif output_format == "json":
+        # reformat this as required
+        if output_format == 'json':
             return make_response(resl.to_json(orient="records"))
+        elif output_format == 'html':
+            return "<html>{0}</html>".format(resl.to_html())
         else:
-            abort(500, "Invalid output_format passed")
+            abort(406, "Invalid output_format passed.  Valid values are: json, html")
 
     @app.route("/ui/server_status", defaults={"absdelta": "absolute", "stats_type": "mstat", "nrows": 1}, methods=["GET"])
     @app.route("/ui/server_status/<string:absdelta>/<string:stats_type>/<int:nrows>", methods=["GET"])
