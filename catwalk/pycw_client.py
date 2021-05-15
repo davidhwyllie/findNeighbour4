@@ -116,8 +116,8 @@ in either
 
         # store parameters
         self.bind_host = bind_host
-        self.bind_port = bind_port
-        self.cw_url = "http://{0}:{1}".format(bind_host, bind_port)
+        self.bind_port = int(bind_port)     # has to be an integer
+        self.cw_url = "http://{0}:{1}".format(bind_host, self.bind_port)
         self.cw_binary_filepath = cw_binary_filepath
         self.reference_filepath = reference_filepath
         self.mask_filepath = mask_filepath
