@@ -5,9 +5,9 @@ name: Test findNeighbour4
 
 on:
   push:
-    branches: [ $default-branch ]
+    branches: '*'
   pull_request:
-    branches: [ $default-branch ]
+    branches: '*'
   workflow_dispatch:
     inputs:
       tags:
