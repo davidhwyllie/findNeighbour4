@@ -82,7 +82,7 @@ from findn.common_utils import ConfigManager
 from findn.NucleicAcid import NucleicAcid
 from findn.mongoStore import fn3persistence
 from findn.hybridComparer import hybridComparer
-from findn.guidLookup import guidSearcher  # fast lookup of first part of guids
+from findn.guidLookup import guidDbSearcher  # fast lookup of first part of guids
 from snpclusters.ma_linkage import MixtureAwareLinkageResult
 from findn.msa import MSAStore
 from findn.preComparer import preComparer
@@ -263,7 +263,7 @@ class findNeighbour4:
         self.mhr = MakeHumanReadable()
 
         # load in-memory sequences
-        self.gs = guidSearcher()
+        self.gs = guidDbSearcher(PERSIST=PERSIST, recheck_interval_seconds = 60)
         self._load_in_memory_data()
 
         # log database state
@@ -352,9 +352,6 @@ class findNeighbour4:
             bar = progressbar.ProgressBar(max_value=len(guids))
 
             for guid in guids:
-
-                nLoaded += 1
-                self.gs.add(guid)
 
                 self.hc.repopulate(guid=guid)
                 bar.update(nLoaded)
@@ -469,7 +466,6 @@ class findNeighbour4:
             self.write_semaphore.acquire()
             try:
                 loginfo = self.hc.persist(refcompressedsequence, guid, {"DNAQuality": self.objExaminer.composition})
-                self.gs.add(guid)
 
             except Exception as e:
                 self.write_semaphore.release()  # release the write semaphore
@@ -1809,9 +1805,6 @@ python findNeighbour4_server.py ../config/myconfig_file.json
     RESTBASEURL = "http://{0}:{1}".format(CONFIG["IP"], CONFIG["REST_PORT"])
 
     #########################  CONFIGURE HELPER APPLICATIONS ######################
-    ## once the flask app is running, errors get logged to app.logger.  However, problems on start up do not.
-    ## configure mongodb persistence store
-
     # plotting engine
     #  prevent https://stackoverflow.com/questions/27147300/how-to-clean-images-in-python-django
     matplotlib.use("agg")  

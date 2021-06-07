@@ -121,8 +121,10 @@ class fn3persistence:
             "clusters.files",
             "msa.chunks",
             "msa.files",
+            "tree.chunks",
+            "tree.files",
         ]
-        self.expected_clustering_collections = ["clusters.chunks", "clusters.files", "msa.chunks", "msa.files"]
+        self.expected_clustering_collections = ["clusters.chunks", "clusters.files", "msa.chunks", "msa.files", "tree.chunks", "tree.files"]
         self.max_neighbours_per_document = max_neighbours_per_document
         self.server_monitoring_min_interval_msec = server_monitoring_min_interval_msec
         self.previous_server_monitoring_data = {}
@@ -144,17 +146,21 @@ class fn3persistence:
 
         self.db["guid2neighbour"].create_indexes([ix1, ix2])
 
-        # create indices on msa; note will do nothing if index already exists
+        # create indices on msa and trees; note will do nothing if index already exists
         ix3 = pymongo.IndexModel([("filename", pymongo.ASCENDING), ("uploadDate", pymongo.ASCENDING)], name="filename_date")
         self.db["msa.files"].create_indexes([ix3])
+
+        ix3b = pymongo.IndexModel([("filename", pymongo.ASCENDING), ("uploadDate", pymongo.ASCENDING)], name="filename_date")
+        self.db["tree.files"].create_indexes([ix3b])
 
         # create indices on guid2meta, allowing recovery of valid and invalid specimens rapidly.
         ix4 = pymongo.IndexModel([('"sequence_meta.DNAQuality.invalid"', pymongo.ASCENDING)], name="guid_validity")
         ix5 = pymongo.IndexModel([('"sequence_meta.DNAQuality.propACTG"', pymongo.ASCENDING)], name="guid_quality")
+        ix5b = pymongo.IndexModel([('"sequence_meta.DNAQuality.examinationDate"', pymongo.ASCENDING)], name="examinationDate")
 
         # note: if additional metadata is added, such as sequence names etc which might be searched for, then we need to add additional indices here.
 
-        self.db["guid2meta"].create_indexes([ix4, ix5])
+        self.db["guid2meta"].create_indexes([ix4, ix5, ix5b])
 
         # create index on server_monitoring insert times
         ix6 = pymongo.IndexModel([("context|time|time_now", pymongo.ASCENDING)])
@@ -202,6 +208,7 @@ class fn3persistence:
         self.clusters = gridfs.GridFS(self.db, collection="clusters")
         self.monitor = gridfs.GridFS(self.db, collection="monitor")
         self.msa = gridfs.GridFS(self.db, collection="msa")
+        self.tree = gridfs.GridFS(self.db, collection="tree")
 
         # enable sharding at database level
         # self.client.admin.command('enableSharding', self.dbname)
@@ -440,6 +447,7 @@ class fn3persistence:
         else:
             return res.read().decode("utf-8")
 
+    # methods for multisequence alignments
     def msa_store(self, msa_token, msa):
         """ stores the msa object msa under token msa_token. """
 
@@ -482,6 +490,51 @@ class fn3persistence:
         for msa_token in to_delete:
             self.msa.delete(msa_token)
 
+    # methods for trees
+    
+    def tree_store(self, tree_token, tree):
+        """ stores the tree object tree under token tree_token. """
+
+        if not isinstance(tree, dict):
+            raise TypeError("Can only store dictionary objects, not {0}".format(type(dict)))
+
+        res = self.tree.find_one({"_id": tree_token})
+        if res is None:
+            json_repr = json.dumps(tree).encode("utf-8")
+            with io.BytesIO(json_repr) as f:
+                self.tree.put(f, _id=tree_token, filename=tree_token)
+
+            return tree_token
+
+    def tree_read(self, tree_token):
+        """loads object from tree collection.
+        It is assumed object is a dictionary"""
+
+        res = self.tree.find_one({"_id": tree_token})
+        if res is None:
+            return None
+        json_repr = json.loads(res.read().decode("utf-8"))
+        return json_repr
+
+    def tree_delete(self, tree_token):
+        """deletes the tree with token tree_token"""
+
+        self.tree.delete(tree_token)
+
+    def tree_stored_ids(self):
+        """ returns a list of  tree tokens of all objects stored """
+        return [stored_tree._id for stored_tree in self.tree.find({})]
+
+    def tree_delete_unless_whitelisted(self, whitelist):
+        """deletes the tree unless the id is in whitelist"""
+        to_delete = set()
+        for id in self.tree_stored_ids():
+            if id not in whitelist:
+                to_delete.add(id)
+        for tree_token in to_delete:
+            self.tree.delete(tree_token)
+
+    # methods for clusters
     def cluster_store(self, clustering_key, obj):
         """stores the clustering object obj.  retains previous version.  To clean these up, call cluster_delete_legacy.
 
@@ -603,7 +656,7 @@ class fn3persistence:
 
     def refcompressedsequence_read(self, guid):
         """loads object from refcompressedseq collection.
-        It is assumed object is a dictionary"""
+        It is assumed object stored is a dictionary"""
 
         res = self.rcs.find_one({"_id": guid})
         if res is None:
@@ -645,8 +698,17 @@ class fn3persistence:
 
     def guids(self):
         """ returns all registered guids """
-
+        
         retVal = [x["_id"] for x in self.db.guid2meta.find({}, {"_id": 1})]
+        return set(retVal)
+
+    def guids_considered_after(self, addition_datetime):
+        """ returns all registered guid added after addition_datetime
+        addition_datetime: a date of datetime class."""
+
+        if not isinstance(addition_datetime, datetime.datetime):
+            raise TypeError("addition_datetime must be a datetime.datetime value.  It is {0}.  Value = {1}".format(type(addition_datetime), addition_datetime))
+        retVal = [x["_id"] for x in self.db.guid2meta.find({"sequence_meta.DNAQuality.examinationDate": {'$gt': addition_datetime}}, {"_id": 1})]
         return set(retVal)
 
     def _guids_selected_by_validity(self, validity):
@@ -782,6 +844,32 @@ class fn3persistence:
             except KeyError:
                 return -2
 
+    def guid_examination_time(self, guid):
+        """returns the examination time for a single guid
+
+        Parameters:
+        guid: the sequence identifier
+
+        Returns either
+        The examination datetime value for this guid OR
+        None if the guid does not exist, or the sequence_meta.DNAQuality.examinationTime key does not exist.
+        """
+
+        res = self.db.guid2meta.find_one({"_id": guid}, {"sequence_meta.DNAQuality.examinationDate": 1})
+        if res is None:
+            return None
+        try:
+            return res['sequence_meta']['DNAQuality']['examinationDate']
+        except KeyError:
+            return None
+
+    def guids_considered_after_guid(self, guid):
+        """ returns all registered guids added after guid
+        guid: a sequence identifier"""
+
+        addition_datetime = self.guid_examination_time(guid)
+        return self.guids_considered_after(addition_datetime)
+     
     def guid_quality_check(self, guid, cutoff):
         """Checks whether the quality of one guid exceeds the cutoff.
 
@@ -847,7 +935,7 @@ class fn3persistence:
         return retDict
 
     def guid2ExaminationDateTime(self, guidList=None):
-        """ returns quality scores for all guids in guidlist.  If guidList is None, all results are returned. """
+        """ returns quality scores and examinationDate for all guids in guidlist.  If guidList is None, all results are returned. """
 
         return self.guid2item(guidList, "DNAQuality", "examinationDate")
 
