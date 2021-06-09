@@ -1,11 +1,11 @@
+#!/usr/bin/env python
 """ 
 A component of a findNeighbour4 server which provides relatedness information for bacterial genomes.
 It does so using PCA, and supports PCA based cluster generation.
 
-The associated classes compute a variation model for samples in a findNeighbour4 server.
+he associated classes compute a variation model for samples in a findNeighbour4 server.
 Computation uses data in MongoDb, and is not memory intensive, using configuration information in a 
 config file. 
-
 
 Functionality is provided in following classes:
 * VariationModel - stores results of producing variant matrix and running PCA
@@ -29,7 +29,6 @@ This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without tcen the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU Affero General Public License for more details.
-
 """
 
 # import libraries
@@ -100,7 +99,6 @@ class PersistenceTest:
             return None
         return self.seqs[guid]
 
-
 class MNStats:
     """ computes the number of M and N bases in a reference compressed object """
 
@@ -120,26 +118,26 @@ class MNStats:
                    indicative of a mixture."""
 
         missing = {
-            "M_in_model": 0,
-            "N_in_model": 0,
+            "m_in_model": 0,
+            "n_in_model": 0,
             "model_positions": len(self.select_positions),
             "reference_positions": self.analysed_reference_length,
         }
 
         for base in ["M", "N"]:  # compute missingness
-
+            base_l = base.lower()
             # record total numbers of N and M per guid
             try:
-                missing["{0}_total".format(base)] = len(obj[base])
+                missing["{0}_total".format(base_l)] = len(obj[base])
             except KeyError:
-                missing["{0}_total".format(base)] = 0
+                missing["{0}_total".format(base_l)] = 0
 
             # examine all missing (N/M) sites, adding to a missingness model
             try:
                 for pos in obj[base]:
                     if pos in self.select_positions:
                         try:
-                            missing["{0}_in_model".format(base)] += 1
+                            missing["{0}_in_model".format(base_l)] += 1
                         except KeyError:
                             pass
 
@@ -148,18 +146,17 @@ class MNStats:
 
             ## do binomial test
             not_model = self.analysed_reference_length - len(self.select_positions)
-            p_expected = (missing["{0}_total".format(base)] - missing["{0}_in_model".format(base)]) / not_model
-            missing["{0}_expected_proportion".format(base)] = p_expected
-            p_observed = missing["{0}_in_model".format(base)] / len(self.select_positions)
-            missing["{0}_observed_proportion".format(base)] = p_observed
+            p_expected = (missing["{0}_total".format(base_l)] - missing["{0}_in_model".format(base_l)]) / not_model
+            missing["{0}_expected_proportion".format(base_l)] = p_expected
+            p_observed = missing["{0}_in_model".format(base_l)] / len(self.select_positions)
+            missing["{0}_observed_proportion".format(base_l)] = p_observed
             p_val = binom_test(
-                missing["{0}_in_model".format(base)], len(self.select_positions), p_expected, alternative="greater"
+                missing["{0}_in_model".format(base_l)], len(self.select_positions), p_expected, alternative="greater"
             )
 
-            missing["{0}_p_value".format(base)] = p_val
+            missing["{0}_p_value".format(base_l)] = p_val
 
         return missing
-
 
 class VariationModel:
     """Stores a VariantMatrix, the output of a PCA of the matrix, and (optionally) a clustering of the principal components.
@@ -284,7 +281,6 @@ class VariationModel:
         metadata_df.to_sql("Metadata", conn, if_exists="fail")
         conn.close()
         return sqlite_file
-
 
 class VariantMatrix:
     """In charge of producing a sample x SNP matrix"""
@@ -535,7 +531,7 @@ class VariantMatrix:
         mix_quality_cutoff = 0.01 / len(
             mix_quality_info.index
         )  # 0.01 divided by the number of samples analysed;  Bonferroni adj.
-        suspect_quality = mix_quality_info.query("M_p_value < {0} or N_p_value < {0}".format(mix_quality_cutoff))
+        suspect_quality = mix_quality_info.query("m_p_value < {0} or n_p_value < {0}".format(mix_quality_cutoff))
         self.vm["suspect_quality_seqs"] = suspect_quality
         n_suspect = len(set(suspect_quality.index.to_list()))
         pc_suspect = int(100 * n_suspect / len(mix_quality_info.index))
@@ -601,7 +597,6 @@ class VariantMatrix:
         logging.info("Matrix construction complete.  There are {0} sequences in the variation model, which took {1} seconds to build".format(len(vmodel.index), elapsed))
         self.vm["variant_matrix"] = vmodel
         return None
-
 
 class PCARunner:
     """ Performs PCA on a VariantMatrix """

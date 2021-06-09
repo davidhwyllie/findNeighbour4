@@ -105,12 +105,8 @@ if __name__ == "__main__":
 Example usage: 
 ============== 
 # show command line options 
-python updating_covid_load.py --help  
-
-# load into server specified at url
-python updating_covid_load.py "http://localhost:5023"
-
-""",
+python fn4_load_multifasta.py --help  
+"""
     )
     parser.add_argument(
         "server_url",

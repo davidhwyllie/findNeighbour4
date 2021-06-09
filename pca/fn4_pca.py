@@ -207,7 +207,7 @@ pipenv run python3 pca/fn4_pca.py demos/covid/covid_config_v3.json --outputdir /
         try:
             var_matrix = VariantMatrix(CONFIG, PERSIST)
         except Exception:
-            print("Error raised on instantiating findNeighbour3 distance estimator object")
+            print("Error raised on instantiating Variant Matrix object")
             raise
 
         print("Building snp matrix")

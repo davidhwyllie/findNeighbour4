@@ -4,10 +4,10 @@
 
 import unittest
 import pandas as pd
+import pickle
 from findn import DEFAULT_CONFIG_FILE
 from pca.pca import PersistenceTest, MNStats, VariantMatrix, PCARunner
 from findn.common_utils import ConfigManager
-
 
 class Test_PersistenceTest_1(unittest.TestCase):
     """ tests the PersistenceTest class"""
@@ -85,8 +85,8 @@ class Test_MNStats_1(unittest.TestCase):
         res = mns.examine(rcs)
 
         self.assertIsInstance(res, dict)
-        self.assertEqual(res["N_total"], 19)
-        self.assertEqual(res["M_total"], 0)
+        self.assertEqual(res["n_total"], 19)
+        self.assertEqual(res["m_total"], 0)
 
 class Test_VariantMatrix_1(unittest.TestCase):
     """ tests the VariantMatrix and PCARunner classes"""
@@ -167,5 +167,9 @@ class Test_VariantMatrix_2(unittest.TestCase):
 
         # test cluster
         v = pcr.cluster()
+
+        # serialise v ; used as an example by unittests of database storage.
+        # open("testdata/pca/vm.pickle",'wb') as f:
+        #    pickle.dump(v, f)
 
         v.to_sqlite("unittest_tmp")

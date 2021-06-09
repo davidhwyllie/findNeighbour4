@@ -40,7 +40,13 @@ pytest = "*"
 flake8 = "*"
 pytest-cov = "*"
 coverage = "*"
+cx-Oracle = "*"
 black = "*"
+statsmodels = "*"
 
 [requires]
 python_version = "3.8"
+
+[packages.001a617]
+path = "/data/software/fn4dev"
+editable = true

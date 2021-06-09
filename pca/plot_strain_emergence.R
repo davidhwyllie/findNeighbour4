@@ -50,7 +50,15 @@ parser$add_argument('-r', "--highlight_min_recent_proportion", default=0.5, type
 parser$add_argument('-l', "--lineage_association_or_cutoff", default=1e3, type="double",
         metavar="report associations if the presence vs. absence of a pc_cat modifies the odds ratio of a lineage being present vs. not being present by > this cutoff",
         help="report associations if the presence vs. absence of a pc_cat modifies the odds ratio of a lineage being present vs. not being present by > this cutoff")
-    
+
+parser$add_argument('-a', "--only_pc_cat_arising_after", default='', type="character",
+        metavar="report associations if the earliest sample in the pc_cat is after an isoformat date (e.g. 2021-03-01).  Significantly speeds computation if set.",
+        help="report associations if the earliest sample in the pc_cat is after an isoformat date (e.g. 2021-03-01).  Significantly speeds computation if set.")
+
+parser$add_argument('-q', "--lineage_to_highlight", default="", type="character",
+        metavar="highlight counts of, and associations with, lineage_to_depict",
+        help="highlight counts of, and associations with, lineage_to_depict.  If omitted, no strains are highlighted")
+
 # get command line options, if help option encountered print help and exit,
 # otherwise if options not found on command line then set defaults, 
 # example usage: 
@@ -63,21 +71,27 @@ args <- parser$parse_args()
 ## -----    example usage: loading, iteration  ------------------------
 # set up parameters 
 BASE_DIR <- args$searchdir   # "/data/data/pca/realtime_400/"  # where the databases are
-cogfile <- args$cogfile #  "/data/data/inputfasta/cog_metadata.csv"
+cogfile <- args$cogfile        #  "/data/data/inputfasta/cog_metadata.csv"
 interval <- args$interval
 min_estimate_IRR <- args$highlight_min_estimate_IRR
 max_samples <- args$highlight_max_samples
 min_recent_proportion <- args$highlight_min_recent_proportion  
 filepattern <- args$filepattern
 depiction_or_cutoff <- args$lineage_association_or_cutoff
-
-# debug
-#BASE_DIR = getwd()
-#min_estimate_IRR <- 1
-#max_samples <- 1000
-#min_recent_proportion <- 0.5
-#filepattern <- "/2021-05-07.sqlite"
-# end debug
+lineage_to_highlight <- args$lineage_to_highlight
+if (nchar(lineage_to_highlight)==0){
+        print("Set lineage_to_highlight to NA")
+        lineage_to_highlight <- NA
+} else {
+        print(paste0("Highlighting >",lineage_to_highlight,"<"))
+}
+only_pc_cat_arising_after <- NA
+if (nchar(args$only_pc_cat_arising_after)>0){
+        print(paste0("Will only report pc_cats associations if the pc_cat arose after ", args$only_pc_cat_arising_after))
+        only_pc_cat_arising_after <- args$only_pc_cat_arising_after
+} else {
+        print("Will examine associations with lineage for all pca_cats.")
+}
 
 print("Subset selection criteria")
 print(paste(min_estimate_IRR, max_samples,min_recent_proportion))
@@ -98,7 +112,6 @@ for (dbfile in Sys.glob(glob_path)){
   FIT_DIR <- paste0(BASE_DIR,"pc_plots/fits_failed") # where the output goes
   dir.create(FIT_DIR, recursive=TRUE)
   
-
   db_conn <- connect_to_fn4sqlitedb(dbfile) # connect
   
   # ensure data is processed
@@ -116,35 +129,36 @@ for (dbfile in Sys.glob(glob_path)){
 
   make_contingency_tables(db_conn, 
                           date_end = db_stem,
-                          overwrite=FALSE)
-  # strains from https://www.gov.uk/government/publications/covid-19-variants-genomically-confirmed-case-numbers/variants-distribution-of-cases-data
+                          overwrite=FALSE,
+                          only_pc_cat_arising_after= only_pc_cat_arising_after)          # debug
+  # example strains from https://www.gov.uk/government/publications/covid-19-variants-genomically-confirmed-case-numbers/variants-distribution-of-cases-data
   # 'B.1.1.7','B.1.351','P.1','B.1.1.318',,'B.1.617','P.1'
-  #test_lineages <- c('B.1.1.7','B.1.351','B.1.1.318','B.1.617','P.1','C.36')
-  #test_lineages <- c('B.1.351')
-  #for (lineage_to_depict in  test_lineages){
 
   retVal <- depict_current_trends(
     db_connection = db_conn,
     db_stem = db_stem,
     PLOT_DIR= PLOT_DIR,
-    lineage_to_depict = NA,
+    lineage_to_depict = lineage_to_highlight,
     export_sequence_identifiers = TRUE,
     axis_start = '2020-06-01',
     axis_end = Sys.Date(),
     max_samples = max_samples
   )
-
-  #for (lineage_to_depict in retVal[['trending_lineages']]){
-  #    depict_current_trends(
-  #    db_connection = db_conn,
-  #    db_stem = db_stem,
-  #    PLOT_DIR= PLOT_DIR,
-  #    lineage_to_depict = lineage_to_depict,
-  #    export_sequence_identifiers = FALSE,
-  #    axis_start = '2020-06-01',
-  #    axis_end = Sys.Date()
-  #  )
-  #}
+  
+  if (FALSE){
+        for (pc in 1:number_of_pcs(db_conn)){
+        print(paste0("Depicting ",pc))
+        res <- plot_single_pc_format_3(db_conn, 
+                                        pc=pc, 
+                                        date_end=Sys.Date(),
+                                        time_interval=interval)
+        to_tiff(to_plot= res$p2, outputdir=PLOT_DIR, db_name=db_stem, plot_name=paste0("tiled_pc_",pc))
+        
+        p3 <- plot_pc_format_3(db_conn, pc, date_end=Sys.Date(), time_interval=interval)
+        to_tiff(to_plot= p3, outputdir=PLOT_DIR, db_name=db_stem, plot_name=paste0("barchart_pc_",pc))
+        
+        }
+  }
  dbDisconnect(db_conn)
 }
 print('FINISHED')
