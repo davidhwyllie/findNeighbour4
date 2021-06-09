@@ -4,13 +4,13 @@
 
 import unittest
 import pandas as pd
-import pickle
 from findn import DEFAULT_CONFIG_FILE
 from pca.pca import PersistenceTest, MNStats, VariantMatrix, PCARunner
 from findn.common_utils import ConfigManager
 
+
 class Test_PersistenceTest_1(unittest.TestCase):
-    """ tests the PersistenceTest class"""
+    """tests the PersistenceTest class"""
 
     def runTest(self):
         tp = PersistenceTest(connstring="thing", number_samples=251)
@@ -28,8 +28,9 @@ class Test_PersistenceTest_1(unittest.TestCase):
         res = tp.refcompressedsequence_read(guids[0])
         self.assertIsInstance(res, dict)
 
+
 class Test_MNStats_1(unittest.TestCase):
-    """ tests the MNStats class"""
+    """tests the MNStats class"""
 
     def runTest(self):
 
@@ -81,15 +82,18 @@ class Test_MNStats_1(unittest.TestCase):
             "invalid": 0,
         }
 
-        mns = MNStats(select_positions=list(range(29000)), analysed_reference_length=29905)
+        mns = MNStats(
+            select_positions=list(range(29000)), analysed_reference_length=29905
+        )
         res = mns.examine(rcs)
 
         self.assertIsInstance(res, dict)
         self.assertEqual(res["n_total"], 19)
         self.assertEqual(res["m_total"], 0)
 
+
 class Test_VariantMatrix_1(unittest.TestCase):
-    """ tests the VariantMatrix and PCARunner classes"""
+    """tests the VariantMatrix and PCARunner classes"""
 
     def runTest(self):
 
@@ -113,7 +117,9 @@ class Test_VariantMatrix_1(unittest.TestCase):
         self.assertIsInstance(mmodel, dict)
 
         # test get_missingness_cutoff
-        m = v.get_missingness_cutoff(positions=vmodel.keys(), mmodel=mmodel)  # the missingness model
+        m = v.get_missingness_cutoff(
+            positions=vmodel.keys(), mmodel=mmodel
+        )  # the missingness model
         self.assertEqual(m, 27)
 
         # test build
@@ -129,8 +135,9 @@ class Test_VariantMatrix_1(unittest.TestCase):
 
         v.to_sqlite("unittest_tmp")
 
+
 class Test_VariantMatrix_2(unittest.TestCase):
-    """ tests the VariantMatrix and PCARunner classes"""
+    """tests the VariantMatrix and PCARunner classes"""
 
     def runTest(self):
 
@@ -154,7 +161,9 @@ class Test_VariantMatrix_2(unittest.TestCase):
         self.assertIsInstance(mmodel, dict)
 
         # test get_missingness_cutoff
-        m = v.get_missingness_cutoff(positions=vmodel.keys(), mmodel=mmodel)  # the missingness model
+        m = v.get_missingness_cutoff(
+            positions=vmodel.keys(), mmodel=mmodel
+        )  # the missingness model
         self.assertEqual(m, 27)
 
         # test build
