@@ -15,26 +15,18 @@ This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without tcen the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU Affero General Public License for more details.
-
-Configuring interactions with external OCI databases
-====================================================
-Your application will need to run as a user (we'll call it PCADAEMON) will need some priviledges granted.
-The exact privileges required involving creating, dropping tables & indexes, as well as inserting and deleting data.
-CREATE USER PCADAEMON IDENTIFIED BY MyPassword;         
-GRANT CONNECT TO PCADAEMON;
--- review the below when application is mature
-GRANT CREATE SESSION GRANT ANY PRIVILEGE TO PCADAEMON;
-
--- essential step
-alter user PCADAEMON DEFAULT TABLESPACE DATA quota unlimited on DATA;
 """
 
 import os
+import json
 import pandas as pd
 import logging
 import numpy as np
 import datetime
 import warnings
+import time
+import glob
+import progressbar
 import statsmodels.api as sm
 from sqlalchemy import (
     Integer,
@@ -56,7 +48,7 @@ from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.ext.declarative import declarative_base
 
 import cx_Oracle
-from pca.pca import VariationModel
+from pca.pca import VariationModel 
 
 
 # global: definition of database structure
@@ -72,6 +64,24 @@ class PCADBManagerError(Exception):
     pass
 
 
+class FN4Sample(db_pc):
+    """ samples present in fn4 """
+
+    __tablename__ = "fn4_sample"
+    fn4s_int_id = Column(Integer, Identity(start=1), primary_key=True)
+    sample_id = Column(String(38), index=True, unique=True)
+    is_invalid = Column(Boolean)
+    neighbours = relationship("Neighbour", backref="fn4sample")
+
+class Neighbour(db_pc):
+    """edges of samples present in fn4 """
+
+    __tablename__ = "neighbour"
+    neighbour_int_id = Column(Integer, Identity(start=1), primary_key=True)
+    fn4s_int_id_1 = Column(Integer, ForeignKey(FN4Sample.fn4s_int_id), index=True)
+    fn4s_int_id_2 = Column(Integer)
+    dist = Column(Integer)
+    
 class BulkLoadTest(db_pc):
     """used for testing bulk uploads"""
 
@@ -88,6 +98,9 @@ class Build(db_pc):
     build_int_id = Column(Integer, Identity(start=1), primary_key=True)
     builder = Column(String(48))
     build_time = Column(DateTime, index=True)
+    model_load_start = Column(DateTime, nullable=True)
+    model_load_complete = Column(DateTime, nullable=True)
+    model_loaded = Column(Boolean)
     build_annotations = relationship("BuildAnnotation", backref="Build")
     contributing_basepos = relationship("ContributingBasePos", backref="Build")
     contributing_pos = relationship("ContributingPos", backref="Build")
@@ -95,7 +108,7 @@ class Build(db_pc):
     explained_variance_ratio = relationship("ExplainedVarianceRatio", backref="Build")
     sample = relationship("Sample", backref="Build")
     featassoc = relationship("FeatureAssociation", backref="build")
-
+    statmodel = relationship("StatisticalModel", backref="build")
 
 class BuildAnnotation(db_pc):
     """Metadata related to a PCA build
@@ -161,7 +174,7 @@ class Sample(db_pc):
     __tablename__ = "analysed_sample"
     sample_int_id = Column(Integer, Identity(start=1), primary_key=True)
     build_int_id = Column(Integer, ForeignKey(Build.build_int_id), index=True)
-    sample_id = Column(String(38))
+    sample_id = Column(String(38), index=True)
     m_in_model = Column(Integer)
     n_in_model = Column(Integer)
     model_positions = Column(Integer)
@@ -183,11 +196,10 @@ class Sample(db_pc):
 
 
 Index(
-    "ix_Sample",
+    "ix_SAMPLE",
     Sample.build_int_id,
     Sample.sample_id,
-    Sample.used_in_pca,
-    Sample.suspect_quality,
+    Sample.used_in_pca
 )
 
 
@@ -196,40 +208,57 @@ class TransformedCoordinateCategory(db_pc):
 
     __tablename__ = "transformed_coordinate_category"
     tcc_int_id = Column(Integer, Identity(start=1), primary_key=True)
-    sample_int_id = Column(Integer, ForeignKey(Sample.sample_int_id))
+    sample_int_id = Column(Integer, ForeignKey(Sample.sample_int_id), index=True)
     transformed_coordinate = Column(Float)
     pc = Column(Integer)
     cat = Column(Integer)
     pc_cat = Column(String(8))
     statmodel = relationship("StatisticalModel", backref="TCC")
 
-
 Index(
-    "ix_tce",
+    "ix_TCC",
     TransformedCoordinateCategory.sample_int_id,
     TransformedCoordinateCategory.pc_cat,
 )
-
 
 class StatisticalModel(db_pc):
     """types of statistical model applied to the data"""
 
     __tablename__ = "statistical_model"
     statmodel_int_id = Column(Integer, Identity(start=1), primary_key=True)
+    build_int_id = Column(Integer, ForeignKey(Build.build_int_id), index=True)
     tcc_int_id = Column(
-        Integer, ForeignKey(TransformedCoordinateCategory.tcc_int_id), index=True
+        Integer, ForeignKey(TransformedCoordinateCategory.tcc_int_id), nullable=True, index=True
     )
     analysis_family_id = Column(String(38))
     analysis_id = Column(String(38))
-    analysis = Column(String(30))
+    analysis_readable_title = Column(String(30))
     analysis_type = Column(String(30))
-    readable_info = Column(Text)
-    other_parameters = Column(Text)
-    pc = Column(Integer)
-    date_end = Column(DateTime)
-    interval_analysed_days = Column(Integer)
+    analysis_software = Column(String(30))
+    analysis_status = Column(String(8), index=True)
+    readable_description = Column(Text)
+    input_data = Column(Text, nullable= True)
+    run_parameters = Column(Text, nullable=True)
+    output_data = Column(Text, nullable=True)
+    pc = Column(Integer, nullable = True)
+    pc_cat = Column(String(8), nullable = True)
+    date_start = Column(DateTime, nullable = True)
+    date_end = Column(DateTime, nullable = True)
+    interval_analysed_days = Column(Integer, nullable=True)
     fit = relationship("StatisticalModelFit", backref="StatModel")
+    alert = relationship("Alert", backref="StatModel")
 
+class Alert(db_pc):
+    """alerts based on statistical models"""
+
+    __tablename__ = "alert"
+    alert_int_id = Column(Integer, Identity(start=1), primary_key=True)
+    statmodel_int_id = Column(
+        Integer, ForeignKey(StatisticalModel.statmodel_int_id), index=True
+    )
+    alert_rule = Column(String(18))
+    alert_description = Column(String(100))
+    pc_cat = Column(String(8))
 
 class StatisticalModelFit(db_pc):
     """statistical models fitted"""
@@ -253,7 +282,6 @@ class StatisticalModelFit(db_pc):
     comments = Column(Text)
     has_ci = Column(Boolean)
     estimate2naturalspace = Column(String(8))
-
 
 class ClinicalMetadata(db_pc):
     """holds clinical metadata, if it exists.
@@ -293,14 +321,12 @@ class ClinicalIdentifier(db_pc):
     id_type = Column(String(16))
     id_value = Column(String(50))
 
-
 Index(
     "ix_clinical_ids",
     ClinicalIdentifier.administration,
     ClinicalIdentifier.id_type,
     ClinicalIdentifier.id_value,
 )
-
 
 class SequenceFeature(db_pc):
     """holds identifiers related to sequences, such as SNPs, lineages, etc.
@@ -312,8 +338,8 @@ class SequenceFeature(db_pc):
     sf_int_id = Column(Integer, Identity(start=1), primary_key=True)
     cm_int_id = Column(Integer, ForeignKey(ClinicalMetadata.cm_int_id), index=True)
     variable = Column(String(24))
-    value = Column(String(50))
-    sequencefeature = Column(String(50), index=True)
+    value = Column(String(80))
+    sequencefeature = Column(String(105), index=True)
     version = Column(String(38), nullable=True)
     evidence_for = Column(Float, nullable=True)
     evidence_against = Column(Float, nullable=True)
@@ -362,7 +388,7 @@ class ContingencyTable:
                N      c            d          c+d
                     a+c           b+d       a+b+c+d
 
-        build_id, pc_cat, sequence_feature, tokens used to identify the results
+        build_int_id, pc_cat, sequence_feature, tokens used to identify the results
 
         The 'Feature' is the 'True result' and we are interested in whether the pc_cat predicts the 'True result'
         a: True positives
@@ -416,103 +442,211 @@ class ContingencyTable:
     def featureassociation(self):
         return FeatureAssociation(**self.results)
 
-
-t_trend_summary = Table(
-    "trend_summary",
-    metadata,
-    Column("pc_cat", Text, index=True),
-    Column("n_samples", Integer),
-    Column("min_trans_coord", Float),
-    Column("max_trans_coord", Float),
-    Column("mean_trans_coord", Float),
-    Column("n_gt_14_days_before", Float),
-    Column("n_gt_30_days_before", Float),
-    Column("n_gt_60_days_before", Float),
-    Column("n_gt_90_days_before", Float),
-    Column("n_gt_120_days_before", Float),
-    Column("earliest_date", Text),
-    Column("latest_date", Text),
-    Column("n_days_observed", Integer),
-    Column("analysis_id", Text),
-    Column("analysis", Text),
-    Column("analysis_type", Text),
-    Column("date_end", Text),
-    Column("interval_analysed_days", Integer),
-    Column("param", Text),
-    Column("param_desc", Text),
-    Column("Estimate", Float),
-    Column("Estimate_CI_low", Float),
-    Column("Estimate_CI_high", Float),
-    Column("p_value", Float),
-    Column("is_reference", Float),
-    Column("has_CI", Float),
-    Column("Estimate2NaturalSpace", Text),
-)
-
+    # DEBUG: probably need to remove this |  not used at present
+    t_trend_summary = Table(
+        "trend_summary",
+        metadata,
+        Column("pc_cat", Text, index=True),
+        Column("n_samples", Integer),
+        Column("min_trans_coord", Float),
+        Column("max_trans_coord", Float),
+        Column("mean_trans_coord", Float),
+        Column("n_gt_14_days_before", Float),
+        Column("n_gt_30_days_before", Float),
+        Column("n_gt_60_days_before", Float),
+        Column("n_gt_90_days_before", Float),
+        Column("n_gt_120_days_before", Float),
+        Column("earliest_date", Text),
+        Column("latest_date", Text),
+        Column("n_days_observed", Integer),
+        Column("analysis_id", Text),
+        Column("analysis", Text),
+        Column("analysis_type", Text),
+        Column("date_end", Text),
+        Column("interval_analysed_days", Integer),
+        Column("param", Text),
+        Column("param_desc", Text),
+        Column("Estimate", Float),
+        Column("Estimate_CI_low", Float),
+        Column("Estimate_CI_high", Float),
+        Column("p_value", Float),
+        Column("is_reference", Float),
+        Column("has_CI", Float),
+        Column("Estimate2NaturalSpace", Text),
+    )
+    
 
 class PCADatabaseManager:
     """manages an RDBMS containing PCA output"""
 
-    def __init__(self, engine_name, debug=False):
-        """creates the RDBMS object.
-        engine_name: an SQLalchemy connect string, e.g. sqlite::// for temporary memory db, see https://docs.sqlalchemy.org/en/13/core/engines.html
+    def __init__(self, connection_config=None, debug=False, show_bar = True):
+        """creates the RDBMS connection
+
+        Parameters
+        -----------
+        connection_config:  
+        One of 
+        1. a key to a dictionary containing one or more database configuration details: (e.g. 'prod', 'test')
+        2. a valid sqlalchemy database connection string (if this is sufficient for connections)  e.g. 'pyodbc+mssql://myserver'
+        3. None.  This is considered to mean 'sqlite://' i.e. an in memory sqlite database, which is not persisted when the program stops.
+        
+        if it is not none, a variable called PCA_CONNECTION_CONFIG_FILE must be present.  This must point to a file containing credentials.
+        the name of an environment variable containing (in json format) a dictionary, or None if it is not required.
+        An example of such a dictionary is as below:
+        {
+            'prod':{'DBTYPE':'sqlite', 'ENGINE_NAME':'sqlite:///db/proddb.sqlite'}
+            'dev': {'DBTYPE':'sqlite', 'ENGINE_NAME':'sqlite:///db/devdb.sqlite'},
+            'test':{'DBTYPE':'sqlite', 'ENGINE_NAME':'sqlite://'}
+        }
+        The DBTYPE and ENGINE_NAME keys are essential.
+        Other keys may also be present, and are required in some cases (for example by Oracle connections).
+        {
+            'prod':{'DBTYPE':'oracle', 
+                    'ENGINE_NAME':''oracle+cx_oracle://PROD:97bxxxxxxxxX@(description: .........)))',
+                    'TNS_ADMIN':'/secrets/oracle/pca_prod'
+                    },
+
+            'dev':{'DBTYPE':'oracle', 
+                    'ENGINE_NAME':''oracle+cx_oracle://PROD:97bxxxxxxxxX@(description: .........)))',
+                    'TNS_ADMIN':'/secrets/oracle/pca_prod'
+                    }
+        }
+        Note, the bit after the @(description describes where your database is, and will be found in your cloud wallet, if you are using cloud databases.  See below.
+        In this case, TNS_ADMIN is the value you wish the TNS_ADMIN environment variable to be set to. 
+        The software will set TNS_ADMIN, and, if you are using a virtual environment, it will be scoped to the virtual environment.
+        In summary, it will configure necessary settings to allow Oracle database connections.
+                    
+        Note, if you are using a python virtual environment, this environment variable should be included in the .env file in the root of your project.  The .env file should not be under source control.
+
+        configuration engine_name: an SQLalchemy connect string, e.g. sqlite::// for temporary memory db, see https://docs.sqlalchemy.org/en/13/core/engines.html
         debug: if True, deletes any existing data on startup.
+        show_bar: show a progress bar during long operations
 
 
         NOTE:
-        This software has been tested with (i) Sqlite 3.3.2+ (ii) Oracle Autonomous Database (cloud)
-        NOTES ON ORACLE
+        This software has been tested with 
+        (i) Sqlite 3.3.2+ 
+        (ii) Oracle Autonomous Database (cloud)
         https://blogs.oracle.com/oraclemagazine/getting-started-with-autonomous
-        engine = create_engine("oracle+cx_oracle://dsn"
-        engine = create_engine("oracle+cx_oracle://scott:tiger@host/xe")
-
-        NOTE: you need to
+        
+        To connect to Oracle there are several steps.
         0. Install dependencies, see
         https://cx-oracle.readthedocs.io/en/latest/user_guide/installation.html
         wget https://download.oracle.com/otn_software/linux/instantclient/211000/instantclient-basic-linux.x64-21.1.0.0.0.zip
         need to set the LD_LIBRARY_PATH variable, see
         https://www.oracle.com/database/technologies/instant-client/linux-x86-64-downloads.html
         e.g. export LD_LIBRARY_PATH=/data/software/instantclient_21_1:LD_LIBRARY_PATH
+        
         these parameters have to go into the python .env file e.g.
         ----------------------------------------------------------------
-        TNS_ADMIN="/data/credentials/oci_test"
-        LD_LIBRARY_PATH="/data/software/instantclient_21_1"
+        LD_LIBRARY_PATH="/software/instantclient_21_1"
+        PCADB_CONNECTION_CONFIGFILE="/secret/config.json"
+        
+        Where config.json looks like
+        {
+            'prod':{'DBTYPE':'oracle', 
+                    'ENGINE_NAME':''oracle+cx_oracle://PROD:97bxxxxxxxxX@(description: .........)))',
+                    'TNS_ADMIN':'/secrets/oracle/pca_prod'
+                    }
+        }
+        ** NOTE: as per normal json conventions, escape quotes (i.e. \" not " around the certificate name, otherwise SSL connections will fail)  **
 
         1. Download your OCI wallet, & unzip it somewhere
         2. Set the TNS_ADMIN env var to point to this directory
         3. Edit the WALLET_LOCATION in the sqlnet.ora file to point to the relevant directory, e.g. WALLET_LOCATION = (SOURCE = (METHOD = file) (METHOD_DATA = (DIRECTORY="/data/credentials/oci_test")))
-        4. Create a user with CONNECT and CONSOLE_DEVELOPER privileges (possibly narrower - to review)
+        4. Check the 
+        4. Create a user with relevant privileges see below)
         5. Set the OCI_ENGINE_NAME env var.
         An example of this is as below (redacted so not live)
         oracle+cx_oracle://scott:tigerX22@(description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1522)(host=host.oraclecloud.com))(connect_data=(service_name=redacted))(security=(ssl_server_cert_dn="redacted")))
 
 
-        This data can be found in the tnsnames.ora file.unittest
-         # --------------------------------------------------------------
-        # https://docs.sqlalchemy.org/en/14/dialects/oracle.html#dialect-oracle-cx_oracle-connect
-        # https://stackoverflow.com/questions/37471892/using-sqlalchemy-dburi-with-oracle-using-external-password-store
+        This data can be found in the tnsnames.ora file: for details, see 
+         https://docs.sqlalchemy.org/en/14/dialects/oracle.html#dialect-oracle-cx_oracle-connect
+         https://stackoverflow.com/questions/37471892/using-sqlalchemy-dburi-with-oracle-using-external-password-store
+         https://stackoverflow.com/questions/14140902/using-oracle-service-names-with-sqlalchemy/35215324
+         https://blogs.oracle.com/sql/how-to-create-users-grant-them-privileges-and-remove-them-in-oracle-database
+         https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/GRANT.html#GUID-20B4E2C0-A7F8-4BC8-A5E8-BE61BDC41AC3
 
-        # https://stackoverflow.com/questions/14140902/using-oracle-service-names-with-sqlalchemy/35215324
-        # https://blogs.oracle.com/sql/how-to-create-users-grant-them-privileges-and-remove-them-in-oracle-database
-        # https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/GRANT.html#GUID-20B4E2C0-A7F8-4BC8-A5E8-BE61BDC41AC3
-        # create username/ password via Oracle admin gui
-        # grant privileges via SQL front end
-
+        Configuring interactions with external OCI databases
+        ====================================================
+        Your application will need to run as a user (we'll call it PCADB) will need some priviledges granted.
+        The exact privileges required involving creating, dropping tables & indexes, as well as inserting and deleting data.
+        CREATE USER PCADB IDENTIFIED BY 'MyPassword1234!';         
+        GRANT CONNECT TO PCADB;
+        GRANT CREATE SESSION TO PCADB;
+        GRANT CREATE SEQUENCE TO PCADB;
+        GRANT CREATE TABLE TO PCADB;
+        GRANT CREATE SYNONYM TO PCADB;
+        ALTER USER PCADB DEFAULT TABLESPACE DATA quota unlimited on DATA; 
+        
         """
-        # connect and create session
+
+        # connect and create session.  Validate inputs carefully.
+        if connection_config is None:       
+            logging.info("Connection config is None: using in-memory sqlite.")
+            self.engine_name = 'sqlite://'
+        elif "://" in connection_config:
+            logging.info("Connection config provided; using {0}".format(connection_config))
+            self.engine_name = connection_config
+        else:
+            # PCA_CONNECTION_CONFIG_FILE should contain credentials
+            
+            try:
+                conn_detail_file = os.environ['PCA_CONNECTION_CONFIG_FILE']
+            except KeyError:
+                raise PCADBManagerError("Environment variable PCA_CONNECTION_CONFIG_FILE does not exist; however, it is required.  If you are using a python virtual environment, you need to set it in .env, not globally") 
+            
+            if not os.path.exists(conn_detail_file):
+                raise FileNotFoundError("Connection file specified but not found: {0}".format(conn_detail_file))
+
+            # read the config file
+            with open(conn_detail_file,'rt') as f:
+                conn_detail = json.load(f)
+
+            if not connection_config in conn_detail.keys():
+                raise PCADBManagerError("Connection {0} does not correspond to one of the keys {1} of the configuration json file at {2}".format(connection_config, conn_detail.keys(), conn_detail_file))
+
+            # configure engine
+            this_configuration = conn_detail[connection_config]         # extract the relevant part of the config dictionary
+            
+            # two keys are always present
+            essential_keys = set(['DBTYPE','ENGINE_NAME'])
+            if len(essential_keys - set(this_configuration.keys()))>0:
+                raise PCADBManagerError("Provided keys for {0} are not correct.  Required are {1}".format(connection_config,essential_keys))
+
+            # if it's Oracle, then three keys are required.
+            if this_configuration['DBTYPE'] == 'oracle':
+                essential_keys = set(['DBTYPE','ENGINE_NAME','TNS_ADMIN'])
+                if len(essential_keys - set(this_configuration.keys()))>0:
+                    raise PCADBManagerError("Provided keys for oracle db in {0} are not correct.  Required are {1}".format(connection_config,essential_keys))
+
+                # set the TNS_ADMIN variable.
+                logging.info("Set TNS_ADMIN to value specified in config file {0}".format(this_configuration['TNS_ADMIN']))
+                os.environ['TNS_ADMIN'] = this_configuration['TNS_ADMIN']
+                
+            logging.info("Set ENGINE_NAME configuration string from config file.")
+            self.engine_name = this_configuration['ENGINE_NAME']
+
+        ## DEBUG
+        #print(os.environ)
+        ## 
+
+        # now we can start
         self.Base = db_pc
         logging.info("PCADatabaseManager: Connecting to database")
-        self.engine = create_engine(engine_name)
-        self.engine_name = engine_name
-        self.is_oracle = "oracle+cx" in engine_name
-        self.is_sqlite = "sqlite://" in engine_name
+        self.engine = create_engine(self.engine_name)
+        
+        self.is_oracle = "oracle+cx" in self.engine_name
+        self.is_sqlite = "sqlite://" in self.engine_name
+        self.show_bar = show_bar
 
         logging.info(
             "PCADatabaseManager: Database connection made; there are {0} tables.  Oracle database = {1}".format(
                 len(self._table_names()), self.is_oracle
             )
         )
-
+        
         # drop existing tables if in debug mode
         if debug:
             self._drop_existing_tables()
@@ -527,12 +661,19 @@ class PCADatabaseManager:
 
     def _drop_existing_tables(self):
         """drops any existing tables"""
+
+        # test - wait 10 seconds - for any existing transactions to cleartherwise, ORA-00054 can occur during oracle testing
+        # happens only with multiple cpus
+        if self.is_oracle:
+            time.sleep(0)
+
         self.Base.metadata.create_all(self.engine)  # create the table(s)
         BulkLoadTest.__table__.drop(self.engine)
         FeatureAssociation.__table__.drop(self.engine)
         SequenceFeature.__table__.drop(self.engine)
         ClinicalIdentifier.__table__.drop(self.engine)
         ClinicalMetadata.__table__.drop(self.engine)
+        Alert.__table__.drop(self.engine)
         StatisticalModelFit.__table__.drop(self.engine)
         StatisticalModel.__table__.drop(self.engine)
         TransformedCoordinateCategory.__table__.drop(self.engine)
@@ -543,6 +684,9 @@ class PCADatabaseManager:
         Sample.__table__.drop(self.engine)
         BuildAnnotation.__table__.drop(self.engine)
         Build.__table__.drop(self.engine)
+        Neighbour.__table__.drop(self.engine)
+        FN4Sample.__table__.drop(self.engine)
+
         remaining = len(self._table_names())
         if remaining > 0:
             raise PCADBManagerError(
@@ -550,7 +694,12 @@ class PCADatabaseManager:
                     self._table_names()
                 )
             )
+
+        # wait 10 seconds - otherwise, ORA-00054 can occur during oracle testing
+        if self.is_oracle:
+            time.sleep(0)
         return
+
 
     def _bulk_load(self, upload_df, target_table, max_batch=100000):
         """bulk uploads pandas dataframes.
@@ -569,6 +718,11 @@ class PCADatabaseManager:
         - Need custom code for bulk loading to Oracle.  Methods are provided in the cx_oracle package, see
         https://cx-oracle.readthedocs.io/en/latest/user_guide/batch_statement.html
 
+
+        The maximum size that can be transmitted to the Oracle server is 2G.  If htis happens, a cx_Oracle.DatabaseError
+        is raised with result DPI-1015.  Reduce the max_batch
+
+        
         """
 
         # verify data : ensure that target_table is a table [Essential: otherwise, can be a vector for SQL injection]
@@ -606,6 +760,18 @@ class PCADatabaseManager:
             loadvar = list(upload_df.itertuples(index=False, name=None))
             ncol = len(upload_df.columns.to_list())
 
+            # estimate the maximum buffer size required and auto-reduce the max_batch if required.
+            estimated_row_size = len(str(loadvar[0]))
+            estimated_max_batch = int(1e7/(estimated_row_size))       # large margin of safety 10M batch size
+            if estimated_max_batch < max_batch:
+                max_batch = estimated_max_batch
+                logging.info("Reduced max_batch to keep estimated buffer size within acceptable limited (aim to control to 10M).  max_batch is {0}".format(max_batch))
+
+            ## disabled: does not work.  The heuristic for estimating max batch doesn't work properly - DPI-1015 errors occur
+            #else: 
+            #    print("Larger max_batch may be possible while keeping buffer size required < 2G.  max_batch set to {0}".format(estimated_max_batch))
+            #    max_batch = estimated_max_batch
+            
             # construct sql statment.
             # Should be injection-safe; we have checked the target_table is a table, and are incorporating integers only.
             collabels = [":" + str(x + 1) for x in list(range(ncol))]
@@ -614,28 +780,35 @@ class PCADatabaseManager:
             sql_statement = "INSERT INTO {0} ({1}) VALUES ({2})".format(
                 target_table, target_cols, insert_cols
             )
+            start_n = len(loadvar)
+            if self.show_bar:
+                bar = progressbar.ProgressBar(max_value=start_n)
+
             with cx_Oracle.connect(user=u, password=p, dsn=dsn) as conn:
                 cursor = conn.cursor()
 
                 while len(loadvar) > 0:
-                    logging.info(
-                        "Bulk upload of {0} : {1} remain".format(
-                            target_table, len(loadvar)
-                        )
-                    )
+                    if self.show_bar:
+                        bar.update(start_n - len(loadvar))
+                    
 
                     cursor.executemany(sql_statement, loadvar[0:max_batch])
                     loadvar = loadvar[max_batch:]
 
                 conn.commit()
-
+            if self.show_bar:
+                bar.finish()
         else:
 
             # note: there may be limits to the complexity of the statement permitted: a maximum number of parameters.
             # therefore, we do this in batches as well.
+            start_n = len(upload_df.index)
+            if self.show_bar:
+                bar = progressbar.ProgressBar(max_value=start_n)
+
             while len(upload_df.index) > 0:
                 logging.info(
-                    "Bulk upload of {0} : {1} remain using pandas".format(
+                    "Bulk upload of {0} : {1} remain".format(
                         target_table, len(upload_df)
                     )
                 )
@@ -648,8 +821,12 @@ class PCADatabaseManager:
                     method="multi",
                 )
                 upload_df = upload_df.iloc[max_batch:]
+                if self.show_bar:
+                    bar.update(start_n - len(upload_df.index))
 
         logging.info("Bulk upload complete")
+        if self.show_bar:
+            bar.finish()
         return len(upload_df.index)
 
     def store_variation_model(self, vm):
@@ -667,7 +844,9 @@ class PCADatabaseManager:
         logging.info("Creating new build.")
         this_build = Build(
             builder="pcadb.PCADatabaseManager.store_variation_model",
-            build_time=datetime.datetime.now(),
+            build_time= datetime.datetime.fromisoformat(vm.model['build_time']),
+            model_load_start = datetime.datetime.now(),
+            model_loaded = 0
         )
         self.session.add(this_build)  # add the build
 
@@ -689,14 +868,6 @@ class PCADatabaseManager:
         logging.info("Loading annotations")
         for item in metadata:
             this_build.build_annotations.append(BuildAnnotation(**item))
-        # add base positions
-        logging.info("Loading base positions")
-        for item in vm.model["contributing_basepos"]:
-            this_build.contributing_basepos.append(ContributingBasePos(basepos=item))
-        # add positions
-        logging.info("Loading contributing positions")
-        for item in vm.model["contributing_pos"]:
-            this_build.contributing_pos.append(ContributingPos(pos=item))
         # add explained variance ratio and positions per pc
         logging.info("Loading explained variance ratio")
         for pc, evr in enumerate(vm.model["explained_variance_ratio"]):
@@ -707,6 +878,16 @@ class PCADatabaseManager:
                     pos_per_pc=vm.model["pos_per_pc"][pc],
                 )
             )
+
+        # add base positions
+        logging.info("Loading base positions")
+        for item in vm.model["contributing_basepos"]:
+            this_build.contributing_basepos.append(ContributingBasePos(basepos=item))
+        # add positions
+        logging.info("Loading contributing positions")
+        for item in vm.model["contributing_pos"]:
+            this_build.contributing_pos.append(ContributingPos(pos=item))
+
         logging.info("Committing initial model data")
         self.session.commit()
 
@@ -749,6 +930,12 @@ class PCADatabaseManager:
         tcc_df.drop(["sample_id", "initial_cat"], axis=1, inplace=True)
         self._bulk_load(tcc_df, "transformed_coordinate_category")
 
+        logging.info("Marking build as complete")
+        this_build.model_loaded = 1
+        this_build.model_load_complete = datetime.datetime.now()
+        self.session.commit()
+        logging.info("Build is complete")
+
     def _wipe_clinical_and_sequence_metadata(self):
         """deleted all data from the following:
         ClinicalMetadata, ClinicalIdentifier, and SequenceFeature
@@ -785,133 +972,152 @@ class PCADatabaseManager:
             raise FileNotFoundError("COG metadata file not found: {0}".format(cogfile))
 
         # read the cog metadata file
+        logging.info("Loading data from file")
         cogdf = pd.read_csv(cogfile, header=0)
 
         # extract the sequence_id from the sequence_name
         cogdf["sample_id"] = [x[1] for x in cogdf["sequence_name"].str.split("/")]
-
+        
         # wipe data if replace_all:
         if replace_all:
             self._wipe_clinical_and_sequence_metadata()
 
         # determine existing sample_ids stored in the database.
+        logging.info("Checking existing data")
         existing_sample_ids = self.existing_sample_ids_in_clinical_metadata()
 
+        # drop existing data, and duplicates.
+        logging.info("Clinical data found in database. Rows = {0}".format(len(existing_sample_ids)))
+        logging.info("COG_UK data loaded. Rows = {0}".format(len(cogdf.index)))
+        cogdf.drop_duplicates(['sample_id'], inplace=True)
+        logging.info("After deduplicating, Rows = {0}".format(len(cogdf.index)))
+        
+        drop_ix = cogdf[cogdf['sample_id'].isin(existing_sample_ids)].index
+        logging.info("There are {0} rows which have already been loaded".format(len(drop_ix)))
+        cogdf.drop(drop_ix, inplace=True)
+        logging.info("There are {0} rows remaining to load".format(len(cogdf.index)))
+
+        # load rest
         n_added = 0
         cm_to_insert = list()
         sm_to_insert = list()
         for ix in cogdf.index:
-            if cogdf.at[ix, "sample_id"] not in existing_sample_ids:
-                if (
-                    datetime.datetime.fromisoformat(cogdf.at[ix, "sample_date"])
-                    <= date_end
-                ):
-                    n_added += 1
-                    cm = dict(
+            if (
+                datetime.datetime.fromisoformat(cogdf.at[ix, "sample_date"])
+                <= date_end
+            ):
+                n_added += 1
+                if n_added % 50000 == 0:
+                    logging.info("Parsing cog-uk data file n={0}. ".format(n_added))
+
+                cm = dict(
+                    sample_id=cogdf.at[ix, "sample_id"],
+                    sample_date=datetime.datetime.fromisoformat(
+                        cogdf.at[ix, "sample_date"]
+                    ),
+                    data_addition_datetime=datetime.datetime.now(),
+                    country=cogdf.at[ix, "country"],
+                    adm1=cogdf.at[ix, "adm1"],
+                )
+                cm_to_insert.append(cm)
+                # add the original sequence_name as a sequence identifier.
+                sm_to_insert.append(
+                    dict(
                         sample_id=cogdf.at[ix, "sample_id"],
-                        sample_date=datetime.datetime.fromisoformat(
-                            cogdf.at[ix, "sample_date"]
-                        ),
-                        data_addition_datetime=datetime.datetime.now(),
-                        country=cogdf.at[ix, "country"],
-                        adm1=cogdf.at[ix, "adm1"],
+                        variable="COG_UK_sequence_name",
+                        value=cogdf.at[ix, "sequence_name"],
+                        is_lineage=False,
+                        evidence_for=1,
+                        evidence_against=0,
+                        version="-",
+                        sequencefeature="",
                     )
-                    cm_to_insert.append(cm)
-                    # add the original sequence_name as a sequence identifier.
+                )
+
+                # add the lineage
+                lm = dict(
+                    sample_id=cogdf.at[ix, "sample_id"],
+                    variable="lineage",
+                    value=cogdf.at[ix, "lineage"],
+                    version=cogdf.at[ix, "lineages_version"],
+                    sequencefeature="{0}:{1}".format(
+                        "pangolearn", cogdf.at[ix, "lineage"]
+                    ),
+                    is_lineage=True,
+                    evidence_for=1,
+                    evidence_against=0,
+                )
+
+                # add scores if they are provided
+                if not np.isnan(cogdf.at[ix, "lineage_ambiguity_score"]):
+                    lm["evidence_for"] = cogdf.at[ix, "lineage_ambiguity_score"]
+                if not np.isnan(cogdf.at[ix, "lineage_conflict"]):
+                    lm["evidence_against"] = cogdf.at[ix, "lineage_conflict"]
+                # provided the lineage isn't blank we'll add the record
+                if not cogdf.at[ix, "lineage"] == "nan":
+                    sm_to_insert.append(lm)
+
+                # add the mutations
+                mutations = [
+                    "e484k",
+                    "t1001i",
+                    "d614g",
+                    "p323l",
+                    "del_21765_6",
+                    "a222v",
+                    "p681h",
+                    "q27stop",
+                    "n501y",
+                    "n439k",
+                    "y453f",
+                    "del_1605_3",
+                ]
+                for mutation in mutations:
                     sm_to_insert.append(
                         dict(
                             sample_id=cogdf.at[ix, "sample_id"],
-                            variable="COG_UK_sequence_name",
-                            value=cogdf.at[ix, "sequence_name"],
+                            variable=mutation,
+                            value=cogdf.at[ix, mutation],
+                            sequencefeature="{0}:{1}".format(
+                                mutation, cogdf.at[ix, mutation]
+                            ),
                             is_lineage=False,
                             evidence_for=1,
                             evidence_against=0,
                             version="-",
-                            sequencefeature="",
                         )
                     )
 
-                    # add the lineage
-                    lm = dict(
-                        sample_id=cogdf.at[ix, "sample_id"],
-                        variable="lineage",
-                        value=cogdf.at[ix, "lineage"],
-                        version=cogdf.at[ix, "lineages_version"],
-                        sequencefeature="{0}:{1}".format(
-                            "pangolearn", cogdf.at[ix, "lineage"]
-                        ),
-                        is_lineage=True,
-                        evidence_for=1,
-                        evidence_against=0,
-                    )
-
-                    # add scores if they are provided
-                    if not np.isnan(cogdf.at[ix, "lineage_ambiguity_score"]):
-                        lm["evidence_for"] = cogdf.at[ix, "lineage_ambiguity_score"]
-                    if not np.isnan(cogdf.at[ix, "lineage_conflict"]):
-                        lm["evidence_against"] = cogdf.at[ix, "lineage_conflict"]
-                    # provided the lineage isn't blank we'll add the record
-                    if not cogdf.at[ix, "lineage"] == "nan":
-                        sm_to_insert.append(lm)
-
-                    # add the mutations
-                    mutations = [
-                        "e484k",
-                        "t1001i",
-                        "d614g",
-                        "p323l",
-                        "del_21765_6",
-                        "a222v",
-                        "p681h",
-                        "q27stop",
-                        "n501y",
-                        "n439k",
-                        "y453f",
-                        "del_1605_3",
-                    ]
-                    for mutation in mutations:
-                        sm_to_insert.append(
-                            dict(
-                                sample_id=cogdf.at[ix, "sample_id"],
-                                variable=mutation,
-                                value=cogdf.at[ix, mutation],
-                                sequencefeature="{0}:{1}".format(
-                                    mutation, cogdf.at[ix, mutation]
-                                ),
-                                is_lineage=False,
-                                evidence_for=1,
-                                evidence_against=0,
-                                version="-",
-                            )
-                        )
-
-                    # scorpio classification
-                    sm = dict(
-                        sample_id=cogdf.at[ix, "sample_id"],
-                        variable="scorpio",
-                        value=cogdf.at[ix, "scorpio_call"],
-                        sequencefeature="{0}:{1}".format(
-                            "scorpio", cogdf.at[ix, "scorpio_call"]
-                        ),
-                        is_lineage=True,
-                        evidence_for=1,
-                        evidence_against=0,
-                    )
-                    # add scores if they are provided
-                    if not np.isnan(cogdf.at[ix, "scorpio_support"]):
-                        sm["evidence_for"] = cogdf.at[ix, "scorpio_support"]
-                    if not np.isnan(cogdf.at[ix, "scorpio_conflict"]):
-                        sm["evidence_against"] = cogdf.at[ix, "scorpio_conflict"]
-                    # provided the lineage isn't blank we'll add the record
-                    if not cogdf.at[ix, "scorpio_call"] == "nan":
-                        sm_to_insert.append(lm)
+                # scorpio classification
+                sm = dict(
+                    sample_id=cogdf.at[ix, "sample_id"],
+                    variable="scorpio",
+                    value=cogdf.at[ix, "scorpio_call"],
+                    sequencefeature="{0}:{1}".format(
+                        "scorpio", cogdf.at[ix, "scorpio_call"]
+                    ),
+                    is_lineage=True,
+                    evidence_for=1,
+                    evidence_against=0,
+                )
+                # add scores if they are provided
+                if not np.isnan(cogdf.at[ix, "scorpio_support"]):
+                    sm["evidence_for"] = cogdf.at[ix, "scorpio_support"]
+                if not np.isnan(cogdf.at[ix, "scorpio_conflict"]):
+                    sm["evidence_against"] = cogdf.at[ix, "scorpio_conflict"]
+                # provided the lineage isn't blank we'll add the record
+                if not cogdf.at[ix, "scorpio_call"] == "nan":
+                    sm_to_insert.append(lm)
 
         # convert to pandas
+        logging.info("Preparing data for loading to database ..")
         cm_df = pd.DataFrame.from_records(cm_to_insert)
         if len(cm_df.index) == 0:
+            logging.info("Nil to update, finished.")
             # nil to do
             return 0
 
+        logging.info("Starting bulk loading ..")
         sm_df = pd.DataFrame.from_records(sm_to_insert)
         self._bulk_load(cm_df, "clinical_metadata")
         # read the clinical metadata, linking sample_id to cm_int_id
@@ -920,152 +1126,41 @@ class PCADatabaseManager:
         ).statement
         cm_id_df = pd.read_sql(get_cm_int_ids_sql, con=self.engine)
 
-
-
         sm_df = sm_df.merge(cm_id_df, on="sample_id", how="inner")
         sm_df.drop(["sample_id"], axis=1, inplace=True)
-        self._bulk_load(sm_df, "sequence_feature", max_batch=100000)
+        self._bulk_load(sm_df, "sequence_feature")
 
         return len(cm_df.index)
 
-    def store_cog_metadata_old(
-        self, cogfile, date_end=datetime.datetime.now(), replace_all=False
-    ):
-        """extracts data from cog-uk format metadata files and imports them into RDBMS
-
-        cogfile: the cog-uk metadata file.
-        date_end: a date or datetime value.  don't add information with specimen dates after this date
-        replace_all: if True, then deletes all stored metadata and replaces.  If False, will only add new files.
-
-        returns:
-        number of samples added
+    def latest_build_int_id(self, only_if_model_loaded = True):
+        """returns the most recent build id
+        
+        Parameters
+        ----------
+        only_if_model_loaded: boolean, default True, ignore any entries where the model did not load
+        
+        Returns
+        -------
+        None, if there are no builds, or the build_int_id of the latest build
+        
         """
 
-        # check the file exists
-        if not os.path.exists(cogfile):
-            raise FileNotFoundError("COG metadata file not found: {0}".format(cogfile))
-
-        # read the cog metadata file
-        cogdf = pd.read_csv(cogfile, header=0)
-
-        # extract the sequence_id from the sequence_name
-        cogdf["sample_id"] = [x[1] for x in cogdf["sequence_name"].str.split("/")]
-
-        # wipe data if replace_all:
-        if replace_all:
-            self._wipe_clinical_and_sequence_metadata()
-
-        # determine existing sample_ids.
-        existing_sample_ids = self.existing_sample_ids_in_clinical_metadata()
-
-        n_added = 0
-        for ix in cogdf.index:
-            if cogdf.at[ix, "sample_id"] not in existing_sample_ids:
-                if (
-                    datetime.datetime.fromisoformat(cogdf.at[ix, "sample_date"])
-                    <= date_end
-                ):
-                    n_added += 1
-                    cm = ClinicalMetadata(
-                        sample_id=cogdf.at[ix, "sample_id"],
-                        sample_date=datetime.datetime.fromisoformat(
-                            cogdf.at[ix, "sample_date"]
-                        ),
-                        data_addition_datetime=datetime.datetime.now(),
-                        country=cogdf.at[ix, "country"],
-                        adm1=cogdf.at[ix, "adm1"],
-                    )
-
-                    # add the original sequence_name as a sequence identifier.
-                    cm.seqfeature.append(
-                        SequenceFeature(
-                            variable="COG_UK_sequence_name",
-                            value=cogdf.at[ix, "sequence_name"],
-                            is_lineage=False,
-                        )
-                    )
-
-                    # add the lineage
-                    lm = SequenceFeature(
-                        variable="lineage",
-                        value=cogdf.at[ix, "lineage"],
-                        version=cogdf.at[ix, "lineages_version"],
-                        sequencefeature="{0}:{1}".format(
-                            "pangolearn", cogdf.at[ix, "lineage"]
-                        ),
-                        is_lineage=True,
-                    )
-
-                    # add scores if they are provided
-                    if not np.isnan(cogdf.at[ix, "lineage_ambiguity_score"]):
-                        lm.evidence_for = cogdf.at[ix, "lineage_ambiguity_score"]
-                    if not np.isnan(cogdf.at[ix, "lineage_conflict"]):
-                        lm.evidence_against = cogdf.at[ix, "lineage_conflict"]
-                    # provided the lineage isn't blank we'll add the record
-                    if not cogdf.at[ix, "lineage"] == "nan":
-                        cm.seqfeature.append(lm)
-
-                    # add the mutations
-                    mutations = [
-                        "e484k",
-                        "t1001i",
-                        "d614g",
-                        "p323l",
-                        "del_21765_6",
-                        "a222v",
-                        "p681h",
-                        "q27stop",
-                        "n501y",
-                        "n439k",
-                        "y453f",
-                        "del_1605_3",
-                    ]
-                    for mutation in mutations:
-                        cm.seqfeature.append(
-                            SequenceFeature(
-                                variable=mutation,
-                                value=cogdf.at[ix, mutation],
-                                sequencefeature="{0}:{1}".format(
-                                    mutation, cogdf.at[ix, mutation]
-                                ),
-                                is_lineage=False,
-                            )
-                        )
-
-                    # scorpio classification
-                    sm = SequenceFeature(
-                        variable="scorpio",
-                        value=cogdf.at[ix, "scorpio_call"],
-                        sequencefeature="{0}:{1}".format(
-                            "scorpio", cogdf.at[ix, "scorpio_call"]
-                        ),
-                        is_lineage=True,
-                    )
-                    # add scores if they are provided
-                    if not np.isnan(cogdf.at[ix, "scorpio_support"]):
-                        sm.evidence_for = cogdf.at[ix, "scorpio_support"]
-                    if not np.isnan(cogdf.at[ix, "scorpio_conflict"]):
-                        sm.evidence_against = cogdf.at[ix, "scorpio_conflict"]
-                    # provided the lineage isn't blank we'll add the record
-                    if not cogdf.at[ix, "scorpio_call"] == "nan":
-                        cm.seqfeature.append(lm)
-
-                    self.session.add(cm)
-
-                    if n_added % 2500 == 0:
-                        logging.info("Committing sequence metadata ", n_added)
-                        self.session.commit()  # regular small commits
-        self.session.commit()
-        return n_added
-
-    def latest_build_int_id(self):
-        """returns the most recent build id"""
-        (retVal,) = self.session.query(func.max(Build.build_int_id)).one_or_none()
+        model_loaded_acceptable_values = [1]
+        if only_if_model_loaded is False:
+            model_loaded_acceptable_values = [0,1]
+        (retVal,) = self.session.query(func.max(Build.build_int_id)).filter(Build.model_loaded.in_(model_loaded_acceptable_values)).one_or_none()
         return retVal
 
     def sequence_features(self, is_lineage):
-        """returns the most recent build id
-        is_lineage: either 1,0 or None.  If true, only returns lineages.  If False, only returns mutations.  If None, returns both."""
+        """returns sequence_features supplied as part of clinical & sequence metadata.
+
+        Parameters
+        ----------
+        is_lineage: either 1,0 or None.  If 1, only returns lineages.  If 0, only returns mutations.  If None, returns both.
+        
+        Returns
+        -------
+        A list of sequence features.  These are in the form featuretype:feature, eg. pangolineage:B1.1.7"""
         search_lineages = [1, 0]
         if is_lineage is not None:
             search_lineages = [is_lineage]
@@ -1079,13 +1174,42 @@ class PCADatabaseManager:
         ]
         return retVal
 
-    def make_contingency_tables(self, only_pc_cats_less_than_days_old=120):
-        """makes contingency tables, computing the relationships between various features and pc_cats."""
+    def make_contingency_tables(self, only_pc_cats_less_than_days_old=120, build_int_id = None):
+        """makes contingency tables, computing the relationships between various features and pc_cats.
+        
+        Parameters:
+        -----------
+        only_pc_cats_less_than_days_old: only reports on pc_cats which have recently emerged
+        build_int_id: make report for build_int_id.  If none, reports on the latest build.
+        
+        Returns:
+        --------
+        None
+        
+        
+        """
+        logging.info("Making contingency tables")
+
 
         # for the latest build
-        lbii = self.latest_build_int_id()
+        if build_int_id is not None:
+            lbii = build_int_id
+        else:
+            lbii = self.latest_build_int_id()
+
+        # if there are no builds, we return.
+        if lbii is None:
+            logging.info("No builds.  Cannot produce contingency tables. ")
+            return 
+
+        # test where already entered
+        n_feature_associations_present, = self.session.query(func.count(FeatureAssociation.featassoc_int_id)).filter(FeatureAssociation.build_int_id == lbii).one()
+        if n_feature_associations_present > 0:
+            logging.info("Features already stored for build {0}".format(lbii))
+            return 
 
         # we compute the total number of samples used in the model.
+        logging.info("Computing total samples used in the model")
         (a_b_c_d,) = (
             self.session.query(func.count(Sample.sample_int_id))
             .join(ClinicalMetadata, Sample.sample_id == ClinicalMetadata.sample_id)
@@ -1093,6 +1217,7 @@ class PCADatabaseManager:
             .filter(Sample.used_in_pca == 1)
             .one_or_none()
         )
+        logging.info("Computing sequence feature counts (marginal totals) used in the model")
         a_c_sql = (
             self.session.query(
                 SequenceFeature.sequencefeature,
@@ -1120,6 +1245,7 @@ class PCADatabaseManager:
         if only_pc_cats_less_than_days_old is not None:
             a_c = a_c[a_c["diff_days"] <= only_pc_cats_less_than_days_old]
 
+        logging.info("Computing pc_cat counts (marginal totals) used in the model")
         a_b_sql = (
             self.session.query(
                 TransformedCoordinateCategory.pc_cat,
@@ -1132,65 +1258,74 @@ class PCADatabaseManager:
             )
             .join(ClinicalMetadata, ClinicalMetadata.sample_id == Sample.sample_id)
             .filter(Sample.build_int_id == lbii)
-            .filter(Sample.used_in_pca == 1)
+             .filter(Sample.used_in_pca == 1)
             .group_by(TransformedCoordinateCategory.pc_cat)
             .statement
         )
-
+       
         a_b = pd.read_sql(a_b_sql, con=self.engine)
+        logging.info("Recovered details of {0} pc_cats".format(len(a_b.index)))
+        
         a_b["date_now"] = datetime.date.today()
         a_b["diff_days"] = a_b["date_now"] - a_b["earliest_sample_date"]
         a_b["diff_days"] = a_b["diff_days"] / np.timedelta64(1, "D")
+        
         if only_pc_cats_less_than_days_old is not None:
             a_b = a_b[a_b["diff_days"] <= only_pc_cats_less_than_days_old]
 
         logging.info(
-            "Computing associations for {1} pc_cats, from which results for will be extracted for {0} pairs, or {2} comparisons".format(
+            "Computing associations all for {1} pc_cats, from which results cat be extracted for {0} pairs, or {2} comparisons".format(
                 len(a_c.index), len(a_b.index), len(a_b.index) * len(a_c.index)
             )
         )
         n_added = 0
-        for a_b_ix in a_b.index:
+
+        if self.show_bar:
+            bar = progressbar.ProgressBar(max_value=len(a_b.index))
+
+        for i, a_b_ix in enumerate(a_b.index):
             this_pc_cat = a_b.at[a_b_ix, "pc_cat"]
-            logging.info("Computing associations for {0}".format(this_pc_cat))
             this_a_b = a_b.at[a_b_ix, "a_b"]
-
-            for a_c_ix in a_c.index:
-                this_sequencefeature = a_c.at[a_c_ix, "sequencefeature"]
-                this_a_c = a_c.at[a_c_ix, "a_c"]
-
-                # compute associations for the whole selected sequencefeature x pc_cat matrix.
-                res = (
-                    self.session.query(
-                        func.count(Sample.sample_int_id.distinct()).label("a")
-                    )
-                    .join(
-                        ClinicalMetadata, ClinicalMetadata.sample_id == Sample.sample_id
-                    )
-                    .join(
-                        SequenceFeature,
-                        SequenceFeature.cm_int_id == ClinicalMetadata.cm_int_id,
-                    )
-                    .join(
-                        TransformedCoordinateCategory,
-                        TransformedCoordinateCategory.sample_int_id
-                        == Sample.sample_int_id,
-                    )
-                    .filter(Sample.build_int_id == lbii)
-                    .filter(Sample.used_in_pca == 1)
-                    .filter(SequenceFeature.is_lineage == 1)
-                    .filter(TransformedCoordinateCategory.pc_cat == this_pc_cat)
-                    .filter(SequenceFeature.sequencefeature == this_sequencefeature)
-                    .group_by(
-                        TransformedCoordinateCategory.pc_cat,
-                        SequenceFeature.sequencefeature,
-                    )
-                    .one_or_none()
+            if self.show_bar:
+                bar.update(i)
+            
+            # compute associations for the whole selected sequencefeature x pc_cat matrix.
+            a_sql = (
+                self.session.query(
+                    SequenceFeature.sequencefeature,
+                    func.count(Sample.sample_int_id.distinct()).label("a")
                 )
-                if res is None:
-                    this_a = 0
-                else:
-                    this_a = res[0]
+                .join(
+                    ClinicalMetadata, ClinicalMetadata.sample_id == Sample.sample_id
+                )
+                .join(
+                    SequenceFeature,
+                    SequenceFeature.cm_int_id == ClinicalMetadata.cm_int_id,
+                )
+                .join(
+                    TransformedCoordinateCategory,
+                    TransformedCoordinateCategory.sample_int_id
+                    == Sample.sample_int_id,
+                )
+                .filter(Sample.build_int_id == lbii)
+                .filter(Sample.used_in_pca == 1)
+                .filter(SequenceFeature.is_lineage == 1)
+                .filter(TransformedCoordinateCategory.pc_cat == this_pc_cat)
+                .group_by(
+                    SequenceFeature.sequencefeature,
+                )
+                .statement
+            )
+            a_df = pd.read_sql(a_sql, con=self.engine)
+
+            aca = a_c.merge(a_df, how='left', on='sequencefeature')
+           
+            aca['a'].fillna(0, inplace=True)       
+            aca['pc_cat'] = this_pc_cat         
+            for a_c_ix in aca.index:
+                this_a_c = aca.at[a_c_ix, "a_c"]
+                this_a =aca.at[a_c_ix, "a"]
+                this_sequencefeature = aca.at[a_c_ix, "sequencefeature"]
                 this_c = this_a_c - this_a
                 this_b = this_a_b - this_a
                 this_d = a_b_c_d - (this_a + this_b + this_c)
@@ -1203,12 +1338,124 @@ class PCADatabaseManager:
                     this_a,
                     this_b,
                     this_c,
-                    this_d,
+                    this_d
                 )
 
                 self.session.add(ct.featureassociation())
 
                 if n_added % 1 == 0:
                     self.session.commit()
-
+        if self.show_bar:
+            bar.finish()
+        logging.info("Computing associations completed")
         self.session.commit()
+
+    def counts_per_day_per_pc_cat(self, build_int_id=None, before_date=None):
+        """returns counts per day, by
+        - pc_cat
+        - nation
+
+        Parameters
+        ----------
+        build_int_id: the build_int_id of a particular build.  If None, uses the latest build
+        before_date:  don't report dates after this date.  If none, uses today's date
+
+        Returns
+        -------
+        A pandas dataframe containing the count data
+        Suitable for subsequent linear modelling.  
+        """
+
+        # determine the latest date
+        if date_end is None:
+            date_end = datetime.datetime.now()
+
+        # determine the 
+        if build_int_id is not None:
+            lbii = build_int_id
+        else:
+            lbii = self.latest_build_int_id()
+
+        ## INCOMPLETE
+
+    def fn4_bulk_upload(self, dumpdir):
+        """loads the files, as produced by findNeighbour4_dumpneighbours.py,
+        into tables.
+
+        Note that this function is intended for mass upload of data from a running findNeighbour4 server.
+        It is not suitable for 'dripfeeding' new links.  To do this latter operation, please see function
+        XXXXXXXXXXXXXX [TODO]
+
+        Suitable SQL to recover loaded links is as below.
+
+        -------------------------------------------------------------------------------------------------
+        select s1.sample_id sample_id_1, s2.sample_id sample_id_2, n.dist from pcadaemon.fn4_sample s1
+        inner JOIN
+        pcadaemon.neighbour n
+        on s1.fn4s_int_id = n.fn4s_int_id_1
+
+        inner JOIN
+
+        pcadaemon.fn4_sample s2
+        on s2.FN4S_INT_ID = n.fn4s_int_id_2
+
+        where s1.sample_id = 'SGUH-12E89'; 
+        --------------------------------------------------------------------------------------------------
+        """
+
+        # check whether there is existing data.
+        # if so, it's not appropriate to use this function
+        n_already, = self.session.query(func.count(FN4Sample.fn4s_int_id)).one()
+        if n_already > 0:
+            raise PCADBManagerError("Cannot do bulk upload of fn4 data if there is data already present")
+
+        # load the samples file
+        samples_file = os.path.join(dumpdir, 'samples.json')
+        with open(samples_file, 'rt') as f:
+            samples_dict = json.load(f)
+        samples_df = pd.DataFrame.from_dict(samples_dict, orient='index')
+        samples_df.columns = ['is_invalid']
+        samples_df['sample_id'] = samples_df.index
+
+
+        # load the samples into the database
+        self._bulk_load(samples_df, 'fn4_sample')
+
+        # recover the integer ids for each sample_id
+        sample_sql = self.session.query(FN4Sample).statement
+        samples_id_df = pd.read_sql(sample_sql, self.engine)
+        
+        samples_id_df_1 = samples_id_df.drop(['is_invalid'], axis =1)
+        samples_id_df_1.columns = ['fn4s_int_id_1','sample_id_1']
+        samples_id_df_2 = samples_id_df.drop(['is_invalid'], axis =1)
+        samples_id_df_2.columns = ['fn4s_int_id_2','sample_id_2']
+        
+
+        n_links = 0
+        neighbours_files = glob.glob(os.path.join(dumpdir, 'neighbours_*.json'))
+      
+        for i, neighbour_file in enumerate(neighbours_files):
+            
+            logging.info("Loading file {0}/{1}".format(i,len(neighbours_files)))
+            with open(neighbour_file, 'rt') as f:
+                neighbours = json.load(f)
+
+            if len(neighbours)>0:       # something to load
+                neighbours_df = pd.DataFrame.from_records(neighbours)
+                neighbours_df.columns = ['sample_id_1', 'sample_id_2', 'dist']
+                initial_n = len(neighbours_df.index)
+                
+                # merge in the integer ids
+                neighbours_df = neighbours_df.merge(samples_id_df_1, how='inner', on='sample_id_1')
+                neighbours_df = neighbours_df.merge(samples_id_df_2, how='inner', on='sample_id_2')
+                post_merge_n = len(neighbours_df.index)
+                assert(initial_n == post_merge_n)       # if this is not the case, then there not all the neighbours are in the samples_df, which is not allowed and indicates a software/database issue
+
+                to_load_df = neighbours_df.drop(['sample_id_1','sample_id_2'], axis = 1)
+                self._bulk_load(to_load_df, 'neighbour')
+                n_links = n_links + len(to_load_df.index)
+        
+        logging.info("Load completed.  Loaded a total of {0} links.".format(n_links))
+
+
+        
