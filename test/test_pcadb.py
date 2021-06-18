@@ -26,7 +26,8 @@ class Test_PCA_Database(unittest.TestCase):
     database name to the dictionary self.engines"""
 
     def setUp(self):
-        self.engines = {}  # {'None_specified':None}
+        self.engines = {}  
+        conn_detail_file = None
 
         # try to read the environment variable 'PCA_CONNECTION_CONFIG_FILE'
         try:
