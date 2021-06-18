@@ -23,11 +23,9 @@ import pandas as pd
 import logging
 import numpy as np
 import datetime
-import warnings
 import time
 import glob
 import progressbar
-import statsmodels.api as sm
 from sqlalchemy import (
     Integer,
     Boolean,
@@ -35,20 +33,19 @@ from sqlalchemy import (
     Float,
     Index,
     MetaData,
-    Table,
     Text,
     String,
     DateTime,
     Date,
     Identity,
-    ForeignKey
+    ForeignKey,
 )
 from sqlalchemy import create_engine, inspect, func
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.ext.declarative import declarative_base
-
+import statsmodels.api as sm
 import cx_Oracle
-from pca.pca import VariationModel 
+from pca.pca import VariationModel
 
 
 # global: definition of database structure
@@ -63,27 +60,8 @@ class PCADBManagerError(Exception):
     "a general purpose error used by the pcadb module."
     pass
 
-
-class FN4Sample(db_pc):
-    """ samples present in fn4 """
-
-    __tablename__ = "fn4_sample"
-    fn4s_int_id = Column(Integer, Identity(start=1), primary_key=True)
-    sample_id = Column(String(38), index=True, unique=True)
-    is_invalid = Column(Boolean)
-    neighbours = relationship("Neighbour", backref="fn4sample")
-
-class Neighbour(db_pc):
-    """edges of samples present in fn4 """
-
-    __tablename__ = "neighbour"
-    neighbour_int_id = Column(Integer, Identity(start=1), primary_key=True)
-    fn4s_int_id_1 = Column(Integer, ForeignKey(FN4Sample.fn4s_int_id), index=True)
-    fn4s_int_id_2 = Column(Integer)
-    dist = Column(Integer)
-    
 class BulkLoadTest(db_pc):
-    """used for testing bulk uploads"""
+    """used for testing bulk uploads as part of unit testing"""
 
     __tablename__ = "test"
     blt_int_id = Column(Integer, Identity(start=1), primary_key=True)
@@ -95,12 +73,17 @@ class Build(db_pc):
     """lists PCA builds"""
 
     __tablename__ = "build"
-    build_int_id = Column(Integer, Identity(start=1), primary_key=True)
-    builder = Column(String(48))
-    build_time = Column(DateTime, index=True)
-    model_load_start = Column(DateTime, nullable=True)
-    model_load_complete = Column(DateTime, nullable=True)
-    model_loaded = Column(Boolean)
+    build_int_id = Column(
+        Integer,
+        Identity(start=1),
+        primary_key=True,
+        comment="primary key to build table",
+    )
+    builder = Column(String(48), comment = "A description of the process building")
+    build_time = Column(DateTime, index=True, comment= 'When the build started')
+    model_load_start = Column(DateTime, nullable=True, comment = 'When data loading started')
+    model_load_complete = Column(DateTime, nullable=True,  comment = 'When data loading finished')
+    model_loaded = Column(Boolean, comment = 'Whether all the data was successfully loaded')
     build_annotations = relationship("BuildAnnotation", backref="Build")
     contributing_basepos = relationship("ContributingBasePos", backref="Build")
     contributing_pos = relationship("ContributingPos", backref="Build")
@@ -108,7 +91,209 @@ class Build(db_pc):
     explained_variance_ratio = relationship("ExplainedVarianceRatio", backref="Build")
     sample = relationship("Sample", backref="Build")
     featassoc = relationship("FeatureAssociation", backref="build")
-    statmodel = relationship("StatisticalModel", backref="build")
+    pcas = relationship("PCASummary", backref="build")
+
+
+class PCASummary(db_pc):
+    """a summary of the characteristics of each pc_cat
+
+    Unlike the TransformedCoordinateCategory table, this table is relatively small and can readily be kept across multiple builds
+    The PCASummary takes several minutes to build, (because it can be retained) it is cached
+    """
+
+    __tablename__ = "pca_summary"
+    pcas_int_id = Column(
+        Integer,
+        Identity(start=1),
+        primary_key=True,
+        comment="primary key to pca_summary table",
+    )
+    build_int_id = Column(
+        Integer,
+        ForeignKey(Build.build_int_id),
+        index=True,
+        comment="primary key to build table",
+    )
+    level_1_category_type = Column(
+        String(24), comment="first level of categorisation type, eg. country"
+    )
+    level_1_category = Column(
+        String(24), comment="first level of categorisation, eg. UK"
+    )
+    level_2_category_type = Column(
+        String(24), comment="second level of categorisation type, eg. region"
+    )
+    level_2_category = Column(
+        String(24), comment="second level of categorisation, eg. London"
+    )
+    pc = Column(Integer, index=True, comment="The principal component analysed")
+    pc_cat = Column(String(8), comment="The principal component category")
+    earliest_date = Column(
+        Date,
+        comment="The earliest date on which a sample was observed for this pc_cat / level_1 / level_2 combination",
+    )
+    latest_date = Column(
+        Date,
+        comment="The latest date on which a sample was observed for this pc_cat / level_1 / level_2 combination",
+    )
+    n_days_observed = Column(
+        Integer,
+        comment="The number of days on which a sample was observed for this pc_cat / level_1 / level_2 combination",
+    )
+    trans_coord_min = Column(
+        Float,
+        comment="The minimum transformed coordinate for this pc_cat / level_1 / level_2 combination",
+    )
+    trans_coord_max = Column(
+        Float,
+        comment="The maximum transformed coordinate for this pc_cat / level_1 / level_2 combination",
+    )
+    trans_coord_avg = Column(
+        Float,
+        comment="The average transformed coordinate for this pc_cat / level_1 / level_2 combination",
+    )
+    n = Column(
+        Integer,
+        comment="The number of samples for this pc_cat / level_1 / level_2 combination",
+    )
+    extra_info = relationship("PCASummaryExtraInfo", backref="PCASummary")
+    statistical_model = relationship("StatisticalModel", backref="PCASummary")
+
+
+class PCASummaryExtraInfo(db_pc):
+    """contains large binary character objects - such as trees - describing rows in the PCASummary table"""
+
+    __tablename__ = "pca_summary_extra"
+    pcae_int_id = Column(
+        Integer,
+        Identity(start=1),
+        primary_key=True,
+        comment="primary key to pca_summary_extra table",
+    )
+    pcas_int_id = Column(
+        Integer,
+        ForeignKey(PCASummary.pcas_int_id),
+        index=True,
+        comment="primary key to pca_summary table",
+    )
+    info_tag = Column(String(12), comment="what kind of data this is, e.g. iqtree")
+    info_description = Column(
+        String(255), comment="A human readable description of what this is"
+    )
+    info_format = Column(
+        String(12),
+        comment="What format the data is in, e.g. json, svg, xml, csv, txt.  Should map to a generic handler for the data",
+    )
+    info_class = Column(
+        String(12), comment="What class this is, e.g newick, snplist etc"
+    )
+    info = Column(
+        Text, comment="A large character binary data containing the information"
+    )
+
+
+class StatisticalModel(db_pc):
+    """types of statistical model applied to the data"""
+
+    __tablename__ = "statistical_model"
+    statmodel_int_id = Column(Integer, Identity(start=1), primary_key=True)
+    pcas_int_id = Column(
+        Integer,
+        ForeignKey(PCASummary.pcas_int_id),
+        index=True,
+        comment="refers to parent, which is a PCASummary row",
+    )
+    analysis_readable_title = Column(
+        String(80), comment="readable description of the analysis"
+    )
+    analysis_type = Column(
+        String(50), comment="description of the analysis, eg GLM Poisson"
+    )
+    analysis_software = Column(String(50), comment="software used, e.g. R glm.nb")
+    analysis_status = Column(
+        String(12), index=True, comment="either completed, failed or running"
+    )
+    readable_description = Column(
+        Text, comment="as much text as needed to explain what is going on"
+    )
+    run_parameters = Column(Text, nullable=True, comment="any extra parameters added")
+    date_start = Column(
+        DateTime, nullable=True, comment="the start date of the analysis"
+    )
+    date_end = Column(DateTime, nullable=True, comment="the end date of the analysis")
+    interval_analysed_days = Column(
+        Integer, nullable=True, comment="number of days analysed"
+    )
+    formula = Column(String(100), nullable=True)
+    errors_returned = Column(String(1024), nullable=True)
+    fit = relationship("StatisticalModelFit", backref="StatModel")
+    modelled_data = relationship("ModelledData", backref="StatModel")
+    alert = relationship("Alert", backref="StatModel")
+
+
+class StatisticalModelFit(db_pc):
+    """statistical models fitted"""
+
+    __tablename__ = "statistical_model_fit"
+    smf_int_id = Column(Integer, Identity(start=1), primary_key=True, comment = "integer primary key")
+    statmodel_int_id = Column(
+        Integer, ForeignKey(StatisticalModel.statmodel_int_id), index=True, comment = "refers to statistical_model primary key"
+    )
+    param = Column(String(16), comment = "parameter meausured")
+    estimate = Column(Float, comment = "quantity estimates")
+    std_err = Column(Float, comment = "standard error of estimate")
+    estimate_ci_low = Column(Float, comment = "lower 95% CI of estimate")
+    estimate_ci_high = Column(Float, comment = "upper 95% CI of estimate")
+    p_value = Column(Float, index=True, comment = "tests H0: estimate = 0.  values < 1e-30 stored as zero.")
+    adj_p_value = Column(Float, index=True, nullable=True, comment = "adjusted p_value.  Method varies.  May be blank")
+    z = Column(Float, nullable=True, comment = "z-score")
+    param_desc = Column(String(255), comment = "Readable description of parameter")
+    is_reference = Column(Boolean, comment = "whether the parameter is a reference category")
+    comments = Column(Text, comment = "general readable information about the analysis")
+    has_ci = Column(Boolean, comment = "whether the estimate has a confidence interval")
+    estimate2naturalspace = Column(String(8), comment = "How the estimate needs to be converted to produce human readable outputs")
+
+
+class ModelledData(db_pc):
+    """data to which statistical models are fitted"""
+
+    __tablename__ = "modelled_data"
+    md_int_id = Column(Integer, Identity(start=1), primary_key=True)
+    statmodel_int_id = Column(
+        Integer, ForeignKey(StatisticalModel.statmodel_int_id), index=True
+    )
+    sample_date = Column(
+        Date, nullable=False, comment="The date the samples were taken"
+    )
+    n_total = Column(
+        Integer, nullable=False, comment="The total number of samples sequenced"
+    )
+    n = Column(
+        Integer,
+        nullable=False,
+        comment="The number of events (samples) of the type being modelled",
+    )
+    t = Column(
+        Integer,
+        nullable=False,
+        comment="Time before the date_end of the analysis, in days.  The end date is day 0",
+    )
+    day_of_week = Column(Integer, nullable=True, comment="Day of week")
+    pred = Column(Float, nullable=True, comment="Model prediction")
+
+
+class Alert(db_pc):
+    """alerts based on statistical models  ## experimental"""
+
+    __tablename__ = "alert"
+    alert_int_id = Column(Integer, Identity(start=1), primary_key=True)
+    statmodel_int_id = Column(
+        Integer, ForeignKey(StatisticalModel.statmodel_int_id), index=True
+    )
+    alert_rule = Column(String(18))
+    alert_description = Column(String(100))
+    pc_cat = Column(String(8))
+
 
 class BuildAnnotation(db_pc):
     """Metadata related to a PCA build
@@ -118,11 +303,13 @@ class BuildAnnotation(db_pc):
     """
 
     __tablename__ = "build_metadata"
-    bm_int_id = Column(Integer, Identity(start=1), primary_key=True)
-    build_int_id = Column(Integer, ForeignKey(Build.build_int_id), index=True)
-    variable = Column(String(36))
-    value = Column("value", String(1024))
-    native_type = Column("native_type", String(16))
+    bm_int_id = Column(Integer, Identity(start=1), primary_key=True, comment = 'primary key')
+    build_int_id = Column(Integer, ForeignKey(Build.build_int_id), index=True, comment = 'refers to primary key of build')
+    variable = Column(String(36), comment = 'property of build, e.g. num_train_on')
+    value = Column("value", String(1024), comment = 'value of the property, e.g. 298669n')
+    native_type = Column(
+        "native_type", String(16), comment="the type of the value, e.g. int"
+    )
 
 
 class ContributingBasePos(db_pc):
@@ -130,8 +317,8 @@ class ContributingBasePos(db_pc):
 
     __tablename__ = "contributing_basepos"
     cbp_int_id = Column(Integer, Identity(start=1), primary_key=True)
-    build_int_id = Column(Integer, ForeignKey(Build.build_int_id), index=True)
-    basepos = Column(String(12))
+    build_int_id = Column(Integer, ForeignKey(Build.build_int_id), index=True, comment = 'refers to build_id primary key')
+    basepos = Column(String(12), comment = 'the base and position (e.g. 12345:G) contributing to the model')
 
 
 class ContributingPos(db_pc):
@@ -139,19 +326,19 @@ class ContributingPos(db_pc):
 
     __tablename__ = "contributing_pos"
     cp_int_id = Column(Integer, Identity(start=1), primary_key=True)
-    build_int_id = Column(Integer, ForeignKey(Build.build_int_id), index=True)
-    pos = Column(Integer)
+    build_int_id = Column(Integer, ForeignKey(Build.build_int_id), index=True, comment = 'refers to the build table')
+    pos = Column(Integer,  comment = 'the position contributing to the model, e.g. 12345')
 
 
 class EigenVector(db_pc):
-    """weights at each positions in order to compute transformed coordinates"""
+    """weights at each positions used compute transformed coordinates"""
 
     __tablename__ = "eigenvector"
     ev_int_id = Column(Integer, Identity(start=1), primary_key=True)
     build_int_id = Column(Integer, ForeignKey(Build.build_int_id), index=True)
-    pc = Column(Integer)
-    pos = Column(Integer)
-    allele = Column(String(8))
+    pc = Column(Integer, comment = 'the principal component')
+    pos = Column(Integer, comment = 'the genome position')
+    allele = Column(String(8), comment = 'the allele associated')
     col = Column(String(8))
     weight = Column(Float)
     outside_3mad = Column(Boolean)
@@ -166,6 +353,31 @@ class ExplainedVarianceRatio(db_pc):
     pc = Column(Integer)
     explained_variance_ratio = Column(Float)
     pos_per_pc = Column(Integer)
+
+
+class SampleSet(db_pc):
+    """Temporary sets of samples, used for aggregating information about sample sets of arbitrary size"""
+
+    __tablename__ = "sample_set"
+    ss_int_id = Column(Integer, Identity(start=1), primary_key=True)
+    ss_creation_date = Column(DateTime, index=True)
+    ss_content = relationship("SampleSetContent", cascade="all, delete-orphan")
+
+
+class SampleSetContent(db_pc):
+    """Temporary sets of samples, used for aggregating information about sample sets of arbitrary size"""
+
+    __tablename__ = "sample_set_content"
+    ssc_int_id = Column(Integer, Identity(start=1), primary_key=True)
+    ss_int_id = Column(Integer, ForeignKey(SampleSet.ss_int_id), index=True)
+    sample_id = Column(String(38), index=True)
+
+
+Index(
+    "ix_SAMPLESETCONTENT",
+    SampleSetContent.ssc_int_id,
+    SampleSetContent.sample_id,
+)
 
 
 class Sample(db_pc):
@@ -195,12 +407,7 @@ class Sample(db_pc):
     tcc = relationship("TransformedCoordinateCategory", backref="Build")
 
 
-Index(
-    "ix_SAMPLE",
-    Sample.build_int_id,
-    Sample.sample_id,
-    Sample.used_in_pca
-)
+Index("ix_SAMPLE", Sample.build_int_id, Sample.sample_id, Sample.used_in_pca)
 
 
 class TransformedCoordinateCategory(db_pc):
@@ -213,7 +420,7 @@ class TransformedCoordinateCategory(db_pc):
     pc = Column(Integer)
     cat = Column(Integer)
     pc_cat = Column(String(8))
-    statmodel = relationship("StatisticalModel", backref="TCC")
+
 
 Index(
     "ix_TCC",
@@ -221,67 +428,6 @@ Index(
     TransformedCoordinateCategory.pc_cat,
 )
 
-class StatisticalModel(db_pc):
-    """types of statistical model applied to the data"""
-
-    __tablename__ = "statistical_model"
-    statmodel_int_id = Column(Integer, Identity(start=1), primary_key=True)
-    build_int_id = Column(Integer, ForeignKey(Build.build_int_id), index=True)
-    tcc_int_id = Column(
-        Integer, ForeignKey(TransformedCoordinateCategory.tcc_int_id), nullable=True, index=True
-    )
-    analysis_family_id = Column(String(38))
-    analysis_id = Column(String(38))
-    analysis_readable_title = Column(String(30))
-    analysis_type = Column(String(30))
-    analysis_software = Column(String(30))
-    analysis_status = Column(String(8), index=True)
-    readable_description = Column(Text)
-    input_data = Column(Text, nullable= True)
-    run_parameters = Column(Text, nullable=True)
-    output_data = Column(Text, nullable=True)
-    pc = Column(Integer, nullable = True)
-    pc_cat = Column(String(8), nullable = True)
-    date_start = Column(DateTime, nullable = True)
-    date_end = Column(DateTime, nullable = True)
-    interval_analysed_days = Column(Integer, nullable=True)
-    fit = relationship("StatisticalModelFit", backref="StatModel")
-    alert = relationship("Alert", backref="StatModel")
-
-class Alert(db_pc):
-    """alerts based on statistical models"""
-
-    __tablename__ = "alert"
-    alert_int_id = Column(Integer, Identity(start=1), primary_key=True)
-    statmodel_int_id = Column(
-        Integer, ForeignKey(StatisticalModel.statmodel_int_id), index=True
-    )
-    alert_rule = Column(String(18))
-    alert_description = Column(String(100))
-    pc_cat = Column(String(8))
-
-class StatisticalModelFit(db_pc):
-    """statistical models fitted"""
-
-    __tablename__ = "statistical_model_fit"
-    smf_int_id = Column(Integer, Identity(start=1), primary_key=True)
-    statmodel_int_id = Column(
-        Integer, ForeignKey(StatisticalModel.statmodel_int_id), index=True
-    )
-    analysis_family_id = Column(String(38))
-    analysis_id = Column(String(38))
-    param = Column(String(16))
-    estimate = Column(Float)
-    std_error = Column(Float)
-    estimate_ci_low = Column(Float)
-    estimate_ci_high = Column(Float)
-    p_value = Column(Float, index=True)
-    pc_cat = Column(String(8))
-    param_desc = Column(String(255))
-    is_reference = Column(Boolean)
-    comments = Column(Text)
-    has_ci = Column(Boolean)
-    estimate2naturalspace = Column(String(8))
 
 class ClinicalMetadata(db_pc):
     """holds clinical metadata, if it exists.
@@ -321,12 +467,14 @@ class ClinicalIdentifier(db_pc):
     id_type = Column(String(16))
     id_value = Column(String(50))
 
+
 Index(
     "ix_clinical_ids",
     ClinicalIdentifier.administration,
     ClinicalIdentifier.id_type,
     ClinicalIdentifier.id_value,
 )
+
 
 class SequenceFeature(db_pc):
     """holds identifiers related to sequences, such as SNPs, lineages, etc.
@@ -352,7 +500,12 @@ Index("ix_sequence_ids", SequenceFeature.variable, SequenceFeature.value)
 class FeatureAssociation(db_pc):
     """associations between pc_cats and sequencefeatures
 
-    contains a 2x2 contingency table, see below
+    contains a 2x2 contingency table, 
+
+            Feature    Present       Absent
+        PC-CAT Y      a            b          a+b
+               N      c            d          c+d
+                    a+c           b+d       a+b+c+d
 
     as well as an estimated odds ratio.
     """
@@ -442,54 +595,21 @@ class ContingencyTable:
     def featureassociation(self):
         return FeatureAssociation(**self.results)
 
-    # DEBUG: probably need to remove this |  not used at present
-    t_trend_summary = Table(
-        "trend_summary",
-        metadata,
-        Column("pc_cat", Text, index=True),
-        Column("n_samples", Integer),
-        Column("min_trans_coord", Float),
-        Column("max_trans_coord", Float),
-        Column("mean_trans_coord", Float),
-        Column("n_gt_14_days_before", Float),
-        Column("n_gt_30_days_before", Float),
-        Column("n_gt_60_days_before", Float),
-        Column("n_gt_90_days_before", Float),
-        Column("n_gt_120_days_before", Float),
-        Column("earliest_date", Text),
-        Column("latest_date", Text),
-        Column("n_days_observed", Integer),
-        Column("analysis_id", Text),
-        Column("analysis", Text),
-        Column("analysis_type", Text),
-        Column("date_end", Text),
-        Column("interval_analysed_days", Integer),
-        Column("param", Text),
-        Column("param_desc", Text),
-        Column("Estimate", Float),
-        Column("Estimate_CI_low", Float),
-        Column("Estimate_CI_high", Float),
-        Column("p_value", Float),
-        Column("is_reference", Float),
-        Column("has_CI", Float),
-        Column("Estimate2NaturalSpace", Text),
-    )
-    
 
 class PCADatabaseManager:
     """manages an RDBMS containing PCA output"""
 
-    def __init__(self, connection_config=None, debug=False, show_bar = True):
+    def __init__(self, connection_config=None, debug=False, show_bar=True):
         """creates the RDBMS connection
 
         Parameters
         -----------
-        connection_config:  
-        One of 
+        connection_config:
+        One of
         1. a key to a dictionary containing one or more database configuration details: (e.g. 'prod', 'test')
         2. a valid sqlalchemy database connection string (if this is sufficient for connections)  e.g. 'pyodbc+mssql://myserver'
         3. None.  This is considered to mean 'sqlite://' i.e. an in memory sqlite database, which is not persisted when the program stops.
-        
+
         if it is not none, a variable called PCA_CONNECTION_CONFIG_FILE must be present.  This must point to a file containing credentials.
         the name of an environment variable containing (in json format) a dictionary, or None if it is not required.
         An example of such a dictionary is as below:
@@ -501,21 +621,21 @@ class PCADatabaseManager:
         The DBTYPE and ENGINE_NAME keys are essential.
         Other keys may also be present, and are required in some cases (for example by Oracle connections).
         {
-            'prod':{'DBTYPE':'oracle', 
+            'prod':{'DBTYPE':'oracle',
                     'ENGINE_NAME':''oracle+cx_oracle://PROD:97bxxxxxxxxX@(description: .........)))',
                     'TNS_ADMIN':'/secrets/oracle/pca_prod'
                     },
 
-            'dev':{'DBTYPE':'oracle', 
+            'dev':{'DBTYPE':'oracle',
                     'ENGINE_NAME':''oracle+cx_oracle://PROD:97bxxxxxxxxX@(description: .........)))',
                     'TNS_ADMIN':'/secrets/oracle/pca_prod'
                     }
         }
         Note, the bit after the @(description describes where your database is, and will be found in your cloud wallet, if you are using cloud databases.  See below.
-        In this case, TNS_ADMIN is the value you wish the TNS_ADMIN environment variable to be set to. 
+        In this case, TNS_ADMIN is the value you wish the TNS_ADMIN environment variable to be set to.
         The software will set TNS_ADMIN, and, if you are using a virtual environment, it will be scoped to the virtual environment.
         In summary, it will configure necessary settings to allow Oracle database connections.
-                    
+
         Note, if you are using a python virtual environment, this environment variable should be included in the .env file in the root of your project.  The .env file should not be under source control.
 
         configuration engine_name: an SQLalchemy connect string, e.g. sqlite::// for temporary memory db, see https://docs.sqlalchemy.org/en/13/core/engines.html
@@ -524,11 +644,11 @@ class PCADatabaseManager:
 
 
         NOTE:
-        This software has been tested with 
-        (i) Sqlite 3.3.2+ 
+        This software has been tested with
+        (i) Sqlite 3.3.2+
         (ii) Oracle Autonomous Database (cloud)
         https://blogs.oracle.com/oraclemagazine/getting-started-with-autonomous
-        
+
         To connect to Oracle there are several steps.
         0. Install dependencies, see
         https://cx-oracle.readthedocs.io/en/latest/user_guide/installation.html
@@ -536,15 +656,15 @@ class PCADatabaseManager:
         need to set the LD_LIBRARY_PATH variable, see
         https://www.oracle.com/database/technologies/instant-client/linux-x86-64-downloads.html
         e.g. export LD_LIBRARY_PATH=/data/software/instantclient_21_1:LD_LIBRARY_PATH
-        
+
         these parameters have to go into the python .env file e.g.
         ----------------------------------------------------------------
         LD_LIBRARY_PATH="/software/instantclient_21_1"
         PCADB_CONNECTION_CONFIGFILE="/secret/config.json"
-        
+
         Where config.json looks like
         {
-            'prod':{'DBTYPE':'oracle', 
+            'prod':{'DBTYPE':'oracle',
                     'ENGINE_NAME':''oracle+cx_oracle://PROD:97bxxxxxxxxX@(description: .........)))',
                     'TNS_ADMIN':'/secrets/oracle/pca_prod'
                     }
@@ -554,14 +674,14 @@ class PCADatabaseManager:
         1. Download your OCI wallet, & unzip it somewhere
         2. Set the TNS_ADMIN env var to point to this directory
         3. Edit the WALLET_LOCATION in the sqlnet.ora file to point to the relevant directory, e.g. WALLET_LOCATION = (SOURCE = (METHOD = file) (METHOD_DATA = (DIRECTORY="/data/credentials/oci_test")))
-        4. Check the 
+        4. Check the
         4. Create a user with relevant privileges see below)
         5. Set the OCI_ENGINE_NAME env var.
         An example of this is as below (redacted so not live)
         oracle+cx_oracle://scott:tigerX22@(description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1522)(host=host.oraclecloud.com))(connect_data=(service_name=redacted))(security=(ssl_server_cert_dn="redacted")))
 
 
-        This data can be found in the tnsnames.ora file: for details, see 
+        This data can be found in the tnsnames.ora file: for details, see
          https://docs.sqlalchemy.org/en/14/dialects/oracle.html#dialect-oracle-cx_oracle-connect
          https://stackoverflow.com/questions/37471892/using-sqlalchemy-dburi-with-oracle-using-external-password-store
          https://stackoverflow.com/questions/14140902/using-oracle-service-names-with-sqlalchemy/35215324
@@ -572,71 +692,97 @@ class PCADatabaseManager:
         ====================================================
         Your application will need to run as a user (we'll call it PCADB) will need some priviledges granted.
         The exact privileges required involving creating, dropping tables & indexes, as well as inserting and deleting data.
-        CREATE USER PCADB IDENTIFIED BY 'MyPassword1234!';         
+        CREATE USER PCADB IDENTIFIED BY 'MyPassword1234!';
         GRANT CONNECT TO PCADB;
         GRANT CREATE SESSION TO PCADB;
         GRANT CREATE SEQUENCE TO PCADB;
         GRANT CREATE TABLE TO PCADB;
         GRANT CREATE SYNONYM TO PCADB;
-        ALTER USER PCADB DEFAULT TABLESPACE DATA quota unlimited on DATA; 
-        
+        ALTER USER PCADB DEFAULT TABLESPACE DATA quota unlimited on DATA;
+
         """
 
         # connect and create session.  Validate inputs carefully.
-        if connection_config is None:       
+        if connection_config is None:
             logging.info("Connection config is None: using in-memory sqlite.")
-            self.engine_name = 'sqlite://'
+            self.engine_name = "sqlite://"
         elif "://" in connection_config:
-            logging.info("Connection config provided; using {0}".format(connection_config))
+            logging.info(
+                "Connection config provided; using {0}".format(connection_config)
+            )
             self.engine_name = connection_config
         else:
             # PCA_CONNECTION_CONFIG_FILE should contain credentials
-            
+
             try:
-                conn_detail_file = os.environ['PCA_CONNECTION_CONFIG_FILE']
+                conn_detail_file = os.environ["PCA_CONNECTION_CONFIG_FILE"]
             except KeyError:
-                raise PCADBManagerError("Environment variable PCA_CONNECTION_CONFIG_FILE does not exist; however, it is required.  If you are using a python virtual environment, you need to set it in .env, not globally") 
-            
+                raise PCADBManagerError(
+                    "Environment variable PCA_CONNECTION_CONFIG_FILE does not exist; however, it is required.  If you are using a python virtual environment, you need to set it in .env, not globally"
+                )
+
             if not os.path.exists(conn_detail_file):
-                raise FileNotFoundError("Connection file specified but not found: {0}".format(conn_detail_file))
+                raise FileNotFoundError(
+                    "Connection file specified but not found: {0}".format(
+                        conn_detail_file
+                    )
+                )
 
             # read the config file
-            with open(conn_detail_file,'rt') as f:
+            with open(conn_detail_file, "rt") as f:
                 conn_detail = json.load(f)
 
-            if not connection_config in conn_detail.keys():
-                raise PCADBManagerError("Connection {0} does not correspond to one of the keys {1} of the configuration json file at {2}".format(connection_config, conn_detail.keys(), conn_detail_file))
+            if connection_config not in conn_detail.keys():
+                raise PCADBManagerError(
+                    "Connection {0} does not correspond to one of the keys {1} of the configuration json file at {2}".format(
+                        connection_config, conn_detail.keys(), conn_detail_file
+                    )
+                )
 
             # configure engine
-            this_configuration = conn_detail[connection_config]         # extract the relevant part of the config dictionary
-            
+            this_configuration = conn_detail[
+                connection_config
+            ]  # extract the relevant part of the config dictionary
+
             # two keys are always present
-            essential_keys = set(['DBTYPE','ENGINE_NAME'])
-            if len(essential_keys - set(this_configuration.keys()))>0:
-                raise PCADBManagerError("Provided keys for {0} are not correct.  Required are {1}".format(connection_config,essential_keys))
+            essential_keys = set(["DBTYPE", "ENGINE_NAME"])
+            if len(essential_keys - set(this_configuration.keys())) > 0:
+                raise PCADBManagerError(
+                    "Provided keys for {0} are not correct.  Required are {1}".format(
+                        connection_config, essential_keys
+                    )
+                )
 
             # if it's Oracle, then three keys are required.
-            if this_configuration['DBTYPE'] == 'oracle':
-                essential_keys = set(['DBTYPE','ENGINE_NAME','TNS_ADMIN'])
-                if len(essential_keys - set(this_configuration.keys()))>0:
-                    raise PCADBManagerError("Provided keys for oracle db in {0} are not correct.  Required are {1}".format(connection_config,essential_keys))
+            if this_configuration["DBTYPE"] == "oracle":
+                essential_keys = set(["DBTYPE", "ENGINE_NAME", "TNS_ADMIN"])
+                if len(essential_keys - set(this_configuration.keys())) > 0:
+                    raise PCADBManagerError(
+                        "Provided keys for oracle db in {0} are not correct.  Required are {1}".format(
+                            connection_config, essential_keys
+                        )
+                    )
 
                 # set the TNS_ADMIN variable.
-                logging.info("Set TNS_ADMIN to value specified in config file {0}".format(this_configuration['TNS_ADMIN']))
-                os.environ['TNS_ADMIN'] = this_configuration['TNS_ADMIN']
-                
+                logging.info(
+                    "Set TNS_ADMIN to value specified in config file {0}".format(
+                        this_configuration["TNS_ADMIN"]
+                    )
+                )
+                os.environ["TNS_ADMIN"] = this_configuration["TNS_ADMIN"]
+
             logging.info("Set ENGINE_NAME configuration string from config file.")
-            self.engine_name = this_configuration['ENGINE_NAME']
+            self.engine_name = this_configuration["ENGINE_NAME"]
 
         ## DEBUG
-        #print(os.environ)
-        ## 
+        # print(os.environ)
+        ##
 
         # now we can start
         self.Base = db_pc
         logging.info("PCADatabaseManager: Connecting to database")
         self.engine = create_engine(self.engine_name)
-        
+
         self.is_oracle = "oracle+cx" in self.engine_name
         self.is_sqlite = "sqlite://" in self.engine_name
         self.show_bar = show_bar
@@ -646,7 +792,7 @@ class PCADatabaseManager:
                 len(self._table_names()), self.is_oracle
             )
         )
-        
+
         # drop existing tables if in debug mode
         if debug:
             self._drop_existing_tables()
@@ -674,6 +820,7 @@ class PCADatabaseManager:
         ClinicalIdentifier.__table__.drop(self.engine)
         ClinicalMetadata.__table__.drop(self.engine)
         Alert.__table__.drop(self.engine)
+        ModelledData.__table__.drop(self.engine)
         StatisticalModelFit.__table__.drop(self.engine)
         StatisticalModel.__table__.drop(self.engine)
         TransformedCoordinateCategory.__table__.drop(self.engine)
@@ -683,9 +830,12 @@ class PCADatabaseManager:
         ExplainedVarianceRatio.__table__.drop(self.engine)
         Sample.__table__.drop(self.engine)
         BuildAnnotation.__table__.drop(self.engine)
+
+        SampleSetContent.__table__.drop(self.engine)
+        SampleSet.__table__.drop(self.engine)
+        PCASummaryExtraInfo.__table__.drop(self.engine)
+        PCASummary.__table__.drop(self.engine)
         Build.__table__.drop(self.engine)
-        Neighbour.__table__.drop(self.engine)
-        FN4Sample.__table__.drop(self.engine)
 
         remaining = len(self._table_names())
         if remaining > 0:
@@ -699,7 +849,6 @@ class PCADatabaseManager:
         if self.is_oracle:
             time.sleep(0)
         return
-
 
     def _bulk_load(self, upload_df, target_table, max_batch=100000):
         """bulk uploads pandas dataframes.
@@ -718,11 +867,9 @@ class PCADatabaseManager:
         - Need custom code for bulk loading to Oracle.  Methods are provided in the cx_oracle package, see
         https://cx-oracle.readthedocs.io/en/latest/user_guide/batch_statement.html
 
-
         The maximum size that can be transmitted to the Oracle server is 2G.  If htis happens, a cx_Oracle.DatabaseError
         is raised with result DPI-1015.  Reduce the max_batch
 
-        
         """
 
         # verify data : ensure that target_table is a table [Essential: otherwise, can be a vector for SQL injection]
@@ -735,19 +882,29 @@ class PCADatabaseManager:
 
         # check that upload_df is pandas dataframe
         if not isinstance(upload_df, pd.DataFrame):
-            raise TypeError("upload_df needs to be pandas DataFrame, not a {0}".format(type(upload_df)))
+            raise TypeError(
+                "upload_df needs to be pandas DataFrame, not a {0}".format(
+                    type(upload_df)
+                )
+            )
 
         # check that we have been passed data
         ncol = len(upload_df.columns)
         if ncol == 0:
             # we treat this as an error
-            raise PCADBManagerError("Passed data frame to _bulk_upload to {0} contains no columns {1}".format(target_table, upload_df)) 
+            raise PCADBManagerError(
+                "Passed data frame to _bulk_upload to {0} contains no columns {1}".format(
+                    target_table, upload_df
+                )
+            )
 
         if self.is_sqlite:
             # there is a max variable limit of 32,766 for Sqlite 3.32.0 on https://www.sqlite.org/limits.html
             # set max_batch to keep below this.
             max_batch = int(32000 / ncol)
-            logging.info("Autoset max_batch to {0}, as running SQLite".format(max_batch))
+            logging.info(
+                "Autoset max_batch to {0}, as running SQLite".format(max_batch)
+            )
 
         if self.is_oracle:
 
@@ -762,16 +919,22 @@ class PCADatabaseManager:
 
             # estimate the maximum buffer size required and auto-reduce the max_batch if required.
             estimated_row_size = len(str(loadvar[0]))
-            estimated_max_batch = int(1e7/(estimated_row_size))       # large margin of safety 10M batch size
+            estimated_max_batch = int(
+                1e7 / (estimated_row_size)
+            )  # large margin of safety 10M batch size
             if estimated_max_batch < max_batch:
                 max_batch = estimated_max_batch
-                logging.info("Reduced max_batch to keep estimated buffer size within acceptable limited (aim to control to 10M).  max_batch is {0}".format(max_batch))
+                logging.info(
+                    "Reduced max_batch to keep estimated buffer size within acceptable limits (<= 10M target).  max_batch is {0}".format(
+                        max_batch
+                    )
+                )
 
             ## disabled: does not work.  The heuristic for estimating max batch doesn't work properly - DPI-1015 errors occur
-            #else: 
+            # else:
             #    print("Larger max_batch may be possible while keeping buffer size required < 2G.  max_batch set to {0}".format(estimated_max_batch))
             #    max_batch = estimated_max_batch
-            
+
             # construct sql statment.
             # Should be injection-safe; we have checked the target_table is a table, and are incorporating integers only.
             collabels = [":" + str(x + 1) for x in list(range(ncol))]
@@ -790,7 +953,6 @@ class PCADatabaseManager:
                 while len(loadvar) > 0:
                     if self.show_bar:
                         bar.update(start_n - len(loadvar))
-                    
 
                     cursor.executemany(sql_statement, loadvar[0:max_batch])
                     loadvar = loadvar[max_batch:]
@@ -844,9 +1006,9 @@ class PCADatabaseManager:
         logging.info("Creating new build.")
         this_build = Build(
             builder="pcadb.PCADatabaseManager.store_variation_model",
-            build_time= datetime.datetime.fromisoformat(vm.model['build_time']),
-            model_load_start = datetime.datetime.now(),
-            model_loaded = 0
+            build_time=datetime.datetime.fromisoformat(vm.model["build_time"]),
+            model_load_start=datetime.datetime.now(),
+            model_loaded=0,
         )
         self.session.add(this_build)  # add the build
 
@@ -977,7 +1139,7 @@ class PCADatabaseManager:
 
         # extract the sequence_id from the sequence_name
         cogdf["sample_id"] = [x[1] for x in cogdf["sequence_name"].str.split("/")]
-        
+
         # wipe data if replace_all:
         if replace_all:
             self._wipe_clinical_and_sequence_metadata()
@@ -987,13 +1149,19 @@ class PCADatabaseManager:
         existing_sample_ids = self.existing_sample_ids_in_clinical_metadata()
 
         # drop existing data, and duplicates.
-        logging.info("Clinical data found in database. Rows = {0}".format(len(existing_sample_ids)))
+        logging.info(
+            "Clinical data found in database. Rows = {0}".format(
+                len(existing_sample_ids)
+            )
+        )
         logging.info("COG_UK data loaded. Rows = {0}".format(len(cogdf.index)))
-        cogdf.drop_duplicates(['sample_id'], inplace=True)
+        cogdf.drop_duplicates(["sample_id"], inplace=True)
         logging.info("After deduplicating, Rows = {0}".format(len(cogdf.index)))
-        
-        drop_ix = cogdf[cogdf['sample_id'].isin(existing_sample_ids)].index
-        logging.info("There are {0} rows which have already been loaded".format(len(drop_ix)))
+
+        drop_ix = cogdf[cogdf["sample_id"].isin(existing_sample_ids)].index
+        logging.info(
+            "There are {0} rows which have already been loaded".format(len(drop_ix))
+        )
         cogdf.drop(drop_ix, inplace=True)
         logging.info("There are {0} rows remaining to load".format(len(cogdf.index)))
 
@@ -1002,10 +1170,7 @@ class PCADatabaseManager:
         cm_to_insert = list()
         sm_to_insert = list()
         for ix in cogdf.index:
-            if (
-                datetime.datetime.fromisoformat(cogdf.at[ix, "sample_date"])
-                <= date_end
-            ):
+            if datetime.datetime.fromisoformat(cogdf.at[ix, "sample_date"]) <= date_end:
                 n_added += 1
                 if n_added % 50000 == 0:
                     logging.info("Parsing cog-uk data file n={0}. ".format(n_added))
@@ -1132,24 +1297,32 @@ class PCADatabaseManager:
 
         return len(cm_df.index)
 
-    def latest_build_int_id(self, only_if_model_loaded = True):
+    def latest_build_int_id(self, only_if_model_loaded=True):
         """returns the most recent build id
-        
+
         Parameters
         ----------
         only_if_model_loaded: boolean, default True, ignore any entries where the model did not load
-        
+
         Returns
         -------
         None, if there are no builds, or the build_int_id of the latest build
-        
+
         """
 
         model_loaded_acceptable_values = [1]
         if only_if_model_loaded is False:
-            model_loaded_acceptable_values = [0,1]
-        (retVal,) = self.session.query(func.max(Build.build_int_id)).filter(Build.model_loaded.in_(model_loaded_acceptable_values)).one_or_none()
-        return retVal
+            model_loaded_acceptable_values = [0, 1]
+        res = (
+            self.session.query(func.max(Build.build_int_id))
+            .filter(Build.model_loaded.in_(model_loaded_acceptable_values))
+            .one_or_none()
+        )
+        if res is None:
+            return None
+        else:
+            retVal = res[0]
+            return retVal
 
     def sequence_features(self, is_lineage):
         """returns sequence_features supplied as part of clinical & sequence metadata.
@@ -1157,7 +1330,7 @@ class PCADatabaseManager:
         Parameters
         ----------
         is_lineage: either 1,0 or None.  If 1, only returns lineages.  If 0, only returns mutations.  If None, returns both.
-        
+
         Returns
         -------
         A list of sequence features.  These are in the form featuretype:feature, eg. pangolineage:B1.1.7"""
@@ -1174,22 +1347,23 @@ class PCADatabaseManager:
         ]
         return retVal
 
-    def make_contingency_tables(self, only_pc_cats_less_than_days_old=120, build_int_id = None):
+    def make_contingency_tables(
+        self, only_pc_cats_less_than_days_old=120, build_int_id=None
+    ):
         """makes contingency tables, computing the relationships between various features and pc_cats.
-        
+
         Parameters:
         -----------
         only_pc_cats_less_than_days_old: only reports on pc_cats which have recently emerged
         build_int_id: make report for build_int_id.  If none, reports on the latest build.
-        
+
         Returns:
         --------
         None
-        
-        
+
+
         """
         logging.info("Making contingency tables")
-
 
         # for the latest build
         if build_int_id is not None:
@@ -1200,13 +1374,17 @@ class PCADatabaseManager:
         # if there are no builds, we return.
         if lbii is None:
             logging.info("No builds.  Cannot produce contingency tables. ")
-            return 
+            return
 
         # test where already entered
-        n_feature_associations_present, = self.session.query(func.count(FeatureAssociation.featassoc_int_id)).filter(FeatureAssociation.build_int_id == lbii).one()
+        (n_feature_associations_present,) = (
+            self.session.query(func.count(FeatureAssociation.featassoc_int_id))
+            .filter(FeatureAssociation.build_int_id == lbii)
+            .one()
+        )
         if n_feature_associations_present > 0:
             logging.info("Features already stored for build {0}".format(lbii))
-            return 
+            return
 
         # we compute the total number of samples used in the model.
         logging.info("Computing total samples used in the model")
@@ -1217,7 +1395,9 @@ class PCADatabaseManager:
             .filter(Sample.used_in_pca == 1)
             .one_or_none()
         )
-        logging.info("Computing sequence feature counts (marginal totals) used in the model")
+        logging.info(
+            "Computing sequence feature counts (marginal totals) used in the model"
+        )
         a_c_sql = (
             self.session.query(
                 SequenceFeature.sequencefeature,
@@ -1258,18 +1438,18 @@ class PCADatabaseManager:
             )
             .join(ClinicalMetadata, ClinicalMetadata.sample_id == Sample.sample_id)
             .filter(Sample.build_int_id == lbii)
-             .filter(Sample.used_in_pca == 1)
+            .filter(Sample.used_in_pca == 1)
             .group_by(TransformedCoordinateCategory.pc_cat)
             .statement
         )
-       
+
         a_b = pd.read_sql(a_b_sql, con=self.engine)
         logging.info("Recovered details of {0} pc_cats".format(len(a_b.index)))
-        
+
         a_b["date_now"] = datetime.date.today()
         a_b["diff_days"] = a_b["date_now"] - a_b["earliest_sample_date"]
         a_b["diff_days"] = a_b["diff_days"] / np.timedelta64(1, "D")
-        
+
         if only_pc_cats_less_than_days_old is not None:
             a_b = a_b[a_b["diff_days"] <= only_pc_cats_less_than_days_old]
 
@@ -1288,24 +1468,21 @@ class PCADatabaseManager:
             this_a_b = a_b.at[a_b_ix, "a_b"]
             if self.show_bar:
                 bar.update(i)
-            
+
             # compute associations for the whole selected sequencefeature x pc_cat matrix.
             a_sql = (
                 self.session.query(
                     SequenceFeature.sequencefeature,
-                    func.count(Sample.sample_int_id.distinct()).label("a")
+                    func.count(Sample.sample_int_id.distinct()).label("a"),
                 )
-                .join(
-                    ClinicalMetadata, ClinicalMetadata.sample_id == Sample.sample_id
-                )
+                .join(ClinicalMetadata, ClinicalMetadata.sample_id == Sample.sample_id)
                 .join(
                     SequenceFeature,
                     SequenceFeature.cm_int_id == ClinicalMetadata.cm_int_id,
                 )
                 .join(
                     TransformedCoordinateCategory,
-                    TransformedCoordinateCategory.sample_int_id
-                    == Sample.sample_int_id,
+                    TransformedCoordinateCategory.sample_int_id == Sample.sample_int_id,
                 )
                 .filter(Sample.build_int_id == lbii)
                 .filter(Sample.used_in_pca == 1)
@@ -1318,13 +1495,13 @@ class PCADatabaseManager:
             )
             a_df = pd.read_sql(a_sql, con=self.engine)
 
-            aca = a_c.merge(a_df, how='left', on='sequencefeature')
-           
-            aca['a'].fillna(0, inplace=True)       
-            aca['pc_cat'] = this_pc_cat         
+            aca = a_c.merge(a_df, how="left", on="sequencefeature")
+
+            aca["a"].fillna(0, inplace=True)
+            aca["pc_cat"] = this_pc_cat
             for a_c_ix in aca.index:
                 this_a_c = aca.at[a_c_ix, "a_c"]
-                this_a =aca.at[a_c_ix, "a"]
+                this_a = aca.at[a_c_ix, "a"]
                 this_sequencefeature = aca.at[a_c_ix, "sequencefeature"]
                 this_c = this_a_c - this_a
                 this_b = this_a_b - this_a
@@ -1338,7 +1515,7 @@ class PCADatabaseManager:
                     this_a,
                     this_b,
                     this_c,
-                    this_d
+                    this_d,
                 )
 
                 self.session.add(ct.featureassociation())
@@ -1350,112 +1527,516 @@ class PCADatabaseManager:
         logging.info("Computing associations completed")
         self.session.commit()
 
-    def counts_per_day_per_pc_cat(self, build_int_id=None, before_date=None):
-        """returns counts per day, by
-        - pc_cat
-        - nation
+    def _create_sample_id_set(self, sample_id_list):
+        """stores a list of sample_ids, of any size, in the database.
+        Storage is in the SampleSet and SampleSetContent tables.
+        This is intended to be short term only, to allow linking queries to arbitrary sets of sample_ids too large for including
+        in sql statements.
 
-        Parameters
-        ----------
-        build_int_id: the build_int_id of a particular build.  If None, uses the latest build
-        before_date:  don't report dates after this date.  If none, uses today's date
+        Parameters:
+        sample_id_list: a list of sample_ids.
 
-        Returns
-        -------
-        A pandas dataframe containing the count data
-        Suitable for subsequent linear modelling.  
+        Returns:
+        ss_int_id: the primary key to a record in the SampleSet table, which can be used to identify the set of samples submitted.
         """
 
-        # determine the latest date
-        if date_end is None:
-            date_end = datetime.datetime.now()
+        # insert one row into the SampleSet table.
+        sample_set = SampleSet(ss_creation_date=datetime.datetime.now())
+        self.session.add(sample_set)
+        self.session.commit()
 
-        # determine the 
+        # now sample_set has an identifier
+        sample_set_content_df = pd.DataFrame({"sample_id": sample_id_list})
+        sample_set_content_df["ss_int_id"] = sample_set.ss_int_id
+        # print("Bulk loading samples")
+        self._bulk_load(sample_set_content_df, "sample_set_content")
+        # print("Complete")
+        return sample_set.ss_int_id
+
+    def _delete_sample_id_set(self, ss_int_id):
+        """delete a sample set
+
+        Parameters:
+        ss_int_id: an integer identifying a sample set in the SampleSet table
+
+        Returns:
+        None
+
+        """
+
+        self.session.query(SampleSetContent).filter(
+            SampleSetContent.ss_int_id == ss_int_id
+        ).delete()
+        self.session.query(SampleSet).filter(SampleSet.ss_int_id == ss_int_id).delete()
+
+    def store_pca_summary(self):
+        """computes and stores a summary of the PCA output for the latest build
+
+        This step is necessary becasue
+        - the PCA summary, although a view, is slow to construct for massive data sets
+        - the PCA summary is small and can be retained, even when original source data is not
+        """
+
+        latest_build_int_id = self.latest_build_int_id()
+
+        if latest_build_int_id is None:
+            return  # nothing to analyse
+
+        (n_existing_records,) = (
+            self.session.query(func.count(PCASummary.pcas_int_id))
+            .filter(PCASummary.build_int_id == latest_build_int_id)
+            .one()
+        )
+        if n_existing_records > 0:
+            pass  # already computed
+        else:
+
+            logging.info("Running PCA Summary query #0")
+            pca_sql0 = (
+                self.session.query(
+                    TransformedCoordinateCategory.pc,
+                    TransformedCoordinateCategory.pc_cat,
+                    func.min(ClinicalMetadata.sample_date).label("earliest_date"),
+                    func.max(ClinicalMetadata.sample_date).label("latest_date"),
+                    func.count(ClinicalMetadata.sample_date.distinct()).label(
+                        "n_days_observed"
+                    ),
+                    func.min(
+                        TransformedCoordinateCategory.transformed_coordinate
+                    ).label("trans_coord_min"),
+                    func.max(
+                        TransformedCoordinateCategory.transformed_coordinate
+                    ).label("trans_coord_max"),
+                    func.avg(
+                        TransformedCoordinateCategory.transformed_coordinate
+                    ).label("trans_coord_avg"),
+                    ClinicalMetadata.country.label("level_1_category"),
+                    func.count(Sample.sample_int_id).label("n")
+                )
+                .join(Sample, Sample.sample_id == ClinicalMetadata.sample_id)
+                .join(
+                    TransformedCoordinateCategory,
+                    Sample.sample_int_id == TransformedCoordinateCategory.sample_int_id,
+                )
+                .group_by(
+                    TransformedCoordinateCategory.pc,
+                    TransformedCoordinateCategory.pc_cat,
+                    ClinicalMetadata.country
+                   
+                )
+                .statement
+            )
+
+            pcas0 = pd.read_sql(pca_sql0, self.engine)
+            pcas0["level_1_category_type"] = "country"
+            pcas0["level_2_category_type"] = "lineage"
+            pcas0["level_2_category"] = "--Any--"
+            pcas0["build_int_id"] = latest_build_int_id
+
+            self._bulk_load(pcas0, "pca_summary")
+
+            logging.info("Running PCA Summary query #2")
+
+
+            logging.info("Running PCA Summary query #1")
+            pca_sql2 = (
+                self.session.query(
+                    TransformedCoordinateCategory.pc,
+                    TransformedCoordinateCategory.pc_cat,
+                    func.min(ClinicalMetadata.sample_date).label("earliest_date"),
+                    func.max(ClinicalMetadata.sample_date).label("latest_date"),
+                    func.count(ClinicalMetadata.sample_date.distinct()).label(
+                        "n_days_observed"
+                    ),
+                    func.min(
+                        TransformedCoordinateCategory.transformed_coordinate
+                    ).label("trans_coord_min"),
+                    func.max(
+                        TransformedCoordinateCategory.transformed_coordinate
+                    ).label("trans_coord_max"),
+                    func.avg(
+                        TransformedCoordinateCategory.transformed_coordinate
+                    ).label("trans_coord_avg"),
+                    ClinicalMetadata.country.label("level_1_category"),
+                    SequenceFeature.value.label("level_2_category"),
+                    func.count(Sample.sample_int_id).label("n"),
+                )
+                .join(Sample, Sample.sample_id == ClinicalMetadata.sample_id)
+                .join(
+                    TransformedCoordinateCategory,
+                    Sample.sample_int_id == TransformedCoordinateCategory.sample_int_id,
+                )
+                .join(
+                    SequenceFeature,
+                    SequenceFeature.cm_int_id == ClinicalMetadata.cm_int_id,
+                )
+                .filter(SequenceFeature.variable == "lineage")
+                .group_by(
+                    TransformedCoordinateCategory.pc,
+                    TransformedCoordinateCategory.pc_cat,
+                    ClinicalMetadata.country,
+                    SequenceFeature.value,
+                )
+                .statement
+            )
+
+            pcas2 = pd.read_sql(pca_sql2, self.engine)
+            pcas2["level_1_category_type"] = "country"
+            pcas2["level_2_category_type"] = "lineage"
+            pcas2["build_int_id"] = latest_build_int_id
+
+            self._bulk_load(pcas2, "pca_summary")
+
+            logging.info("Running PCA Summary query #2")
+
+            pca_sql1 = (
+                self.session.query(
+                    TransformedCoordinateCategory.pc,
+                    TransformedCoordinateCategory.pc_cat,
+                    func.min(ClinicalMetadata.sample_date).label("earliest_date"),
+                    func.max(ClinicalMetadata.sample_date).label("latest_date"),
+                    func.count(ClinicalMetadata.sample_date.distinct()).label(
+                        "n_days_observed"
+                    ),
+                    func.min(
+                        TransformedCoordinateCategory.transformed_coordinate
+                    ).label("trans_coord_min"),
+                    func.max(
+                        TransformedCoordinateCategory.transformed_coordinate
+                    ).label("trans_coord_max"),
+                    func.avg(
+                        TransformedCoordinateCategory.transformed_coordinate
+                    ).label("trans_coord_avg"),
+                    ClinicalMetadata.country.label("level_1_category"),
+                    ClinicalMetadata.adm1.label("level_2_category"),
+                    func.count(Sample.sample_int_id).label("n"),
+                )
+                .join(Sample, Sample.sample_id == ClinicalMetadata.sample_id)
+                .join(
+                    TransformedCoordinateCategory,
+                    Sample.sample_int_id == TransformedCoordinateCategory.sample_int_id,
+                )
+                .group_by(
+                    TransformedCoordinateCategory.pc,
+                    TransformedCoordinateCategory.pc_cat,
+                    ClinicalMetadata.country,
+                    ClinicalMetadata.adm1,
+                )
+                .statement
+            )
+
+            pcas1 = pd.read_sql(pca_sql1, self.engine)
+            pcas1["level_1_category_type"] = "country"
+            pcas1["level_2_category_type"] = "region"
+            pcas1["build_int_id"] = latest_build_int_id
+
+            self._bulk_load(pcas1, "pca_summary")
+        logging.info("PCA Summary completed")
+
+    def pca_summary(self, build_int_id=None, only_pc_cats_less_than_days_old = None):
+        """returns the PCASummary data for a build_int_id as a pandas dataframe
+
+        Parameters:
+        -----------
+            build_int_id: make report for build_int_id.  If none, reports on the latest build.
+            only_pc_cats_less_than_days_old: only analyse pc_cats which were first detected <= this number of days ago.  If none, all PCA cats  are included.
+
+        Returns:
+        --------
+        None
+
+        """
+        logging.info("Making contingency tables")
+
+        # for the latest build
         if build_int_id is not None:
             lbii = build_int_id
         else:
             lbii = self.latest_build_int_id()
 
-        ## INCOMPLETE
+        pcas_sql = (
+            self.session.query(PCASummary)
+            .filter(PCASummary.build_int_id == lbii)
+            .statement
+        )
+        res = pd.read_sql(pcas_sql, self.engine)
+        # make the pcas_int_id the index
+        res = res.set_index("pcas_int_id")
 
-    def fn4_bulk_upload(self, dumpdir):
-        """loads the files, as produced by findNeighbour4_dumpneighbours.py,
-        into tables.
+        res["date_now"] = datetime.date.today()
+        res["diff_days"] = res["date_now"] - res["earliest_date"]
+        res["diff_days"] = res["diff_days"] / np.timedelta64(1, "D")
 
-        Note that this function is intended for mass upload of data from a running findNeighbour4 server.
-        It is not suitable for 'dripfeeding' new links.  To do this latter operation, please see function
-        XXXXXXXXXXXXXX [TODO]
+        # if appropriate, restrict to lineages seen in last epoch.
+        if only_pc_cats_less_than_days_old is not None:
+            res = res[res["diff_days"] <= only_pc_cats_less_than_days_old]
 
-        Suitable SQL to recover loaded links is as below.
+        return res
 
-        -------------------------------------------------------------------------------------------------
-        select s1.sample_id sample_id_1, s2.sample_id sample_id_2, n.dist from pcadaemon.fn4_sample s1
-        inner JOIN
-        pcadaemon.neighbour n
-        on s1.fn4s_int_id = n.fn4s_int_id_1
+    def single_pcas_summary(self, pcas_int_id):
+        """get a single PCASummary row, identified by a pcas_int_id
 
-        inner JOIN
+        Parameters:
+        pcas_int_id: an integer, the primary key to the PCASummary table
 
-        pcadaemon.fn4_sample s2
-        on s2.FN4S_INT_ID = n.fn4s_int_id_2
+        Returns:
+        a PCASummary object containing the row identified by pcas_int_id"""
+        pcas_obj = (
+            self.session.query(PCASummary)
+            .filter(PCASummary.pcas_int_id == pcas_int_id)
+            .one_or_none()
+        )
+        if pcas_obj is None:
+            raise ValueError(
+                "Asked to recover PCASummary with pcas_int_id = {0} but it does not exist".format(
+                    pcas_int_id
+                )
+            )
+        return pcas_obj
 
-        where s1.sample_id = 'SGUH-12E89'; 
-        --------------------------------------------------------------------------------------------------
+    def count_table(self, pcas_obj):
+        """makes count data tables for a row in PCASummary
+
+        All cases, and stratification by lineage and nation are produced
+
+        Parameters:
+        -----------
+        pcas_obj: either : a PCASummary object representing a single PCASummary (a subset of samples selected by nation, and or region/lineage, and pc_cat)
+                  or:      a pcas_int_id
+        Returns:
+        --------
+        A dictionary
+        {'earliest_date': the earliest sample date for this pcas_int_id,
+        'daily_counts': the number of daily counts for this pcas_int_id,
+        'denominator': the number of samples sequenced on or after earliest_date}
+        DataFrame containing count data OR none if the pcas_int_id does not exist / there is no data
+
+        Raises:
+        ------
+        ValueError if a pcas_int_id is specified & it does not exist
         """
 
-        # check whether there is existing data.
-        # if so, it's not appropriate to use this function
-        n_already, = self.session.query(func.count(FN4Sample.fn4s_int_id)).one()
-        if n_already > 0:
-            raise PCADBManagerError("Cannot do bulk upload of fn4 data if there is data already present")
+        # check we have been passed the right kind of object
+        if isinstance(pcas_obj, int):
+            this_pcas_int_id = pcas_obj
+            pcas_obj = self.single_pcas_summary(this_pcas_int_id)
+        if not isinstance(pcas_obj, PCASummary):
+            raise TypeError(
+                "Need to pass a PCASummary object, not a {0}".format(type(pcas_obj))
+            )
 
-        # load the samples file
-        samples_file = os.path.join(dumpdir, 'samples.json')
-        with open(samples_file, 'rt') as f:
-            samples_dict = json.load(f)
-        samples_df = pd.DataFrame.from_dict(samples_dict, orient='index')
-        samples_df.columns = ['is_invalid']
-        samples_df['sample_id'] = samples_df.index
+        # select the relevant count data
+        if pcas_obj.level_2_category_type == "region":
+            pca_sql = (
+                self.session.query(
+                    ClinicalMetadata.sample_date,
+                    func.count(Sample.sample_int_id).label("n"),
+                )
+                .join(Sample, Sample.sample_id == ClinicalMetadata.sample_id)
+                .join(
+                    TransformedCoordinateCategory,
+                    Sample.sample_int_id == TransformedCoordinateCategory.sample_int_id,
+                )
+                .filter(TransformedCoordinateCategory.pc_cat == pcas_obj.pc_cat)
+                .filter(ClinicalMetadata.adm1 == pcas_obj.level_2_category)
+                .filter(ClinicalMetadata.country == pcas_obj.level_1_category)
+                .filter(Sample.build_int_id == pcas_obj.build_int_id)
+                .group_by(ClinicalMetadata.sample_date)
+                .statement
+            )
 
+        elif pcas_obj.level_2_category_type == "lineage":
+            pca_sql = (
+                self.session.query(
+                    ClinicalMetadata.sample_date,
+                    func.count(Sample.sample_int_id).label("n"),
+                )
+                .join(Sample, Sample.sample_id == ClinicalMetadata.sample_id)
+                .join(
+                    TransformedCoordinateCategory,
+                    Sample.sample_int_id == TransformedCoordinateCategory.sample_int_id,
+                )
+                .join(
+                    SequenceFeature,
+                    SequenceFeature.cm_int_id == ClinicalMetadata.cm_int_id,
+                )
+                .filter(TransformedCoordinateCategory.pc_cat == pcas_obj.pc_cat)
+                .filter(SequenceFeature.variable == "lineage")
+                .filter(SequenceFeature.value == pcas_obj.level_2_category)
+                .filter(ClinicalMetadata.country == pcas_obj.level_1_category)
+                .filter(Sample.build_int_id == pcas_obj.build_int_id)
+                .group_by(
+                    ClinicalMetadata.country,
+                    SequenceFeature.value,
+                    ClinicalMetadata.sample_date,
+                )
+                .statement
+            )
 
-        # load the samples into the database
-        self._bulk_load(samples_df, 'fn4_sample')
+        else:
+            raise ValueError(
+                "Asked to produce count data for {0} but only understand how to do this by region or lineage".format(
+                    pcas_obj.level_2_category_type
+                )
+            )
 
-        # recover the integer ids for each sample_id
-        sample_sql = self.session.query(FN4Sample).statement
-        samples_id_df = pd.read_sql(sample_sql, self.engine)
-        
-        samples_id_df_1 = samples_id_df.drop(['is_invalid'], axis =1)
-        samples_id_df_1.columns = ['fn4s_int_id_1','sample_id_1']
-        samples_id_df_2 = samples_id_df.drop(['is_invalid'], axis =1)
-        samples_id_df_2.columns = ['fn4s_int_id_2','sample_id_2']
-        
+        # select the relevant denominator data
+        if pcas_obj.level_2_category_type == "region":
+            pcad_sql = (
+                self.session.query(
+                    ClinicalMetadata.sample_date,
+                    func.count(Sample.sample_int_id).label("n"),
+                )
+                .join(Sample, Sample.sample_id == ClinicalMetadata.sample_id)
+                .join(
+                    TransformedCoordinateCategory,
+                    Sample.sample_int_id == TransformedCoordinateCategory.sample_int_id,
+                )
+                .filter(ClinicalMetadata.adm1 == pcas_obj.level_2_category)
+                .filter(TransformedCoordinateCategory.pc == pcas_obj.pc)
+                .filter(ClinicalMetadata.country == pcas_obj.level_1_category)
+                .filter(Sample.build_int_id == pcas_obj.build_int_id)
+                .group_by(ClinicalMetadata.sample_date)
+                .statement
+            )
 
-        n_links = 0
-        neighbours_files = glob.glob(os.path.join(dumpdir, 'neighbours_*.json'))
-      
-        for i, neighbour_file in enumerate(neighbours_files):
-            
-            logging.info("Loading file {0}/{1}".format(i,len(neighbours_files)))
-            with open(neighbour_file, 'rt') as f:
-                neighbours = json.load(f)
+        elif pcas_obj.level_2_category_type == "lineage":
+            pcad_sql = (
+                self.session.query(
+                    ClinicalMetadata.sample_date,
+                    func.count(Sample.sample_int_id).label("n"),
+                )
+                .join(Sample, Sample.sample_id == ClinicalMetadata.sample_id)
+                .join(
+                    TransformedCoordinateCategory,
+                    Sample.sample_int_id == TransformedCoordinateCategory.sample_int_id,
+                )
+                .join(
+                    SequenceFeature,
+                    SequenceFeature.cm_int_id == ClinicalMetadata.cm_int_id,
+                )
+                .filter(TransformedCoordinateCategory.pc == pcas_obj.pc)
+                .filter(SequenceFeature.variable == "lineage")
+                .filter(SequenceFeature.value == pcas_obj.level_2_category)
+                .filter(ClinicalMetadata.country == pcas_obj.level_1_category)
+                .filter(Sample.build_int_id == pcas_obj.build_int_id)
+                .group_by(
+                    ClinicalMetadata.country,
+                    SequenceFeature.value,
+                    ClinicalMetadata.sample_date,
+                )
+                .statement
+            )
 
-            if len(neighbours)>0:       # something to load
-                neighbours_df = pd.DataFrame.from_records(neighbours)
-                neighbours_df.columns = ['sample_id_1', 'sample_id_2', 'dist']
-                initial_n = len(neighbours_df.index)
-                
-                # merge in the integer ids
-                neighbours_df = neighbours_df.merge(samples_id_df_1, how='inner', on='sample_id_1')
-                neighbours_df = neighbours_df.merge(samples_id_df_2, how='inner', on='sample_id_2')
-                post_merge_n = len(neighbours_df.index)
-                assert(initial_n == post_merge_n)       # if this is not the case, then there not all the neighbours are in the samples_df, which is not allowed and indicates a software/database issue
+        else:
+            raise ValueError(
+                "Asked to produce count data for {0} but only understand how to do this by region or lineage".format(
+                    pcas_obj.level_2_category_type
+                )
+            )
 
-                to_load_df = neighbours_df.drop(['sample_id_1','sample_id_2'], axis = 1)
-                self._bulk_load(to_load_df, 'neighbour')
-                n_links = n_links + len(to_load_df.index)
-        
-        logging.info("Load completed.  Loaded a total of {0} links.".format(n_links))
+        pcnt = pd.read_sql(pca_sql, self.engine)
+        pcntd = pd.read_sql(pcad_sql, self.engine)
 
+        retVal = {
+            "earliest_date": pcas_obj.earliest_date,
+            "pcas_int_id": pcas_obj.pcas_int_id,
+            "counts": pcnt,
+            "denominators": pcntd,
+        }
 
-        
+        return retVal
+
+    def store_pcas_model_output(self, res):
+        """stores the results of a model fit.
+
+        Parameters:
+        res: the results of a call to a statistical model .fit() method - see fittrend class
+
+        Returns:
+        None
+
+        Side effects:
+        Stores model fit in database
+
+        Example of use:
+
+        pdm = PCADatabaseManager(connection_config=self.engines[engine], debug=True, show_bar = False)
+        pdm.store_variation_model(vm)
+        pdm.store_cog_metadata(cogfile="testdata/pca/cog_metadata_vm.csv")
+        pdm.store_pca_summary()  # store a summary
+
+        pcas_df = pdm.pca_summary()
+
+        n_modelled = 0
+        for pcas_int_id in pcas_df.index:
+            print(pcas_int_id)
+            n_modelled +=1
+
+            if n_modelled == 20:
+                break
+            pcas_obj = pdm.single_pcas_summary(pcas_int_id)
+            cntdata = pdm.count_table(pcas_obj)
+
+            # override latest date if required
+            this_latest_date =  datetime.date(2021,6,1)
+            nb = PoissonModel(**cntdata, latest_date = this_latest_date)
+            res = nb.fit()
+
+            pdm.store_pcas_model_output(res)
+
+        """
+
+        # reality check: the pcas_int_id in the statistical model & the PCASummary object
+        # check what we have been passed keys
+        if not isinstance(res, dict):
+            raise TypeError(
+                "object passed to .store_pcas_model_output must be a dictionary"
+            )
+        expected_keys = set(["statistical_model", "modelled_data", "coefficients"])
+        if not (set(res.keys()) == expected_keys):
+            raise KeyError(
+                "dictionary must contain {0} not {1}".format(expected_keys, res.keys())
+            )
+
+        this_pcas_int_id = res["statistical_model"]["pcas_int_id"]
+        del res["statistical_model"]["pcas_int_id"]  # gets added by ORM
+        pcas_obj = self.single_pcas_summary(
+            this_pcas_int_id
+        )  # get the PCASummary object corresponding to res
+
+        sm = StatisticalModel(**res["statistical_model"])
+        if res["coefficients"] is not None:
+            for ix in res["coefficients"].index:
+                rowdict = res["coefficients"].loc[ix].to_dict()
+                for key in rowdict.keys():
+                    if key == "p_value":
+                        if rowdict[key] is not None:
+                            if rowdict[key] < 1e-30:
+                                rowdict[key] = 0
+                smf = StatisticalModelFit(**rowdict)
+                sm.fit.append(smf)
+
+        pcas_obj.statistical_model.append(sm)
+        if res["modelled_data"] is not None:
+            for ix in res["modelled_data"].index:
+                rowdict = res["modelled_data"].loc[ix].to_dict()
+
+                # cast any np.int64 as standard python types, as
+                # otherwise insert into db fails.
+                for key in rowdict.keys():
+                    if type(rowdict[key]) == np.int64:
+                        rowdict[key] = int(rowdict[key])
+                    elif type(rowdict[key]) == np.float64:
+                        rowdict[key] = float(rowdict[key])
+
+                    ## database cannot store very small floats
+                    # store pvalues < 1e-30 as 0
+                    if key == "p_value":
+                        if rowdict[key] is not None:
+                            if rowdict[key] < 1e-30:
+                                rowdict[key] = 0
+
+                md = ModelledData(**rowdict)
+                sm.modelled_data.append(md)
+        self.session.commit()

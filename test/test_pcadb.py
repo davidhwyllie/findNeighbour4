@@ -9,7 +9,13 @@ import pickle
 from sqlalchemy import func
 from pca.pca import VariationModel
 from pca.pcadb import ContingencyTable, BulkLoadTest
-from pca.pcadb import PCADatabaseManager, FeatureAssociation
+from pca.pcadb import (
+    PCADatabaseManager,
+    FeatureAssociation,
+    SampleSet,
+    SampleSetContent,
+    PCASummary
+)
 
 
 class Test_PCA_Database(unittest.TestCase):
@@ -20,36 +26,37 @@ class Test_PCA_Database(unittest.TestCase):
     database name to the dictionary self.engines"""
 
     def setUp(self):
-        self.engines = {} # {'None_specified':None}
-        
+        self.engines = {}  # {'None_specified':None}
+
         # try to read the environment variable 'PCA_CONNECTION_CONFIG_FILE'
         try:
-            conn_detail_file = os.environ['PCA_CONNECTION_CONFIG_FILE']
+            conn_detail_file = os.environ["PCA_CONNECTION_CONFIG_FILE"]
         except KeyError:
             # doesn't exist; we just run with sqlite, which is the default if engine is None.
-            print("No environment variable PCA_CONNECTION_CONFIG_FILE found.  Testing with sqlite only.")
+            print(
+                "No environment variable PCA_CONNECTION_CONFIG_FILE found.  Testing with sqlite only."
+            )
         if conn_detail_file is None:
-            print("No environment variable PCA_CONNECTION_CONFIG_FILE found.  Testing with sqlite only.")
+            print(
+                "No environment variable PCA_CONNECTION_CONFIG_FILE found.  Testing with sqlite only."
+            )
             return
         if not os.path.exists(conn_detail_file):
-            raise FileNotFoundError("Connection file specified but not found: {0}".format(conn_detail_file))
+            raise FileNotFoundError(
+                "Connection file specified but not found: {0}".format(conn_detail_file)
+            )
         # try to read the config file
-        with open(conn_detail_file,'rt') as f:
+        with open(conn_detail_file, "rt") as f:
             conn_detail = json.load(f)
             for key in conn_detail.keys():
-                if key.startswith('unittest_ora'):
-                    self.engines[key] = key
+                if key.startswith("unittest_ora"):
+                    #self.engines[key] = key
+                    pass
 
-        return
-        oracle_credential_location = os.getenv("TNS_ADMIN")
-        oracle_engine_name = os.getenv("OCI_ENGINE_NAME")
-        if len(oracle_credential_location) > 0 and len(oracle_engine_name) > 0:
-            print("Using Oracle credentials at {0}".format(oracle_credential_location))
-            self.engines["Oracle"] = oracle_engine_name  # Debug
-        self.engines["Sqlite"] = "sqlite:///test.sqlite"
+        self.engines["Sqlite"] = "sqlite://"  # in memory sqlite
 
 
-##@unittest.skip(reason="too slow")
+# @unittest.skip(reason="too slow")
 class Test_create_database_1(Test_PCA_Database):
     """tests creating the database and internal functions dropping tables"""
 
@@ -60,10 +67,12 @@ class Test_create_database_1(Test_PCA_Database):
             n1 = len(pdm._table_names())
             pdm._drop_existing_tables()
             n2 = len(pdm._table_names())
-            self.assertEqual(n1, 18)
+            self.assertEqual(n1, 21)
             self.assertEqual(n2, 0)
 
-            pdm = PCADatabaseManager(connection_config=self.engines[engine], debug=False)
+            pdm = PCADatabaseManager(
+                connection_config=self.engines[engine], debug=False
+            )
             pdm = PCADatabaseManager(connection_config=self.engines[engine], debug=True)
 
             # no builds
@@ -71,7 +80,7 @@ class Test_create_database_1(Test_PCA_Database):
             self.assertIsNone(res)
 
 
-@unittest.skip(reason="too slow")
+# @unittest.skip(reason="too slow")
 class Test_create_database_2(Test_PCA_Database):
     """tests storing the results of a VariantModel"""
 
@@ -97,7 +106,7 @@ class Test_create_database_2(Test_PCA_Database):
             self.assertEqual(b2, 1)
 
 
-@unittest.skip(reason="too slow")
+# @unittest.skip(reason="too slow")
 class Test_load_clinical_data_3(Test_PCA_Database):
     """tests storing clinical data from COG-UK in the data model"""
 
@@ -143,7 +152,7 @@ class Test_load_clinical_data_3(Test_PCA_Database):
             self.assertEqual(l1 + l2, l3)
 
 
-@unittest.skip(reason="not necessary")
+# @unittest.skip(reason="not necessary")
 class Test_Contingency_table(unittest.TestCase):
     """tests the ContigencyTable class, which analyses 2x2 tables"""
 
@@ -174,7 +183,7 @@ class Test_Contingency_table(unittest.TestCase):
         self.assertIsInstance(res, FeatureAssociation)
 
 
-@unittest.skip(reason ='too slow')
+# @unittest.skip(reason ='too slow')
 class Test_create_contingency_tables_4(Test_PCA_Database):
     """tests creation & storage of 2x2 contingency tables"""
 
@@ -204,7 +213,7 @@ class Test_create_contingency_tables_4(Test_PCA_Database):
             pdm.make_contingency_tables()
 
 
-@unittest.skip(reason="not routinely necessary ")
+# @unittest.skip(reason="not routinely necessary ")
 class Test_oracle_bulk_upload_5a(Test_PCA_Database):
     """tests bulk upload"""
 
@@ -226,7 +235,7 @@ class Test_oracle_bulk_upload_5a(Test_PCA_Database):
             self.assertEqual(initial_rows, final_rows)
 
 
-@unittest.skip(reason="not routinely necessary ")
+# @unittest.skip(reason="not routinely necessary ")
 class Test_oracle_bulk_upload_5b(Test_PCA_Database):
     """tests bulk upload with small number of samples"""
 
@@ -248,9 +257,9 @@ class Test_oracle_bulk_upload_5b(Test_PCA_Database):
             self.assertEqual(initial_rows, final_rows)
 
 
-@unittest.skip(reason="not routinely necessary and slow")
+# @unittest.skip(reason="not routinely necessary and slow")
 class Test_oracle_bulk_upload_5c(Test_PCA_Database):
-    """tests bulk upload with large numbers of samples """
+    """tests bulk upload with large numbers of samples"""
 
     def runTest(self):
         for engine in self.engines.keys():
@@ -269,9 +278,10 @@ class Test_oracle_bulk_upload_5c(Test_PCA_Database):
             (final_rows,) = pdm.session.query(func.count(BulkLoadTest.blt_int_id)).one()
             self.assertEqual(initial_rows, final_rows)
 
-@unittest.skip(reason="not routinely necessary ")
+
+# @unittest.skip(reason="not routinely necessary ")
 class Test_count_per_day_6(Test_PCA_Database):
-    """tests bulk upload with large numbers of samples """
+    """tests bulk upload with large numbers of samples"""
 
     def runTest(self):
         for engine in self.engines.keys():
@@ -290,7 +300,8 @@ class Test_count_per_day_6(Test_PCA_Database):
             (final_rows,) = pdm.session.query(func.count(BulkLoadTest.blt_int_id)).one()
             self.assertEqual(initial_rows, final_rows)
 
-@unittest.skip(reason="not routinely necessary ")
+
+# @unittest.skip(reason="not routinely necessary ")
 class Test_count_per_day_7(Test_PCA_Database):
     """tests computation of count data frames"""
 
@@ -304,32 +315,153 @@ class Test_count_per_day_7(Test_PCA_Database):
             for engine in self.engines.keys():
                 print(engine, "#7")
 
-                pdm = PCADatabaseManager(connection_config=self.engines[engine], debug=True)
+                pdm = PCADatabaseManager(
+                    connection_config=self.engines[engine], debug=True
+                )
                 pdm.store_variation_model(vm)
                 pdm.store_cog_metadata(cogfile="testdata/pca/cog_metadata_vm.csv")
                 pdm.make_contingency_tables()
 
-class Test_dumpneighbours_8(Test_PCA_Database):
-    """ tests bulk loading of fn4 snp data into an RDBMS.
-        Specifically, it tests the output of findNeighbour4_dumpneighbours.py, which is design for one-off dumping and loading into an empty database. """
+
+
+#@unittest.skip(reason="not r necessary ")
+class Test_create_sample_set_9(Test_PCA_Database):
+    """tests creation of sample sets"""
+
+    def runTest(self):
+
+        for engine in self.engines.keys():
+
+            print(engine, "#9")
+            pdm = PCADatabaseManager(
+                connection_config=self.engines[engine], debug=True, show_bar=False
+            )
+
+            (n0,) = pdm.session.query(func.count(SampleSet.ss_int_id)).one()
+            (s0,) = pdm.session.query(func.count(SampleSetContent.ssc_int_id)).one()
+            id = pdm._create_sample_id_set(["one", "two", "three"])
+
+            (n1,) = pdm.session.query(func.count(SampleSet.ss_int_id)).one()
+            (s1,) = pdm.session.query(func.count(SampleSetContent.ssc_int_id)).one()
+            pdm._delete_sample_id_set(id)
+            (n2,) = pdm.session.query(func.count(SampleSet.ss_int_id)).one()
+            (s2,) = pdm.session.query(func.count(SampleSetContent.ssc_int_id)).one()
+
+            self.assertEqual(n0, 0)
+            self.assertEqual(n1, 1)
+            self.assertEqual(n2, 0)
+            self.assertEqual(s0, 0)
+            self.assertEqual(s1, 3)
+            self.assertEqual(s2, 0)
+
+
+# @unittest.skip(reason="not routinely necessary ")
+class Test_create_pc_summary_10(Test_PCA_Database):
+    """tests creation of a pc_summary"""
 
     def runTest(self):
 
         # load a variation model for testiong
-        dumpdir = 'testdata/fn4snp/dumpneighbours'
+        inputfile = "testdata/pca/vm.pickle"
+        with open(inputfile, "rb") as f:
+            vm = pickle.load(f)
+
         for engine in self.engines.keys():
-            print(engine, "#7")
 
-            pdm = PCADatabaseManager(connection_config=self.engines[engine], debug=True)
-            pdm.fn4_bulk_upload(dumpdir)
-              
+            print(engine, "#10")
+            pdm = PCADatabaseManager(
+                connection_config=self.engines[engine], debug=True, show_bar=False
+            )
+            build_int_id = pdm.latest_build_int_id()
+            self.assertIsNone(build_int_id)
+            (n_existing_records,) = (
+                pdm.session.query(func.count(PCASummary.pcas_int_id))
+                .filter(PCASummary.build_int_id == build_int_id)
+                .one()
+            )
+            self.assertEqual(n_existing_records, 0)
 
-        # check all links loaded
-        loaded_links, = self.session.query(func.count(Neighbour.neighbour_int_id)).one_or_none()
-        self.assertEqual(loaded_links, 25)
-        loaded_samples, = self.session.query(func.count(FN4Sample.fn4s_int_id)).one_or_none()
-        self.assertEqual(loaded_samples, 44)
-        
+            pdm.store_pca_summary()  # tests functioning with no data
 
-        
+            (n_existing_records,) = (
+                pdm.session.query(func.count(PCASummary.pcas_int_id))
+                .filter(PCASummary.build_int_id == build_int_id)
+                .one()
+            )
+            self.assertEqual(n_existing_records, 0)
 
+            # add some test data
+            pdm.store_variation_model(vm)
+            pdm.store_cog_metadata(cogfile="testdata/pca/cog_metadata_vm.csv")
+            build_int_id = pdm.latest_build_int_id()
+
+            pdm.store_pca_summary()  # tests functioning with no data
+
+            (n_existing_records,) = (
+                pdm.session.query(func.count(PCASummary.pcas_int_id))
+                .filter(PCASummary.build_int_id == build_int_id)
+                .one()
+            )
+            self.assertTrue(n_existing_records > 0)
+
+
+# @unittest.skip(reason="not routinely necessary ")
+class Test_create_pc_summary_12(Test_PCA_Database):
+    """tests creation of a pc_summary"""
+
+    def runTest(self):
+
+        # load a variation model for testiong
+        inputfile = "testdata/pca/vm.pickle"
+        with open(inputfile, "rb") as f:
+            vm = pickle.load(f)
+
+        for engine in self.engines.keys():
+
+            print(engine, "#12")
+            pdm = PCADatabaseManager(
+                connection_config=self.engines[engine], debug=True, show_bar=False
+            )
+            build_int_id = pdm.latest_build_int_id()
+            self.assertIsNone(build_int_id)
+            (n_existing_records,) = (
+                pdm.session.query(func.count(PCASummary.pcas_int_id))
+                .filter(PCASummary.build_int_id == build_int_id)
+                .one()
+            )
+            self.assertEqual(n_existing_records, 0)
+
+            pdm.store_pca_summary()  # tests functioning with no data
+
+            (n_existing_records,) = (
+                pdm.session.query(func.count(PCASummary.pcas_int_id))
+                .filter(PCASummary.build_int_id == build_int_id)
+                .one()
+            )
+            self.assertEqual(n_existing_records, 0)
+
+            # add some test data
+            pdm.store_variation_model(vm)
+            pdm.store_cog_metadata(cogfile="testdata/pca/cog_metadata_vm.csv")
+            build_int_id = pdm.latest_build_int_id()
+
+            pdm.store_pca_summary()  # store a summary
+
+            (n_existing_records,) = (
+                pdm.session.query(func.count(PCASummary.pcas_int_id))
+                .filter(PCASummary.build_int_id == build_int_id)
+                .one()
+            )
+            self.assertTrue(n_existing_records > 0)
+
+            # test computation of count data
+            for i, summary_entry in enumerate(pdm.session.query(PCASummary)):
+                res = pdm.count_table(summary_entry)
+                if i > 30:
+                    break
+
+            self.assertIsInstance(res, dict)
+            self.assertEqual(
+                set(res.keys()),
+                set(["earliest_date", "pcas_int_id", "counts", "denominators"]),
+            )

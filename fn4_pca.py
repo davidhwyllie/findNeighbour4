@@ -50,13 +50,15 @@ import datetime
 from pathlib import Path
 import sentry_sdk
 import argparse
+import progressbar
 
 # reference based compression storage and clustering modules
 from findn.mongoStore import fn3persistence
 from findn import DEFAULT_CONFIG_FILE
 from findn.common_utils import ConfigManager
 from pca.pca import VariantMatrix, PCARunner
-from pca.pcadb import PCADatabaseManager, FeatureAssociation
+from pca.pcadb import PCADatabaseManager
+from pca.fittrend import PoissonModel
 
 def main():
     # command line usage.  Pass the location of a config file as a single argument.
@@ -120,6 +122,14 @@ pipenv run python3 pca/fn4_pca.py demos/covid/covid_config_v3.json --outputdir /
         nargs="?",
         help="the number of pcs to extract.  If this is smaller than the numbers of samples trained_on, instability is likely.  Default 200",
         default=200,
+    )
+    parser.add_argument(
+        "--focus_on_most_recent_n_days",
+        type=int,
+        action="store",
+        nargs="?",
+        help="the number of pcs to extract.  If this is smaller than the numbers of samples trained_on, instability is likely.  Default 200",
+        default=120,
     )
     parser.add_argument(
         "--cogfile",
@@ -226,32 +236,56 @@ pipenv run python3 pca/fn4_pca.py demos/covid/covid_config_v3.json --outputdir /
     else:
         logging.warning("fn4_pca is set to add build to existing data")
 
+    logging.info("Exporting to database")
+    pdm = PCADatabaseManager(
+        connection_config=args.connection_config, debug=args.remove_existing_data)
+
+    logger.info("Loading cog-uk metadata")
+    pdm.store_cog_metadata(cogfile=args.cogfile)
+
     # instantiate builder for PCA object
-    rebuild = True
-    logging.info("Rebuild is {0}".format(rebuild))
-    if rebuild:
-        try:
-            var_matrix = VariantMatrix(CONFIG, PERSIST)
-        except Exception:
-            logging.info("Error raised on instantiating Variant Matrix object")
-            raise
+    try:
+        var_matrix = VariantMatrix(CONFIG, PERSIST)
+    except Exception:
+        logging.info("Error raised on instantiating Variant Matrix object")
+        raise
 
-        logging.info("Building snp matrix")
-        var_matrix.build(num_train_on=args.num_train_on)
-        logging.info("Running PCA on snp matrix")
-        pca_runner = PCARunner(var_matrix)
-        pca_runner.run(n_components=args.n_components, pca_parameters={})
-        vm = pca_runner.cluster()
+    logging.info("Building snp matrix")
+    var_matrix.build(num_train_on=args.num_train_on)
+    logging.info("Running PCA on snp matrix")
+    pca_runner = PCARunner(var_matrix)
+    pca_runner.run(n_components=args.n_components, pca_parameters={})
+    vm = pca_runner.cluster()
 
-        logging.info("Exporting to database")
-        pdm = PCADatabaseManager(
-            connection_config=args.connection_config, debug=args.remove_existing_data)
-        logger.info("Loading cog-uk metadata")
-        pdm.store_cog_metadata(cogfile=args.cogfile)
-        logger.info("Storing variation model and PCA")
-        pdm.store_variation_model(vm)
-        pdm.make_contingency_tables(only_pc_cats_less_than_days_old = 120)
-        
+    logging.info("Storing variation model and PCA")
+    pdm.store_variation_model(vm)
+
+    logging.info("Building contingency tables, relating Lineage to pc_cat")
+    pdm.make_contingency_tables(only_pc_cats_less_than_days_old = args.focus_on_most_recent_n_days)
+
+    logging.info("Storing PCA summary")
+    pdm.store_pca_summary()  # store a summary
+
+    pcas_df = pdm.pca_summary(only_pc_cats_less_than_days_old = args.focus_on_most_recent_n_days)
+    pcas_df = pcas_df[pcas_df["n_days_observed"] >= 3]
+
+    logging.info("Fitting poisson models.  There are {0} models to fit".format(len(pcas_df.index)))
+    bar = progressbar.ProgressBar(max_value=len(pcas_df.index))
+    for i, pcas_int_id in enumerate(pcas_df.index):
+        bar.update(i)
+
+        pcas_obj = pdm.single_pcas_summary(pcas_int_id)
+        cntdata = pdm.count_table(pcas_obj)
+
+        # override earliest date as required
+        this_latest_date = datetime.date(2021, 6, 1)
+        nb = PoissonModel(**cntdata, latest_date=this_latest_date)
+        res = nb.fit()
+
+        pdm.store_pcas_model_output(res)
+    bar.finish()
+    logging.info("Build finished")
+
 
 # startup
 if __name__ == "__main__":

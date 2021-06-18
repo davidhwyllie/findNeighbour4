@@ -23,16 +23,12 @@ GNU Affero General Public License for more details.
 import os
 import pathlib
 import logging
-import sqlalchemy
 import logging.handlers
-import datetime
 import pandas as pd
 import sentry_sdk
 import argparse
 import progressbar
-import subprocess
 import json
-from io import StringIO
 
 # config
 from findn.common_utils import ConfigManager
@@ -60,7 +56,7 @@ Test usage
 python findNeighbour4_dumpneighbours.py demos/covid/covid_config_v3.json  /tmp/test/ --debug
 # upload to the database identified by 'unittest_oracle'
 pipenv run python findNeighbour4_dumpneighbours.py demos/covid/covid_config_v3.json  testdata/fn4snp/dumpneighbours --debug --connection_config unittest_oracle
-
+pipenv run python3 findNeighbour4_dumpneighbours.py  demos/covid/covid_config_v3.json /data/dumpneighbours --connection_config prod 
 if a config file is not provided, it will terminate
 
 Checks for new sequences are conducted once per minute.
@@ -75,20 +71,12 @@ Checks for new sequences are conducted once per minute.
         type=str,
         action="store",
         nargs="?",
-        help="the output directory.  Will try to make the directory if it does not exist",
-    )
-    
-    parser.add_argument(
-        "upload_",
-        type=str,
-        action="store",
-        nargs="?",
-        help="the output directory.  Will try to make the directory if it does not exist",
+        help="the output directory.  Will try to make the directory if it does not exist.  Note: large files may be written here.",
     )
 
     parser.add_argument(
         "--connection_config", 
-        type=str, 
+        type=str,
         action="store", 
         nargs="?", 
         help="If supplied, the key in the database credentials found in the json file at PCA_CONNECTION_CONFIG_FILE. OR a database configuration string e.g. sqlite:///mydb.  Will be used to upload the data obtained."
@@ -97,7 +85,7 @@ Checks for new sequences are conducted once per minute.
     args = parser.parse_args()
 
     ############################ LOAD CONFIG ######################################
-    print("findNeighbour4 guidetree .. reading configuration file.")
+    print("findNeighbour4 dumpneighbours .. reading configuration file.")
 
     if len(args.path_to_config_file) > 0:
         config_file = args.path_to_config_file
@@ -126,7 +114,7 @@ Checks for new sequences are conducted once per minute.
 
     # configure logging object
     logger.setLevel(loglevel)
-    logfile = os.path.join(logdir, "guidetree_{0}".format(os.path.basename(CONFIG["LOGFILE"])))
+    logfile = os.path.join(logdir, "dumpneighbours_{0}".format(os.path.basename(CONFIG["LOGFILE"])))
     print("Logging to {0} with rotation".format(logfile))
     file_handler = logging.handlers.RotatingFileHandler(logfile, mode="a", maxBytes=1e7, backupCount=7)
     formatter = logging.Formatter("%(asctime)s | %(pathname)s:%(lineno)d | %(funcName)s | %(levelname)s | %(message)s ")
@@ -172,7 +160,7 @@ Checks for new sequences are conducted once per minute.
         export_batch_size = 4
         if len(all_samples)> max_samples:
             select_keys = all_samples[0:max_samples]
-            new_subset =  { x: sample_annotations[x] for x in  select_keys}
+            new_subset = {x: sample_annotations[x] for x in select_keys}
             sample_annotations = new_subset
             all_samples = list(sample_annotations.keys())
             logging.warning("Running in debug mode.  Only {0} samples will be considered".format(max_samples))
@@ -184,8 +172,8 @@ Checks for new sequences are conducted once per minute.
     sample_annotation_df = pd.DataFrame.from_dict(sample_annotations, orient='index')
     sample_annotation_df['invalid'] = sample_annotation_df['DNAQuality:invalid']
     sample_annotation_df = sample_annotation_df['invalid']
-    with open(outputfile,'wt') as f:
-        json.dump(sample_annotation_df.to_dict(),f)
+    with open(outputfile, 'wt') as f:
+        json.dump(sample_annotation_df.to_dict(), f)
 
     all_samples = set(all_samples)
     bar = progressbar.ProgressBar(max_value=len(all_samples))
@@ -193,6 +181,7 @@ Checks for new sequences are conducted once per minute.
     # iterate over all samples
     export_batch = 0
     to_export = []
+    n_links_to_export = 0
     for i, this_sample in enumerate(all_samples):
         test_sample_neighbour_info = PERSIST.guid2neighbours(this_sample, 1e6, returned_format=1)  
 
@@ -202,21 +191,22 @@ Checks for new sequences are conducted once per minute.
         for item in test_sample_neighbour_info["neighbours"]:
             if item[0] in all_samples:
                 to_export.append([this_sample, item[0], item[1]])
+                n_links_to_export += 1
         if i % 500 == 0:
             bar.update(i)
 
-        if i % export_batch_size== 0:           # export a batch of records
+        if n_links_to_export % export_batch_size== 0:           # export a batch of records
             export_batch +=1
             outputfile = os.path.join(outputdir, 'neighbours_{0}.json'.format(export_batch))
-            with open(outputfile,'wt') as f:
-                json.dump(to_export,f)
+            with open(outputfile, 'wt') as f:
+                json.dump(to_export, f)
             to_export = []
-
+            n_links_to_export = 0
     bar.finish() 
 
     outputfile = os.path.join(outputdir, 'neighbours_final.json')
-    with open(outputfile,'wt') as f:
-        json.dump(to_export,f) 
+    with open(outputfile, 'wt') as f:
+        json.dump(to_export, f) 
     logging.info("Dump finished.  Output is at {0}".format(outputdir))
 
     #--------------------------------------------------------------------------------------------------------------------------------
@@ -225,9 +215,6 @@ Checks for new sequences are conducted once per minute.
         logging.info("Connection config {0} provided to upload data".format(args.connection_config))
         pdm = PCADatabaseManager(connection_config=args.connection_config, debug=args.debug)      # if not in debug mode, won't add data if exists
         pdm.fn4_bulk_upload(outputdir)
-            
-
     else:
         logging.info("No connection_config specified; not uploading to database.")
 logging.info("Complete")
-
