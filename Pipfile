@@ -43,10 +43,7 @@ coverage = "*"
 cx-Oracle = "*"
 black = "*"
 statsmodels = "*"
+patsy = "*"
 
 [requires]
 python_version = "3.8"
-
-[packages.001a617]
-path = "/data/software/fn4dev"
-editable = true
