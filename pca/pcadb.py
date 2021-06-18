@@ -906,7 +906,7 @@ class PCADatabaseManager:
             )
 
         if self.is_oracle:
-
+            # ************* commit via cx_Oracle bulk upload syntax ****************
             # parse the engine_name into dsn, database & password
             e1 = self.engine_name.replace("oracle+cx_oracle://", "")
             up, dsn = e1.split("@")
@@ -928,11 +928,6 @@ class PCADatabaseManager:
                         max_batch
                     )
                 )
-
-            ## disabled: does not work.  The heuristic for estimating max batch doesn't work properly - DPI-1015 errors occur
-            # else:
-            #    print("Larger max_batch may be possible while keeping buffer size required < 2G.  max_batch set to {0}".format(estimated_max_batch))
-            #    max_batch = estimated_max_batch
 
             # construct sql statment.
             # Should be injection-safe; we have checked the target_table is a table, and are incorporating integers only.
@@ -956,11 +951,12 @@ class PCADatabaseManager:
                     cursor.executemany(sql_statement, loadvar[0:max_batch])
                     loadvar = loadvar[max_batch:]
 
-                conn.commit()
+                    conn.commit()
             if self.show_bar:
                 bar.finish()
         else:
 
+            # *****************************  ALL DATABASES OTHER THAN ORACLE ************************
             # note: there may be limits to the complexity of the statement permitted: a maximum number of parameters.
             # therefore, we do this in batches as well.
             start_n = len(upload_df.index)
@@ -980,7 +976,7 @@ class PCADatabaseManager:
                     if_exists="append",
                     index=False,
                     method="multi",
-                )
+                )       # pandas method
                 upload_df = upload_df.iloc[max_batch:]
                 if self.show_bar:
                     bar.update(start_n - len(upload_df.index))

@@ -27,11 +27,13 @@ class Test_PCA_Database(unittest.TestCase):
 
     def setUp(self):
         self.engines = {}  
+        self.engines["Sqlite"] = "sqlite://"  # in memory sqlite
+
         conn_detail_file = None
 
         # try to read the environment variable 'PCA_CONNECTION_CONFIG_FILE'
         try:
-            conn_detail_file = os.environ["PCA_CONNECTION_CONFIG_FILE"]
+            conn_detail_file = os.environ["PCA_CONNECTION_CONFIG_FILEXX"]
         except KeyError:
             # doesn't exist; we just run with sqlite, which is the default if engine is None.
             print(
@@ -51,12 +53,10 @@ class Test_PCA_Database(unittest.TestCase):
             conn_detail = json.load(f)
             for key in conn_detail.keys():
                 if key.startswith("unittest_ora"):
-                    #self.engines[key] = key
+                    self.engines[key] = key
                     pass
 
-        self.engines["Sqlite"] = "sqlite://"  # in memory sqlite
-
-
+        
 # @unittest.skip(reason="too slow")
 class Test_create_database_1(Test_PCA_Database):
     """tests creating the database and internal functions dropping tables"""
