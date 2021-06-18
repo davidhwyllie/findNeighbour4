@@ -323,7 +323,6 @@ class Test_count_per_day_7(Test_PCA_Database):
                 pdm.make_contingency_tables()
 
 
-
 #@unittest.skip(reason="not r necessary ")
 class Test_create_sample_set_9(Test_PCA_Database):
     """tests creation of sample sets"""

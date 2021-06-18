@@ -24,7 +24,6 @@ import logging
 import numpy as np
 import datetime
 import time
-import glob
 import progressbar
 from sqlalchemy import (
     Integer,
@@ -82,7 +81,7 @@ class Build(db_pc):
     builder = Column(String(48), comment = "A description of the process building")
     build_time = Column(DateTime, index=True, comment= 'When the build started')
     model_load_start = Column(DateTime, nullable=True, comment = 'When data loading started')
-    model_load_complete = Column(DateTime, nullable=True,  comment = 'When data loading finished')
+    model_load_complete = Column(DateTime, nullable=True, comment = 'When data loading finished')
     model_loaded = Column(Boolean, comment = 'Whether all the data was successfully loaded')
     build_annotations = relationship("BuildAnnotation", backref="Build")
     contributing_basepos = relationship("ContributingBasePos", backref="Build")
@@ -327,7 +326,7 @@ class ContributingPos(db_pc):
     __tablename__ = "contributing_pos"
     cp_int_id = Column(Integer, Identity(start=1), primary_key=True)
     build_int_id = Column(Integer, ForeignKey(Build.build_int_id), index=True, comment = 'refers to the build table')
-    pos = Column(Integer,  comment = 'the position contributing to the model, e.g. 12345')
+    pos = Column(Integer, comment = 'the position contributing to the model, e.g. 12345')
 
 
 class EigenVector(db_pc):
@@ -1621,8 +1620,7 @@ class PCADatabaseManager:
                 .group_by(
                     TransformedCoordinateCategory.pc,
                     TransformedCoordinateCategory.pc_cat,
-                    ClinicalMetadata.country
-                   
+                    ClinicalMetadata.country                
                 )
                 .statement
             )
@@ -1634,9 +1632,6 @@ class PCADatabaseManager:
             pcas0["build_int_id"] = latest_build_int_id
 
             self._bulk_load(pcas0, "pca_summary")
-
-            logging.info("Running PCA Summary query #2")
-
 
             logging.info("Running PCA Summary query #1")
             pca_sql2 = (
