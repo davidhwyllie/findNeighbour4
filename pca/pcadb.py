@@ -837,7 +837,7 @@ class PCADatabaseManager:
             self.engine_name = connection_config
         else:
             # PCA_CONNECTION_CONFIG_FILE should contain credentials
-
+            conn_detail_file = None
             try:
                 conn_detail_file = os.environ["PCA_CONNECTION_CONFIG_FILE"]
             except KeyError:
@@ -845,6 +845,12 @@ class PCADatabaseManager:
                     "Environment variable PCA_CONNECTION_CONFIG_FILE does not exist; however, it is required.  If you are using a python virtual environment, you need to set it in .env, not globally"
                 )
 
+            if conn_detail_file is None:
+                # we failed to set it 
+                raise PCADBManagerError(
+                    "Tried to set conn_detail_file from environment variable PCA_CONNECTION_CONFIG_FILE, but it is still None."
+                )
+                
             if not os.path.exists(conn_detail_file):
                 raise FileNotFoundError(
                     "Connection file specified but not found: {0}".format(
