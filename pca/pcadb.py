@@ -25,6 +25,7 @@ import numpy as np
 import datetime
 import time
 import progressbar
+import hashlib
 from sqlalchemy import (
     Integer,
     Boolean,
@@ -59,6 +60,7 @@ class PCADBManagerError(Exception):
     "a general purpose error used by the pcadb module."
     pass
 
+
 class BulkLoadTest(db_pc):
     """used for testing bulk uploads as part of unit testing"""
 
@@ -78,11 +80,17 @@ class Build(db_pc):
         primary_key=True,
         comment="primary key to build table",
     )
-    builder = Column(String(48), comment = "A description of the process building")
-    build_time = Column(DateTime, index=True, comment= 'When the build started')
-    model_load_start = Column(DateTime, nullable=True, comment = 'When data loading started')
-    model_load_complete = Column(DateTime, nullable=True, comment = 'When data loading finished')
-    model_loaded = Column(Boolean, comment = 'Whether all the data was successfully loaded')
+    builder = Column(String(48), comment="A description of the process building")
+    build_time = Column(DateTime, index=True, comment="When the build started")
+    model_load_start = Column(
+        DateTime, nullable=True, comment="When data loading started"
+    )
+    model_load_complete = Column(
+        DateTime, nullable=True, comment="When data loading finished"
+    )
+    model_loaded = Column(
+        Boolean, comment="Whether all the data was successfully loaded"
+    )
     build_annotations = relationship("BuildAnnotation", backref="Build")
     contributing_basepos = relationship("ContributingBasePos", backref="Build")
     contributing_pos = relationship("ContributingPos", backref="Build")
@@ -90,22 +98,18 @@ class Build(db_pc):
     explained_variance_ratio = relationship("ExplainedVarianceRatio", backref="Build")
     sample = relationship("Sample", backref="Build")
     featassoc = relationship("FeatureAssociation", backref="build")
-    pcas = relationship("PCASummary", backref="build")
+    populationstudiedl = relationship("PopulationStudied", backref="build")
 
 
-class PCASummary(db_pc):
-    """a summary of the characteristics of each pc_cat
+class PopulationStudied(db_pc):
+    """the populations studied in statistical modelling"""
 
-    Unlike the TransformedCoordinateCategory table, this table is relatively small and can readily be kept across multiple builds
-    The PCASummary takes several minutes to build, (because it can be retained) it is cached
-    """
-
-    __tablename__ = "pca_summary"
-    pcas_int_id = Column(
+    __tablename__ = "population_studied"
+    pop_int_id = Column(
         Integer,
         Identity(start=1),
         primary_key=True,
-        comment="primary key to pca_summary table",
+        comment="primary key to population_studied table",
     )
     build_int_id = Column(
         Integer,
@@ -125,6 +129,88 @@ class PCASummary(db_pc):
     level_2_category = Column(
         String(24), comment="second level of categorisation, eg. London"
     )
+    combination_id = Column(
+        String(32), index=True, comment="hash of the other 4 non-PK variables"
+    )
+    extra_info = relationship("PopulationStudiedExtraInfo", backref="PopulationStudied")
+
+
+Index(
+    "ix_PopulationStudied_0",
+    PopulationStudied.build_int_id,
+    PopulationStudied.level_1_category_type,
+    PopulationStudied.level_1_category,
+    PopulationStudied.level_2_category_type,
+    PopulationStudied.level_2_category,
+)
+Index(
+    "ix_PopulationStudied_1",
+    PopulationStudied.build_int_id,
+    PopulationStudied.level_1_category_type,
+)
+Index(
+    "ix_PopulationStudied_2",
+    PopulationStudied.build_int_id,
+    PopulationStudied.level_2_category_type,
+)
+
+
+class PopulationStudiedExtraInfo(db_pc):
+    """contains large binary character objects - such as trees - describing rows in the PopulationStudied table"""
+
+    __tablename__ = "population_studied_extra"
+    pope_int_id = Column(
+        Integer,
+        Identity(start=1),
+        primary_key=True,
+        comment="primary key to pca_summary_extra table",
+    )
+    pop_int_id = Column(
+        Integer,
+        ForeignKey(PopulationStudied.pop_int_id),
+        index=True,
+        comment="primary key to population_studied table",
+    )
+    info_tag = Column(
+        String(12),
+        comment="what kind of data this is, e.g. iqtree.  Used internally only",
+    )
+    info_description = Column(
+        String(255), comment="A human readable description of what this is"
+    )
+    mime_type = Column(
+        String(12),
+        comment="Mime type for the data, e.g. text/csv, image/svg+xml, image/tiff",
+    )
+    info_class = Column(
+        String(12), comment="What class this is, e.g newick, snplist etc"
+    )
+    info = Column(
+        Text, comment="A large character binary data containing the information"
+    )
+
+
+class PCASummary(db_pc):
+    """a summary of the characteristics of each pc_cat, in each PopulationStudied
+
+    Unlike the TransformedCoordinateCategory table, this table is relatively small and can readily be kept across multiple builds
+    The PCASummary takes several minutes to build, and due to this (and the fact it can be stored persistently) it is retained
+    """
+
+    __tablename__ = "pca_summary"
+    pcas_int_id = Column(
+        Integer,
+        Identity(start=1),
+        primary_key=True,
+        comment="primary key to pca_summary table",
+    )
+    pop_int_id = Column(
+        Integer,
+        ForeignKey(PopulationStudied.pop_int_id),
+        index=True,
+        comment="primary key to build table",
+    )
+
     pc = Column(Integer, index=True, comment="The principal component analysed")
     pc_cat = Column(String(8), comment="The principal component category")
     earliest_date = Column(
@@ -179,9 +265,9 @@ class PCASummaryExtraInfo(db_pc):
     info_description = Column(
         String(255), comment="A human readable description of what this is"
     )
-    info_format = Column(
+    mime_type = Column(
         String(12),
-        comment="What format the data is in, e.g. json, svg, xml, csv, txt.  Should map to a generic handler for the data",
+        comment="Mime type for the data, e.g. text/csv, image/svg+xml, image/tiff",
     )
     info_class = Column(
         String(12), comment="What class this is, e.g newick, snplist etc"
@@ -234,23 +320,42 @@ class StatisticalModelFit(db_pc):
     """statistical models fitted"""
 
     __tablename__ = "statistical_model_fit"
-    smf_int_id = Column(Integer, Identity(start=1), primary_key=True, comment = "integer primary key")
-    statmodel_int_id = Column(
-        Integer, ForeignKey(StatisticalModel.statmodel_int_id), index=True, comment = "refers to statistical_model primary key"
+    smf_int_id = Column(
+        Integer, Identity(start=1), primary_key=True, comment="integer primary key"
     )
-    param = Column(String(16), comment = "parameter meausured")
-    estimate = Column(Float, comment = "quantity estimates")
-    std_err = Column(Float, comment = "standard error of estimate")
-    estimate_ci_low = Column(Float, comment = "lower 95% CI of estimate")
-    estimate_ci_high = Column(Float, comment = "upper 95% CI of estimate")
-    p_value = Column(Float, index=True, comment = "tests H0: estimate = 0.  values < 1e-30 stored as zero.")
-    adj_p_value = Column(Float, index=True, nullable=True, comment = "adjusted p_value.  Method varies.  May be blank")
-    z = Column(Float, nullable=True, comment = "z-score")
-    param_desc = Column(String(255), comment = "Readable description of parameter")
-    is_reference = Column(Boolean, comment = "whether the parameter is a reference category")
-    comments = Column(Text, comment = "general readable information about the analysis")
-    has_ci = Column(Boolean, comment = "whether the estimate has a confidence interval")
-    estimate2naturalspace = Column(String(8), comment = "How the estimate needs to be converted to produce human readable outputs")
+    statmodel_int_id = Column(
+        Integer,
+        ForeignKey(StatisticalModel.statmodel_int_id),
+        index=True,
+        comment="refers to statistical_model primary key",
+    )
+    param = Column(String(16), comment="parameter meausured")
+    estimate = Column(Float, comment="quantity estimates")
+    std_err = Column(Float, comment="standard error of estimate")
+    estimate_ci_low = Column(Float, comment="lower 95% CI of estimate")
+    estimate_ci_high = Column(Float, comment="upper 95% CI of estimate")
+    p_value = Column(
+        Float,
+        index=True,
+        comment="tests H0: estimate = 0.  values < 1e-30 stored as zero.",
+    )
+    adj_p_value = Column(
+        Float,
+        index=True,
+        nullable=True,
+        comment="adjusted p_value.  Method varies.  May be blank",
+    )
+    z = Column(Float, nullable=True, comment="z-score")
+    param_desc = Column(String(255), comment="Readable description of parameter")
+    is_reference = Column(
+        Boolean, comment="whether the parameter is a reference category"
+    )
+    comments = Column(Text, comment="general readable information about the analysis")
+    has_ci = Column(Boolean, comment="whether the estimate has a confidence interval")
+    estimate2naturalspace = Column(
+        String(8),
+        comment="How the estimate needs to be converted to produce human readable outputs",
+    )
 
 
 class ModelledData(db_pc):
@@ -302,10 +407,17 @@ class BuildAnnotation(db_pc):
     """
 
     __tablename__ = "build_metadata"
-    bm_int_id = Column(Integer, Identity(start=1), primary_key=True, comment = 'primary key')
-    build_int_id = Column(Integer, ForeignKey(Build.build_int_id), index=True, comment = 'refers to primary key of build')
-    variable = Column(String(36), comment = 'property of build, e.g. num_train_on')
-    value = Column("value", String(1024), comment = 'value of the property, e.g. 298669n')
+    bm_int_id = Column(
+        Integer, Identity(start=1), primary_key=True, comment="primary key"
+    )
+    build_int_id = Column(
+        Integer,
+        ForeignKey(Build.build_int_id),
+        index=True,
+        comment="refers to primary key of build",
+    )
+    variable = Column(String(36), comment="property of build, e.g. num_train_on")
+    value = Column("value", String(1024), comment="value of the property, e.g. 298669n")
     native_type = Column(
         "native_type", String(16), comment="the type of the value, e.g. int"
     )
@@ -316,8 +428,16 @@ class ContributingBasePos(db_pc):
 
     __tablename__ = "contributing_basepos"
     cbp_int_id = Column(Integer, Identity(start=1), primary_key=True)
-    build_int_id = Column(Integer, ForeignKey(Build.build_int_id), index=True, comment = 'refers to build_id primary key')
-    basepos = Column(String(12), comment = 'the base and position (e.g. 12345:G) contributing to the model')
+    build_int_id = Column(
+        Integer,
+        ForeignKey(Build.build_int_id),
+        index=True,
+        comment="refers to build_id primary key",
+    )
+    basepos = Column(
+        String(12),
+        comment="the base and position (e.g. 12345:G) contributing to the model",
+    )
 
 
 class ContributingPos(db_pc):
@@ -325,8 +445,13 @@ class ContributingPos(db_pc):
 
     __tablename__ = "contributing_pos"
     cp_int_id = Column(Integer, Identity(start=1), primary_key=True)
-    build_int_id = Column(Integer, ForeignKey(Build.build_int_id), index=True, comment = 'refers to the build table')
-    pos = Column(Integer, comment = 'the position contributing to the model, e.g. 12345')
+    build_int_id = Column(
+        Integer,
+        ForeignKey(Build.build_int_id),
+        index=True,
+        comment="refers to the build table",
+    )
+    pos = Column(Integer, comment="the position contributing to the model, e.g. 12345")
 
 
 class EigenVector(db_pc):
@@ -335,9 +460,9 @@ class EigenVector(db_pc):
     __tablename__ = "eigenvector"
     ev_int_id = Column(Integer, Identity(start=1), primary_key=True)
     build_int_id = Column(Integer, ForeignKey(Build.build_int_id), index=True)
-    pc = Column(Integer, comment = 'the principal component')
-    pos = Column(Integer, comment = 'the genome position')
-    allele = Column(String(8), comment = 'the allele associated')
+    pc = Column(Integer, comment="the principal component")
+    pos = Column(Integer, comment="the genome position")
+    allele = Column(String(8), comment="the allele associated")
     col = Column(String(8))
     weight = Column(Float)
     outside_3mad = Column(Boolean)
@@ -499,7 +624,7 @@ Index("ix_sequence_ids", SequenceFeature.variable, SequenceFeature.value)
 class FeatureAssociation(db_pc):
     """associations between pc_cats and sequencefeatures
 
-    contains a 2x2 contingency table, 
+    contains a 2x2 contingency table,
 
             Feature    Present       Absent
         PC-CAT Y      a            b          a+b
@@ -834,6 +959,8 @@ class PCADatabaseManager:
         SampleSet.__table__.drop(self.engine)
         PCASummaryExtraInfo.__table__.drop(self.engine)
         PCASummary.__table__.drop(self.engine)
+        PopulationStudiedExtraInfo.__table__.drop(self.engine)
+        PopulationStudied.__table__.drop(self.engine)
         Build.__table__.drop(self.engine)
 
         remaining = len(self._table_names())
@@ -896,6 +1023,8 @@ class PCADatabaseManager:
                     target_table, upload_df
                 )
             )
+
+        logging.info("Bulk upload to {0} started".format(target_table))
 
         if self.is_sqlite:
             # there is a max variable limit of 32,766 for Sqlite 3.32.0 on https://www.sqlite.org/limits.html
@@ -976,12 +1105,12 @@ class PCADatabaseManager:
                     if_exists="append",
                     index=False,
                     method="multi",
-                )       # pandas method
+                )  # pandas method
                 upload_df = upload_df.iloc[max_batch:]
                 if self.show_bar:
                     bar.update(start_n - len(upload_df.index))
 
-        logging.info("Bulk upload complete")
+        logging.info("Bulk upload to {0} complete".format(target_table))
         if self.show_bar:
             bar.finish()
         return len(upload_df.index)
@@ -1564,6 +1693,59 @@ class PCADatabaseManager:
         ).delete()
         self.session.query(SampleSet).filter(SampleSet.ss_int_id == ss_int_id).delete()
 
+    def _store_population_and_pcas(self, pops_to_add):
+        """normalises data which should be split across the PopulationStudied and PCASummary tables.  helper function for store_pca_summary()
+
+        pops_to_add: a dataframe containing data which should go into the PopulationStudied table (see 'essential_cols', below) and other
+        data which goes into the PCASummary table
+        """
+        essential_cols = [
+            "build_int_id",
+            "level_1_category_type",
+            "level_1_category",
+            "level_2_category_type",
+            "level_2_category",
+        ]
+        population_cols = [
+            "build_int_id",
+            "level_1_category_type",
+            "level_1_category",
+            "level_2_category_type",
+            "level_2_category",
+            "combination_id",
+        ]
+        combination_ids = []
+        for ix in pops_to_add.index:
+            to_hash = ""
+            for essential_col in essential_cols:
+                to_hash = (
+                    to_hash
+                    + "|"
+                    + essential_col
+                    + ":"
+                    + str(pops_to_add.at[ix, essential_col])
+                )
+            combination_ids.append(hashlib.md5(to_hash.encode("utf-8")).hexdigest())
+        pops_to_add["combination_id"] = combination_ids
+        populations = pops_to_add[population_cols]
+        populations = populations.drop_duplicates()
+        population_combination_ids = populations["combination_id"].to_list()
+        self._bulk_load(populations, "population_studied")
+
+        # query back to recover the population_int_id
+        population_sql = (
+            self.session.query(
+                PopulationStudied.pop_int_id, PopulationStudied.combination_id
+            )
+            .filter(PopulationStudied.combination_id.in_(population_combination_ids))
+            .statement
+        )
+        population_df = pd.read_sql(population_sql, self.engine)
+
+        pops_to_add = pops_to_add.merge(population_df, how="inner", on="combination_id")
+        pops_to_add = pops_to_add.drop(columns=population_cols)
+        self._bulk_load(pops_to_add, "pca_summary")
+
     def store_pca_summary(self):
         """computes and stores a summary of the PCA output for the latest build
 
@@ -1579,7 +1761,10 @@ class PCADatabaseManager:
 
         (n_existing_records,) = (
             self.session.query(func.count(PCASummary.pcas_int_id))
-            .filter(PCASummary.build_int_id == latest_build_int_id)
+            .join(
+                PopulationStudied, PopulationStudied.pop_int_id == PCASummary.pop_int_id
+            )
+            .filter(PopulationStudied.build_int_id == latest_build_int_id)
             .one()
         )
         if n_existing_records > 0:
@@ -1606,7 +1791,7 @@ class PCADatabaseManager:
                         TransformedCoordinateCategory.transformed_coordinate
                     ).label("trans_coord_avg"),
                     ClinicalMetadata.country.label("level_1_category"),
-                    func.count(Sample.sample_int_id).label("n")
+                    func.count(Sample.sample_int_id).label("n"),
                 )
                 .join(Sample, Sample.sample_id == ClinicalMetadata.sample_id)
                 .join(
@@ -1616,7 +1801,7 @@ class PCADatabaseManager:
                 .group_by(
                     TransformedCoordinateCategory.pc,
                     TransformedCoordinateCategory.pc_cat,
-                    ClinicalMetadata.country                
+                    ClinicalMetadata.country,
                 )
                 .statement
             )
@@ -1627,7 +1812,7 @@ class PCADatabaseManager:
             pcas0["level_2_category"] = "--Any--"
             pcas0["build_int_id"] = latest_build_int_id
 
-            self._bulk_load(pcas0, "pca_summary")
+            self._store_population_and_pcas(pcas0)
 
             logging.info("Running PCA Summary query #1")
             pca_sql2 = (
@@ -1676,7 +1861,7 @@ class PCADatabaseManager:
             pcas2["level_2_category_type"] = "lineage"
             pcas2["build_int_id"] = latest_build_int_id
 
-            self._bulk_load(pcas2, "pca_summary")
+            self._store_population_and_pcas(pcas2)
 
             logging.info("Running PCA Summary query #2")
 
@@ -1721,10 +1906,11 @@ class PCADatabaseManager:
             pcas1["level_2_category_type"] = "region"
             pcas1["build_int_id"] = latest_build_int_id
 
-            self._bulk_load(pcas1, "pca_summary")
+            self._store_population_and_pcas(pcas1)
+
         logging.info("PCA Summary completed")
 
-    def pca_summary(self, build_int_id=None, only_pc_cats_less_than_days_old = None):
+    def pca_summary(self, build_int_id=None, only_pc_cats_less_than_days_old=None):
         """returns the PCASummary data for a build_int_id as a pandas dataframe
 
         Parameters:
@@ -1737,7 +1923,7 @@ class PCADatabaseManager:
         None
 
         """
-        logging.info("Making contingency tables")
+        logging.info("Making PCA summary")
 
         # for the latest build
         if build_int_id is not None:
@@ -1746,8 +1932,11 @@ class PCADatabaseManager:
             lbii = self.latest_build_int_id()
 
         pcas_sql = (
-            self.session.query(PCASummary)
-            .filter(PCASummary.build_int_id == lbii)
+            self.session.query(PCASummary, PopulationStudied)
+            .join(
+                PopulationStudied, PCASummary.pop_int_id == PopulationStudied.pop_int_id
+            )
+            .filter(PopulationStudied.build_int_id == lbii)
             .statement
         )
         res = pd.read_sql(pcas_sql, self.engine)
@@ -1785,15 +1974,137 @@ class PCADatabaseManager:
             )
         return pcas_obj
 
-    def count_table(self, pcas_obj):
-        """makes count data tables for a row in PCASummary
+    def single_population_studied(self, pcas_int_id):
+        """get a single PCASummary's associated PopulationStudied object.  PCASummary is identified by a pcas_int_id
 
-        All cases, and stratification by lineage and nation are produced
+        Parameters:
+        pcas_int_id: an integer, the primary key to the PCASummary table
+
+        Returns:
+        a PopulationStudied object containing the population studide by the PCASummary row identified by pcas_int_id"""
+        pcas_obj = self.single_pcas_summary(pcas_int_id)
+
+        pop_obj = (
+            self.session.query(PopulationStudied)
+            .filter(PopulationStudied.pop_int_id == pcas_obj.pop_int_id)
+            .one_or_none()
+        )
+
+        if pop_obj is None:
+            raise ValueError(
+                "Asked to recover PopulationStudied with pop_int_id = {0} but it does not exist".format(
+                    pcas_obj.pop_int_id
+                )
+            )
+        return pop_obj
+
+    def pcas_members(self, pcas_obj):
+        """lists samples referred to in a PCASummary row
 
         Parameters:
         -----------
         pcas_obj: either : a PCASummary object representing a single PCASummary (a subset of samples selected by nation, and or region/lineage, and pc_cat)
                   or:      a pcas_int_id
+
+        Returns:
+        --------
+        a list of Sample.sample_int_id corresponding to the samples referred to
+
+        Raises:
+        ------
+        ValueError if a pcas_int_id is specified & it does not exist
+        """
+
+        # check we have been passed the right kind of object
+        if isinstance(pcas_obj, int):
+            this_pcas_int_id = pcas_obj
+            pcas_obj = self.single_pcas_summary(this_pcas_int_id)
+
+        if not isinstance(pcas_obj, PCASummary):
+            raise TypeError(
+                "Need to pass a PCASummary object, not a {0}".format(type(pcas_obj))
+            )
+        this_pcas_int_id = pcas_obj.pcas_int_id
+        pop_obj = self.single_population_studied(this_pcas_int_id)
+
+        # select the relevant count data
+        if pop_obj.level_2_category_type == "region":
+            pca_sql = (
+                self.session.query(Sample.sample_int_id)
+                .join(ClinicalMetadata, Sample.sample_id == ClinicalMetadata.sample_id)
+                .join(
+                    TransformedCoordinateCategory,
+                    Sample.sample_int_id == TransformedCoordinateCategory.sample_int_id,
+                )
+                .filter(TransformedCoordinateCategory.pc_cat == pcas_obj.pc_cat)
+                .filter(ClinicalMetadata.adm1 == pop_obj.level_2_category)
+                .filter(ClinicalMetadata.country == pop_obj.level_1_category)
+                .filter(Sample.build_int_id == pop_obj.build_int_id)
+                .statement
+            )
+
+        elif pop_obj.level_2_category_type == "lineage":
+            if pop_obj.level_2_category == "--Any--":
+                pca_sql = (
+                    self.session.query(Sample.sample_int_id)
+                    .join(
+                        ClinicalMetadata, Sample.sample_id == ClinicalMetadata.sample_id
+                    )
+                    .join(
+                        TransformedCoordinateCategory,
+                        Sample.sample_int_id
+                        == TransformedCoordinateCategory.sample_int_id,
+                    )
+                    .join(
+                        SequenceFeature,
+                        SequenceFeature.cm_int_id == ClinicalMetadata.cm_int_id,
+                    )
+                    .filter(TransformedCoordinateCategory.pc_cat == pcas_obj.pc_cat)
+                    .filter(ClinicalMetadata.country == pop_obj.level_1_category)
+                    .filter(Sample.build_int_id == pop_obj.build_int_id)
+                    .statement
+                )
+            else:
+                pca_sql = (
+                    self.session.query(Sample.sample_int_id)
+                    .join(
+                        ClinicalMetadata, Sample.sample_id == ClinicalMetadata.sample_id
+                    )
+                    .join(
+                        TransformedCoordinateCategory,
+                        Sample.sample_int_id
+                        == TransformedCoordinateCategory.sample_int_id,
+                    )
+                    .join(
+                        SequenceFeature,
+                        SequenceFeature.cm_int_id == ClinicalMetadata.cm_int_id,
+                    )
+                    .filter(TransformedCoordinateCategory.pc_cat == pcas_obj.pc_cat)
+                    .filter(SequenceFeature.variable == "lineage")
+                    .filter(SequenceFeature.value == pop_obj.level_2_category)
+                    .filter(ClinicalMetadata.country == pop_obj.level_1_category)
+                    .filter(Sample.build_int_id == pop_obj.build_int_id)
+                    .statement
+                )
+
+        else:
+            raise ValueError(
+                "Asked to produce count data for {0} but only understand how to do this by region or lineage".format(
+                    pop_obj.level_2_category_type
+                )
+            )
+
+        samples = pd.read_sql(pca_sql, self.engine)
+        return samples
+
+    def pcas_count_table(self, pcas_obj):
+        """makes count data tables for a row in PCASummary
+
+        Parameters:
+        -----------
+        pcas_obj: either : a PCASummary object representing a single PCASummary (a subset of samples selected by nation, and or region/lineage, and pc_cat)
+                  or:      a pcas_int_id
+
         Returns:
         --------
         A dictionary
@@ -1811,13 +2122,16 @@ class PCADatabaseManager:
         if isinstance(pcas_obj, int):
             this_pcas_int_id = pcas_obj
             pcas_obj = self.single_pcas_summary(this_pcas_int_id)
+
         if not isinstance(pcas_obj, PCASummary):
             raise TypeError(
                 "Need to pass a PCASummary object, not a {0}".format(type(pcas_obj))
             )
+        this_pcas_int_id = pcas_obj.pcas_int_id
+        pop_obj = self.single_population_studied(this_pcas_int_id)
 
         # select the relevant count data
-        if pcas_obj.level_2_category_type == "region":
+        if pop_obj.level_2_category_type == "region":
             pca_sql = (
                 self.session.query(
                     ClinicalMetadata.sample_date,
@@ -1829,50 +2143,78 @@ class PCADatabaseManager:
                     Sample.sample_int_id == TransformedCoordinateCategory.sample_int_id,
                 )
                 .filter(TransformedCoordinateCategory.pc_cat == pcas_obj.pc_cat)
-                .filter(ClinicalMetadata.adm1 == pcas_obj.level_2_category)
-                .filter(ClinicalMetadata.country == pcas_obj.level_1_category)
-                .filter(Sample.build_int_id == pcas_obj.build_int_id)
+                .filter(ClinicalMetadata.adm1 == pop_obj.level_2_category)
+                .filter(ClinicalMetadata.country == pop_obj.level_1_category)
+                .filter(Sample.build_int_id == pop_obj.build_int_id)
                 .group_by(ClinicalMetadata.sample_date)
                 .statement
             )
 
-        elif pcas_obj.level_2_category_type == "lineage":
-            pca_sql = (
-                self.session.query(
-                    ClinicalMetadata.sample_date,
-                    func.count(Sample.sample_int_id).label("n"),
+        elif pop_obj.level_2_category_type == "lineage":
+            if pop_obj.level_2_category == "--Any--":
+                pca_sql = (
+                    self.session.query(
+                        ClinicalMetadata.sample_date,
+                        func.count(Sample.sample_int_id).label("n"),
+                    )
+                    .join(Sample, Sample.sample_id == ClinicalMetadata.sample_id)
+                    .join(
+                        TransformedCoordinateCategory,
+                        Sample.sample_int_id
+                        == TransformedCoordinateCategory.sample_int_id,
+                    )
+                    .join(
+                        SequenceFeature,
+                        SequenceFeature.cm_int_id == ClinicalMetadata.cm_int_id,
+                    )
+                    .filter(TransformedCoordinateCategory.pc_cat == pcas_obj.pc_cat)
+                    .filter(ClinicalMetadata.country == pop_obj.level_1_category)
+                    .filter(Sample.build_int_id == pop_obj.build_int_id)
+                    .group_by(
+                        ClinicalMetadata.country,
+                        SequenceFeature.value,
+                        ClinicalMetadata.sample_date,
+                    )
+                    .statement
                 )
-                .join(Sample, Sample.sample_id == ClinicalMetadata.sample_id)
-                .join(
-                    TransformedCoordinateCategory,
-                    Sample.sample_int_id == TransformedCoordinateCategory.sample_int_id,
+            else:
+                pca_sql = (
+                    self.session.query(
+                        ClinicalMetadata.sample_date,
+                        func.count(Sample.sample_int_id).label("n"),
+                    )
+                    .join(Sample, Sample.sample_id == ClinicalMetadata.sample_id)
+                    .join(
+                        TransformedCoordinateCategory,
+                        Sample.sample_int_id
+                        == TransformedCoordinateCategory.sample_int_id,
+                    )
+                    .join(
+                        SequenceFeature,
+                        SequenceFeature.cm_int_id == ClinicalMetadata.cm_int_id,
+                    )
+                    .filter(TransformedCoordinateCategory.pc_cat == pcas_obj.pc_cat)
+                    .filter(SequenceFeature.variable == "lineage")
+                    .filter(SequenceFeature.value == pop_obj.level_2_category)
+                    .filter(ClinicalMetadata.country == pop_obj.level_1_category)
+                    .filter(Sample.build_int_id == pop_obj.build_int_id)
+                    .group_by(
+                        ClinicalMetadata.country,
+                        SequenceFeature.value,
+                        ClinicalMetadata.sample_date,
+                    )
+                    .statement
                 )
-                .join(
-                    SequenceFeature,
-                    SequenceFeature.cm_int_id == ClinicalMetadata.cm_int_id,
-                )
-                .filter(TransformedCoordinateCategory.pc_cat == pcas_obj.pc_cat)
-                .filter(SequenceFeature.variable == "lineage")
-                .filter(SequenceFeature.value == pcas_obj.level_2_category)
-                .filter(ClinicalMetadata.country == pcas_obj.level_1_category)
-                .filter(Sample.build_int_id == pcas_obj.build_int_id)
-                .group_by(
-                    ClinicalMetadata.country,
-                    SequenceFeature.value,
-                    ClinicalMetadata.sample_date,
-                )
-                .statement
-            )
 
         else:
             raise ValueError(
                 "Asked to produce count data for {0} but only understand how to do this by region or lineage".format(
-                    pcas_obj.level_2_category_type
+                    pop_obj.level_2_category_type
                 )
             )
 
         # select the relevant denominator data
-        if pcas_obj.level_2_category_type == "region":
+        if pop_obj.level_2_category_type == "region":
             pcad_sql = (
                 self.session.query(
                     ClinicalMetadata.sample_date,
@@ -1883,15 +2225,15 @@ class PCADatabaseManager:
                     TransformedCoordinateCategory,
                     Sample.sample_int_id == TransformedCoordinateCategory.sample_int_id,
                 )
-                .filter(ClinicalMetadata.adm1 == pcas_obj.level_2_category)
+                .filter(ClinicalMetadata.adm1 == pop_obj.level_2_category)
                 .filter(TransformedCoordinateCategory.pc == pcas_obj.pc)
-                .filter(ClinicalMetadata.country == pcas_obj.level_1_category)
-                .filter(Sample.build_int_id == pcas_obj.build_int_id)
+                .filter(ClinicalMetadata.country == pop_obj.level_1_category)
+                .filter(Sample.build_int_id == pop_obj.build_int_id)
                 .group_by(ClinicalMetadata.sample_date)
                 .statement
             )
 
-        elif pcas_obj.level_2_category_type == "lineage":
+        elif pop_obj.level_2_category_type == "lineage":
             pcad_sql = (
                 self.session.query(
                     ClinicalMetadata.sample_date,
@@ -1908,9 +2250,9 @@ class PCADatabaseManager:
                 )
                 .filter(TransformedCoordinateCategory.pc == pcas_obj.pc)
                 .filter(SequenceFeature.variable == "lineage")
-                .filter(SequenceFeature.value == pcas_obj.level_2_category)
-                .filter(ClinicalMetadata.country == pcas_obj.level_1_category)
-                .filter(Sample.build_int_id == pcas_obj.build_int_id)
+                .filter(SequenceFeature.value == pop_obj.level_2_category)
+                .filter(ClinicalMetadata.country == pop_obj.level_1_category)
+                .filter(Sample.build_int_id == pop_obj.build_int_id)
                 .group_by(
                     ClinicalMetadata.country,
                     SequenceFeature.value,
@@ -1922,7 +2264,7 @@ class PCADatabaseManager:
         else:
             raise ValueError(
                 "Asked to produce count data for {0} but only understand how to do this by region or lineage".format(
-                    pcas_obj.level_2_category_type
+                    pop_obj.level_2_category_type
                 )
             )
 
@@ -1967,7 +2309,7 @@ class PCADatabaseManager:
             if n_modelled == 20:
                 break
             pcas_obj = pdm.single_pcas_summary(pcas_int_id)
-            cntdata = pdm.count_table(pcas_obj)
+            cntdata = pdm.pcas_count_table(pcas_obj)
 
             # override latest date if required
             this_latest_date =  datetime.date(2021,6,1)

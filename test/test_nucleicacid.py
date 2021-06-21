@@ -22,7 +22,7 @@ from findn.NucleicAcid import NucleicAcid
 
 
 class Test_NucleicAcid_Base1(unittest.TestCase):
-    """ base class used for tests of NucleicAcid class """
+    """base class used for tests of NucleicAcid class"""
 
     def setUp(self):
         pass
@@ -32,7 +32,7 @@ class Test_NucleicAcid_Base1(unittest.TestCase):
 
 
 class Test_NucleicAcid_1(Test_NucleicAcid_Base1):
-    """ when initialised, are all outputs appropriately set."""
+    """when initialised, are all outputs appropriately set."""
 
     def runTest(self):
         na = NucleicAcid()
@@ -42,7 +42,7 @@ class Test_NucleicAcid_1(Test_NucleicAcid_Base1):
 
 
 class Test_NucleicAcid_2(Test_NucleicAcid_Base1):
-    """ checks number of nucleic acids correctly."""
+    """checks number of nucleic acids correctly."""
 
     def runTest(self):
         na = NucleicAcid()
@@ -52,7 +52,7 @@ class Test_NucleicAcid_2(Test_NucleicAcid_Base1):
 
 
 class Test_NucleicAcid_3(Test_NucleicAcid_Base1):
-    """ checks number of nucleic acids """
+    """checks number of nucleic acids"""
 
     def runTest(self):
         na = NucleicAcid()
@@ -61,7 +61,7 @@ class Test_NucleicAcid_3(Test_NucleicAcid_Base1):
 
 
 class Test_NucleicAcid_4(Test_NucleicAcid_Base1):
-    """ checks composition of nucleic acids """
+    """checks composition of nucleic acids"""
 
     def runTest(self):
         na = NucleicAcid()
@@ -69,7 +69,7 @@ class Test_NucleicAcid_4(Test_NucleicAcid_Base1):
 
 
 class Test_NucleicAcid_5(Test_NucleicAcid_Base1):
-    """ checks that what is passed is a string """
+    """checks that what is passed is a string"""
 
     def runTest(self):
         na = NucleicAcid()
@@ -77,7 +77,7 @@ class Test_NucleicAcid_5(Test_NucleicAcid_Base1):
 
 
 class Test_NucleicAcid_6(Test_NucleicAcid_Base1):
-    """ checks that what is passed is a string """
+    """checks that what is passed is a string"""
 
     def runTest(self):
         na = NucleicAcid()
@@ -85,7 +85,7 @@ class Test_NucleicAcid_6(Test_NucleicAcid_Base1):
 
 
 class Test_NucleicAcid_7(Test_NucleicAcid_Base1):
-    """ checks number of nucleic acids """
+    """checks number of nucleic acids"""
 
     def runTest(self):
         na = NucleicAcid()
@@ -95,7 +95,7 @@ class Test_NucleicAcid_7(Test_NucleicAcid_Base1):
 
 
 class Test_NucleicAcid_8(Test_NucleicAcid_Base1):
-    """ checks number of nucleic acids """
+    """checks number of nucleic acids"""
 
     def runTest(self):
         na = NucleicAcid()
@@ -104,7 +104,7 @@ class Test_NucleicAcid_8(Test_NucleicAcid_Base1):
 
 
 class Test_NucleicAcid_9(Test_NucleicAcid_Base1):
-    """ checks number of nucleic acids """
+    """checks number of nucleic acids"""
 
     def runTest(self):
         na = NucleicAcid()
@@ -114,7 +114,7 @@ class Test_NucleicAcid_9(Test_NucleicAcid_Base1):
 
 
 class Test_NucleicAcid_10(Test_NucleicAcid_Base1):
-    """ checks trinucleotide code is acceptable """
+    """checks trinucleotide code is acceptable"""
 
     def runTest(self):
         na = NucleicAcid()

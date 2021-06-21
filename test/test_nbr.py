@@ -8,9 +8,7 @@ import pandas as pd
 import pickle
 import datetime
 from pca.fittrend import PoissonModel
-from pca.pcadb import (
-    PCADatabaseManager
-)
+from pca.pcadb import PCADatabaseManager
 
 
 class Test_pois_1(unittest.TestCase):
@@ -114,12 +112,14 @@ class Test_PCA_Database(unittest.TestCase):
             conn_detail = json.load(f)
             for key in conn_detail.keys():
                 if key.startswith("unittest_ora"):
-                    self.engines[key] = key     # if there is a configured oracle connection string, then test using this
+                    self.engines[
+                        key
+                    ] = key  # if there is a configured oracle connection string, then test using this
                     pass
 
         self.engines["Sqlite"] = "sqlite://"  # in memory sqlite
         return  # DEBUG - just test oracle for now
-        
+
 
 class Test_create_pc_summary_13(Test_PCA_Database):
     """tests addition of statistical models"""

@@ -22,7 +22,7 @@ from catwalk.pycw_client import CatWalk
 
 # unit tests
 class test_cw(unittest.TestCase):
-    """ starts server, and shuts it down """
+    """starts server, and shuts it down"""
 
     def setUp(self):
         """cw_binary_filepath must point to the catwalk server and mask & reference files to the relevant data files.
@@ -71,11 +71,29 @@ class test_cw_2(test_cw):
 
     def runTest(self):
         # two sequences are similar to each other
-        payload1 = {"A": [100000, 100001, 100002], "G": [], "T": [], "C": [], "N": [20000, 20001, 20002]}
-        payload2 = {"A": [100003, 100004, 100005], "G": [], "T": [], "C": [], "N": [20000, 20001, 20002]}
+        payload1 = {
+            "A": [100000, 100001, 100002],
+            "G": [],
+            "T": [],
+            "C": [],
+            "N": [20000, 20001, 20002],
+        }
+        payload2 = {
+            "A": [100003, 100004, 100005],
+            "G": [],
+            "T": [],
+            "C": [],
+            "N": [20000, 20001, 20002],
+        }
 
         # one is 10000 nt different
-        payload3 = {"A": list(range(110000, 120000)), "G": [], "T": [], "C": [], "N": [20000, 20001, 20002]}
+        payload3 = {
+            "A": list(range(110000, 120000)),
+            "G": [],
+            "T": [],
+            "C": [],
+            "N": [20000, 20001, 20002],
+        }
         res = self.cw.add_sample_from_refcomp("guid1", payload1)
         self.assertEqual(res, 201)
 
@@ -92,8 +110,12 @@ class test_cw_2(test_cw):
         self.assertEqual(self.cw.neighbours("guid2"), [("guid1", 6)])
         self.assertEqual(self.cw.neighbours("guid3"), [])  # should be empty
 
-        self.assertEqual(self.cw.neighbours("guid1", distance=7), [("guid2", 6)])  # should be guid2
-        self.assertEqual(self.cw.neighbours("guid1", distance=6), [("guid2", 6)])  # should be guid2
+        self.assertEqual(
+            self.cw.neighbours("guid1", distance=7), [("guid2", 6)]
+        )  # should be guid2
+        self.assertEqual(
+            self.cw.neighbours("guid1", distance=6), [("guid2", 6)]
+        )  # should be guid2
         self.assertEqual(self.cw.neighbours("guid1", distance=5), [])  # should be empty
 
         with self.assertRaises(requests.exceptions.HTTPError):
@@ -105,9 +127,23 @@ class test_cw_3(test_cw):
 
     def runTest(self):
 
-        payload1 = {"A": [1000, 1001, 1002], "G": [], "T": [], "C": [], "N": [20000, 20001, 20002]}
-        payload2 = {"A": [1003, 1004, 1005], "G": [], "T": [], "C": [], "N": [20000, 20001, 20002]}
+        payload1 = {
+            "A": [1000, 1001, 1002],
+            "G": [],
+            "T": [],
+            "C": [],
+            "N": [20000, 20001, 20002],
+        }
+        payload2 = {
+            "A": [1003, 1004, 1005],
+            "G": [],
+            "T": [],
+            "C": [],
+            "N": [20000, 20001, 20002],
+        }
         self.cw.add_sample_from_refcomp("guid1", payload1)
         self.cw.add_sample_from_refcomp("guid2", payload2)
 
-        self.assertEqual(set(self.cw.sample_names()), set(["guid1", "guid2"]))  # order doesn't matter
+        self.assertEqual(
+            set(self.cw.sample_names()), set(["guid1", "guid2"])
+        )  # order doesn't matter

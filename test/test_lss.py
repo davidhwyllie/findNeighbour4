@@ -3,7 +3,7 @@ from utils.large_sequence_set_generator import LargeSequenceSetGenerator
 
 
 class test_lss_generator_1(unittest.TestCase):
-    """ tests large sequence generator """
+    """tests large sequence generator"""
 
     def runTest(self):
         # generate compressed sequences

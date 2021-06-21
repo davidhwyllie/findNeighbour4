@@ -14,7 +14,8 @@ from pca.pcadb import (
     FeatureAssociation,
     SampleSet,
     SampleSetContent,
-    PCASummary
+    PCASummary,
+    PopulationStudied,
 )
 
 
@@ -26,14 +27,14 @@ class Test_PCA_Database(unittest.TestCase):
     database name to the dictionary self.engines"""
 
     def setUp(self):
-        self.engines = {}  
+        self.engines = {}
         self.engines["Sqlite"] = "sqlite://"  # in memory sqlite
 
         conn_detail_file = None
 
         # try to read the environment variable 'PCA_CONNECTION_CONFIG_FILE'
         try:
-            conn_detail_file = os.environ["PCA_CONNECTION_CONFIG_FILEXX"]
+            conn_detail_file = os.environ["PCA_CONNECTION_CONFIG_FILE"]
         except KeyError:
             # doesn't exist; we just run with sqlite, which is the default if engine is None.
             print(
@@ -56,8 +57,8 @@ class Test_PCA_Database(unittest.TestCase):
                     self.engines[key] = key
                     pass
 
-        
-# @unittest.skip(reason="too slow")
+
+# #@unittest.skip(reason="too slow")
 class Test_create_database_1(Test_PCA_Database):
     """tests creating the database and internal functions dropping tables"""
 
@@ -68,7 +69,7 @@ class Test_create_database_1(Test_PCA_Database):
             n1 = len(pdm._table_names())
             pdm._drop_existing_tables()
             n2 = len(pdm._table_names())
-            self.assertEqual(n1, 21)
+            self.assertEqual(n1, 23)
             self.assertEqual(n2, 0)
 
             pdm = PCADatabaseManager(
@@ -195,16 +196,6 @@ class Test_create_contingency_tables_4(Test_PCA_Database):
         with open(inputfile, "rb") as f:
             vm = pickle.load(f)
 
-        # write cog metadata from a large set of  samples in the vm into a file
-        # modelled = set(vm.model['sample_id'])
-        # inputfile = '/data/data/inputfasta/cog_metadata.csv'
-        # cog = pd.read_csv(inputfile)
-        # cog['sample_id'] = [x[1] for x in cog['sequence_name'].str.split('/')]
-        # cog = cog[cog['sample_id'].isin(modelled)]
-        # cog.drop(['sample_id'], axis =1, inplace =True)
-        # cog.drop(['mutations'], axis =1, inplace =True)
-        # cog.to_csv('testdata/pca/cog_metadata_vm.csv', index=False)
-
         for engine in self.engines.keys():
             print(engine, "#4")
 
@@ -324,7 +315,7 @@ class Test_count_per_day_7(Test_PCA_Database):
                 pdm.make_contingency_tables()
 
 
-#@unittest.skip(reason="not r necessary ")
+# @unittest.skip(reason="not r necessary ")
 class Test_create_sample_set_9(Test_PCA_Database):
     """tests creation of sample sets"""
 
@@ -355,7 +346,7 @@ class Test_create_sample_set_9(Test_PCA_Database):
             self.assertEqual(s2, 0)
 
 
-# @unittest.skip(reason="not routinely necessary ")
+# #@unittest.skip(reason="not routinely necessary ")
 class Test_create_pc_summary_10(Test_PCA_Database):
     """tests creation of a pc_summary"""
 
@@ -376,7 +367,11 @@ class Test_create_pc_summary_10(Test_PCA_Database):
             self.assertIsNone(build_int_id)
             (n_existing_records,) = (
                 pdm.session.query(func.count(PCASummary.pcas_int_id))
-                .filter(PCASummary.build_int_id == build_int_id)
+                .join(
+                    PopulationStudied,
+                    PopulationStudied.pop_int_id == PCASummary.pop_int_id,
+                )
+                .filter(PopulationStudied.build_int_id == build_int_id)
                 .one()
             )
             self.assertEqual(n_existing_records, 0)
@@ -385,7 +380,11 @@ class Test_create_pc_summary_10(Test_PCA_Database):
 
             (n_existing_records,) = (
                 pdm.session.query(func.count(PCASummary.pcas_int_id))
-                .filter(PCASummary.build_int_id == build_int_id)
+                .join(
+                    PopulationStudied,
+                    PopulationStudied.pop_int_id == PCASummary.pop_int_id,
+                )
+                .filter(PopulationStudied.build_int_id == build_int_id)
                 .one()
             )
             self.assertEqual(n_existing_records, 0)
@@ -399,13 +398,17 @@ class Test_create_pc_summary_10(Test_PCA_Database):
 
             (n_existing_records,) = (
                 pdm.session.query(func.count(PCASummary.pcas_int_id))
-                .filter(PCASummary.build_int_id == build_int_id)
+                .join(
+                    PopulationStudied,
+                    PopulationStudied.pop_int_id == PCASummary.pop_int_id,
+                )
+                .filter(PopulationStudied.build_int_id == build_int_id)
                 .one()
             )
             self.assertTrue(n_existing_records > 0)
 
 
-# @unittest.skip(reason="not routinely necessary ")
+##@unittest.skip(reason="not routinely necessary ")
 class Test_create_pc_summary_12(Test_PCA_Database):
     """tests creation of a pc_summary"""
 
@@ -426,7 +429,11 @@ class Test_create_pc_summary_12(Test_PCA_Database):
             self.assertIsNone(build_int_id)
             (n_existing_records,) = (
                 pdm.session.query(func.count(PCASummary.pcas_int_id))
-                .filter(PCASummary.build_int_id == build_int_id)
+                .join(
+                    PopulationStudied,
+                    PopulationStudied.pop_int_id == PCASummary.pop_int_id,
+                )
+                .filter(PopulationStudied.build_int_id == build_int_id)
                 .one()
             )
             self.assertEqual(n_existing_records, 0)
@@ -435,7 +442,11 @@ class Test_create_pc_summary_12(Test_PCA_Database):
 
             (n_existing_records,) = (
                 pdm.session.query(func.count(PCASummary.pcas_int_id))
-                .filter(PCASummary.build_int_id == build_int_id)
+                .join(
+                    PopulationStudied,
+                    PopulationStudied.pop_int_id == PCASummary.pop_int_id,
+                )
+                .filter(PopulationStudied.build_int_id == build_int_id)
                 .one()
             )
             self.assertEqual(n_existing_records, 0)
@@ -449,19 +460,27 @@ class Test_create_pc_summary_12(Test_PCA_Database):
 
             (n_existing_records,) = (
                 pdm.session.query(func.count(PCASummary.pcas_int_id))
-                .filter(PCASummary.build_int_id == build_int_id)
+                .join(
+                    PopulationStudied,
+                    PopulationStudied.pop_int_id == PCASummary.pop_int_id,
+                )
+                .filter(PopulationStudied.build_int_id == build_int_id)
                 .one()
             )
             self.assertTrue(n_existing_records > 0)
 
             # test computation of count data
             for i, summary_entry in enumerate(pdm.session.query(PCASummary)):
-                res = pdm.count_table(summary_entry)
-                if i > 30:
+                res = pdm.pcas_count_table(summary_entry)
+                if i > 100:
                     break
 
-            self.assertIsInstance(res, dict)
-            self.assertEqual(
-                set(res.keys()),
-                set(["earliest_date", "pcas_int_id", "counts", "denominators"]),
-            )
+                self.assertIsInstance(res, dict)
+                self.assertEqual(
+                    set(res.keys()),
+                    set(["earliest_date", "pcas_int_id", "counts", "denominators"]),
+                )
+                ntotal = sum(res["counts"]["n"])
+                res2 = pdm.pcas_members(summary_entry)
+                self.assertEqual(len(res2.index), ntotal)
+                self.assertTrue(ntotal > 0)

@@ -36,7 +36,7 @@ class PoissonModel:
         show_bar=True,
     ):
         """
-        Stores data to fit linear negative binomial models to count data
+        Stores data to fit linear Poisson models to count data
 
         Parameters:
         -----------

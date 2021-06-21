@@ -21,7 +21,7 @@ from findn.common_utils import ConfigManager
 
 
 class Test_RC_1(unittest.TestCase):
-    """ tests the ReadConfig class"""
+    """tests the ReadConfig class"""
 
     def runTest(self):
 

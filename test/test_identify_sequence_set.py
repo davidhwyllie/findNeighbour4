@@ -22,20 +22,29 @@ from findn.identify_sequence_set import IdentifySequenceSet
 
 
 class Test_iss_1(unittest.TestCase):
-    """ tests the identifier() method"""
+    """tests the identifier() method"""
 
     def runTest(self):
         m = IdentifySequenceSet()
-        self.assertEqual(m.make_identifier("msa", "N", True, [1, 2, 3]), "msa|N|og|cfd68e36493b6db0bc44c859e1e49290e07efb00")
         self.assertEqual(
-            m.make_identifier("msa", "N", False, [1, 2, 3]), "msa|N|no_og|cfd68e36493b6db0bc44c859e1e49290e07efb00"
+            m.make_identifier("msa", "N", True, [1, 2, 3]),
+            "msa|N|og|cfd68e36493b6db0bc44c859e1e49290e07efb00",
+        )
+        self.assertEqual(
+            m.make_identifier("msa", "N", False, [1, 2, 3]),
+            "msa|N|no_og|cfd68e36493b6db0bc44c859e1e49290e07efb00",
         )
 
 
 class Test_iss(unittest.TestCase):
-    """ tests the _hashComponents() method"""
+    """tests the _hashComponents() method"""
 
     def runTest(self):
         m = IdentifySequenceSet()
-        self.assertEqual(m._hashComponents([1, 2, 3]), "cfd68e36493b6db0bc44c859e1e49290e07efb00")
-        self.assertEqual(m._hashComponents(["a", "b", "c"]), "a58bef80a0b3c42054baeea0edc2308989c7562c")
+        self.assertEqual(
+            m._hashComponents([1, 2, 3]), "cfd68e36493b6db0bc44c859e1e49290e07efb00"
+        )
+        self.assertEqual(
+            m._hashComponents(["a", "b", "c"]),
+            "a58bef80a0b3c42054baeea0edc2308989c7562c",
+        )

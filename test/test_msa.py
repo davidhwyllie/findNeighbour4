@@ -24,14 +24,23 @@ from findn.mongoStore import fn3persistence
 
 
 class Test_MSA(unittest.TestCase):
-    """ tests the MSAResult class"""
+    """tests the MSAResult class"""
 
     def runTest(self):
         inputdict = {
             "fconst": {},
             "variant_positions": [0, 1, 2, 3],
             "invalid_guids": [],
-            "valid_guids": ["AAACGY-1", "CCCCGY-2", "TTTCGY-3", "GGGGGY-4", "NNNCGY-5", "ACTCGY-6", "TCTQGY-7", "AAACGY-8"],
+            "valid_guids": [
+                "AAACGY-1",
+                "CCCCGY-2",
+                "TTTCGY-3",
+                "GGGGGY-4",
+                "NNNCGY-5",
+                "ACTCGY-6",
+                "TCTQGY-7",
+                "AAACGY-8",
+            ],
             "expected_p1": 0.16666666666666666,
             "sample_size": 30,
             "df_dict": {
@@ -90,14 +99,16 @@ class Test_MSA(unittest.TestCase):
         self.assertEqual(type(m.serialise()), dict)
         self.assertEqual(type(m.msa_interactive_depiction()), str)
         self.assertEqual(type(m.df), pd.DataFrame)
-        self.assertEqual(m.token, "msa|M|no_og|ddc4781ec984b66b0b5bf006a71b29cf1f523740")
+        self.assertEqual(
+            m.token, "msa|M|no_og|ddc4781ec984b66b0b5bf006a71b29cf1f523740"
+        )
 
 
 UNITTEST_MONGOCONN = "mongodb://localhost"
 
 
 class Test_MSAStore(unittest.TestCase):
-    """ tests the MSAStore class"""
+    """tests the MSAStore class"""
 
     def runTest(self):
 

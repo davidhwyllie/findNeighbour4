@@ -15,7 +15,7 @@ UNITTEST_MONGOCONN = "mongodb://localhost"
 
 
 class Test_Server_Monitoring_0(unittest.TestCase):
-    """ adds server monitoring info"""
+    """adds server monitoring info"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
@@ -28,7 +28,7 @@ class Test_Server_Monitoring_0(unittest.TestCase):
 
 
 class Test_Server_Monitoring_1(unittest.TestCase):
-    """ tests recovery of database monitoring info"""
+    """tests recovery of database monitoring info"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
@@ -36,9 +36,13 @@ class Test_Server_Monitoring_1(unittest.TestCase):
         res1 = p.recent_database_monitoring(100)
 
         db_summary = p.summarise_stored_items()
-        p.server_monitoring_store(what="dbManager", message="Repacking", guid="-", content=db_summary)
+        p.server_monitoring_store(
+            what="dbManager", message="Repacking", guid="-", content=db_summary
+        )
         res2 = p.recent_database_monitoring(100)
-        self.assertEqual(res1, {"latest_stats": {"storage_ratio": 1}, "recompression_data": False})
+        self.assertEqual(
+            res1, {"latest_stats": {"storage_ratio": 1}, "recompression_data": False}
+        )
         self.assertEqual(res2["recompression_data"], True)
         self.assertEqual(res2["latest_stats"]["storage_ratio"], 1)
 
@@ -46,7 +50,7 @@ class Test_Server_Monitoring_1(unittest.TestCase):
 
 
 class Test_Server_Monitoring_2(unittest.TestCase):
-    """ adds server monitoring info"""
+    """adds server monitoring info"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
@@ -78,10 +82,14 @@ class Test_Server_Monitoring_2(unittest.TestCase):
 
 
 class Test_Server_Monitoring_3(unittest.TestCase):
-    """ checks whether server_monitoring_min_interval_msec control works"""
+    """checks whether server_monitoring_min_interval_msec control works"""
 
     def runTest(self):
-        p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2, server_monitoring_min_interval_msec=2000)
+        p = fn3persistence(
+            connString=UNITTEST_MONGOCONN,
+            debug=2,
+            server_monitoring_min_interval_msec=2000,
+        )
         retVal = p.server_monitoring_store(message="one")  # should insert
         self.assertEqual(retVal, True)
         res = p.recent_server_monitoring(100)
@@ -103,10 +111,14 @@ class Test_Server_Monitoring_3(unittest.TestCase):
 
 
 class Test_Server_Monitoring_4(unittest.TestCase):
-    """ checks whether delete_server_monitoring_entries"""
+    """checks whether delete_server_monitoring_entries"""
 
     def runTest(self):
-        p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2, server_monitoring_min_interval_msec=0)
+        p = fn3persistence(
+            connString=UNITTEST_MONGOCONN,
+            debug=2,
+            server_monitoring_min_interval_msec=0,
+        )
         retVal = p.server_monitoring_store(message="one")  # should insert
         self.assertEqual(retVal, True)
         res = p.recent_server_monitoring(100)
@@ -115,7 +127,7 @@ class Test_Server_Monitoring_4(unittest.TestCase):
         p.delete_server_monitoring_entries(1)
         res = p.recent_server_monitoring(100)
         self.assertEqual(len(res), 1)
-        self.assertTrue(isinstance(res, list)) 
+        self.assertTrue(isinstance(res, list))
 
         time.sleep(2)  # seconds
 
@@ -126,13 +138,19 @@ class Test_Server_Monitoring_4(unittest.TestCase):
 
 
 class Test_SeqMeta_singleton(unittest.TestCase):
-    """ tests guid2neighboursOf"""
+    """tests guid2neighboursOf"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
         p.guid2neighbour_add_links(
             "srcguid",
-            {"guid1": {"dist": 12}, "guid2": {"dist": 0}, "guid3": {"dist": 3}, "guid4": {"dist": 4}, "guid5": {"dist": 5}},
+            {
+                "guid1": {"dist": 12},
+                "guid2": {"dist": 0},
+                "guid3": {"dist": 3},
+                "guid4": {"dist": 4},
+                "guid5": {"dist": 5},
+            },
         )
         res1 = p.guid2neighbours("srcguid", returned_format=1)
 
@@ -144,13 +162,19 @@ class Test_SeqMeta_singleton(unittest.TestCase):
 
 
 class Test_SeqMeta_guid2neighbour_8(unittest.TestCase):
-    """ tests guid2neighboursOf"""
+    """tests guid2neighboursOf"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
         p.guid2neighbour_add_links(
             "srcguid",
-            {"guid1": {"dist": 12}, "guid2": {"dist": 0}, "guid3": {"dist": 3}, "guid4": {"dist": 4}, "guid5": {"dist": 5}},
+            {
+                "guid1": {"dist": 12},
+                "guid2": {"dist": 0},
+                "guid3": {"dist": 3},
+                "guid4": {"dist": 4},
+                "guid5": {"dist": 5},
+            },
         )
 
         res1 = p.guid2neighbours("srcguid", returned_format=1)
@@ -166,13 +190,19 @@ class Test_SeqMeta_guid2neighbour_8(unittest.TestCase):
 
 
 class Test_SeqMeta_guid2neighbour_7(unittest.TestCase):
-    """ tests guid2neighboursOf"""
+    """tests guid2neighboursOf"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
         p.guid2neighbour_add_links(
             "srcguid",
-            {"guid1": {"dist": 12}, "guid2": {"dist": 0}, "guid3": {"dist": 3}, "guid4": {"dist": 4}, "guid5": {"dist": 5}},
+            {
+                "guid1": {"dist": 12},
+                "guid2": {"dist": 0},
+                "guid3": {"dist": 3},
+                "guid4": {"dist": 4},
+                "guid5": {"dist": 5},
+            },
         )
         with self.assertRaises(NotImplementedError):
             res1 = p.guid2neighbours("srcguid", returned_format=2)
@@ -184,11 +214,13 @@ class Test_SeqMeta_guid2neighbour_7(unittest.TestCase):
 
 
 class Test_SeqMeta_guid2neighbour_5(unittest.TestCase):
-    """ tests repack """
+    """tests repack"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
-        res = p.guid2neighbour_add_links("srcguid", {"guid1": {"dist": 12}, "guid2": {"dist": 0}})
+        res = p.guid2neighbour_add_links(
+            "srcguid", {"guid1": {"dist": 12}, "guid2": {"dist": 0}}
+        )
 
         # check the insert worked
         res = p.db.guid2neighbour.count_documents({"guid": "guid1"})
@@ -227,7 +259,9 @@ class Test_SeqMeta_guid2neighbour_5(unittest.TestCase):
         res = p.db.guid2neighbour.count_documents({"guid": "srcguid2"})
         self.assertEqual(res, 1)
 
-        p.guid2neighbour_repack(guid="guid1")  # will compress guid1's two entries into one.
+        p.guid2neighbour_repack(
+            guid="guid1"
+        )  # will compress guid1's two entries into one.
 
         # should make no change for 'srcguid1'
         res = p.db.guid2neighbour.count_documents({"guid": "guid1"})
@@ -237,11 +271,13 @@ class Test_SeqMeta_guid2neighbour_5(unittest.TestCase):
 
 
 class Test_SeqMeta_guid2neighbour_4a(unittest.TestCase):
-    """ tests creation of new guid2neighbour entries """
+    """tests creation of new guid2neighbour entries"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
-        res = p.guid2neighbour_add_links("srcguid", {"guid1": {"dist": 12}, "guid2": {"dist": 0}})
+        res = p.guid2neighbour_add_links(
+            "srcguid", {"guid1": {"dist": 12}, "guid2": {"dist": 0}}
+        )
         self.assertEqual(p.max_neighbours_per_document, 3)  # debug setting
         a, b, c = p._audit_storage("srcguid")
 
@@ -255,11 +291,14 @@ class Test_SeqMeta_guid2neighbour_4a(unittest.TestCase):
 
 
 class Test_SeqMeta_guid2neighbour_4b(unittest.TestCase):
-    """ tests creation of new guid2neighbour entries """
+    """tests creation of new guid2neighbour entries"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
-        res = p.guid2neighbour_add_links("srcguid", {"guid1": {"dist": 12}, "guid2": {"dist": 0}, "guid3": {"dist": 6}})
+        res = p.guid2neighbour_add_links(
+            "srcguid",
+            {"guid1": {"dist": 12}, "guid2": {"dist": 0}, "guid3": {"dist": 6}},
+        )
         self.assertEqual(p.max_neighbours_per_document, 3)
         a, b, c = p._audit_storage("srcguid")
 
@@ -277,12 +316,18 @@ class Test_SeqMeta_guid2neighbour_4b(unittest.TestCase):
 
 
 class Test_SeqMeta_guid2neighbour_4c(unittest.TestCase):
-    """ tests creation of new guid2neighbour entries """
+    """tests creation of new guid2neighbour entries"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
         res = p.guid2neighbour_add_links(
-            "srcguid", {"guid1": {"dist": 1}, "guid2": {"dist": 2}, "guid3": {"dist": 3}, "guid4": {"dist": 4}}
+            "srcguid",
+            {
+                "guid1": {"dist": 1},
+                "guid2": {"dist": 2},
+                "guid3": {"dist": 3},
+                "guid4": {"dist": 4},
+            },
         )
         self.assertEqual(p.max_neighbours_per_document, 3)
         a, b, c = p._audit_storage("srcguid")
@@ -303,13 +348,19 @@ class Test_SeqMeta_guid2neighbour_4c(unittest.TestCase):
 
 
 class Test_SeqMeta_guid2neighbour_4d(unittest.TestCase):
-    """ tests creation of new guid2neighbour entries """
+    """tests creation of new guid2neighbour entries"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
         res = p.guid2neighbour_add_links(
             "srcguid",
-            {"guid1": {"dist": 1}, "guid2": {"dist": 2}, "guid3": {"dist": 3}, "guid4": {"dist": 4}, "guid5": {"dist": 5}},
+            {
+                "guid1": {"dist": 1},
+                "guid2": {"dist": 2},
+                "guid3": {"dist": 3},
+                "guid4": {"dist": 4},
+                "guid5": {"dist": 5},
+            },
         )
         self.assertEqual(p.max_neighbours_per_document, 3)
         a, b, c = p._audit_storage("srcguid")
@@ -332,7 +383,7 @@ class Test_SeqMeta_guid2neighbour_4d(unittest.TestCase):
 
 
 class Test_SeqMeta_guid2neighbour_4e(unittest.TestCase):
-    """ tests creation of new guid2neighbour entries """
+    """tests creation of new guid2neighbour entries"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
@@ -370,7 +421,7 @@ class Test_SeqMeta_guid2neighbour_4e(unittest.TestCase):
 
 
 class Test_SeqMeta_guid2neighbour_4f(unittest.TestCase):
-    """ tests creation of new guid2neighbour entries """
+    """tests creation of new guid2neighbour entries"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
@@ -411,7 +462,7 @@ class Test_SeqMeta_guid2neighbour_4f(unittest.TestCase):
 
 
 class Test_SeqMeta_guid2neighbour_3(unittest.TestCase):
-    """ tests creation of a new guid2neighbour entry """
+    """tests creation of a new guid2neighbour entry"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
@@ -426,7 +477,7 @@ class Test_SeqMeta_guid2neighbour_3(unittest.TestCase):
 
 
 class Test_SeqMeta_audit_storage_2(unittest.TestCase):
-    """ tests audit of the situation where there are no links """
+    """tests audit of the situation where there are no links"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
@@ -449,7 +500,7 @@ class Test_SeqMeta_audit_storage_2(unittest.TestCase):
 
 
 class Test_SeqMeta_guid2neighbour_2(unittest.TestCase):
-    """ tests creation of a new guid2neighbour entry """
+    """tests creation of a new guid2neighbour entry"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
@@ -459,14 +510,14 @@ class Test_SeqMeta_guid2neighbour_2(unittest.TestCase):
 
 
 class Test_SeqMeta_version(unittest.TestCase):
-    """ tests version of library.  only tested with > v3.0"""
+    """tests version of library.  only tested with > v3.0"""
 
     def runTest(self):
         self.assertTrue(pymongo.__version__ >= "3.0")
 
 
 class Test_SeqMeta_file_store1(unittest.TestCase):
-    """ tests storage of pickle files in database """
+    """tests storage of pickle files in database"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
@@ -480,7 +531,7 @@ class Test_SeqMeta_file_store1(unittest.TestCase):
 
 
 class Test_SeqMeta_file_store2(unittest.TestCase):
-    """ tests storage of pickle files in database """
+    """tests storage of pickle files in database"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
@@ -496,7 +547,7 @@ class Test_SeqMeta_file_store2(unittest.TestCase):
 
 
 class Test_SeqMeta_file_store3(unittest.TestCase):
-    """ tests storage of pickle files in database """
+    """tests storage of pickle files in database"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
@@ -514,7 +565,7 @@ class Test_SeqMeta_file_store3(unittest.TestCase):
 
 
 class Test_SeqMeta_guid_annotate_1(unittest.TestCase):
-    """ tests insert of new data item"""
+    """tests insert of new data item"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
@@ -529,7 +580,7 @@ class Test_SeqMeta_guid_annotate_1(unittest.TestCase):
 
 
 class Test_SeqMeta_guid_annotate_2(unittest.TestCase):
-    """ tests addition to existing data item"""
+    """tests addition to existing data item"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
@@ -552,7 +603,7 @@ class Test_SeqMeta_guid_annotate_2(unittest.TestCase):
 
 
 class Test_SeqMeta_guid_annotate_3(unittest.TestCase):
-    """ tests addition to existing data item"""
+    """tests addition to existing data item"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
@@ -575,7 +626,7 @@ class Test_SeqMeta_guid_annotate_3(unittest.TestCase):
 
 
 class Test_SeqMeta_guid_exists_1(unittest.TestCase):
-    """ tests insert of new data item and existence check"""
+    """tests insert of new data item and existence check"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
@@ -592,7 +643,7 @@ class Test_SeqMeta_guid_exists_1(unittest.TestCase):
 
 
 class Test_SeqMeta_guid_valid_1(unittest.TestCase):
-    """ tests insert of new data item and validity check"""
+    """tests insert of new data item and validity check"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
@@ -621,7 +672,7 @@ class Test_SeqMeta_guid_valid_1(unittest.TestCase):
 
 
 class Test_SeqMeta_guid_valid_2(unittest.TestCase):
-    """ tests insert of new data item and validity check"""
+    """tests insert of new data item and validity check"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
@@ -651,7 +702,7 @@ class Test_SeqMeta_guid_valid_2(unittest.TestCase):
 
 
 class Test_SeqMeta_guid_annotate_5(unittest.TestCase):
-    """ tests update of existing data item with same namespace"""
+    """tests update of existing data item with same namespace"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
@@ -670,7 +721,7 @@ class Test_SeqMeta_guid_annotate_5(unittest.TestCase):
 
 
 class Test_SeqMeta_guid_annotate_6(unittest.TestCase):
-    """ tests update of existing data item with different namespace"""
+    """tests update of existing data item with different namespace"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
@@ -692,7 +743,7 @@ class Test_SeqMeta_guid_annotate_6(unittest.TestCase):
 
 
 class Test_SeqMeta_init(unittest.TestCase):
-    """ tests database creation"""
+    """tests database creation"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
@@ -719,7 +770,7 @@ class Test_SeqMeta_init(unittest.TestCase):
 
 
 class Test_SeqMeta_guids(unittest.TestCase):
-    """ tests recovery of sequence guids"""
+    """tests recovery of sequence guids"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
@@ -733,7 +784,7 @@ class Test_SeqMeta_guids(unittest.TestCase):
 
 
 class Test_SeqMeta_Base(unittest.TestCase):
-    """ sets up a connection for unit testing"""
+    """sets up a connection for unit testing"""
 
     def setUp(self):
         self.t = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
@@ -742,16 +793,22 @@ class Test_SeqMeta_Base(unittest.TestCase):
 
 class Test_SeqMeta_guid_quality_check_1(Test_SeqMeta_Base):
     def runTest(self):
-        """ tests return of sequences and their qualities """
+        """tests return of sequences and their qualities"""
         # set up nucleic acid object
         na = NucleicAcid()
         na.examine("ACGTACGTNN")  # 20% bad
 
-        self.t.guid_annotate(guid="g1", nameSpace="DNAQuality", annotDict=na.composition)
+        self.t.guid_annotate(
+            guid="g1", nameSpace="DNAQuality", annotDict=na.composition
+        )
         na.examine("ACGTACNNNN")  # 40% bad
-        self.t.guid_annotate(guid="g2", nameSpace="DNAQuality", annotDict=na.composition)
+        self.t.guid_annotate(
+            guid="g2", nameSpace="DNAQuality", annotDict=na.composition
+        )
         na.examine("ACGTNNNNNN")  # 60% bad
-        self.t.guid_annotate(guid="g3", nameSpace="DNAQuality", annotDict=na.composition)
+        self.t.guid_annotate(
+            guid="g3", nameSpace="DNAQuality", annotDict=na.composition
+        )
 
         r1 = self.t.guid_quality_check("g1", 0.80)  # valid
         r2 = self.t.guid_quality_check("g2", 0.80)  # invalid
@@ -766,16 +823,22 @@ class Test_SeqMeta_guid_quality_check_1(Test_SeqMeta_Base):
 
 class Test_SeqMeta_guid2quality1(Test_SeqMeta_Base):
     def runTest(self):
-        """ tests return of sequences and their qualities """
+        """tests return of sequences and their qualities"""
         # set up nucleic acid object
         na = NucleicAcid()
         na.examine("ACGTACGTNN")  # 20% bad
 
-        self.t.guid_annotate(guid="g1", nameSpace="DNAQuality", annotDict=na.composition)
+        self.t.guid_annotate(
+            guid="g1", nameSpace="DNAQuality", annotDict=na.composition
+        )
         na.examine("ACGTACNNNN")  # 40% bad
-        self.t.guid_annotate(guid="g2", nameSpace="DNAQuality", annotDict=na.composition)
+        self.t.guid_annotate(
+            guid="g2", nameSpace="DNAQuality", annotDict=na.composition
+        )
         na.examine("ACGTNNNNNN")  # 60% bad
-        self.t.guid_annotate(guid="g3", nameSpace="DNAQuality", annotDict=na.composition)
+        self.t.guid_annotate(
+            guid="g3", nameSpace="DNAQuality", annotDict=na.composition
+        )
 
         r1 = self.t.guid_quality_check("g1", 0.80)  # valid
         r2 = self.t.guid_quality_check("g2", 0.80)  # invalid
@@ -796,17 +859,23 @@ class Test_SeqMeta_guid2quality1(Test_SeqMeta_Base):
 
 class Test_SeqMeta_guid2quality2(Test_SeqMeta_Base):
     def runTest(self):
-        """ tests return of sequences and their qualities """
+        """tests return of sequences and their qualities"""
         # set up nucleic acid object
 
         na = NucleicAcid()
         na.examine("ACGTACGTNN")  # 20% bad
 
-        self.t.guid_annotate(guid="g1", nameSpace="DNAQuality", annotDict=na.composition)
+        self.t.guid_annotate(
+            guid="g1", nameSpace="DNAQuality", annotDict=na.composition
+        )
         na.examine("ACGTACNNNN")  # 40% bad
-        self.t.guid_annotate(guid="g2", nameSpace="DNAQuality", annotDict=na.composition)
+        self.t.guid_annotate(
+            guid="g2", nameSpace="DNAQuality", annotDict=na.composition
+        )
         na.examine("ACGTNNNNNN")  # 60% bad
-        self.t.guid_annotate(guid="g3", nameSpace="DNAQuality", annotDict=na.composition)
+        self.t.guid_annotate(
+            guid="g3", nameSpace="DNAQuality", annotDict=na.composition
+        )
 
         r1 = self.t.guid_quality_check("g1", 0.80)  # valid
         r2 = self.t.guid_quality_check("g2", 0.80)  # invalid
@@ -824,7 +893,7 @@ class Test_SeqMeta_guid2quality2(Test_SeqMeta_Base):
 
 
 class Test_SeqMeta_Base1(unittest.TestCase):
-    """ initialise FN persistence and adds data """
+    """initialise FN persistence and adds data"""
 
     def setUp(self):
         self.t = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
@@ -836,11 +905,13 @@ class Test_SeqMeta_Base1(unittest.TestCase):
         for guid in seqs.keys():
             seq = seqs[guid]
             dna.examine(seq)
-            self.t.guid_annotate(guid=guid, nameSpace="DNAQuality", annotDict=dna.composition)
+            self.t.guid_annotate(
+                guid=guid, nameSpace="DNAQuality", annotDict=dna.composition
+            )
 
 
 class Test_SeqMeta_guid2ExaminationDateTime(Test_SeqMeta_Base1):
-    """ recovering guids and examination times; """
+    """recovering guids and examination times;"""
 
     def runTest(self):
         res = self.t.guid2ExaminationDateTime()
@@ -849,7 +920,7 @@ class Test_SeqMeta_guid2ExaminationDateTime(Test_SeqMeta_Base1):
 
 
 class Test_SeqMeta_propACTG_filteredSequenceGuids(Test_SeqMeta_Base1):
-    """  recovered guids filtered by the propACTG criterion """
+    """recovered guids filtered by the propACTG criterion"""
 
     def runTest(self):
         n = 0
@@ -860,7 +931,7 @@ class Test_SeqMeta_propACTG_filteredSequenceGuids(Test_SeqMeta_Base1):
 
 
 class Test_SeqMeta_allAnnotations(Test_SeqMeta_Base1):
-    """ tests recovery of all annoations """
+    """tests recovery of all annoations"""
 
     def runTest(self):
         df = self.t.guid_annotations()
@@ -868,7 +939,7 @@ class Test_SeqMeta_allAnnotations(Test_SeqMeta_Base1):
 
 
 class Test_SeqMeta_oneAnnotation(Test_SeqMeta_Base1):
-    """ tests recovery of one annotations """
+    """tests recovery of one annotations"""
 
     def runTest(self):
         df = self.t.guid_annotation("guid3")
@@ -878,7 +949,7 @@ class Test_SeqMeta_oneAnnotation(Test_SeqMeta_Base1):
 
 
 class Test_Clusters(unittest.TestCase):
-    """ tests saving and recovery of dictionaries to Clusters"""
+    """tests saving and recovery of dictionaries to Clusters"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
@@ -932,7 +1003,7 @@ class Test_Clusters(unittest.TestCase):
 
 
 class Test_MSA(unittest.TestCase):
-    """ tests saving and recovery of dictionaries to MSA"""
+    """tests saving and recovery of dictionaries to MSA"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
@@ -956,7 +1027,7 @@ class Test_MSA(unittest.TestCase):
 
 
 class Test_Monitor(unittest.TestCase):
-    """ tests saving and recovery of strings to monitor"""
+    """tests saving and recovery of strings to monitor"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
@@ -969,7 +1040,7 @@ class Test_Monitor(unittest.TestCase):
 
 
 class test_Raise_error(unittest.TestCase):
-    """ tests raise_error"""
+    """tests raise_error"""
 
     def runTest(self):
         # generate compressed sequences
@@ -979,7 +1050,7 @@ class test_Raise_error(unittest.TestCase):
 
 
 class Test_summarise_stored_items(unittest.TestCase):
-    """ adds server monitoring info"""
+    """adds server monitoring info"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
@@ -988,7 +1059,7 @@ class Test_summarise_stored_items(unittest.TestCase):
 
 
 class Test_rotate_log(unittest.TestCase):
-    """ adds server monitoring info"""
+    """adds server monitoring info"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)

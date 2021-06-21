@@ -50,6 +50,7 @@ import datetime
 from pathlib import Path
 import sentry_sdk
 import argparse
+#import pickle
 import progressbar
 
 # reference based compression storage and clustering modules
@@ -231,17 +232,20 @@ pipenv run python3 pca/fn4_pca.py demos/covid/covid_config_v3.json --outputdir /
         logging.info("Error raised on creating persistence object")
         raise
 
-    if args.remove_existing_data:
-        logging.warning("fn4_pca is set to remove all existing data from database")
-    else:
-        logging.warning("fn4_pca is set to add build to existing data")
+    #if args.remove_existing_data:
+    #    logging.warning("fn4_pca is set to remove all existing data from database")
+    #else:
+    #    logging.warning("fn4_pca is set to add build to existing data")
 
-    logging.info("Exporting to database")
+    # note today's date.  Used for poisson modelling
+    this_latest_date = datetime.date.today()
+
+    logging.info("Connecting to database")
     pdm = PCADatabaseManager(
         connection_config=args.connection_config, debug=args.remove_existing_data)
 
     logger.info("Loading cog-uk metadata")
-    pdm.store_cog_metadata(cogfile=args.cogfile)
+    pdm.store_cog_metadata(cogfile=args.cogfile)  
 
     # instantiate builder for PCA object
     try:
@@ -268,23 +272,29 @@ pipenv run python3 pca/fn4_pca.py demos/covid/covid_config_v3.json --outputdir /
 
     pcas_df = pdm.pca_summary(only_pc_cats_less_than_days_old = args.focus_on_most_recent_n_days)
     pcas_df = pcas_df[pcas_df["n_days_observed"] >= 3]
-
-    logging.info("Fitting poisson models.  There are {0} models to fit".format(len(pcas_df.index)))
+    n_pc_cats = len(pcas_df['pc_cat'].unique())
+    logging.info("Fitting poisson models.  There are {0} models to fit over {1} pc_cats originating in the last {2} days".format(len(pcas_df.index), n_pc_cats, args.focus_on_most_recent_n_days))
+    
     bar = progressbar.ProgressBar(max_value=len(pcas_df.index))
     for i, pcas_int_id in enumerate(pcas_df.index):
         bar.update(i)
 
         pcas_obj = pdm.single_pcas_summary(pcas_int_id)
-        cntdata = pdm.count_table(pcas_obj)
+        cntdata = pdm.pcas_count_table(pcas_obj)
 
-        # override earliest date as required
-        this_latest_date = datetime.date(2021, 6, 1)
+        # write the modelled data to disc, so we can identify those that fail
+        #outputdir = '/data/data/pca/testdata'
+        #outputfile = os.path.join(outputdir, '{0}.pickle'.format(i))
+        #with open(outputfile, "wb") as f:
+        #    pickle.dump(cntdata, f)
+        
+        # specify latest date to be modelled
         nb = PoissonModel(**cntdata, latest_date=this_latest_date)
         res = nb.fit()
 
         pdm.store_pcas_model_output(res)
     bar.finish()
-    logging.info("Build finished")
+    logging.info("Build finished.  Results are in database.")
 
 
 # startup
