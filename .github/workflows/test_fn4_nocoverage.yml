@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       tags:
-        description: 'Lint and unit test fn4 application, without code coverage'  
+        description: 'Lint and unit test fn4 application, without code coverage'
   push:
     branches:
     - '*'
