@@ -19,7 +19,7 @@ class IQTree:
 
     def __init__(self, genome_length, use_bootstrap=False):
         """checks whether iqTree is present"""
-        if os.environ["IQTREE_DIR"] is not None:
+        if os.getenv("IQTREE_DIR") is not None:
             if not os.path.exists(os.environ["IQTREE_DIR"]):
                 raise FileNotFoundError(
                     "no directory at the location specified by environment variable IQTREE_DIR: {0}".format(
@@ -27,16 +27,18 @@ class IQTree:
                     )
                 )
 
-        self.iqTreeLoc = os.environ["IQTREE_DIR"]
-        logging.info("Using iqTree version at {0}")
-        self.iqTreeExe = "iqtree2"
+            self.iqTreeLoc = os.environ["IQTREE_DIR"]
+            logging.info("Using iqTree version at {0}")
+            self.iqTreeExe = "iqtree2"
 
-        if use_bootstrap is True:
-            self.bootstrapOption = "-bb 1000"
+            if use_bootstrap is True:
+                self.bootstrapOption = "-bb 1000"
+            else:
+                self.bootstrapOption = ""
+
+            self.min_branch_length = 0.1 * (1 / genome_length)
         else:
-            self.bootstrapOption = ""
-
-        self.min_branch_length = 0.1 * (1 / genome_length)
+            self.iqTreeExe = None
 
     def build(self, fasta_file_string, fconst, targetdir):
         """builds a maximal likelihood tree using iqtree2
@@ -46,6 +48,9 @@ class IQTree:
         fconst: a Counter object or dictionary containing the counts of the constant bases
         """
 
+        if self.iqTreeExe is None:
+            return None
+            
         start_time = datetime.datetime.now()
 
         # check the fconst string.
@@ -295,7 +300,6 @@ class DepictTree:
         for node in self.tree.traverse("postorder"):
             if node.dist < (0.5 / self.genome_length):
                 node.dist = 0
-                print("zeroed", node.name)
 
     def rtd(self):
         """compute root tip distance"""
@@ -414,7 +418,6 @@ class ManipulateTree:
         for node in self.tree.traverse("postorder"):
             if node.dist < (0.5 / self.genome_length):
                 node.dist = 0
-                print("zeroed", node.name)
 
     def generate_simplified_tree(self):
         """collapses any zero length branches creating a new tree data structure, self.stree, which is visualisable using Bokeh
@@ -447,8 +450,7 @@ class ManipulateTree:
             if not node.is_root():
                 if node.dist == 0:
                     ninitial += 1
-        print("Initial zero edges.  {0}".format(ninitial))
-
+        
         # prune
         to_prune = set()
         initial_nodes = set()
