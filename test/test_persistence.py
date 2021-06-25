@@ -935,7 +935,6 @@ class Test_SeqMeta_Base1t(unittest.TestCase):
 class Test_SeqMeta_guid2ExaminationDateTime(Test_SeqMeta_Base1):
     """recovering guids and examination times;"""
 
-
     def runTest(self):
         res = self.t.guid2ExaminationDateTime()
         expected = 4
