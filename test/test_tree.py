@@ -63,12 +63,9 @@ class Test_iqTree_2(unittest.TestCase):
         inputfile = '/data/software/fn4dev/testdata/fasta/iqtree_test1.fasta'
         with open(inputfile, 'rt') as f:
             inputstring = f.read()       
-        cnt = Counter(['A', 'A', 'C', 'C', 'T', 'T', 'G'])
 
-        res =     iqt.build(inputstring, 2, '/tmp/iqtree_test')           # cnt must be a dictionary
+        res = iqt.build(inputstring, 2, '/tmp/iqtree_test')           # cnt must be a dictionary
         self.assertIsNone(res)
-
-       
 
 
 class Test_ManipulateTree(unittest.TestCase):
