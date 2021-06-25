@@ -116,7 +116,7 @@ class Test_DepictTree_1(unittest.TestCase):
             metadata = pickle.load(f)
 
         mt = DepictTree(treetxt, metadata)
-        mt.render("unittest_tmp/test.svg")
+        mt.render("unittest_tmp/test.png")      # svg output causes github actions to fail
 
 
 class Test_DepictTree_2(unittest.TestCase):
