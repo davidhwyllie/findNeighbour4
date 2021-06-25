@@ -40,10 +40,10 @@ from sqlalchemy import (
     Date,
     Identity,
     ForeignKey,
-    desc#
+    desc
 )
+
 #from sqlalchemy.dialects import oracle
-#from sqlalchemy.schema import CreateTable, CreateIndex, CreateColumn
 from sqlalchemy import create_engine, inspect, func
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.ext.declarative import declarative_base
@@ -102,6 +102,7 @@ class Build(db_pc):
     sample = relationship("Sample", backref="Build")
     featassoc = relationship("FeatureAssociation", backref="build")
     populationstudiedl = relationship("PopulationStudied", backref="build")
+
 
 class PopulationStudied(db_pc):
     """the populations studied in statistical modelling"""
@@ -914,9 +915,8 @@ class PCADatabaseManager:
         # now we can start
         self.Base = db_pc
         logging.info("PCADatabaseManager: Connecting to database")
-        self.engine = create_engine(self.engine_name )        
+        self.engine = create_engine(self.engine_name)        
         self.is_oracle = "oracle+cx" in self.engine_name
-
         self.is_sqlite = "sqlite://" in self.engine_name
         self.show_bar = show_bar
 

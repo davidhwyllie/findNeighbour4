@@ -418,7 +418,7 @@ class Test_create_pc_summary_10(Test_PCA_Database):
 
             # members of the trending samples
             trending_details = pdm.trending_samples_metadata(max_size_of_trending_pc_cat = 100)
-            if not trending_details is None:
+            if trending_details is not None:
                 self.assertIsInstance(trending_details, dict)
             
 #@unittest.skip(reason="not routinely necessary ")
@@ -485,7 +485,7 @@ class Test_create_pc_summary_12(Test_PCA_Database):
             # test computation of count data
                        
             for i, summary_entry in enumerate(pdm.session.query(PCASummary)):
-                pop = pdm.single_population_studied(summary_entry.pcas_int_id)
+                pdm.single_population_studied(summary_entry.pcas_int_id)        # ensure no error
                 
                 res = pdm.pcas_count_table(summary_entry)
                 
