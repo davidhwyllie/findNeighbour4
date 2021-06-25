@@ -44,18 +44,18 @@ class Test_PCA_Database(unittest.TestCase):
             print(
                 "No environment variable PCA_CONNECTION_CONFIG_FILE found.  Testing with sqlite only."
             )
-            return
-        if not os.path.exists(conn_detail_file):
-            raise FileNotFoundError(
-                "Connection file specified but not found: {0}".format(conn_detail_file)
-            )
-        # try to read the config file
-        with open(conn_detail_file, "rt") as f:
-            conn_detail = json.load(f)
-            for key in conn_detail.keys():
-                if key.startswith("unittest_ora"):
-                    #self.engines[key] = key
-                    pass
+        else:
+            if not os.path.exists(conn_detail_file):
+                raise FileNotFoundError(
+                    "Connection file specified but not found: {0}".format(conn_detail_file)
+                )
+            # try to read the config file
+            with open(conn_detail_file, "rt") as f:
+                conn_detail = json.load(f)
+                for key in conn_detail.keys():
+                    if key.startswith("unittest_ora"):
+                        self.engines[key] = key
+                        pass
 
 
 #@unittest.skip(reason="too slow")

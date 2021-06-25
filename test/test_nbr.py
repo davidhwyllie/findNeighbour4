@@ -88,7 +88,10 @@ class Test_PCA_Database(unittest.TestCase):
     database name to the dictionary self.engines"""
 
     def setUp(self):
-        self.engines = {}  # {'None_specified':None}
+        self.engines = {}
+        self.engines["Sqlite"] = "sqlite://"  # in memory sqlite
+
+        conn_detail_file = None
 
         # try to read the environment variable 'PCA_CONNECTION_CONFIG_FILE'
         try:
@@ -112,14 +115,8 @@ class Test_PCA_Database(unittest.TestCase):
             conn_detail = json.load(f)
             for key in conn_detail.keys():
                 if key.startswith("unittest_ora"):
-                    self.engines[
-                        key
-                    ] = key  # if there is a configured oracle connection string, then test using this
+                    self.engines[key] = key
                     pass
-
-        self.engines["Sqlite"] = "sqlite://"  # in memory sqlite
-        return  # DEBUG - just test oracle for now
-
 
 class Test_create_pc_summary_13(Test_PCA_Database):
     """tests addition of statistical models"""
