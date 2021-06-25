@@ -16,8 +16,6 @@ Functionality is provided in following classes:
 * VariantMatrix - computes sample x variant matrix (requires: PERSIST object for mongodb access; server configuration file) 
 * PCARunner - runs PCA on VariantMatrix
 
-These classes are not yet properly unit tested.
-
 Example usage:
 
 pipenv run python3 pca/fn4_pca.py demos/covid/covid_config_v3.json  --outputdir /data/data/pca --analysis_name 2021-04-08  # analyse all, 200 components
@@ -50,16 +48,21 @@ import datetime
 from pathlib import Path
 import sentry_sdk
 import argparse
-#import pickle
+import uuid
+import shutil
+import pickle
 import progressbar
 
 # reference based compression storage and clustering modules
 from findn.mongoStore import fn3persistence
 from findn import DEFAULT_CONFIG_FILE
 from findn.common_utils import ConfigManager
+from findn.hybridComparer import hybridComparer
 from pca.pca import VariantMatrix, PCARunner
 from pca.pcadb import PCADatabaseManager
 from pca.fittrend import PoissonModel
+from tree.tree_utils import IQTree, ManipulateTree, DepictTree
+
 
 def main():
     # command line usage.  Pass the location of a config file as a single argument.
@@ -86,19 +89,19 @@ pipenv run python3 pca/fn4_pca.py demos/covid/covid_config_v3.json --outputdir /
 """,
     )
     parser.add_argument(
-        "path_to_config_file", 
-        type=str, 
-        action="store", 
-        nargs="?", 
-        help="the path to the fn4 server configuration file", 
-        default=None
+        "path_to_config_file",
+        type=str,
+        action="store",
+        nargs="?",
+        help="the path to the fn4 server configuration file",
+        default=None,
     )
     parser.add_argument(
-        "connection_config", 
-        type=str, 
-        action="store", 
-        nargs="?", 
-        help="the key in the database credentials found in the json file at PCA_CONNECTION_CONFIG_FILE. OR a database configuration string e.g. sqlite:///mydb"
+        "connection_config",
+        type=str,
+        action="store",
+        nargs="?",
+        help="the key in the database credentials found in the json file at PCA_CONNECTION_CONFIG_FILE. OR a database configuration string e.g. sqlite:///mydb",
     )
     parser.add_argument(
         "--analysis_name",
@@ -138,16 +141,16 @@ pipenv run python3 pca/fn4_pca.py demos/covid/covid_config_v3.json --outputdir /
         action="store",
         nargs="?",
         help="the name of the analysis.  used as the stem of the .sqlite file into which the output is written.",
-        default="/data/data/inputfasta/cog_metadata.csv"
+        default="/data/data/inputfasta/cog_metadata.csv",
     )
     parser.add_argument(
-        "--remove_existing_data",  
-        action="store_true", 
-        default=False, 
-        help="if this option is specified, it will delete any existing data from the database. "
+        "--remove_existing_data",
+        action="store_true",
+        default=False,
+        help="if this option is specified, it will delete any existing data from the database. ",
     )
     args = parser.parse_args()
-    
+
     ############################ LOAD CONFIG ######################################
     logging.info("findNeighbour4 PCA modelling .. reading configuration file.")
 
@@ -196,11 +199,17 @@ pipenv run python3 pca/fn4_pca.py demos/covid/covid_config_v3.json --outputdir /
     # configure logging object
     logger = logging.getLogger()
     logger.setLevel(loglevel)
-    logfile = os.path.join(logdir, "pca-{0}".format(os.path.basename(CONFIG["LOGFILE"])))
+    logfile = os.path.join(
+        logdir, "pca-{0}".format(os.path.basename(CONFIG["LOGFILE"]))
+    )
     logging.info("Logging to {0} with rotation".format(logfile))
-    file_handler = logging.handlers.RotatingFileHandler(logfile, mode="a", maxBytes=1e7, backupCount=7)
+    file_handler = logging.handlers.RotatingFileHandler(
+        logfile, mode="a", maxBytes=1e7, backupCount=7
+    )
 
-    formatter = logging.Formatter("%(asctime)s | %(pathname)s:%(lineno)d | %(funcName)s | %(levelname)s | %(message)s ")
+    formatter = logging.Formatter(
+        "%(asctime)s | %(pathname)s:%(lineno)d | %(funcName)s | %(levelname)s | %(message)s "
+    )
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
     logger.addHandler(logging.StreamHandler())
@@ -232,20 +241,32 @@ pipenv run python3 pca/fn4_pca.py demos/covid/covid_config_v3.json --outputdir /
         logging.info("Error raised on creating persistence object")
         raise
 
-    #if args.remove_existing_data:
-    #    logging.warning("fn4_pca is set to remove all existing data from database")
-    #else:
-    #    logging.warning("fn4_pca is set to add build to existing data")
+    if args.remove_existing_data:
+        logging.info("fn4_pca is set to remove all existing data from database")
+    else:
+        logging.info("fn4_pca is set to add build to existing data")
 
     # note today's date.  Used for poisson modelling
     this_latest_date = datetime.date.today()
 
     logging.info("Connecting to database")
     pdm = PCADatabaseManager(
-        connection_config=args.connection_config, debug=args.remove_existing_data)
+        connection_config=args.connection_config, debug=args.remove_existing_data
+    )
+
+    logging.info("Setting up a hybridComparer object for sequence data access")
+    hc = hybridComparer(
+        reference=CONFIG["reference"],
+        maxNs=CONFIG["MAXN_STORAGE"],
+        snpCeiling=CONFIG["SNPCEILING"],
+        excludePositions=set(CONFIG["excludePositions"]),
+        preComparer_parameters={},
+        PERSIST=PERSIST,
+        disable_insertion=True,
+    )
 
     logger.info("Loading cog-uk metadata")
-    pdm.store_cog_metadata(cogfile=args.cogfile)  
+    pdm.store_cog_metadata(cogfile=args.cogfile)
 
     # instantiate builder for PCA object
     try:
@@ -265,16 +286,24 @@ pipenv run python3 pca/fn4_pca.py demos/covid/covid_config_v3.json --outputdir /
     pdm.store_variation_model(vm)
 
     logging.info("Building contingency tables, relating Lineage to pc_cat")
-    pdm.make_contingency_tables(only_pc_cats_less_than_days_old = args.focus_on_most_recent_n_days)
+    pdm.make_contingency_tables(
+        only_pc_cats_less_than_days_old=args.focus_on_most_recent_n_days
+    )
 
     logging.info("Storing PCA summary")
     pdm.store_pca_summary()  # store a summary
 
-    pcas_df = pdm.pca_summary(only_pc_cats_less_than_days_old = args.focus_on_most_recent_n_days)
+    pcas_df = pdm.pca_summary(
+        only_pc_cats_less_than_days_old=args.focus_on_most_recent_n_days
+    )
     pcas_df = pcas_df[pcas_df["n_days_observed"] >= 3]
-    n_pc_cats = len(pcas_df['pc_cat'].unique())
-    logging.info("Fitting poisson models.  There are {0} models to fit over {1} pc_cats originating in the last {2} days".format(len(pcas_df.index), n_pc_cats, args.focus_on_most_recent_n_days))
-    
+    n_pc_cats = len(pcas_df["pc_cat"].unique())
+    logging.info(
+        "Fitting poisson models.  There are {0} models to fit over {1} pc_cats originating in the last {2} days".format(
+            len(pcas_df.index), n_pc_cats, args.focus_on_most_recent_n_days
+        )
+    )
+
     bar = progressbar.ProgressBar(max_value=len(pcas_df.index))
     for i, pcas_int_id in enumerate(pcas_df.index):
         bar.update(i)
@@ -282,18 +311,145 @@ pipenv run python3 pca/fn4_pca.py demos/covid/covid_config_v3.json --outputdir /
         pcas_obj = pdm.single_pcas_summary(pcas_int_id)
         cntdata = pdm.pcas_count_table(pcas_obj)
 
-        # write the modelled data to disc, so we can identify those that fail
-        #outputdir = '/data/data/pca/testdata'
-        #outputfile = os.path.join(outputdir, '{0}.pickle'.format(i))
-        #with open(outputfile, "wb") as f:
-        #    pickle.dump(cntdata, f)
-        
         # specify latest date to be modelled
         nb = PoissonModel(**cntdata, latest_date=this_latest_date)
         res = nb.fit()
 
         pdm.store_pcas_model_output(res)
     bar.finish()
+
+    trending_details = pdm.trending_samples_metadata(max_size_of_trending_pc_cat=500)
+
+    if trending_details is None:
+        # nothing found to analyse
+        logging.info("Nothing found to analyse")
+        exit(0)
+        
+    logging.info("Identified trending pc_cats in the following:")
+    logging.info(trending_details["population_meta"])
+
+    # for each trending population, build a tree
+    logging.info("Generation depictions for each population")
+    tmp_dir_token = uuid.uuid4().hex
+
+    iq = IQTree(genome_length=len(CONFIG["reference"]))
+
+    # within each population, we get examples of the expanding samples, and controls
+    for population_id in trending_details["population_annotations"].keys():
+        population_id = int(population_id)  # not np.int64
+        population_info = pdm.single_population_studied_from_pop_int_id(population_id)
+        pop_samples = pdm.population_members(population_id, max_rows=5000)
+        pop_samples = pop_samples.set_index("sample_id")
+        pop_samples["expanding"] = "N"
+        to_tree_build = trending_details["population_annotations"][population_id]
+        to_tree_build = to_tree_build.sort_values("sample_date", ascending=False)
+        to_tree_build["expanding"] = "Y"
+
+        # drop any samples from pop_samples which are in the relevant pcs
+        s_pop_samples = set(pop_samples.index.to_list())
+        s_to_tree_build = set(to_tree_build.index.to_list())
+        to_drop = s_pop_samples.intersection(s_to_tree_build)
+        pop_samples = pop_samples.drop(to_drop)
+
+        exp_and_control = pop_samples.head(150).append(to_tree_build.head(150))
+        exp_and_control = exp_and_control.fillna("-")  # metadata
+        logging.info(
+            "Population # {1}: Selected expanding population and control (max 150 samples each) for tree build n = {0}".format(
+                len(exp_and_control.index), population_id
+            )
+        )
+
+        # build MSA including reference seq which we'll use to root.  We will then remove the reference.
+        sample_ids = exp_and_control.index.to_list()
+        sample_ids.append("--Wuhan-Reference--")
+        msa_result = hc.multi_sequence_alignment(sample_ids)
+        targetdir = "/tmp/iqtree_tmpdir_{0}".format(tmp_dir_token)
+        iqr = iq.build(
+            msa_result.msa_fasta(), msa_result.fconst, targetdir=targetdir
+        )  # note: if directory is hard coded, will generate conflict if two processes run at the same time
+        newick_tree = iqr["output"]["newick"]
+        rt = ManipulateTree(newick_tree)
+        rt.reroot("--Wuhan-Reference--")
+        rt.remove_outgroup()
+        newick_tree = rt.newick()
+        iqr["output"]["newick"] = newick_tree  # store the re-rooted tree back
+
+        outputfile = "testdata/ete3/test{0}.nwk".format(population_id)
+        with open(outputfile, "wt") as f:
+            f.write(newick_tree)
+
+        outputfile = "testdata/ete3/test{0}.pickle".format(population_id)
+        with open(outputfile, "wb") as f:
+            pickle.dump(exp_and_control, f)
+
+        title_info = "{0} {1}; {2} {3}".format(
+            population_info.level_1_category_type,
+            population_info.level_1_category,
+            population_info.level_2_category_type,
+            population_info.level_2_category,
+        )
+        mt = DepictTree(
+            newick_tree,
+            exp_and_control,
+            title=[title_info],
+            genome_length=len(CONFIG["reference"]),
+        )
+        targetfile = "analysis/test_{0}_radial.svg".format(population_id)
+        mt.render(targetfile, mode="r")
+        with open(targetfile, "rt") as f:
+            svgfile_content_r = f.read()
+        targetfile = "analysis/test_{0}_circular.svg".format(population_id)
+        mt.render(targetfile, mode="c")
+        with open(targetfile, "rt") as f:
+            svgfile_content_c = f.read()
+
+        # write data to database
+        targetfile = "analysis/test_{0}.csv".format(population_id)
+        with open(targetfile, "wt") as f:
+            exp_and_control.to_csv(f, index=True, index_label="sample_id")
+        with open(targetfile, "rt") as f:
+            csvfile_content = f.read()
+
+        add_infos = [
+            dict(
+                pop_int_id=population_id,
+                info_tag="iqtree_svg",
+                info_description="A tree including all the trending samples in a population, and control samples which are not, in circular svg format",
+                mime_type="image/svg+xml",
+                info_class="svg",
+                info=svgfile_content_c,
+            ),
+            dict(
+                pop_int_id=population_id,
+                info_tag="iqtree_svg",
+                info_description="A tree including all the trending samples in a population, and control samples which are not, in radial svg format",
+                mime_type="image/svg+xml",
+                info_class="svg",
+                info=svgfile_content_r,
+            ),
+            dict(
+                pop_int_id=population_id,
+                info_tag="newick",
+                info_description="A tree including all the trending samples in a population, and control samples which are not, in newick format",
+                mime_type="text/x-nh",
+                info_class="newick",
+                info=newick_tree,
+            ),
+            dict(
+                pop_int_id=population_id,
+                info_tag="metadata",
+                info_description="Metadata on all the trending samples in a population, and control samples which are not, in csv format",
+                mime_type="text/csv",
+                info_class="csv",
+                info=csvfile_content,
+            ),
+        ]
+
+        for add_info in add_infos:
+            pdm.add_PopulationStudiedExtraInfo(**add_info)
+
+    # cleanup
+    shutil.rmtree(targetdir)
     logging.info("Build finished.  Results are in database.")
 
 

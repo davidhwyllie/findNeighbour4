@@ -31,13 +31,15 @@ class MSAStore:
 
         Parameters:
         PERSIST is an fn3persistence object
-        in_ram_persistence_time the time MSAs are cached in ram, in seconds
+        in_ram_persistence_time the time MSAs are cached in ram, in seconds, by the findNeighbour4 server
         """
         self.cache = {}
         self.PERSIST = PERSIST
         self.iss = IdentifySequenceSet()
         self.in_ram_persistence_time = in_ram_persistence_time
-
+        self.tree = None        # placeholder, not used
+        self.comment = None     # placeholder, not used
+        
     def get_token(self, what, has_outgroup, guids):
         """ computes a token representing a set of guids with or without an outgroup """
         return self.iss.make_identifier("msa", what, has_outgroup, guids)
@@ -137,6 +139,7 @@ class MSAResult:
         self.what_tested = what_tested
         self.outgroup = outgroup
         self.creation_time = creation_time
+        self.annotation = None
 
         iss = IdentifySequenceSet()
         self.token = iss.make_identifier("msa", self.what_tested, outgroup is not None, valid_guids)

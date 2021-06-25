@@ -21,6 +21,7 @@ import os
 import json
 import pandas as pd
 import logging
+
 import numpy as np
 import datetime
 import time
@@ -39,14 +40,16 @@ from sqlalchemy import (
     Date,
     Identity,
     ForeignKey,
+    desc#
 )
+#from sqlalchemy.dialects import oracle
+#from sqlalchemy.schema import CreateTable, CreateIndex, CreateColumn
 from sqlalchemy import create_engine, inspect, func
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.ext.declarative import declarative_base
 import statsmodels.api as sm
 import cx_Oracle
 from pca.pca import VariationModel
-
 
 # global: definition of database structure
 # classes mapping to persistence database inherit from this
@@ -99,7 +102,6 @@ class Build(db_pc):
     sample = relationship("Sample", backref="Build")
     featassoc = relationship("FeatureAssociation", backref="build")
     populationstudiedl = relationship("PopulationStudied", backref="build")
-
 
 class PopulationStudied(db_pc):
     """the populations studied in statistical modelling"""
@@ -172,14 +174,14 @@ class PopulationStudiedExtraInfo(db_pc):
         comment="primary key to population_studied table",
     )
     info_tag = Column(
-        String(12),
+        String(16),
         comment="what kind of data this is, e.g. iqtree.  Used internally only",
     )
     info_description = Column(
         String(255), comment="A human readable description of what this is"
     )
     mime_type = Column(
-        String(12),
+        String(24),
         comment="Mime type for the data, e.g. text/csv, image/svg+xml, image/tiff",
     )
     info_class = Column(
@@ -261,16 +263,16 @@ class PCASummaryExtraInfo(db_pc):
         index=True,
         comment="primary key to pca_summary table",
     )
-    info_tag = Column(String(12), comment="what kind of data this is, e.g. iqtree")
+    info_tag = Column(String(16), comment="what kind of data this is, e.g. iqtree")
     info_description = Column(
         String(255), comment="A human readable description of what this is"
     )
     mime_type = Column(
-        String(12),
+        String(24),
         comment="Mime type for the data, e.g. text/csv, image/svg+xml, image/tiff",
     )
     info_class = Column(
-        String(12), comment="What class this is, e.g newick, snplist etc"
+        String(16), comment="What class this is, e.g newick, snplist etc"
     )
     info = Column(
         Text, comment="A large character binary data containing the information"
@@ -578,6 +580,11 @@ class ClinicalMetadata(db_pc):
     seqfeature = relationship("SequenceFeature", backref="ClinicalMetadata")
 
 
+Index("ix_CM_Adm1", ClinicalMetadata.adm1)
+
+Index("ix_CM_Country", ClinicalMetadata.country)
+
+
 class ClinicalIdentifier(db_pc):
     """holds clinical metadata, if it exists.
     Note that there is no guarantee or assumption made about the order in which the clinical metadata will
@@ -846,11 +853,11 @@ class PCADatabaseManager:
                 )
 
             if conn_detail_file is None:
-                # we failed to set it 
+                # we failed to set it
                 raise PCADBManagerError(
                     "Tried to set conn_detail_file from environment variable PCA_CONNECTION_CONFIG_FILE, but it is still None."
                 )
-                
+
             if not os.path.exists(conn_detail_file):
                 raise FileNotFoundError(
                     "Connection file specified but not found: {0}".format(
@@ -904,16 +911,12 @@ class PCADatabaseManager:
             logging.info("Set ENGINE_NAME configuration string from config file.")
             self.engine_name = this_configuration["ENGINE_NAME"]
 
-        ## DEBUG
-        # print(os.environ)
-        ##
-
         # now we can start
         self.Base = db_pc
         logging.info("PCADatabaseManager: Connecting to database")
-        self.engine = create_engine(self.engine_name)
-
+        self.engine = create_engine(self.engine_name )        
         self.is_oracle = "oracle+cx" in self.engine_name
+
         self.is_sqlite = "sqlite://" in self.engine_name
         self.show_bar = show_bar
 
@@ -925,11 +928,19 @@ class PCADatabaseManager:
 
         # drop existing tables if in debug mode
         if debug:
+            print("Dropping existing tables")
             self._drop_existing_tables()
 
-        self.Base.metadata.create_all(self.engine)  # create the table(s)
         Session = sessionmaker(bind=self.engine)
         self.session = Session()
+
+        ## debug - display what the session is doing
+        #@event.listens_for(Session, "do_orm_execute")
+        #def _do_orm_execute(orm_execute_state):
+        #    print(orm_execute_state.statement)
+        
+        self.Base.metadata.create_all(bind = self.engine)  # create the table(s)
+        self.session.commit()
 
     def _table_names(self):
         """returns table names in the schema"""
@@ -969,6 +980,11 @@ class PCADatabaseManager:
         PopulationStudied.__table__.drop(self.engine)
         Build.__table__.drop(self.engine)
 
+        # debug
+        #print(CreateTable(BuildAnnotation.__table__, bind=self.engine).compile(
+        #    dialect=oracle.dialect()))
+        #print(CreateTable(BuildAnnotation.__table__, bind=self.engine).compile())
+        #Build.__table__.create(self.engine)
         remaining = len(self._table_names())
         if remaining > 0:
             raise PCADBManagerError(
@@ -2004,6 +2020,162 @@ class PCADatabaseManager:
             )
         return pop_obj
 
+    def single_population_studied_from_pop_int_id(self, pop_int_id):
+        """get a single PopulationStudied object.   identified by a pop_int_id
+
+        Parameters:
+        pop_int_id: an integer, the primary key to the PopulationStudied table
+
+        Returns:
+        a PopulationStudied object containing the population studied, as identified by pop_int_id"""
+
+        if isinstance(pop_int_id, np.int64):
+            pop_int_id = int(
+                pop_int_id
+            )  # only standard integers are allowed by sqlalchemy
+
+        pop_obj = (
+            self.session.query(PopulationStudied)
+            .filter(PopulationStudied.pop_int_id == pop_int_id)
+            .one_or_none()
+        )
+
+        if pop_obj is None:
+            raise ValueError(
+                "Asked to recover PopulationStudied with pop_int_id = {0} but it does not exist".format(
+                    pop_int_id
+                )
+            )
+        return pop_obj
+
+    def population_members(self, pop_obj, max_rows=5000):
+        """lists samples referred to in a PopulationStudied row; returns only max_rows, and returns the most recent samples first.
+
+        Parameters:
+        -----------
+        pop_obj: either : a PopulationStudied object representing a single PopulationStudied (a subset of samples selected by nation, and or region/lineage)
+                  or:      a pop_int_id
+
+        Returns:
+        --------
+        a dataframe including sample_int_id, sample_id, sample_date
+
+        Raises:
+        ------
+        ValueError if a pop_int_id is specified & it does not exist
+        """
+
+        # check we have been passed the right kind of object
+        if isinstance(pop_obj, int) or isinstance(pop_obj, np.int64):
+            this_pop_int_id = pop_obj
+            pop_obj = self.single_population_studied(int(this_pop_int_id))
+
+        if not isinstance(pop_obj, PopulationStudied):
+            raise TypeError(
+                "Need to pass a PopulationStudied object, not a {0}".format(
+                    type(pop_obj)
+                )
+            )
+
+        # select the relevant sample data
+        if pop_obj.level_2_category_type == "region":
+            logging.info(
+                "Recovering denominator samples for country/region {0}/{1}".format(
+                    pop_obj.level_1_category, pop_obj.level_2_category
+                )
+            )
+            pca_sql = (
+                self.session.query(
+                    Sample.sample_int_id, Sample.sample_id, ClinicalMetadata.sample_date
+                )
+                .join(ClinicalMetadata, Sample.sample_id == ClinicalMetadata.sample_id)
+                .filter(ClinicalMetadata.adm1 == pop_obj.level_2_category)
+                .filter(ClinicalMetadata.country == pop_obj.level_1_category)
+                .filter(Sample.build_int_id == pop_obj.build_int_id)
+                .group_by(
+                    Sample.sample_int_id, Sample.sample_id, ClinicalMetadata.sample_date
+                )
+                .order_by(desc(ClinicalMetadata.sample_date))
+                .limit(max_rows)
+                .statement
+            )
+
+        elif pop_obj.level_2_category_type == "lineage":
+            logging.info(
+                "Recovering denominator samples for country/lineage {0}/{1}".format(
+                    pop_obj.level_1_category, pop_obj.level_2_category
+                )
+            )
+            if pop_obj.level_2_category == "--Any--":
+                pca_sql = (
+                    self.session.query(
+                        Sample.sample_int_id,
+                        Sample.sample_id,
+                        ClinicalMetadata.sample_date,
+                    )
+                    .join(
+                        ClinicalMetadata, Sample.sample_id == ClinicalMetadata.sample_id
+                    )
+                    .join(
+                        SequenceFeature,
+                        SequenceFeature.cm_int_id == ClinicalMetadata.cm_int_id,
+                    )
+                    .filter(ClinicalMetadata.country == pop_obj.level_1_category)
+                    .filter(Sample.build_int_id == pop_obj.build_int_id)
+                    .group_by(
+                        Sample.sample_int_id,
+                        Sample.sample_id,
+                        ClinicalMetadata.sample_date,
+                    )
+                    .order_by(desc(ClinicalMetadata.sample_date))
+                    .limit(max_rows)
+                    .statement
+                )
+            else:
+                pca_sql = (
+                    self.session.query(
+                        Sample.sample_int_id,
+                        Sample.sample_id,
+                        ClinicalMetadata.sample_date,
+                    )
+                    .join(
+                        ClinicalMetadata, Sample.sample_id == ClinicalMetadata.sample_id
+                    )
+                    .join(
+                        SequenceFeature,
+                        SequenceFeature.cm_int_id == ClinicalMetadata.cm_int_id,
+                    )
+                    .filter(SequenceFeature.variable == "lineage")
+                    .filter(SequenceFeature.value == pop_obj.level_2_category)
+                    .filter(ClinicalMetadata.country == pop_obj.level_1_category)
+                    .filter(Sample.build_int_id == pop_obj.build_int_id)
+                    .group_by(
+                        Sample.sample_int_id,
+                        Sample.sample_id,
+                        ClinicalMetadata.sample_date,
+                    )
+                    .order_by.order_by(desc(ClinicalMetadata.sample_date))
+                    .limit(max_rows)
+                    .statement
+                )
+
+        else:
+            raise ValueError(
+                "Asked to produce count data for {0} but only understand how to do this by region or lineage".format(
+                    pop_obj.level_2_category_type
+                )
+            )
+
+        samples = pd.read_sql(pca_sql, self.engine)
+        # make sample_int_id the index
+        samples = samples.set_index("sample_int_id")
+
+        # order by sample date, descending
+        samples = samples.sort_values(
+            by="sample_date", axis=0, ascending=False, kind="mergesort"
+        )  # stable results
+        return samples
+
     def pcas_members(self, pcas_obj):
         """lists samples referred to in a PCASummary row
 
@@ -2036,7 +2208,9 @@ class PCADatabaseManager:
         # select the relevant count data
         if pop_obj.level_2_category_type == "region":
             pca_sql = (
-                self.session.query(Sample.sample_int_id)
+                self.session.query(
+                    Sample.sample_int_id, Sample.sample_id, ClinicalMetadata.sample_date
+                )
                 .join(ClinicalMetadata, Sample.sample_id == ClinicalMetadata.sample_id)
                 .join(
                     TransformedCoordinateCategory,
@@ -2046,13 +2220,20 @@ class PCADatabaseManager:
                 .filter(ClinicalMetadata.adm1 == pop_obj.level_2_category)
                 .filter(ClinicalMetadata.country == pop_obj.level_1_category)
                 .filter(Sample.build_int_id == pop_obj.build_int_id)
+                .group_by(
+                    Sample.sample_int_id, Sample.sample_id, ClinicalMetadata.sample_date
+                )
                 .statement
             )
 
         elif pop_obj.level_2_category_type == "lineage":
             if pop_obj.level_2_category == "--Any--":
                 pca_sql = (
-                    self.session.query(Sample.sample_int_id)
+                    self.session.query(
+                        Sample.sample_int_id,
+                        Sample.sample_id,
+                        ClinicalMetadata.sample_date,
+                    )
                     .join(
                         ClinicalMetadata, Sample.sample_id == ClinicalMetadata.sample_id
                     )
@@ -2068,11 +2249,20 @@ class PCADatabaseManager:
                     .filter(TransformedCoordinateCategory.pc_cat == pcas_obj.pc_cat)
                     .filter(ClinicalMetadata.country == pop_obj.level_1_category)
                     .filter(Sample.build_int_id == pop_obj.build_int_id)
+                    .group_by(
+                        Sample.sample_int_id,
+                        Sample.sample_id,
+                        ClinicalMetadata.sample_date,
+                    )
                     .statement
                 )
             else:
                 pca_sql = (
-                    self.session.query(Sample.sample_int_id)
+                    self.session.query(
+                        Sample.sample_int_id,
+                        Sample.sample_id,
+                        ClinicalMetadata.sample_date,
+                    )
                     .join(
                         ClinicalMetadata, Sample.sample_id == ClinicalMetadata.sample_id
                     )
@@ -2090,6 +2280,11 @@ class PCADatabaseManager:
                     .filter(SequenceFeature.value == pop_obj.level_2_category)
                     .filter(ClinicalMetadata.country == pop_obj.level_1_category)
                     .filter(Sample.build_int_id == pop_obj.build_int_id)
+                    .group_by(
+                        Sample.sample_int_id,
+                        Sample.sample_id,
+                        ClinicalMetadata.sample_date,
+                    )
                     .statement
                 )
 
@@ -2101,6 +2296,13 @@ class PCADatabaseManager:
             )
 
         samples = pd.read_sql(pca_sql, self.engine)
+        # make sample_int_id the index
+        samples = samples.set_index("sample_int_id")
+
+        # order by sample date, descending
+        samples = samples.sort_values(
+            by="sample_date", axis=0, ascending=False, kind="mergesort"
+        )  # stable results
         return samples
 
     def pcas_count_table(self, pcas_obj):
@@ -2125,9 +2327,9 @@ class PCADatabaseManager:
         """
 
         # check we have been passed the right kind of object
-        if isinstance(pcas_obj, int):
+        if isinstance(pcas_obj, int) or isinstance(pcas_obj, np.int64):
             this_pcas_int_id = pcas_obj
-            pcas_obj = self.single_pcas_summary(this_pcas_int_id)
+            pcas_obj = self.single_pcas_summary(int(this_pcas_int_id))
 
         if not isinstance(pcas_obj, PCASummary):
             raise TypeError(
@@ -2135,13 +2337,12 @@ class PCADatabaseManager:
             )
         this_pcas_int_id = pcas_obj.pcas_int_id
         pop_obj = self.single_population_studied(this_pcas_int_id)
-
         # select the relevant count data
         if pop_obj.level_2_category_type == "region":
             pca_sql = (
                 self.session.query(
                     ClinicalMetadata.sample_date,
-                    func.count(Sample.sample_int_id).label("n"),
+                    func.count(Sample.sample_int_id.distinct()).label("n"),
                 )
                 .join(Sample, Sample.sample_id == ClinicalMetadata.sample_id)
                 .join(
@@ -2161,7 +2362,7 @@ class PCADatabaseManager:
                 pca_sql = (
                     self.session.query(
                         ClinicalMetadata.sample_date,
-                        func.count(Sample.sample_int_id).label("n"),
+                        func.count(Sample.sample_int_id.distinct()).label("n"),
                     )
                     .join(Sample, Sample.sample_id == ClinicalMetadata.sample_id)
                     .join(
@@ -2174,6 +2375,7 @@ class PCADatabaseManager:
                         SequenceFeature.cm_int_id == ClinicalMetadata.cm_int_id,
                     )
                     .filter(TransformedCoordinateCategory.pc_cat == pcas_obj.pc_cat)
+                    .filter(SequenceFeature.variable == "lineage")
                     .filter(ClinicalMetadata.country == pop_obj.level_1_category)
                     .filter(Sample.build_int_id == pop_obj.build_int_id)
                     .group_by(
@@ -2187,7 +2389,7 @@ class PCADatabaseManager:
                 pca_sql = (
                     self.session.query(
                         ClinicalMetadata.sample_date,
-                        func.count(Sample.sample_int_id).label("n"),
+                        func.count(Sample.sample_int_id.distinct()).label("n"),
                     )
                     .join(Sample, Sample.sample_id == ClinicalMetadata.sample_id)
                     .join(
@@ -2379,3 +2581,213 @@ class PCADatabaseManager:
                 md = ModelledData(**rowdict)
                 sm.modelled_data.append(md)
         self.session.commit()
+
+    def number_tests_performed(self, build_int_id):
+        """returns the number of statistical models fitted for a given build.  Useful for correcting for multiple comparisons
+
+        parameters:
+        build_int_id:  the primary key of the build table, indicating the build to examine
+
+        returns:
+        an integer, number of tests
+        """
+
+        (n,) = (
+            self.session.query(
+                func.count(StatisticalModel.statmodel_int_id).label("n_tests")
+            )
+            .join(PCASummary, StatisticalModel.pcas_int_id == PCASummary.pcas_int_id)
+            .join(
+                PopulationStudied, PopulationStudied.pop_int_id == PCASummary.pop_int_id
+            )
+            .filter(PopulationStudied.build_int_id == build_int_id)
+            .one()
+        )
+        return n
+
+    def significant_tests_performed(self, build_int_id):
+        """returns a dataframe consisting of all statistical tests which
+            - correspond to the build build_int_id
+            - indicate increasing incidence
+            - significant by Bonferroni correction (which is very conservative here )
+
+        Parameters:
+        build_int_id: the primary key of the build table, indicating the build to examine
+
+        Returns:
+        a pandas data frame containing the positive tests"""
+
+        n_tests_performed = self.number_tests_performed(build_int_id)
+        if n_tests_performed > 0:
+            p_cutoff = 0.01 / n_tests_performed
+        else:
+            p_cutoff = 0.01  # there aren't any tests anyway
+
+        sigtest_sql = (
+            self.session.query(
+                PopulationStudied.pop_int_id,
+                PopulationStudied.level_1_category_type,
+                PopulationStudied.level_1_category,
+                PopulationStudied.level_2_category_type,
+                PopulationStudied.level_2_category,
+                PCASummary.pcas_int_id,
+                PCASummary.pc_cat,
+                PCASummary.earliest_date,
+                PCASummary.latest_date,
+                PCASummary.n,
+                StatisticalModel.statmodel_int_id,
+                StatisticalModelFit.estimate,
+                StatisticalModelFit.p_value,
+            )
+            .join(PCASummary, PCASummary.pop_int_id == PopulationStudied.pop_int_id)
+            .join(
+                StatisticalModel, StatisticalModel.pcas_int_id == PCASummary.pcas_int_id
+            )
+            .join(
+                StatisticalModelFit,
+                StatisticalModelFit.statmodel_int_id
+                == StatisticalModel.statmodel_int_id,
+            )
+            .filter(PopulationStudied.build_int_id == build_int_id)
+            .filter(StatisticalModelFit.param == "t")
+            .filter(StatisticalModelFit.estimate > 0)
+            .filter(StatisticalModelFit.p_value <= p_cutoff)
+            .statement
+        )
+
+        sigtest_df = pd.read_sql(sigtest_sql, self.engine)
+        return sigtest_df
+
+    def trending_samples_metadata(
+        self, build_int_id=None, max_size_of_trending_pc_cat=200
+    ):
+        """assembles details of all samples in trending pc_cats in each population,
+        what pc_cats they belong to, and their sample dates
+
+        Parameters:
+            build_int_id: the build identifier. If none, uses the latest complete build
+            max_size_of_trending_pc_cat: the maximum size of the trending group of samples to consider: essentially, the size of the 'twiglet'
+
+        Returns:
+            a dictionary with three keys,
+
+        'all_trending_population_samples': All the samples in the trending populations (pd.DataFrame)
+        'all_trending_population_and_pc_cats': All significant positive trends in all populations analysed (pd.DataFrame)
+        'population_annotations': for each population (identified by a pop_int_id, the key to a dictionary) the annotations for the trending population
+
+        """
+
+        if build_int_id is None:
+            build_int_id = self.latest_build_int_id()
+
+        sigfits = self.significant_tests_performed(build_int_id)
+        sigfits = sigfits[sigfits["n"] < max_size_of_trending_pc_cat]
+
+        # for each trending microbiological population, recover the sequences responsible
+        logging.info("Recovering sequences of each trending pca_cat")
+        members = {}
+        trending_pcs = sigfits["pcas_int_id"]
+        if self.show_bar:
+            bar = progressbar.ProgressBar(max_value=len(trending_pcs))
+        all_population_samples = None
+
+        for i, this_pcas_int_id in enumerate(trending_pcs):
+            members[this_pcas_int_id] = self.pcas_members(this_pcas_int_id)
+            if self.show_bar:
+                bar.update(i)
+
+            # keep track of all samples from this population
+            if i == 0:
+                all_population_samples = members[this_pcas_int_id]
+            else:
+                all_population_samples = all_population_samples.append(
+                    members[this_pcas_int_id]
+                )
+        if all_population_samples is None:
+            return None
+        all_population_samples = all_population_samples.drop_duplicates()
+        all_population_samples = all_population_samples.set_index("sample_id")
+        if self.show_bar:
+            bar.finish()
+
+        # for each population, identifed by a pop_int_id, find all members and mark their pc_cat
+        population_annotations = {}
+        logging.info(
+            "Generating annotation dataframe for each population containing significant trends"
+        )
+
+        # make a df containing metadata on trending populations
+        populations = sigfits["pop_int_id"].unique()
+        population_meta = sigfits.drop(
+            columns=[
+                "pcas_int_id",
+                "pc_cat",
+                "earliest_date",
+                "latest_date",
+                "n",
+                "statmodel_int_id",
+                "estimate",
+                "p_value",
+            ]
+        )
+        population_meta = population_meta.drop_duplicates()
+
+        if self.show_bar:
+            bar = progressbar.ProgressBar(max_value=len(populations))
+
+        for i, this_pop_int_id in enumerate(populations):
+            if self.show_bar:
+                bar.update(i)
+
+            sigfits_subset = sigfits[sigfits["pop_int_id"] == this_pop_int_id]
+            for j, ix in enumerate(sigfits_subset.index):
+                this_pcas_int_id = sigfits_subset.at[ix, "pcas_int_id"]
+                this_pc_cat = sigfits_subset.at[ix, "pc_cat"]
+                mat_col = members[this_pcas_int_id].copy()
+                mat_col = mat_col.drop(columns="sample_date")
+                mat_col["pc_cat"] = this_pc_cat
+                mat_col["is_present"] = "+"
+                if j == 0:
+                    all_samples_df = mat_col
+                else:
+                    all_samples_df = all_samples_df.append(mat_col, ignore_index=True)
+
+            all_samples_wide = all_samples_df.pivot(
+                index="sample_id", columns="pc_cat", values="is_present"
+            )
+            all_samples_wide = all_samples_wide.fillna(" ")
+            all_samples_wide = all_samples_wide.merge(
+                all_population_samples,
+                how="inner",
+                left_index=True,
+                right_on="sample_id",
+            )
+            population_annotations[this_pop_int_id] = all_samples_wide
+
+        if self.show_bar:
+            bar.finish()
+
+        return {
+            "all_trending_population_samples": all_population_samples,
+            "all_trending_population_and_pc_cats": sigfits,
+            "population_annotations": population_annotations,
+            "population_meta": population_meta,
+        }
+
+    def add_PopulationStudiedExtraInfo(
+        self, pop_int_id, info_tag, info_description, mime_type, info_class, info
+    ):
+        """attempts to construct a  PopulationStudiedExtraInfo object from **kwargs,
+        and to add it to the database"""
+
+        pse = PopulationStudiedExtraInfo(
+            pop_int_id=pop_int_id,
+            info_tag=info_tag,
+            info_description=info_description,
+            mime_type=mime_type,
+            info_class=info_class,
+            info=info,
+        )
+        self.session.add(pse)
+        self.session.commit()
+        return pse.pope_int_id

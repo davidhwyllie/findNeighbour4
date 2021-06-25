@@ -151,7 +151,7 @@ class Test_create_pc_summary_13(Test_PCA_Database):
                     break
 
                 pcas_obj = pdm.single_pcas_summary(pcas_int_id)
-                cntdata = pdm.count_table(pcas_obj)
+                cntdata = pdm.pcas_count_table(pcas_obj)
 
                 # override earliest date as required
                 this_latest_date = datetime.date(2021, 6, 1)
