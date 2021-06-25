@@ -82,7 +82,7 @@ from findn.common_utils import ConfigManager
 from findn.NucleicAcid import NucleicAcid
 from findn.mongoStore import fn3persistence
 from findn.hybridComparer import hybridComparer
-from findn.guidLookup import guidSearcher  # fast lookup of first part of guids
+from findn.guidLookup import guidDbSearcher  # fast lookup of first part of guids
 from snpclusters.ma_linkage import MixtureAwareLinkageResult
 from findn.msa import MSAStore
 from findn.preComparer import preComparer
@@ -263,7 +263,7 @@ class findNeighbour4:
         self.mhr = MakeHumanReadable()
 
         # load in-memory sequences
-        self.gs = guidSearcher()
+        self.gs = guidDbSearcher(PERSIST=PERSIST, recheck_interval_seconds = 60)
         self._load_in_memory_data()
 
         # log database state
@@ -352,9 +352,6 @@ class findNeighbour4:
             bar = progressbar.ProgressBar(max_value=len(guids))
 
             for guid in guids:
-
-                nLoaded += 1
-                self.gs.add(guid)
 
                 self.hc.repopulate(guid=guid)
                 bar.update(nLoaded)
@@ -470,7 +467,6 @@ class findNeighbour4:
             self.write_semaphore.acquire()
             try:
                 loginfo = self.hc.persist(refcompressedsequence, guid, {"DNAQuality": self.objExaminer.composition})
-                self.gs.add(guid)
 
             except Exception as e:
                 self.write_semaphore.release()  # release the write semaphore
@@ -1110,14 +1106,12 @@ if __name__ == "__main__":
         and these are stored."""
         try:
             result = fn.server_memory_usage(max_reported=nrows)
-            return make_response(tojson(result))
         except Exception as e:
 
             capture_exception(e)
             abort(500, e)
 
-        # reformat this into a long, human readable format.
-
+        # convert to a long, human readable format.
         resl = pd.melt(
             pd.DataFrame.from_records(result), id_vars=["_id", "context|time|time_now", "context|info|message"]
         ).dropna()  # drop any na values
@@ -1128,12 +1122,13 @@ if __name__ == "__main__":
         resl["detail"] = [fn.mhr.convert(x) for x in resl["event_description"].tolist()]
         resl = resl.drop(["event_description"], axis=1)
 
-        if output_format == "html":
-            return resl.to_html()
-        elif output_format == "json":
+        # reformat this as required
+        if output_format == 'json':
             return make_response(resl.to_json(orient="records"))
+        elif output_format == 'html':
+            return "<html>{0}</html>".format(resl.to_html())
         else:
-            abort(500, "Invalid output_format passed")
+            abort(406, "Invalid output_format passed.  Valid values are: json, html")
 
     @app.route("/ui/server_status", defaults={"absdelta": "absolute", "stats_type": "mstat", "nrows": 1}, methods=["GET"])
     @app.route("/ui/server_status/<string:absdelta>/<string:stats_type>/<int:nrows>", methods=["GET"])
@@ -1811,9 +1806,6 @@ python findNeighbour4_server.py ../config/myconfig_file.json
     RESTBASEURL = "http://{0}:{1}".format(CONFIG["IP"], CONFIG["REST_PORT"])
 
     #########################  CONFIGURE HELPER APPLICATIONS ######################
-    ## once the flask app is running, errors get logged to app.logger.  However, problems on start up do not.
-    ## configure mongodb persistence store
-
     # plotting engine
     #  prevent https://stackoverflow.com/questions/27147300/how-to-clean-images-in-python-django
     matplotlib.use("agg")  

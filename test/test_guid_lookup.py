@@ -19,7 +19,13 @@ GNU Affero General Public License for more details.
 import unittest
 import datetime
 import uuid
-from findn.guidLookup import guidSearcher
+import time
+from findn.guidLookup import guidSearcher, guidDbSearcher
+from findn.mongoStore import fn3persistence
+from findn.NucleicAcid import NucleicAcid
+
+## persistence unit tests
+UNITTEST_MONGOCONN = "mongodb://localhost"
 
 
 class test_gm_1(unittest.TestCase):
@@ -56,7 +62,7 @@ class test_gm_2(unittest.TestCase):
         retVal = gs.search("b", max_returned=30)
         self.assertEqual(retVal, ["b1", "b2", "b3"])
         retVal = gs.search("b", max_returned=1)
-        print(retVal)
+
         self.assertEqual(retVal, ["b1"])
         retVal = gs.search("b", max_returned=1, return_subset=True)
         self.assertEqual(len(retVal), 1)
@@ -111,3 +117,96 @@ class test_gm_benchmark(unittest.TestCase):
         t4 = datetime.datetime.now()
         print("SEARCH PER SAMPLE", (t4 - t3) / len(added))
         print("ADD PER SAMPLE", (t3 - t2) / len(added))
+
+
+# class for testing guidDbsearcher
+class Test_Base1t(unittest.TestCase):
+    """initialise FN persistence and adds data, 0.1 secs apart.  Used for testing queries examining order of recovery of samples."""
+
+    def setUp(self):
+        self.t = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
+
+        dna = NucleicAcid()
+
+        # add some sequences
+        seqs = {"b1": "ACGT", "b2": "NACT", "b3": "TTTT", "a1": "CCCC", "c1": "TTTT"}
+        for guid in seqs.keys():
+            time.sleep(0.1)
+            seq = seqs[guid]
+            dna.examine(seq)
+            self.t.guid_annotate(
+                guid=guid, nameSpace="DNAQuality", annotDict=dna.composition
+            )
+        self.seqs = seqs
+
+
+class test_gdm_1(Test_Base1t):
+    def runTest(self):
+
+        gs = guidDbSearcher(self.t)
+        self.assertEqual(gs.guids, ["a1", "b1", "b2", "b3", "c1"])
+
+
+class test_gdm_2(Test_Base1t):
+    def runTest(self):
+
+        gs = guidDbSearcher(self.t)
+
+        retVal = gs.search("b")
+        self.assertEqual(retVal, ["b1", "b2", "b3"])
+        retVal = gs.search("b", max_returned=30)
+        self.assertEqual(retVal, ["b1", "b2", "b3"])
+        retVal = gs.search("b", max_returned=1)
+
+        self.assertEqual(retVal, ["b1"])
+        retVal = gs.search("b", max_returned=1, return_subset=True)
+        self.assertEqual(len(retVal), 1)
+        retVal = gs.search("b", max_returned=1, return_subset=False)
+        self.assertEqual(len(retVal), 0)
+
+        retVal = gs.search("b", max_returned=2, return_subset=True)
+        self.assertEqual(len(retVal), 2)
+        retVal = gs.search("b", max_returned=2, return_subset=False)
+        self.assertEqual(len(retVal), 0)
+        retVal = gs.search("z")
+        self.assertEqual(retVal, [])
+
+
+class test_gdm_3(Test_Base1t):
+    def runTest(self):
+
+        gs = guidDbSearcher(self.t, recheck_interval_seconds=1)
+
+        retVal = gs.search("b")
+        self.assertEqual(retVal, ["b1", "b2", "b3"])
+
+        dna = NucleicAcid()
+
+        # add more
+        # add some sequences
+        seqs = {"b4": "ACGT", "b5": "NACT", "b6": "TTTT", "c1": "TTTT"}
+        for guid in seqs.keys():
+            time.sleep(0.1)
+            seq = seqs[guid]
+            dna.examine(seq)
+            self.t.guid_annotate(
+                guid=guid, nameSpace="DNAQuality", annotDict=dna.composition
+            )
+
+        # has not searched recently - won't find the new ones
+        retVal = gs.search("b")
+        self.assertEqual(retVal, ["b1", "b2", "b3"])
+
+        time.sleep(1)
+
+        # should now find the new ones
+        retVal = gs.search("b")
+        self.assertEqual(retVal, ["b1", "b2", "b3", "b4", "b5", "b6"])
+
+
+class test_gdm_4(Test_Base1t):
+    def runTest(self):
+        """Tests add method in guidDbSearcher, which should return a NotImplementedError"""
+        gs = guidDbSearcher(self.t)
+        with self.assertRaises(NotImplementedError):
+            gs.add("b1")

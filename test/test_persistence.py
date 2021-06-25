@@ -7,7 +7,6 @@ import pandas as pd
 import pickle
 from findn.NucleicAcid import NucleicAcid
 
-
 from findn.mongoStore import fn3persistence
 
 ## persistence unit tests
@@ -88,15 +87,17 @@ class Test_Server_Monitoring_3(unittest.TestCase):
         p = fn3persistence(
             connString=UNITTEST_MONGOCONN,
             debug=2,
-            server_monitoring_min_interval_msec=2000,
-        )
+
+            server_monitoring_min_interval_msec=1000,
+        )       # no logging for within 1 secs of another event
+
         retVal = p.server_monitoring_store(message="one")  # should insert
         self.assertEqual(retVal, True)
         res = p.recent_server_monitoring(100)
         self.assertEqual(len(res), 1)
         self.assertTrue(isinstance(res, list))
 
-        retVal = p.server_monitoring_store(message="two")  # should not inserted
+        retVal = p.server_monitoring_store(message="two")  # should not insert
         self.assertEqual(retVal, False)
         res = p.recent_server_monitoring(100)
         self.assertEqual(len(res), 1)
@@ -908,15 +909,95 @@ class Test_SeqMeta_Base1(unittest.TestCase):
             self.t.guid_annotate(
                 guid=guid, nameSpace="DNAQuality", annotDict=dna.composition
             )
+            
+            
+class Test_SeqMeta_Base1t(unittest.TestCase):
+    """initialise FN persistence and adds data, 0.1 secs apart.
+    Used for testing queries examining order of recovery of samples."""
+
+    def setUp(self):
+        self.t = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
+
+        dna = NucleicAcid()
+
+        # add some sequences
+        seqs = {"guid1": "ACGT", "guid2": "NACT", "guid3": "TTTT", "guid4": "NNNN"}
+        for guid in seqs.keys():
+            time.sleep(0.1)
+            seq = seqs[guid]
+            dna.examine(seq)
+            self.t.guid_annotate(
+                guid=guid, nameSpace="DNAQuality", annotDict=dna.composition
+            )
+        self.seqs = seqs
 
 
 class Test_SeqMeta_guid2ExaminationDateTime(Test_SeqMeta_Base1):
+    """recovering guids and examination times;"""
+
+
+    def runTest(self):
+        res = self.t.guid2ExaminationDateTime()
+        expected = 4
+        self.assertEqual(len(res.keys()), expected)
+      
+
+class Test_SeqMeta_guid2ExaminationDateTime_order(Test_SeqMeta_Base1t):
+    """tests guid2ExaminationDateTime"""
+
+    def runTest(self):
+        res = self.t.guid2ExaminationDateTime()
+        expected = 4
+        self.assertEqual(len(res.keys()), expected)
+
+        # check that the sample were added in order, with increasing examination times.
+        previous_addition_time = None
+        for i, guid in enumerate(sorted(self.seqs.keys())):  # the order added
+            if i > 0:
+                self.assertGreater(res[guid], previous_addition_time)
+            previous_addition_time = res[guid]
+
+
+class Test_SeqMeta_guid_examination_time(Test_SeqMeta_Base1t):
+    """tests guid_examination_time()"""
+
+    def runTest(self):
+        res = self.t.guid2ExaminationDateTime()
+        expected = 4
+        self.assertEqual(len(res.keys()), expected)
+
+        # check that the sample were added in order, with increasing examination times.
+        previous_addition_time = None
+        for i, guid in enumerate(sorted(self.seqs.keys())):  # the order added
+            this_examination_time = self.t.guid_examination_time(guid)
+            if i > 0:
+                self.assertGreater(this_examination_time, previous_addition_time)
+            previous_addition_time = this_examination_time
+
+        this_examination_time = self.t.guid_examination_time("missing-guid")
+        self.assertIsNone(this_examination_time)
+
+
+class Test_SeqMeta_guid_considered_after(Test_SeqMeta_Base1t):
     """recovering guids and examination times;"""
 
     def runTest(self):
         res = self.t.guid2ExaminationDateTime()
         expected = 4
         self.assertEqual(len(res.keys()), expected)
+
+        # check that the sample were added in order, with increasing examination times.
+        for i, guid in enumerate(sorted(self.seqs.keys())):  # the order added
+            this_examination_time = self.t.guid_examination_time(guid)
+            res = self.t.guids_considered_after(this_examination_time)
+            self.assertEqual(
+                len(res), 3 - i
+            )  # with guid1, we expect three; with guid2, we expect 2; etc
+
+            res = self.t.guids_considered_after_guid(guid)
+            self.assertEqual(
+                len(res), 3 - i
+            )  # with guid1, we expect three; with guid2, we expect 2; etc
 
 
 class Test_SeqMeta_propACTG_filteredSequenceGuids(Test_SeqMeta_Base1):
@@ -1000,6 +1081,30 @@ class Test_Clusters(unittest.TestCase):
         self.assertEqual(2, len(p.cluster_versions("cl2")))
         p.cluster_delete_legacy_by_key("cl2")
         self.assertEqual(1, len(p.cluster_versions("cl2")))
+
+
+class Test_Tree(unittest.TestCase):
+    """tests saving and recovery of dictionaries to Tree"""
+
+    def runTest(self):
+        p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
+        payload1 = {"one": 1, "two": 2}
+        p.tree_store(tree_token="tree1", tree=payload1)
+        payload2 = p.tree_read(tree_token="tree1")
+        self.assertEqual(payload1, payload2)
+        p.tree_delete(tree_token="tree1")
+        payload3 = p.tree_read(tree_token="tree1")
+        self.assertIsNone(payload3)
+
+        payload1 = {"one": 1, "two": 2}
+        p.tree_store(tree_token="tree1", tree=payload1)
+        payload2 = {"one": 3, "two": 4}
+        p.tree_store(tree_token="tree2", tree=payload2)
+        self.assertEqual(2, len(p.tree_stored_ids()))
+        p.tree_delete_unless_whitelisted(whitelist=["tree1", "tree2"])
+        self.assertEqual(2, len(p.tree_stored_ids()))
+        p.tree_delete_unless_whitelisted(whitelist=["tree1"])
+        self.assertEqual(1, len(p.tree_stored_ids()))
 
 
 class Test_MSA(unittest.TestCase):

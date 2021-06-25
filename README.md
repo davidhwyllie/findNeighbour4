@@ -1,3 +1,5 @@
+[![Test findNeighbour4](https://github.com/davidhwyllie/findNeighbour4/actions/workflows/test_fn4.yml/badge.svg?branch=master)](https://github.com/davidhwyllie/findNeighbour4/actions/workflows/test_fn4.yml)
+
 # Abstract
 findNeighbour4 is a server application for investigating bacterial relatedness using reference-mapped data.
 Accessible via RESTful webservices, findNeighbour4 maintains a sparse distance matrix in a database
@@ -18,7 +20,7 @@ It has the following features:
 * Allow attachment of arbitrary metadata to each sequence, but the front end for this is not implemented.
 
 Compared with findNeighbours 2 and 3, it works much faster (>100x faster inserts) and uses about 5% of the RAM.  
-This is achieved using using a compiled component, CatWalk, to store and compare sequences.  The component was developed by Denis Volk (Modernising Medical Microbiology, Oxford) - publication planned.
+This is achieved using using a compiled component, [CatWalk](https://gitea.mmmoxford.uk/dvolk/catwalk.git), to store and compare sequences.  The component was developed by Denis Volk (Modernising Medical Microbiology, Oxford) - publication planned.
 It was produced as part of the [Modernising Medical Microbiology](http://modmedmicro.nsms.ox.ac.uk/) initiative, together with [Public Health England](https://www.gov.uk/government/organisations/public-health-england).
 
 # Front end

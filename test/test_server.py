@@ -665,11 +665,12 @@ class test_server_config(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
 
 
-class test_server_memory_usage(unittest.TestCase):
-    """tests route /api/v2/server_memory_usage"""
 
+class test_server_memory_usage_1(unittest.TestCase):
+    """ tests route /api/v2/server_memory_usage"""
     def runTest(self):
 
+        # default: response should be json
         relpath = "/api/v2/server_memory_usage"
         res = do_GET(relpath)
         self.assertEqual(res.status_code, 200)
@@ -677,6 +678,32 @@ class test_server_memory_usage(unittest.TestCase):
 
         res = json.loads(res.content.decode("utf-8"))
         self.assertTrue(isinstance(res, list))
+
+        # default: response should be json
+        relpath = "/api/v2/server_memory_usage/1"
+        res = do_GET(relpath)
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(isjson(content=res.content))
+
+        res = json.loads(res.content.decode("utf-8"))
+        self.assertTrue(isinstance(res, list))
+
+
+class test_server_memory_usage_2(unittest.TestCase):
+    """ tests route /api/v2/server_memory_usage"""
+
+    def runTest(self):
+        # default: response should be html
+        relpath = "/api/v2/server_memory_usage/1/html"
+        res = do_GET(relpath)
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(isjson(content=res.content))
+        self.assertTrue("<table" in res.text)
+
+        # default: response should be 406
+        relpath = "/api/v2/server_memory_usage/1/nothing"
+        res = do_GET(relpath)
+        self.assertEqual(res.status_code, 406)
 
 
 class test_server_database_usage(unittest.TestCase):
