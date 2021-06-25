@@ -105,6 +105,7 @@ class Test_ManipulateTree(unittest.TestCase):
         # print(d1,d2,d3)
 
 
+@unittest.skip("causes core dump in gitlab actions environment. runs in standard environment. reason requires investigation.")
 class Test_DepictTree_1(unittest.TestCase):
     """tests the DepictTree class"""
 
