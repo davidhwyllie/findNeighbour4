@@ -665,7 +665,6 @@ class test_server_config(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
 
 
-
 class test_server_memory_usage_1(unittest.TestCase):
     """ tests route /api/v2/server_memory_usage"""
     def runTest(self):
