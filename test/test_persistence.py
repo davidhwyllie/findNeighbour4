@@ -87,6 +87,7 @@ class Test_Server_Monitoring_3(unittest.TestCase):
         p = fn3persistence(
             connString=UNITTEST_MONGOCONN,
             debug=2,
+
             server_monitoring_min_interval_msec=1000,
         )       # no logging for within 1 secs of another event
 
@@ -908,8 +909,8 @@ class Test_SeqMeta_Base1(unittest.TestCase):
             self.t.guid_annotate(
                 guid=guid, nameSpace="DNAQuality", annotDict=dna.composition
             )
-
-
+            
+            
 class Test_SeqMeta_Base1t(unittest.TestCase):
     """initialise FN persistence and adds data, 0.1 secs apart.
     Used for testing queries examining order of recovery of samples."""

@@ -27,40 +27,68 @@ from findn.preComparer import preComparer
 
 
 class test_preComparer_1(unittest.TestCase):
-    """ tests __init__ method"""
+    """tests __init__ method"""
 
     def runTest(self):
         # initialise comparer
-        sc = preComparer(selection_cutoff=20, over_selection_cutoff_ignore_factor=5, uncertain_base="M")
+        sc = preComparer(
+            selection_cutoff=20,
+            over_selection_cutoff_ignore_factor=5,
+            uncertain_base="M",
+        )
         self.assertIsInstance(sc, preComparer)
 
 
 class test_preComparer_1b(unittest.TestCase):
-    """ tests check_operating_parameters method"""
+    """tests check_operating_parameters method"""
 
     def runTest(self):
         # initialise comparer
-        sc = preComparer(selection_cutoff=20, over_selection_cutoff_ignore_factor=5, uncertain_base="M")
-
-        sc.set_operating_parameters(selection_cutoff=20, over_selection_cutoff_ignore_factor=5, uncertain_base="M")
-
-        self.assertTrue(
-            sc.check_operating_parameters(selection_cutoff=20, over_selection_cutoff_ignore_factor=5, uncertain_base="M")
+        sc = preComparer(
+            selection_cutoff=20,
+            over_selection_cutoff_ignore_factor=5,
+            uncertain_base="M",
         )
 
-        sc.set_operating_parameters(selection_cutoff=10, over_selection_cutoff_ignore_factor=5, uncertain_base="M")
+        sc.set_operating_parameters(
+            selection_cutoff=20,
+            over_selection_cutoff_ignore_factor=5,
+            uncertain_base="M",
+        )
+
+        self.assertTrue(
+            sc.check_operating_parameters(
+                selection_cutoff=20,
+                over_selection_cutoff_ignore_factor=5,
+                uncertain_base="M",
+            )
+        )
+
+        sc.set_operating_parameters(
+            selection_cutoff=10,
+            over_selection_cutoff_ignore_factor=5,
+            uncertain_base="M",
+        )
 
         self.assertFalse(
-            sc.check_operating_parameters(selection_cutoff=20, over_selection_cutoff_ignore_factor=5, uncertain_base="M")
+            sc.check_operating_parameters(
+                selection_cutoff=20,
+                over_selection_cutoff_ignore_factor=5,
+                uncertain_base="M",
+            )
         )
 
 
 class test_preComparer_2(unittest.TestCase):
-    """ tests storage """
+    """tests storage"""
 
     def runTest(self):
         # initialise comparer
-        sc = preComparer(selection_cutoff=20, uncertain_base="M", over_selection_cutoff_ignore_factor=5)
+        sc = preComparer(
+            selection_cutoff=20,
+            uncertain_base="M",
+            over_selection_cutoff_ignore_factor=5,
+        )
         obj = {"A": set([1, 2, 3, 4])}
         sc.persist(obj, "guid1")
         self.assertEqual(sc.composition["guid1"]["A"], 4)
@@ -73,7 +101,7 @@ class test_preComparer_2(unittest.TestCase):
 
 
 class test_preComparer_2a(unittest.TestCase):
-    """ tests storage """
+    """tests storage"""
 
     def runTest(self):
         # initialise comparer
@@ -102,11 +130,15 @@ class test_preComparer_2a(unittest.TestCase):
 
 
 class test_preComparer_3(unittest.TestCase):
-    """ tests storage of invalid samples """
+    """tests storage of invalid samples"""
 
     def runTest(self):
 
-        sc = preComparer(selection_cutoff=20, uncertain_base="M", over_selection_cutoff_ignore_factor=5)
+        sc = preComparer(
+            selection_cutoff=20,
+            uncertain_base="M",
+            over_selection_cutoff_ignore_factor=5,
+        )
         obj = {"A": set([1, 2, 3, 4]), "invalid": 1}
         sc.persist(obj, "guid1")
         self.assertEqual(sc.composition["guid1"]["A"], 4)
@@ -117,7 +149,10 @@ class test_preComparer_3(unittest.TestCase):
         self.assertEqual(sc.composition["guid1"]["M"], 0)
         self.assertEqual(sc.composition["guid1"]["invalid"], 1)
 
-        self.assertEqual(set(sc.seqProfile["guid1"].keys()), set(["invalid", "A", "T", "C", "U", "G"]))
+        self.assertEqual(
+            set(sc.seqProfile["guid1"].keys()),
+            set(["invalid", "A", "T", "C", "U", "G"]),
+        )
         obj = {"A": set([1, 2, 3, 4]), "invalid": 0}
         sc.persist(obj, "guid2")
         self.assertEqual(sc.composition["guid2"]["A"], 4)
@@ -138,7 +173,12 @@ class test_preComparer_3(unittest.TestCase):
         self.assertEqual(sc.composition["guid3"]["M"], 0)
         self.assertEqual(sc.composition["guid3"]["invalid"], 0)
 
-        obj = {"A": set([1, 2, 3, 4]), "N": set([10, 11, 12]), "M": {13: "Y"}, "invalid": 0}
+        obj = {
+            "A": set([1, 2, 3, 4]),
+            "N": set([10, 11, 12]),
+            "M": {13: "Y"},
+            "invalid": 0,
+        }
         sc.persist(obj, "guid4")
         self.assertEqual(sc.composition["guid4"]["A"], 4)
         self.assertEqual(sc.composition["guid4"]["C"], 0)
@@ -148,14 +188,22 @@ class test_preComparer_3(unittest.TestCase):
         self.assertEqual(sc.composition["guid4"]["M"], 1)
         self.assertEqual(sc.composition["guid4"]["invalid"], 0)
 
-        self.assertEqual(sc.guidscachedinram(), set(["guid1", "guid2", "guid3", "guid4"]))
+        self.assertEqual(
+            sc.guidscachedinram(), set(["guid1", "guid2", "guid3", "guid4"])
+        )
 
-        self.assertEqual(set(sc.seqProfile["guid2"].keys()), set(["A", "C", "T", "G", "U", "invalid"]))
-        self.assertEqual(set(sc.seqProfile["guid1"].keys()), set(["A", "C", "T", "G", "U", "invalid"]))
+        self.assertEqual(
+            set(sc.seqProfile["guid2"].keys()),
+            set(["A", "C", "T", "G", "U", "invalid"]),
+        )
+        self.assertEqual(
+            set(sc.seqProfile["guid1"].keys()),
+            set(["A", "C", "T", "G", "U", "invalid"]),
+        )
 
 
 class test_preComparer_3a(unittest.TestCase):
-    """ tests storage of invalid samples """
+    """tests storage of invalid samples"""
 
     def runTest(self):
 
@@ -204,7 +252,12 @@ class test_preComparer_3a(unittest.TestCase):
         self.assertEqual(sc.composition["guid3"]["M"], 0)
         self.assertEqual(sc.composition["guid3"]["invalid"], 0)
 
-        obj = {"A": set([1, 2, 3, 4]), "N": set([10, 11, 12]), "M": {13: "Y"}, "invalid": 0}
+        obj = {
+            "A": set([1, 2, 3, 4]),
+            "N": set([10, 11, 12]),
+            "M": {13: "Y"},
+            "invalid": 0,
+        }
         sc.persist(obj, "guid4")
         self.assertEqual(sc.composition["guid4"]["A"], 4)
         self.assertEqual(sc.composition["guid4"]["C"], 0)
@@ -214,17 +267,23 @@ class test_preComparer_3a(unittest.TestCase):
         self.assertEqual(sc.composition["guid4"]["M"], 1)
         self.assertEqual(sc.composition["guid4"]["invalid"], 0)
 
-        self.assertEqual(sc.guidscachedinram(), set(["guid1", "guid2", "guid3", "guid4"]))
+        self.assertEqual(
+            sc.guidscachedinram(), set(["guid1", "guid2", "guid3", "guid4"])
+        )
         self.assertEqual(set(sc.seqProfile["guid2"].keys()), set(["invalid"]))
         self.assertEqual(set(sc.seqProfile["guid1"].keys()), set(["invalid"]))
 
 
 class test_preComparer_4(unittest.TestCase):
-    """ tests reporting of server status """
+    """tests reporting of server status"""
 
     def runTest(self):
         # initialise comparer
-        sc = preComparer(selection_cutoff=20, uncertain_base="M", over_selection_cutoff_ignore_factor=5)
+        sc = preComparer(
+            selection_cutoff=20,
+            uncertain_base="M",
+            over_selection_cutoff_ignore_factor=5,
+        )
         res1 = sc.summarise_stored_items()
         self.assertEqual({"server|pcstat|nSeqs": 0}, res1)
 
@@ -235,7 +294,7 @@ class test_preComparer_4(unittest.TestCase):
 
 
 class test_preComparer_4a(unittest.TestCase):
-    """ tests reporting of server status """
+    """tests reporting of server status"""
 
     def runTest(self):
         # initialise comparer
@@ -255,15 +314,21 @@ class test_preComparer_4a(unittest.TestCase):
         )
         res1 = sc.summarise_stored_items()
         self.assertEqual(res1["server|pcstat|nSeqs"], 0)
-        self.assertEqual(res1["server|catwalk|mask_name"], "reference/TB-exclude-adaptive.txt")
+        self.assertEqual(
+            res1["server|catwalk|mask_name"], "reference/TB-exclude-adaptive.txt"
+        )
 
 
 class test_preComparer_5(unittest.TestCase):
-    """ tests comparison """
+    """tests comparison"""
 
     def runTest(self):
 
-        sc = preComparer(selection_cutoff=20, uncertain_base="M", over_selection_cutoff_ignore_factor=5)
+        sc = preComparer(
+            selection_cutoff=20,
+            uncertain_base="M",
+            over_selection_cutoff_ignore_factor=5,
+        )
 
         obj = {"A": set([1, 2, 3, 4]), "invalid": 0}
         sc.persist(obj, "guid2")
@@ -276,11 +341,15 @@ class test_preComparer_5(unittest.TestCase):
 
 
 class test_preComparer_6(unittest.TestCase):
-    """ tests comparison """
+    """tests comparison"""
 
     def runTest(self):
 
-        sc = preComparer(selection_cutoff=20, uncertain_base="M", over_selection_cutoff_ignore_factor=5)
+        sc = preComparer(
+            selection_cutoff=20,
+            uncertain_base="M",
+            over_selection_cutoff_ignore_factor=5,
+        )
 
         obj = {"A": set([1, 2, 3, 4]), "invalid": 0}
         sc.persist(obj, "guid2")
@@ -293,11 +362,15 @@ class test_preComparer_6(unittest.TestCase):
 
 
 class test_preComparer_7(unittest.TestCase):
-    """ tests comparison """
+    """tests comparison"""
 
     def runTest(self):
 
-        sc = preComparer(selection_cutoff=20, uncertain_base="M", over_selection_cutoff_ignore_factor=5)
+        sc = preComparer(
+            selection_cutoff=20,
+            uncertain_base="M",
+            over_selection_cutoff_ignore_factor=5,
+        )
 
         obj = {"A": set([1, 2, 3, 4]), "invalid": 0}
         sc.persist(obj, "guid2")
@@ -314,40 +387,57 @@ class test_preComparer_7(unittest.TestCase):
 
 
 class test_preComparer_8(unittest.TestCase):
-    """ tests comparison """
+    """tests comparison"""
 
     def runTest(self):
 
-        sc = preComparer(selection_cutoff=20, uncertain_base="M", over_selection_cutoff_ignore_factor=5)
+        sc = preComparer(
+            selection_cutoff=20,
+            uncertain_base="M",
+            over_selection_cutoff_ignore_factor=5,
+        )
 
         obj = {"A": set([1, 2, 3, 4]), "invalid": 0}
         sc.persist(obj, "guid2")
 
         # check all keys are present
-        self.assertEqual(set(sc.seqProfile["guid2"].keys()), set(["U", "A", "C", "G", "T", "invalid"]))
+        self.assertEqual(
+            set(sc.seqProfile["guid2"].keys()),
+            set(["U", "A", "C", "G", "T", "invalid"]),
+        )
 
         obj = {"A": set([1, 2, 3, 4]), "invalid": 1}
         sc.persist(obj, "guid3")
 
         # check all keys are present
-        self.assertEqual(set(sc.seqProfile["guid3"].keys()), set(["U", "A", "C", "G", "T", "invalid"]))
+        self.assertEqual(
+            set(sc.seqProfile["guid3"].keys()),
+            set(["U", "A", "C", "G", "T", "invalid"]),
+        )
 
         # check invalid set
         self.assertEqual(sc.seqProfile["guid3"]["invalid"], 1)
 
 
 class test_preComparer_9(unittest.TestCase):
-    """ tests mcompare """
+    """tests mcompare"""
 
     def runTest(self):
 
-        sc = preComparer(selection_cutoff=20, uncertain_base="M", over_selection_cutoff_ignore_factor=5)
+        sc = preComparer(
+            selection_cutoff=20,
+            uncertain_base="M",
+            over_selection_cutoff_ignore_factor=5,
+        )
 
         obj = {"A": set([1, 2, 3, 4]), "invalid": 0}
         sc.persist(obj, "guid2")
 
         # check all keys are present
-        self.assertEqual(set(sc.seqProfile["guid2"].keys()), set(["U", "A", "C", "G", "T", "invalid"]))
+        self.assertEqual(
+            set(sc.seqProfile["guid2"].keys()),
+            set(["U", "A", "C", "G", "T", "invalid"]),
+        )
 
         obj = {"A": set([1, 2, 3, 4, 5]), "invalid": 0}
         sc.persist(obj, "guid3")
@@ -357,7 +447,7 @@ class test_preComparer_9(unittest.TestCase):
 
 
 class test_preComparer_9a(unittest.TestCase):
-    """ tests mcompare """
+    """tests mcompare"""
 
     def runTest(self):
         # print("Starting precomparer")
@@ -390,11 +480,15 @@ class test_preComparer_9a(unittest.TestCase):
 
 
 class test_preComparer_10(unittest.TestCase):
-    """ tests comparison """
+    """tests comparison"""
 
     def runTest(self):
 
-        sc = preComparer(selection_cutoff=20, uncertain_base="M", over_selection_cutoff_ignore_factor=5)
+        sc = preComparer(
+            selection_cutoff=20,
+            uncertain_base="M",
+            over_selection_cutoff_ignore_factor=5,
+        )
 
         obj = {"invalid": 1}
         sc.persist(obj, "guid2")
@@ -403,13 +497,15 @@ class test_preComparer_10(unittest.TestCase):
         sc.persist(obj, "guid3")
 
         obj = {"A": set([1, 2, 3, 4]), "N": set([10, 11]), "invalid": 0}
-        res = sc.persist(obj, "guid2")  # should return results for the previously stored guid2
+        res = sc.persist(
+            obj, "guid2"
+        )  # should return results for the previously stored guid2
 
         self.assertEqual(res, 1)
 
 
 class test_preComparer_11(unittest.TestCase):
-    """ compares catwalk vs python comparisons with real data """
+    """compares catwalk vs python comparisons with real data"""
 
     def compress(self, sequence, reference):
         """reads a string sequence and extracts position - genome information from it.
@@ -432,7 +528,14 @@ class test_preComparer_11(unittest.TestCase):
         # we only record differences relative to to refSeq.
         # anything the same as the refSeq is not recorded.
         # a dictionary, M, records the mixed base calls.
-        diffDict = {"A": set([]), "C": set([]), "T": set([]), "G": set([]), "N": set([]), "M": {}}
+        diffDict = {
+            "A": set([]),
+            "C": set([]),
+            "T": set([]),
+            "G": set([]),
+            "N": set([]),
+            "M": {},
+        }
         for i in range(len(sequence)):  # no mask: consider all sequences
             if not sequence[i] == reference[i]:  # if it's not reference
                 if sequence[i] in ["A", "C", "T", "G", "N"]:
@@ -466,22 +569,36 @@ class test_preComparer_11(unittest.TestCase):
                 nFiles += 1
                 if nFiles > 1:  # that's a multifasta, and we don't support that
                     raise ValueError(
-                        "Multifasta file is present in {0}.  Multifasta files are not supported".format(fastafile)
+                        "Multifasta file is present in {0}.  Multifasta files are not supported".format(
+                            fastafile
+                        )
                     )
                 else:
-                    res = {"seq": str(record.seq), "seqid": str(record.id), "content": content}
+                    res = {
+                        "seq": str(record.seq),
+                        "seqid": str(record.id),
+                        "content": content,
+                    }
                     return res
-        raise IOError("no content parsed from result of length {0}".format(len(content)))
+        raise IOError(
+            "no content parsed from result of length {0}".format(len(content))
+        )
 
     def runTest(self):
-        """ do comparison between cw and standard snv computation methods """
+        """do comparison between cw and standard snv computation methods"""
 
         uncertain_base = "N_or_M"  # consider Ns or Ms as unknown. (cw calls these 'N')
         selection_cutoff = 5000000
-        print("#1 is running conventional python based comparisons with {0} snv cutoff".format(selection_cutoff))
+        print(
+            "#1 is running conventional python based comparisons with {0} snv cutoff".format(
+                selection_cutoff
+            )
+        )
         print("#1 is using catwalk with {0} snv cutoff".format(selection_cutoff))
         sc1 = preComparer(
-            selection_cutoff=selection_cutoff, over_selection_cutoff_ignore_factor=1, uncertain_base=uncertain_base
+            selection_cutoff=selection_cutoff,
+            over_selection_cutoff_ignore_factor=1,
+            uncertain_base=uncertain_base,
         )
 
         sc2 = preComparer(
@@ -506,7 +623,9 @@ class test_preComparer_11(unittest.TestCase):
 
         # we load randomly selected guids
         guids = list()
-        for i, fastafile in enumerate(sorted(glob.glob(os.path.join(fastadir, "test", "*.mfasta.gz")))):
+        for i, fastafile in enumerate(
+            sorted(glob.glob(os.path.join(fastadir, "test", "*.mfasta.gz")))
+        ):
             guid = os.path.basename(fastafile).replace(".mfasta.gz", "")
             guids.append(guid)
             seq = self.read_fasta_file(fastafile)["seq"]
@@ -547,15 +666,26 @@ class test_preComparer_11(unittest.TestCase):
 
         if not set(snpcmp_1.keys()) == set(snpcmp_2.keys()):
             print("FAIL: pairs identified differ")
-        print("Examining {0} pairs, comparing both methods; will report any discrepancies".format(len(snpcmp_1)))
+        print(
+            "Examining {0} pairs, comparing both methods; will report any discrepancies".format(
+                len(snpcmp_1)
+            )
+        )
         failures = 0
         for key in sorted(snpcmp_1.keys()):  # compare results for both methods
             try:
                 if not snpcmp_1[key] == snpcmp_2[key]:
-                    print("FAIL: Distances differ for ", key, snpcmp_1[key], snpcmp_2[key])
+                    print(
+                        "FAIL: Distances differ for ", key, snpcmp_1[key], snpcmp_2[key]
+                    )
                     failures += 1
             except KeyError:
-                print("FAIL: Pair ", key, "is not present (likely >20) in snpcmp_2.  Python distance is ", snpcmp_1[key])
+                print(
+                    "FAIL: Pair ",
+                    key,
+                    "is not present (likely >20) in snpcmp_2.  Python distance is ",
+                    snpcmp_1[key],
+                )
                 failures += 1
         print("Finished, failures = {0}".format(failures))
         self.assertEqual(failures, 0)

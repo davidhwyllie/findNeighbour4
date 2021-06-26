@@ -33,7 +33,7 @@ LISTEN_TO = "127.0.0.1"  # only local addresses
 
 
 def isjson(content):
-    """ returns true if content parses as json, otherwise false. used by unit testing. """
+    """returns true if content parses as json, otherwise false. used by unit testing."""
     try:
         json.loads(content.decode("utf-8"))
         return True
@@ -43,7 +43,7 @@ def isjson(content):
 
 
 def tojson(content):
-    """ json dumps, formatting dates as isoformat """
+    """json dumps, formatting dates as isoformat"""
 
     def converter(o):
         if isinstance(o, datetime.datetime):
@@ -180,15 +180,21 @@ class test_guids(unittest.TestCase):
 
         relpath = "/api/v2/guids"
         res = do_GET(relpath)
-        self.assertEqual(set(["valid", "invalid"]), set(json.loads(str(res.text))))  # get all the guids
+        self.assertEqual(
+            set(["valid", "invalid"]), set(json.loads(str(res.text)))
+        )  # get all the guids
 
         relpath = "/api/v2/valid_guids"
         res = do_GET(relpath)
-        self.assertEqual(set(["valid"]), set(json.loads(str(res.text))))  # get all the guids
+        self.assertEqual(
+            set(["valid"]), set(json.loads(str(res.text)))
+        )  # get all the guids
 
         relpath = "/api/v2/invalid_guids"
         res = do_GET(relpath)
-        self.assertEqual(set(["invalid"]), set(json.loads(str(res.text))))  # get all the guids
+        self.assertEqual(
+            set(["invalid"]), set(json.loads(str(res.text)))
+        )  # get all the guids
 
 
 class test_guid_validity(unittest.TestCase):
@@ -233,7 +239,7 @@ class test_guid_validity(unittest.TestCase):
 
 
 class test_cl2network(unittest.TestCase):
-    """  tests return of a change_id number from clustering engine"""
+    """tests return of a change_id number from clustering engine"""
 
     def runTest(self):
         relpath = "/api/v2/reset"
@@ -297,7 +303,9 @@ class test_cl2network(unittest.TestCase):
 
         # plot the cluster with the highest clusterid
         res = None
-        relpath = "/api/v2/clustering/SNV12_ignore/{0}/minimum_spanning_tree".format(max(retVal))
+        relpath = "/api/v2/clustering/SNV12_ignore/{0}/minimum_spanning_tree".format(
+            max(retVal)
+        )
         res = do_GET(relpath)
         self.assertEqual(res.status_code, 200)
         jsonresp = json.loads(str(res.text))
@@ -409,35 +417,55 @@ class test_msa_2(unittest.TestCase):
         self.assertEqual(set(retVal.keys()), set(["fasta"]))
 
         relpath = "/api/v2/multiple_alignment/guids"
-        payload = {"guids": ";".join(inserted_guids), "output_format": "html", "what": "N"}
+        payload = {
+            "guids": ";".join(inserted_guids),
+            "output_format": "html",
+            "what": "N",
+        }
         res = do_POST(relpath, payload=payload)
         self.assertFalse(isjson(res.content))
         self.assertEqual(res.status_code, 200)
         self.assertTrue(b"</table>" in res.content)
 
         relpath = "/api/v2/multiple_alignment/guids"
-        payload = {"guids": ";".join(inserted_guids), "output_format": "html", "what": "M"}
+        payload = {
+            "guids": ";".join(inserted_guids),
+            "output_format": "html",
+            "what": "M",
+        }
         res = do_POST(relpath, payload=payload)
         self.assertFalse(isjson(res.content))
         self.assertEqual(res.status_code, 200)
         self.assertTrue(b"</table>" in res.content)
 
         relpath = "/api/v2/multiple_alignment/guids"
-        payload = {"guids": ";".join(inserted_guids), "output_format": "html", "what": "N_or_M"}
+        payload = {
+            "guids": ";".join(inserted_guids),
+            "output_format": "html",
+            "what": "N_or_M",
+        }
         res = do_POST(relpath, payload=payload)
         self.assertFalse(isjson(res.content))
         self.assertEqual(res.status_code, 200)
         self.assertTrue(b"</table>" in res.content)
 
         relpath = "/api/v2/multiple_alignment/guids"
-        payload = {"guids": ";".join(inserted_guids), "output_format": "interactive", "what": "N_or_M"}
+        payload = {
+            "guids": ";".join(inserted_guids),
+            "output_format": "interactive",
+            "what": "N_or_M",
+        }
         res = do_POST(relpath, payload=payload)
         self.assertFalse(isjson(res.content))
         self.assertEqual(res.status_code, 200)
         self.assertTrue(b"</html>" in res.content)
 
         relpath = "/api/v2/multiple_alignment/guids"
-        payload = {"guids": ";".join(inserted_guids), "output_format": "json-records", "what": "N"}
+        payload = {
+            "guids": ";".join(inserted_guids),
+            "output_format": "json-records",
+            "what": "N",
+        }
         res = do_POST(relpath, payload=payload)
         self.assertEqual(res.status_code, 200)
         self.assertTrue(isjson(res.content))
@@ -446,7 +474,11 @@ class test_msa_2(unittest.TestCase):
         self.assertEqual(df.loc[df.index[0], "what_tested"], "N")
 
         relpath = "/api/v2/multiple_alignment/guids"
-        payload = {"guids": ";".join(inserted_guids), "output_format": "json-records", "what": "M"}
+        payload = {
+            "guids": ";".join(inserted_guids),
+            "output_format": "json-records",
+            "what": "M",
+        }
         res = do_POST(relpath, payload=payload)
         self.assertEqual(res.status_code, 200)
         self.assertTrue(isjson(res.content))
@@ -456,7 +488,11 @@ class test_msa_2(unittest.TestCase):
         self.assertEqual(df.loc[df.index[0], "what_tested"], "M")
 
         relpath = "/api/v2/multiple_alignment/guids"
-        payload = {"guids": ";".join(inserted_guids), "output_format": "json-records", "what": "N_or_M"}
+        payload = {
+            "guids": ";".join(inserted_guids),
+            "output_format": "json-records",
+            "what": "N_or_M",
+        }
         res = do_POST(relpath, payload=payload)
         self.assertEqual(res.status_code, 200)
         self.assertTrue(isjson(res.content))
@@ -465,7 +501,11 @@ class test_msa_2(unittest.TestCase):
         self.assertEqual(df.loc[df.index[0], "what_tested"], "N_or_M")
 
         relpath = "/api/v2/multiple_alignment/guids"
-        payload = {"guids": ";".join(inserted_guids), "output_format": "json-records", "what": "N"}
+        payload = {
+            "guids": ";".join(inserted_guids),
+            "output_format": "json-records",
+            "what": "N",
+        }
         res = do_POST(relpath, payload=payload)
         self.assertEqual(res.status_code, 200)
         self.assertTrue(isjson(res.content))
@@ -474,7 +514,11 @@ class test_msa_2(unittest.TestCase):
         self.assertEqual(df.loc[df.index[0], "what_tested"], "N")
 
         relpath = "/api/v2/multiple_alignment/guids"
-        payload = {"guids": ";".join(inserted_guids), "output_format": "html", "what": "X"}
+        payload = {
+            "guids": ";".join(inserted_guids),
+            "output_format": "html",
+            "what": "X",
+        }
         res = do_POST(relpath, payload=payload)
         self.assertEqual(res.status_code, 404)
 
@@ -495,7 +539,11 @@ class test_msa_2(unittest.TestCase):
                 cluster_id = item["cluster_id"]
         # print("Am examining cluster_id",cluster_id)
         self.assertTrue(cluster_id is not None)
-        relpath = "/api/v2/multiple_alignment_cluster/SNV12_ignore/{0}/json-records".format(cluster_id)
+        relpath = (
+            "/api/v2/multiple_alignment_cluster/SNV12_ignore/{0}/json-records".format(
+                cluster_id
+            )
+        )
         res = do_GET(relpath)
         self.assertEqual(res.status_code, 200)
         self.assertTrue(isjson(res.content))
@@ -503,7 +551,11 @@ class test_msa_2(unittest.TestCase):
         df = pd.DataFrame.from_records(d)
         self.assertEqual(df.loc[df.index[0], "what_tested"], "M")
 
-        relpath = "/api/v2/multiple_alignment_cluster/SNV12_include/{0}/json-records".format(cluster_id)
+        relpath = (
+            "/api/v2/multiple_alignment_cluster/SNV12_include/{0}/json-records".format(
+                cluster_id
+            )
+        )
         res = do_GET(relpath)
         self.assertEqual(res.status_code, 200)
         self.assertTrue(isjson(res.content))
@@ -511,7 +563,9 @@ class test_msa_2(unittest.TestCase):
         df = pd.DataFrame.from_records(d)
         self.assertEqual(df.loc[df.index[0], "what_tested"], "M")
 
-        relpath = "/api/v2/multiple_alignment_cluster/SNV12_exclude/{0}/fasta".format(cluster_id)
+        relpath = "/api/v2/multiple_alignment_cluster/SNV12_exclude/{0}/fasta".format(
+            cluster_id
+        )
         res = do_GET(relpath)
         self.assertFalse(isjson(res.content))
         self.assertEqual(res.status_code, 200)
@@ -595,7 +649,7 @@ class test_msa_1(unittest.TestCase):
 
 
 class test_server_config(unittest.TestCase):
-    """ tests route v2/server_config"""
+    """tests route v2/server_config"""
 
     def runTest(self):
         relpath = "/api/v2/reset"
@@ -613,7 +667,6 @@ class test_server_config(unittest.TestCase):
 
 class test_server_memory_usage_1(unittest.TestCase):
     """ tests route /api/v2/server_memory_usage"""
-
     def runTest(self):
 
         # default: response should be json
@@ -653,7 +706,7 @@ class test_server_memory_usage_2(unittest.TestCase):
 
 
 class test_server_database_usage(unittest.TestCase):
-    """ tests route /api/v2/server_database_usage"""
+    """tests route /api/v2/server_database_usage"""
 
     def runTest(self):
 
@@ -668,7 +721,7 @@ class test_server_database_usage(unittest.TestCase):
 
 
 class test_snpceiling(unittest.TestCase):
-    """ tests route /api/v2/snpceiling"""
+    """tests route /api/v2/snpceiling"""
 
     def runTest(self):
         res = "/api/v2/reset"
@@ -683,7 +736,7 @@ class test_snpceiling(unittest.TestCase):
 
 
 class test_server_time(unittest.TestCase):
-    """ tests route /api/v2/server_time"""
+    """tests route /api/v2/server_time"""
 
     def runTest(self):
         relpath = "/api/v2/server_time"
@@ -696,7 +749,7 @@ class test_server_time(unittest.TestCase):
 
 
 class test_server_name(unittest.TestCase):
-    """ tests route /api/v2/server_name"""
+    """tests route /api/v2/server_name"""
 
     def runTest(self):
         relpath = "/api/v2/server_name"
@@ -709,7 +762,7 @@ class test_server_name(unittest.TestCase):
 
 
 class test_get_all_guids_1(unittest.TestCase):
-    """ tests route /api/v2/guids"""
+    """tests route /api/v2/guids"""
 
     def runTest(self):
         relpath = "/api/v2/reset"
@@ -725,7 +778,7 @@ class test_get_all_guids_1(unittest.TestCase):
 
 
 class test_guids_with_quality_over_1(unittest.TestCase):
-    """ tests route /api/v2/guids_with_quality_over"""
+    """tests route /api/v2/guids_with_quality_over"""
 
     def runTest(self):
         relpath = "/api/v2/reset"
@@ -740,7 +793,7 @@ class test_guids_with_quality_over_1(unittest.TestCase):
 
 
 class test_get_all_guids_examination_time_1(unittest.TestCase):
-    """ tests route /api/v2/guids_and_examination_times"""
+    """tests route /api/v2/guids_and_examination_times"""
 
     def runTest(self):
         relpath = "/api/v2/reset"
@@ -784,7 +837,7 @@ class test_get_all_guids_examination_time_1(unittest.TestCase):
 
 
 class test_get_matching_guids_1(unittest.TestCase):
-    """ tests route /api/v2/guids_beginning_with"""
+    """tests route /api/v2/guids_beginning_with"""
 
     def runTest(self):
         relpath = "/api/v2/reset"
@@ -819,7 +872,7 @@ class test_get_matching_guids_1(unittest.TestCase):
 
 
 class test_annotations_1(unittest.TestCase):
-    """ tests route /api/v2/annotations """
+    """tests route /api/v2/annotations"""
 
     def runTest(self):
         relpath = "/api/v2/reset"
@@ -836,7 +889,7 @@ class test_annotations_1(unittest.TestCase):
 
 
 class test_exist_sample(unittest.TestCase):
-    """ tests route /api/v2/guid/exists """
+    """tests route /api/v2/guid/exists"""
 
     def runTest(self):
         relpath = "/api/v2/reset"
@@ -853,7 +906,7 @@ class test_exist_sample(unittest.TestCase):
 
 
 class test_clusters_sample(unittest.TestCase):
-    """ tests route /api/v2/guid/clusters """
+    """tests route /api/v2/guid/clusters"""
 
     def runTest(self):
         relpath = "/api/v2/reset"
@@ -926,7 +979,7 @@ class test_clusters_sample(unittest.TestCase):
 
 
 class test_clusters_what(unittest.TestCase):
-    """ tests implementation of 'what' value, stored in clustering results object"""
+    """tests implementation of 'what' value, stored in clustering results object"""
 
     def runTest(self):
         relpath = "/api/v2/reset"
@@ -967,7 +1020,7 @@ class test_clusters_what(unittest.TestCase):
 
 
 class test_annotation_sample(unittest.TestCase):
-    """ tests route /api/v2/guid/annotation """
+    """tests route /api/v2/guid/annotation"""
 
     def runTest(self):
         relpath = "/api/v2/reset"
@@ -982,7 +1035,7 @@ class test_annotation_sample(unittest.TestCase):
 
 
 class test_algorithms(unittest.TestCase):
-    """  tests return of a change_id number """
+    """tests return of a change_id number"""
 
     def runTest(self):
         relpath = "/api/v2/reset"
@@ -993,12 +1046,13 @@ class test_algorithms(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         retDict = json.loads(str(res.text))
         self.assertEqual(
-            set(retDict["algorithms"]), set(["SNV12_ignore", "SNV12_include", "SNV12_exclude", "SNV12_include_n"])
+            set(retDict["algorithms"]),
+            set(["SNV12_ignore", "SNV12_include", "SNV12_exclude", "SNV12_include_n"]),
         )
 
 
 class test_what_tested(unittest.TestCase):
-    """  tests return of what is tested """
+    """tests return of what is tested"""
 
     def runTest(self):
         relpath = "/api/v2/reset"
@@ -1033,23 +1087,29 @@ class test_what_tested(unittest.TestCase):
         res = do_GET(relpath)
         self.assertEqual(res.status_code, 200)
         retDict = json.loads(str(res.text))
-        self.assertEqual(retDict, {"clustering_algorithm": "SNV12_exclude", "what_tested": "M"})
+        self.assertEqual(
+            retDict, {"clustering_algorithm": "SNV12_exclude", "what_tested": "M"}
+        )
 
         relpath = "/api/v2/clustering/SNV12_include/what_tested"
         res = do_GET(relpath)
         self.assertEqual(res.status_code, 200)
         retDict = json.loads(str(res.text))
-        self.assertEqual(retDict, {"clustering_algorithm": "SNV12_include", "what_tested": "M"})
+        self.assertEqual(
+            retDict, {"clustering_algorithm": "SNV12_include", "what_tested": "M"}
+        )
 
         relpath = "/api/v2/clustering/SNV12_ignore/what_tested"
         res = do_GET(relpath)
         self.assertEqual(res.status_code, 200)
         retDict = json.loads(str(res.text))
-        self.assertEqual(retDict, {"clustering_algorithm": "SNV12_ignore", "what_tested": "M"})
+        self.assertEqual(
+            retDict, {"clustering_algorithm": "SNV12_ignore", "what_tested": "M"}
+        )
 
 
 class test_g2c(unittest.TestCase):
-    """  tests return of guid2clusters data structure """
+    """tests return of guid2clusters data structure"""
 
     def runTest(self):
         relpath = "/api/v2/reset"
@@ -1098,7 +1158,7 @@ class test_g2c(unittest.TestCase):
 
 
 class test_clusters2cnt(unittest.TestCase):
-    """  tests return of guid2clusters data structure """
+    """tests return of guid2clusters data structure"""
 
     def runTest(self):
         relpath = "/api/v2/reset"
@@ -1155,7 +1215,7 @@ class test_clusters2cnt(unittest.TestCase):
 
 
 class test_cluster2cnt1(unittest.TestCase):
-    """  tests return of guid2clusters data structure """
+    """tests return of guid2clusters data structure"""
 
     def runTest(self):
         relpath = "/api/v2/reset"
@@ -1176,7 +1236,9 @@ class test_cluster2cnt1(unittest.TestCase):
             valid_cluster_ids.add(item["cluster_id"])
 
         for this_cluster_id in valid_cluster_ids:
-            relpath = "/api/v2/clustering/SNV12_ignore/{0}".format(this_cluster_id)  # may exist
+            relpath = "/api/v2/clustering/SNV12_ignore/{0}".format(
+                this_cluster_id
+            )  # may exist
             res = do_GET(relpath)
             self.assertEqual(res.status_code, 200)
 
@@ -1189,7 +1251,7 @@ class test_cluster2cnt1(unittest.TestCase):
 
 
 class test_g2cl(unittest.TestCase):
-    """  tests return of a change_id number """
+    """tests return of a change_id number"""
 
     def runTest(self):
         relpath = "/api/v2/reset"
@@ -1203,7 +1265,7 @@ class test_g2cl(unittest.TestCase):
 
 
 class test_g2ca(unittest.TestCase):
-    """  tests return of a change_id number """
+    """tests return of a change_id number"""
 
     def runTest(self):
         relpath = "/api/v2/reset"
@@ -1249,7 +1311,7 @@ class test_g2ca(unittest.TestCase):
 
 
 class test_change_id(unittest.TestCase):
-    """  tests return of a change_id number """
+    """tests return of a change_id number"""
 
     def runTest(self):
         relpath = "/api/v2/reset"
@@ -1259,14 +1321,18 @@ class test_change_id(unittest.TestCase):
         res = do_GET(relpath)
         self.assertEqual(res.status_code, 200)
         retDict = json.loads(str(res.text))
-        self.assertEqual(set(retDict.keys()), set(["change_id", "clustering_algorithm"]))
+        self.assertEqual(
+            set(retDict.keys()), set(["change_id", "clustering_algorithm"])
+        )
         self.assertEqual(retDict["clustering_algorithm"], "SNV12_ignore")
 
         relpath = "/api/v2/clustering/SNV12_ignore/change_id"
         res = do_GET(relpath)
         self.assertEqual(res.status_code, 200)
         retDict = json.loads(str(res.text))
-        self.assertEqual(set(retDict.keys()), set(["change_id", "clustering_algorithm"]))
+        self.assertEqual(
+            set(retDict.keys()), set(["change_id", "clustering_algorithm"])
+        )
         self.assertEqual(retDict["clustering_algorithm"], "SNV12_ignore")
 
         relpath = "/api/v2/clustering/not_exists/change_id"
@@ -1275,7 +1341,7 @@ class test_change_id(unittest.TestCase):
 
 
 class test_compare_two(unittest.TestCase):
-    """ tests route /api/v2/{guid1}/{guid2}/exact_distance"""
+    """tests route /api/v2/{guid1}/{guid2}/exact_distance"""
 
     def runTest(self):
         relpath = "/api/v2/reset"
@@ -1328,7 +1394,7 @@ class test_compare_two(unittest.TestCase):
 
 
 class test_insert_1(unittest.TestCase):
-    """ tests route /api/v2/insert """
+    """tests route /api/v2/insert"""
 
     def runTest(self):
         relpath = "/api/v2/reset"
@@ -1590,7 +1656,7 @@ class test_insert_60(unittest.TestCase):
 
 
 class test_mirror(unittest.TestCase):
-    """ tests route /api/v2/mirror """
+    """tests route /api/v2/mirror"""
 
     def runTest(self):
 
@@ -1602,7 +1668,7 @@ class test_mirror(unittest.TestCase):
 
 
 class test_neighbours_within_1(unittest.TestCase):
-    """ tests route /api/v2/guid/neighbours_within/ """
+    """tests route /api/v2/guid/neighbours_within/"""
 
     def runTest(self):
         relpath = "/api/v2/reset"
@@ -1617,13 +1683,15 @@ class test_neighbours_within_1(unittest.TestCase):
 
 
 class test_neighbours_within_2(unittest.TestCase):
-    """ tests route /api/v2/guid/neighbours_within/ """
+    """tests route /api/v2/guid/neighbours_within/"""
 
     def runTest(self):
         relpath = "/api/v2/reset"
         res = do_POST(relpath, payload={})
 
-        relpath = "/api/v2/non_existent_guid/neighbours_within/12/with_quality_cutoff/0.5"
+        relpath = (
+            "/api/v2/non_existent_guid/neighbours_within/12/with_quality_cutoff/0.5"
+        )
         res = do_GET(relpath)
         self.assertTrue(isjson(content=res.content))
         info = json.loads(res.content.decode("utf-8"))
@@ -1632,7 +1700,7 @@ class test_neighbours_within_2(unittest.TestCase):
 
 
 class test_neighbours_within_3(unittest.TestCase):
-    """ tests route /api/v2/guid/neighbours_within/ """
+    """tests route /api/v2/guid/neighbours_within/"""
 
     def runTest(self):
 
@@ -1649,7 +1717,7 @@ class test_neighbours_within_3(unittest.TestCase):
 
 
 class test_neighbours_within_4(unittest.TestCase):
-    """ tests route /api/v2/guid/neighbours_within/ """
+    """tests route /api/v2/guid/neighbours_within/"""
 
     def runTest(self):
 
@@ -1666,7 +1734,7 @@ class test_neighbours_within_4(unittest.TestCase):
 
 
 class test_neighbours_within_5(unittest.TestCase):
-    """ tests route /api/v2/guid/neighbours_within/ """
+    """tests route /api/v2/guid/neighbours_within/"""
 
     def runTest(self):
 
@@ -1683,7 +1751,7 @@ class test_neighbours_within_5(unittest.TestCase):
 
 
 class test_neighbours_within_6(unittest.TestCase):
-    """ tests all the /api/v2/guid/neighbours_within methods using test data """
+    """tests all the /api/v2/guid/neighbours_within methods using test data"""
 
     def runTest(self):
 
@@ -1713,7 +1781,10 @@ class test_neighbours_within_6(unittest.TestCase):
             # print("Adding mutated TB reference sequence called {0}".format(guid_to_insert))
             relpath = "/api/v2/insert"
 
-            res = do_POST(relpath, payload={"guid": guid_to_insert, "seq": variants[guid_to_insert]})
+            res = do_POST(
+                relpath,
+                payload={"guid": guid_to_insert, "seq": variants[guid_to_insert]},
+            )
             self.assertTrue(isjson(content=res.content))
             info = json.loads(res.content.decode("utf-8"))
             self.assertTrue("inserted" in info)
@@ -1769,7 +1840,7 @@ class test_neighbours_within_6(unittest.TestCase):
 
 
 class test_sequence_1(unittest.TestCase):
-    """ tests route /api/v2/*guid*/sequence"""
+    """tests route /api/v2/*guid*/sequence"""
 
     def runTest(self):
 
@@ -1805,7 +1876,7 @@ class test_sequence_1(unittest.TestCase):
 
 
 class test_sequence_2(unittest.TestCase):
-    """ tests route /api/v2/*guid*/sequence"""
+    """tests route /api/v2/*guid*/sequence"""
 
     def runTest(self):
 
@@ -1818,7 +1889,7 @@ class test_sequence_2(unittest.TestCase):
 
 
 class test_sequence_3(unittest.TestCase):
-    """ tests route /api/v2/*guid*/sequence"""
+    """tests route /api/v2/*guid*/sequence"""
 
     def runTest(self):
 
@@ -1855,7 +1926,7 @@ class test_sequence_3(unittest.TestCase):
 
 
 class test_sequence_4(unittest.TestCase):
-    """ tests route /api/v2/*guid*/sequence"""
+    """tests route /api/v2/*guid*/sequence"""
 
     def runTest(self):
 
@@ -1907,7 +1978,7 @@ class test_sequence_4(unittest.TestCase):
 
 
 class test_sequence_5(unittest.TestCase):
-    """ tests route /api/v2/*guid*/sequence"""
+    """tests route /api/v2/*guid*/sequence"""
 
     def runTest(self):
 
@@ -1959,7 +2030,7 @@ class test_sequence_5(unittest.TestCase):
 
 
 class test_nucleotides_excluded(unittest.TestCase):
-    """ tests route /api/v2/nucleotides_excluded"""
+    """tests route /api/v2/nucleotides_excluded"""
 
     def runTest(self):
 

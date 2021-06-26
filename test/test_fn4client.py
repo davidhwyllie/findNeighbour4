@@ -28,21 +28,21 @@ from fn4client import fn4Client
 
 class test_fn4_client_init1(unittest.TestCase):
     def runTest(self):
-        """ initialise an fn4 object.  Will unittest against localhost mongodb server on 5020 """
+        """initialise an fn4 object.  Will unittest against localhost mongodb server on 5020"""
         fn4c = fn4Client()  # expect success
         self.assertIsInstance(fn4c, fn4Client)
 
 
 class test_fn4_client_init2(unittest.TestCase):
     def runTest(self):
-        """ initialise an fn4 client, against mongodb which doesn't exist """
+        """initialise an fn4 client, against mongodb which doesn't exist"""
         with self.assertRaises(Exception):
             fn4Client(baseurl="http://example.com")  # fails, does not exist
 
 
 class test_fn4_client_mirror(unittest.TestCase):
     def runTest(self):
-        """ tests mirror function - which just sends back the POSTed payload """
+        """tests mirror function - which just sends back the POSTed payload"""
         fn4c = fn4Client()  # default
         sent_payload = {"guid": "g1", "seq": "ACTG"}
 
@@ -52,7 +52,7 @@ class test_fn4_client_mirror(unittest.TestCase):
 
 class test_fn4_client_guids(unittest.TestCase):
     def runTest(self):
-        """ tests guids"""
+        """tests guids"""
         fn4c = fn4Client()
         retVal = fn4c.guids()
         self.assertEqual(type(retVal), list)
@@ -60,7 +60,7 @@ class test_fn4_client_guids(unittest.TestCase):
 
 class test_fn4_client_annotations(unittest.TestCase):
     def runTest(self):
-        """ tests guids"""
+        """tests guids"""
         fn4c = fn4Client()  # default
         retVal = fn4c.annotations()
         self.assertEqual(type(retVal), pd.DataFrame)
@@ -68,7 +68,7 @@ class test_fn4_client_annotations(unittest.TestCase):
 
 class test_fn4_client_clustering(unittest.TestCase):
     def runTest(self):
-        """ tests guids"""
+        """tests guids"""
         fn4c = fn4Client()  # default
         retVal = fn4c.clustering()
         self.assertEqual(type(retVal), dict)
@@ -76,7 +76,7 @@ class test_fn4_client_clustering(unittest.TestCase):
 
 class test_fn4_client_server_memory_usage(unittest.TestCase):
     def runTest(self):
-        """ tests guids"""
+        """tests guids"""
         fn4c = fn4Client()  # default
         retVal = fn4c.server_memory_usage()
 
@@ -85,7 +85,7 @@ class test_fn4_client_server_memory_usage(unittest.TestCase):
 
 class test_fn4_client_server_database_usage(unittest.TestCase):
     def runTest(self):
-        """ tests guids"""
+        """tests guids"""
         fn4c = fn4Client()  # default
         retVal = fn4c.server_database_usage()
         self.assertEqual(type(retVal), dict)
@@ -93,7 +93,7 @@ class test_fn4_client_server_database_usage(unittest.TestCase):
 
 class test_fn4_client_exists(unittest.TestCase):
     def runTest(self):
-        """ tests guid/exists"""
+        """tests guid/exists"""
         fn4c = fn4Client()  # default
         retVal = fn4c.guid_exists("no")
         self.assertEqual(retVal, False)
@@ -101,7 +101,7 @@ class test_fn4_client_exists(unittest.TestCase):
 
 class test_fn4_client_masked_sequence(unittest.TestCase):
     def runTest(self):
-        """ tests guid/exists"""
+        """tests guid/exists"""
         fn4c = fn4Client()  # default
         retVal = fn4c.sequence("no")
         self.assertEqual(retVal, None)
@@ -109,7 +109,7 @@ class test_fn4_client_masked_sequence(unittest.TestCase):
 
 class test_fn4_client_config(unittest.TestCase):
     def runTest(self):
-        """ tests server_config endpoint """
+        """tests server_config endpoint"""
         fn4c = fn4Client()  # default
         retVal = fn4c.server_config()
         self.assertTrue("INPUTREF" in retVal.keys())
@@ -117,7 +117,7 @@ class test_fn4_client_config(unittest.TestCase):
 
 class test_fn4_client_server_time(unittest.TestCase):
     def runTest(self):
-        """ tests server_time endpoint """
+        """tests server_time endpoint"""
         fn4c = fn4Client()  # default
         retVal = fn4c.server_time()
         self.assertTrue("server_time" in retVal.keys())
@@ -125,7 +125,7 @@ class test_fn4_client_server_time(unittest.TestCase):
 
 class test_fn4_client_nucleotides_excluded(unittest.TestCase):
     def runTest(self):
-        """ tests server_time endpoint """
+        """tests server_time endpoint"""
         fn4c = fn4Client()  # default
         retVal = fn4c.nucleotides_excluded()
         self.assertTrue(type(retVal), list)
@@ -133,7 +133,7 @@ class test_fn4_client_nucleotides_excluded(unittest.TestCase):
 
 class test_fn4_client_guids_and_examination_times(unittest.TestCase):
     def runTest(self):
-        """ tests server_time endpoint """
+        """tests server_time endpoint"""
         fn4c = fn4Client()  # default
         retVal = fn4c.guids_and_examination_times()
         self.assertTrue(type(retVal), list)
@@ -141,9 +141,11 @@ class test_fn4_client_guids_and_examination_times(unittest.TestCase):
 
 class test_fn4_client_insert_fasta_1(unittest.TestCase):
     def runTest(self):
-        """ initialise a gapi object """
+        """initialise a gapi object"""
         fn4c = fn4Client()  # expect success
-        res = fn4c.read_fasta_file(fastafile=os.path.join("testdata", "fasta", "t1.fasta"))
+        res = fn4c.read_fasta_file(
+            fastafile=os.path.join("testdata", "fasta", "t1.fasta")
+        )
 
         self.assertEqual(res["content"][0], ">")
         self.assertEqual(res["seqid"], "t1")
@@ -155,9 +157,13 @@ class test_fn4_client_insert_fasta_2(unittest.TestCase):
     def runTest(self):
 
         fn4c = fn4Client()  # expect success
-        res = fn4c.read_fasta_file(fastafile=os.path.join("testdata", "fasta", "t1.fasta"))
+        res = fn4c.read_fasta_file(
+            fastafile=os.path.join("testdata", "fasta", "t1.fasta")
+        )
         seq1 = res["seq"]
-        res = fn4c.read_fasta_file(fastafile=os.path.join("testdata", "fasta", "t2.fasta"))
+        res = fn4c.read_fasta_file(
+            fastafile=os.path.join("testdata", "fasta", "t2.fasta")
+        )
         seq2 = res["seq"]
 
         uuid1 = uuid.uuid1().hex
@@ -180,9 +186,13 @@ class test_fn4_client_change_id(unittest.TestCase):
     def runTest(self):
 
         fn4c = fn4Client()  # expect success
-        res = fn4c.read_fasta_file(fastafile=os.path.join("testdata", "fasta", "t1.fasta"))
+        res = fn4c.read_fasta_file(
+            fastafile=os.path.join("testdata", "fasta", "t1.fasta")
+        )
         seq1 = res["seq"]
-        res = fn4c.read_fasta_file(fastafile=os.path.join("testdata", "fasta", "t2.fasta"))
+        res = fn4c.read_fasta_file(
+            fastafile=os.path.join("testdata", "fasta", "t2.fasta")
+        )
         seq2 = res["seq"]
 
         uuid1 = uuid.uuid1().hex
@@ -198,16 +208,22 @@ class test_fn4_client_change_id(unittest.TestCase):
         self.assertTrue(uuid1 in fn4c.guids())
         self.assertTrue(uuid2 in fn4c.guids())
 
-        self.assertTrue(c1["change_id"] == c2["change_id"])  # only updates on clustering
+        self.assertTrue(
+            c1["change_id"] == c2["change_id"]
+        )  # only updates on clustering
 
 
 class test_fn4_client_msa(unittest.TestCase):
     def runTest(self):
 
         fn4c = fn4Client()  # expect success
-        res = fn4c.read_fasta_file(fastafile=os.path.join("testdata", "fasta", "t1.fasta"))
+        res = fn4c.read_fasta_file(
+            fastafile=os.path.join("testdata", "fasta", "t1.fasta")
+        )
         seq1 = res["seq"]
-        res = fn4c.read_fasta_file(fastafile=os.path.join("testdata", "fasta", "t2.fasta"))
+        res = fn4c.read_fasta_file(
+            fastafile=os.path.join("testdata", "fasta", "t2.fasta")
+        )
         seq2 = res["seq"]
 
         uuid1 = uuid.uuid1().hex
@@ -223,14 +239,18 @@ class test_fn4_client_msa(unittest.TestCase):
 
 class test_fn4_client_guids2clusters(unittest.TestCase):
 
-    """ tests various endpoints to do with clustering """
+    """tests various endpoints to do with clustering"""
 
     def runTest(self):
 
         fn4c = fn4Client()  # expect success
-        res = fn4c.read_fasta_file(fastafile=os.path.join("testdata", "fasta", "t1.fasta"))
+        res = fn4c.read_fasta_file(
+            fastafile=os.path.join("testdata", "fasta", "t1.fasta")
+        )
         seq1 = res["seq"]
-        res = fn4c.read_fasta_file(fastafile=os.path.join("testdata", "fasta", "t2.fasta"))
+        res = fn4c.read_fasta_file(
+            fastafile=os.path.join("testdata", "fasta", "t2.fasta")
+        )
         seq2 = res["seq"]
 
         uuid1 = uuid.uuid1().hex
@@ -254,7 +274,9 @@ class test_fn4_client_guids2clusters(unittest.TestCase):
 
         # recover clustering
         res1 = fn4c.guids2clusters(clustering["algorithms"][0])
-        res2 = fn4c.guids2clusters(clustering["algorithms"][0], after_change_id=c2["change_id"])
+        res2 = fn4c.guids2clusters(
+            clustering["algorithms"][0], after_change_id=c2["change_id"]
+        )
 
         self.assertTrue(isinstance(res1, pd.DataFrame))
         self.assertTrue(isinstance(res2, pd.DataFrame))
@@ -285,14 +307,18 @@ class test_fn4_client_guids2clusters(unittest.TestCase):
 
 
 class test_fn4_client_network(unittest.TestCase):
-    """ tests network generation """
+    """tests network generation"""
 
     def runTest(self):
 
         fn4c = fn4Client()  # expect success
-        res = fn4c.read_fasta_file(fastafile=os.path.join("testdata", "fasta", "t1.fasta"))
+        res = fn4c.read_fasta_file(
+            fastafile=os.path.join("testdata", "fasta", "t1.fasta")
+        )
         seq1 = res["seq"]
-        res = fn4c.read_fasta_file(fastafile=os.path.join("testdata", "fasta", "t2.fasta"))
+        res = fn4c.read_fasta_file(
+            fastafile=os.path.join("testdata", "fasta", "t2.fasta")
+        )
         seq2 = res["seq"]
 
         uuid1 = uuid.uuid1().hex

@@ -23,7 +23,7 @@ from findn.msaviewer import SimulateSequenceData, DepictMSA
 
 
 class Test_SimulateSequenceData_1(unittest.TestCase):
-    """ tests make_seq """
+    """tests make_seq"""
 
     def runTest(self):
         ssd = SimulateSequenceData()
@@ -34,7 +34,7 @@ class Test_SimulateSequenceData_1(unittest.TestCase):
 
 
 class Test_SimulateSequenceData_2(unittest.TestCase):
-    """ tests mutate_seq """
+    """tests mutate_seq"""
 
     def runTest(self):
         ssd = SimulateSequenceData()
@@ -53,7 +53,7 @@ class Test_SimulateSequenceData_2(unittest.TestCase):
 
 
 class Test_SimulateSequenceData_3(unittest.TestCase):
-    """ tests msa generation """
+    """tests msa generation"""
 
     def runTest(self):
         ssd = SimulateSequenceData()
@@ -63,7 +63,7 @@ class Test_SimulateSequenceData_3(unittest.TestCase):
 
 
 class Test_DepictMSA_1(unittest.TestCase):
-    """ tests msa object """
+    """tests msa object"""
 
     def runTest(self):
         ssd = SimulateSequenceData()
@@ -114,7 +114,9 @@ class Test_DepictMSA_1(unittest.TestCase):
         self.assertIsInstance(retVal, str)
         self.assertTrue("</html>" in retVal)
 
-        dep_msa = DepictMSA(msa, identify_sequence_by=["Surname", "Forename"], max_elements_in_plot=20)
+        dep_msa = DepictMSA(
+            msa, identify_sequence_by=["Surname", "Forename"], max_elements_in_plot=20
+        )
         retVal = dep_msa.render_msa()
         self.assertIsInstance(retVal, str)
         self.assertTrue("</html>" in retVal)

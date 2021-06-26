@@ -23,7 +23,7 @@ from snpclusters.clusternomenclature import ClusterNameAssigner, ClusterNomencla
 
 
 class Test_ClusterNomenclature_1(unittest.TestCase):
-    """ tests cluster nomenclature exposed functions """
+    """tests cluster nomenclature exposed functions"""
 
     def runTest(self):
         # test whether input is checked properly
@@ -37,7 +37,9 @@ class Test_ClusterNomenclature_1(unittest.TestCase):
         self.assertEqual(n.cluster_nomenclature_method, "integer")
         self.assertEqual(n._labels, set([]))
         self.assertEqual(n.existing_labels(), [])
-        self.assertEqual(n.serialise(), {"cluster_nomenclature_method": "integer", "labels": []})
+        self.assertEqual(
+            n.serialise(), {"cluster_nomenclature_method": "integer", "labels": []}
+        )
         res = n.serialise()
         n = ClusterNomenclature(deserialise_from=res, existing_labels=None)
         res = n.new_label()
@@ -51,7 +53,9 @@ class Test_ClusterNomenclature_1(unittest.TestCase):
         self.assertEqual(n.cluster_nomenclature_method, "TB")
         self.assertEqual(n._labels, set([]))
         self.assertEqual(n.existing_labels(), [])
-        self.assertEqual(n.serialise(), {"cluster_nomenclature_method": "TB", "labels": []})
+        self.assertEqual(
+            n.serialise(), {"cluster_nomenclature_method": "TB", "labels": []}
+        )
         res = n.serialise()
 
         n = ClusterNomenclature(deserialise_from=res, existing_labels=None)
@@ -88,7 +92,7 @@ class Test_ClusterNomenclature_1(unittest.TestCase):
 
 
 class Test_ClusterNomenclature_2(unittest.TestCase):
-    """ tests internal cluster naming function """
+    """tests internal cluster naming function"""
 
     def runTest(self):
 
@@ -115,22 +119,32 @@ class Test_ClusterNomenclature_2(unittest.TestCase):
 
 
 class Test_ClusterNameAssigner_1(unittest.TestCase):
-    """ test cluster name assigner """
+    """test cluster name assigner"""
 
     def runTest(self):
         n = ClusterNomenclature(cluster_nomenclature_method="TB")
         cna = ClusterNameAssigner(n)
-        previous_guid2cluster_label = {"a": ["AA001"], "b": ["AA001"], "e": ["AB001"], "f": ["AB001"]}
+        previous_guid2cluster_label = {
+            "a": ["AA001"],
+            "b": ["AA001"],
+            "e": ["AB001"],
+            "f": ["AB001"],
+        }
         clusterid2guid = {1: {"guids": ["a", "b", "c", "d"]}, 2: {"guids": ["e", "f"]}}
         retVal = cna.assign_new_clusternames(
-            clusterid2guid=clusterid2guid, previous_guid2cluster_label=previous_guid2cluster_label
+            clusterid2guid=clusterid2guid,
+            previous_guid2cluster_label=previous_guid2cluster_label,
         )
 
-        self.assertEqual(retVal, {1: {"cluster_label": "AA001"}, 2: {"cluster_label": "AB001"}})  # use previous names
+        self.assertEqual(
+            retVal, {1: {"cluster_label": "AA001"}, 2: {"cluster_label": "AB001"}}
+        )  # use previous names
         cna = ClusterNameAssigner(n)
 
         retVal = cna.assign_new_clusternames(clusterid2guid=clusterid2guid)
-        self.assertEqual(retVal, {1: {"cluster_label": "AA001"}, 2: {"cluster_label": "AA002"}})  # generate new names
+        self.assertEqual(
+            retVal, {1: {"cluster_label": "AA001"}, 2: {"cluster_label": "AA002"}}
+        )  # generate new names
 
         cna = ClusterNameAssigner(n)
         previous_guid2cluster_label = {
@@ -141,12 +155,21 @@ class Test_ClusterNameAssigner_1(unittest.TestCase):
             "g": ["AA002"],
             "h": ["AA002"],
         }
-        clusterid2guid = {1: {"guids": ["a", "b", "c", "d"]}, 2: {"guids": ["e", "f"]}, 3: {"guids": ["g", "h"]}}
+        clusterid2guid = {
+            1: {"guids": ["a", "b", "c", "d"]},
+            2: {"guids": ["e", "f"]},
+            3: {"guids": ["g", "h"]},
+        }
 
         retVal = cna.assign_new_clusternames(
-            clusterid2guid=clusterid2guid, previous_guid2cluster_label=previous_guid2cluster_label
+            clusterid2guid=clusterid2guid,
+            previous_guid2cluster_label=previous_guid2cluster_label,
         )
-        expected_result = {1: {"cluster_label": "AA001"}, 2: {"cluster_label": "AA001v1"}, 3: {"cluster_label": "AA002"}}
+        expected_result = {
+            1: {"cluster_label": "AA001"},
+            2: {"cluster_label": "AA001v1"},
+            3: {"cluster_label": "AA002"},
+        }
         self.assertEqual(
             retVal, expected_result
         )  # generate new names from previous ones, keeping one unchanged and without altering irrelevant clusters
@@ -161,16 +184,26 @@ class Test_ClusterNameAssigner_1(unittest.TestCase):
             "h": ["AA002"],
         }
         retVal = cna.assign_new_clusternames(
-            clusterid2guid=clusterid2guid, previous_guid2cluster_label=previous_guid2cluster_label
+            clusterid2guid=clusterid2guid,
+            previous_guid2cluster_label=previous_guid2cluster_label,
         )
-        expected_result = {1: {"cluster_label": "AA001"}, 2: {"cluster_label": "AA001v1"}, 3: {"cluster_label": "AA002"}}
+        expected_result = {
+            1: {"cluster_label": "AA001"},
+            2: {"cluster_label": "AA001v1"},
+            3: {"cluster_label": "AA002"},
+        }
         self.assertEqual(
             retVal, expected_result
         )  # generate new names from previous ones, keeping one unchanged and without altering irrelevant clusters
         retVal = cna.assign_new_clusternames(
-            clusterid2guid=clusterid2guid, previous_guid2cluster_label=previous_guid2cluster_label
+            clusterid2guid=clusterid2guid,
+            previous_guid2cluster_label=previous_guid2cluster_label,
         )
-        expected_result = {1: {"cluster_label": "AA001"}, 2: {"cluster_label": "AA001v1"}, 3: {"cluster_label": "AA002"}}
+        expected_result = {
+            1: {"cluster_label": "AA001"},
+            2: {"cluster_label": "AA001v1"},
+            3: {"cluster_label": "AA002"},
+        }
         self.assertEqual(
             retVal, expected_result
         )  # generate new names from previous ones, keeping one unchanged and without altering irrelevant clusters

@@ -40,7 +40,11 @@ pytest = "*"
 flake8 = "*"
 pytest-cov = "*"
 coverage = "*"
+cx-Oracle = "*"
 black = "*"
+statsmodels = "*"
+patsy = "*"
+pyqt5 = "*"
 
 [requires]
 python_version = "3.8"

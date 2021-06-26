@@ -23,10 +23,10 @@ from findn.visualiseNetwork import snvNetwork
 
 # unittests
 class test_nv_init(unittest.TestCase):
-    """ tests init method of snv_clustering """
+    """tests init method of snv_clustering"""
 
     def runTest(self):
-        """ tests init """
+        """tests init"""
 
         # no parameters except SNV threshold
         nv = snvNetwork(snv_threshold=12)
@@ -35,7 +35,7 @@ class test_nv_init(unittest.TestCase):
 
 
 class test_nv_to_dict(unittest.TestCase):
-    """ tests serialisation to dict """
+    """tests serialisation to dict"""
 
     def runTest(self):
         nv = snvNetwork(snv_threshold=12)
@@ -46,7 +46,7 @@ class test_nv_to_dict(unittest.TestCase):
 
 
 class test_set_mixed(unittest.TestCase):
-    """ tests _is_mixed function """
+    """tests _is_mixed function"""
 
     def runTest(self):
         # set up
@@ -58,7 +58,7 @@ class test_set_mixed(unittest.TestCase):
 
 
 class test_is_mixed(unittest.TestCase):
-    """ tests _is_mixed function """
+    """tests _is_mixed function"""
 
     def runTest(self):
         # set up
@@ -73,7 +73,7 @@ class test_is_mixed(unittest.TestCase):
 
 
 class test_guids(unittest.TestCase):
-    """ tests recovery of list of guids """
+    """tests recovery of list of guids"""
 
     def runTest(self):
         snvc = snvNetwork(snv_threshold=12)
@@ -87,7 +87,7 @@ class test_guids(unittest.TestCase):
 
 
 class test_add_guids1(unittest.TestCase):
-    """ tests recovery of list of guids """
+    """tests recovery of list of guids"""
 
     def runTest(self):
         snvc = snvNetwork(snv_threshold=12)
@@ -100,7 +100,7 @@ class test_add_guids1(unittest.TestCase):
 
 
 class test_add_guids_2(unittest.TestCase):
-    """ tests addition of guids """
+    """tests addition of guids"""
 
     def runTest(self):
         snvc = snvNetwork(snv_threshold=12)
@@ -117,7 +117,7 @@ class test_add_guids_2(unittest.TestCase):
 
 
 class test_network2cytoscapejs_1(unittest.TestCase):
-    """ tests addition of guids """
+    """tests addition of guids"""
 
     def runTest(self):
         snvc = snvNetwork(snv_threshold=12)
@@ -131,13 +131,15 @@ class test_network2cytoscapejs_1(unittest.TestCase):
 
         snvc.add_sample(guid, neighbours=neighbours)
         res = snvc.network2cytoscapejs()
-        self.assertEqual(set(res.keys()), set(["message", "success", "elements", "nNodes", "nEdges"]))
+        self.assertEqual(
+            set(res.keys()), set(["message", "success", "elements", "nNodes", "nEdges"])
+        )
         self.assertEqual(res["nNodes"], 4)
         self.assertEqual(res["nEdges"], 1)
 
 
 class test_network2cytoscapejs_2(unittest.TestCase):
-    """ tests addition of guids """
+    """tests addition of guids"""
 
     def runTest(self):
         snvc = snvNetwork(snv_threshold=12)
@@ -147,13 +149,15 @@ class test_network2cytoscapejs_2(unittest.TestCase):
 
         snvc.add_sample(guid, neighbours=neighbours)
         res = snvc.network2cytoscapejs()
-        self.assertEqual(set(res.keys()), set(["message", "success", "elements", "nNodes", "nEdges"]))
+        self.assertEqual(
+            set(res.keys()), set(["message", "success", "elements", "nNodes", "nEdges"])
+        )
         self.assertEqual(res["nNodes"], 1)
         self.assertEqual(res["nEdges"], 0)
 
 
 class test_network2cytoscapejs_3(unittest.TestCase):
-    """ tests addition of guids """
+    """tests addition of guids"""
 
     def runTest(self):
         snvc = snvNetwork(snv_threshold=20)
@@ -167,13 +171,15 @@ class test_network2cytoscapejs_3(unittest.TestCase):
 
         snvc.add_sample(guid, neighbours=neighbours)
         res = snvc.network2cytoscapejs()
-        self.assertEqual(set(res.keys()), set(["message", "success", "elements", "nNodes", "nEdges"]))
+        self.assertEqual(
+            set(res.keys()), set(["message", "success", "elements", "nNodes", "nEdges"])
+        )
         self.assertEqual(res["nNodes"], 4)
         self.assertEqual(res["nEdges"], 3)
 
 
 class test_network2cytoscapejs_4(unittest.TestCase):
-    """ tests addition of guid annotation """
+    """tests addition of guid annotation"""
 
     def runTest(self):
         snvc = snvNetwork(snv_threshold=12)
@@ -183,7 +189,9 @@ class test_network2cytoscapejs_4(unittest.TestCase):
 
         snvc.add_sample(guid, neighbours=neighbours, surname="Smith")
         res = snvc.network2cytoscapejs()
-        self.assertEqual(set(res.keys()), set(["message", "success", "elements", "nNodes", "nEdges"]))
+        self.assertEqual(
+            set(res.keys()), set(["message", "success", "elements", "nNodes", "nEdges"])
+        )
         self.assertEqual(res["nNodes"], 2)
         self.assertEqual(res["nEdges"], 1)
         for item in res["elements"]:
@@ -193,7 +201,7 @@ class test_network2cytoscapejs_4(unittest.TestCase):
 
 
 class test_Raise_error(unittest.TestCase):
-    """ tests raise_error"""
+    """tests raise_error"""
 
     def runTest(self):
         snvc = snvNetwork(snv_threshold=12)

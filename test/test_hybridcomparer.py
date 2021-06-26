@@ -24,7 +24,7 @@ from Bio import SeqIO
 
 
 class test_hybridComparer_update_preComparer_settings(unittest.TestCase):
-    """ tests update preComparer settings """
+    """tests update preComparer settings"""
 
     def runTest(self):
         # generate compressed sequences
@@ -55,13 +55,17 @@ class test_hybridComparer_update_preComparer_settings(unittest.TestCase):
             guids.append(guid)
             sc.persist(c, guid=guid)
 
-        preComparer_settings = {"selection_cutoff": 20, "over_selection_cutoff_ignore_factor": 10, "uncertain_base": "M"}
+        preComparer_settings = {
+            "selection_cutoff": 20,
+            "over_selection_cutoff_ignore_factor": 10,
+            "uncertain_base": "M",
+        }
 
         sc.PERSIST.config_store("preComparer", preComparer_settings)
 
 
 class test_hybridComparer_mcompare(unittest.TestCase):
-    """ tests mcompare """
+    """tests mcompare"""
 
     def runTest(self):
         # generate compressed sequences
@@ -81,7 +85,15 @@ class test_hybridComparer_mcompare(unittest.TestCase):
 
         sc.PERSIST._delete_existing_data()
         n = 0
-        originals = ["AAACGN", "CCCCGN", "TTTCGN", "GGGGGN", "NNNCGN", "ACTCGN", "TCTNGN"]
+        originals = [
+            "AAACGN",
+            "CCCCGN",
+            "TTTCGN",
+            "GGGGGN",
+            "NNNCGN",
+            "ACTCGN",
+            "TCTNGN",
+        ]
         guids = []
         for original in originals:
             n += 1
@@ -96,7 +108,7 @@ class test_hybridComparer_mcompare(unittest.TestCase):
 
 
 class test_hybridComparer_summarise_stored_items(unittest.TestCase):
-    """ tests reporting on stored contents """
+    """tests reporting on stored contents"""
 
     def runTest(self):
         # generate compressed sequences
@@ -173,7 +185,7 @@ class test_hybridComparer_summarise_stored_items(unittest.TestCase):
 
 
 class test_hybridComparer_48(unittest.TestCase):
-    """ tests computations of p values from exact bionomial test """
+    """tests computations of p values from exact bionomial test"""
 
     def runTest(self):
         # generate compressed sequences
@@ -264,7 +276,17 @@ class test_hybridComparer_47b3(unittest.TestCase):
             },
             unittesting=True,
         )
-        originals = ["AAACGR", "CCCCGY", "TTTCGN", "RGGGGN", "YNNCGN", "ACTCGN", "TCTNGN", "AAACNN", "CCCCNN"]
+        originals = [
+            "AAACGR",
+            "CCCCGY",
+            "TTTCGN",
+            "RGGGGN",
+            "YNNCGN",
+            "ACTCGN",
+            "TCTNGN",
+            "AAACNN",
+            "CCCCNN",
+        ]
 
         # there's variation at positions 0,1,2,3
         #'AAACGR'
@@ -290,7 +312,9 @@ class test_hybridComparer_47b3(unittest.TestCase):
         self.assertEqual(msa.variant_positions, [0, 1, 2, 3])
         for i, ix in enumerate(msa.df.index):
             self.assertEqual(ix[:6], originals[i])  # the sequence id is the sequence
-            self.assertEqual(msa.df.loc[ix, "aligned_mseq"], originals[i][:4])  # first 4
+            self.assertEqual(
+                msa.df.loc[ix, "aligned_mseq"], originals[i][:4]
+            )  # first 4
 
 
 class test_hybridComparer_47c(unittest.TestCase):
@@ -406,10 +430,25 @@ class test_hybridComparer_47c(unittest.TestCase):
 
         self.assertEqual(
             set(msa.df.index.tolist()),
-            set(["AAACGN-1", "NNNCGN-5", "CCCCGN-2", "TTTCGN-3", "GGGGGN-4", "ACTCGN-6", "TCTNGN-7", "AAACGN-8"]),
+            set(
+                [
+                    "AAACGN-1",
+                    "NNNCGN-5",
+                    "CCCCGN-2",
+                    "TTTCGN-3",
+                    "GGGGGN-4",
+                    "ACTCGN-6",
+                    "TCTNGN-7",
+                    "AAACGN-8",
+                ]
+            ),
         )
-        self.assertTrue(msa.df.loc["AAACGN-1", "expected_proportion1"] is not None)  # check it computed a value
-        self.assertEqual(msa.df.loc["AAACGN-1", "expected_proportion1"], 0.995)  # check is used the value passed
+        self.assertTrue(
+            msa.df.loc["AAACGN-1", "expected_proportion1"] is not None
+        )  # check it computed a value
+        self.assertEqual(
+            msa.df.loc["AAACGN-1", "expected_proportion1"], 0.995
+        )  # check is used the value passed
 
 
 class test_hybridComparer_47b2(unittest.TestCase):
@@ -530,10 +569,23 @@ class test_hybridComparer_47b2(unittest.TestCase):
         self.assertEqual(set(msa.df.columns.values), expected_cols)
 
         self.assertEqual(len(msa.df.index), 8)
-        self.assertTrue(msa.df.loc["AAACGY-1", "expected_proportion1"] is not None)  # check it computed a value
+        self.assertTrue(
+            msa.df.loc["AAACGY-1", "expected_proportion1"] is not None
+        )  # check it computed a value
         self.assertEqual(
             set(msa.df.index.tolist()),
-            set(["AAACGY-1", "NNNCGY-5", "CCCCGY-2", "TTTCGY-3", "GGGGGY-4", "ACTCGY-6", "TCTQGY-7", "AAACGY-8"]),
+            set(
+                [
+                    "AAACGY-1",
+                    "NNNCGY-5",
+                    "CCCCGY-2",
+                    "TTTCGY-3",
+                    "GGGGGY-4",
+                    "ACTCGY-6",
+                    "TCTQGY-7",
+                    "AAACGY-8",
+                ]
+            ),
         )
 
 
@@ -654,10 +706,23 @@ class test_hybridComparer_47b(unittest.TestCase):
 
         self.assertEqual(set(msa.df.columns.values), expected_cols)
         self.assertEqual(len(msa.df.index), 8)
-        self.assertTrue(msa.df.loc["AAACGN-1", "expected_proportion1"] is not None)  # check it computed a value
+        self.assertTrue(
+            msa.df.loc["AAACGN-1", "expected_proportion1"] is not None
+        )  # check it computed a value
         self.assertEqual(
             set(msa.df.index.tolist()),
-            set(["AAACGN-1", "CCCCGN-2", "TTTCGN-3", "GGGGGN-4", "NNNCGN-5", "ACTCGN-6", "TCTNGN-7", "AAACGN-8"]),
+            set(
+                [
+                    "AAACGN-1",
+                    "CCCCGN-2",
+                    "TTTCGN-3",
+                    "GGGGGN-4",
+                    "NNNCGN-5",
+                    "ACTCGN-6",
+                    "TCTNGN-7",
+                    "AAACGN-8",
+                ]
+            ),
         )
 
 
@@ -681,7 +746,15 @@ class test_hybridComparer_estimate_expected_unk(unittest.TestCase):
             unittesting=True,
         )
         n = 0
-        originals = ["AAACGN", "CCCCGN", "TTTCGN", "GGGGGN", "NNNCGN", "ACTCGN", "TCTNGN"]
+        originals = [
+            "AAACGN",
+            "CCCCGN",
+            "TTTCGN",
+            "GGGGGN",
+            "NNNCGN",
+            "ACTCGN",
+            "TCTNGN",
+        ]
         guids = []
         for original in originals:
             n += 1
@@ -694,11 +767,15 @@ class test_hybridComparer_estimate_expected_unk(unittest.TestCase):
         self.assertEqual(res, None)
 
         # analyse the last two
-        res = sc.estimate_expected_unk(sample_size=2, unk_type="N", exclude_guids=guids[0:5])
+        res = sc.estimate_expected_unk(
+            sample_size=2, unk_type="N", exclude_guids=guids[0:5]
+        )
         self.assertEqual(res, 1.5)
 
         # analyse the first two
-        res = sc.estimate_expected_unk(sample_size=2, unk_type="N", exclude_guids=guids[2:7])
+        res = sc.estimate_expected_unk(
+            sample_size=2, unk_type="N", exclude_guids=guids[2:7]
+        )
         self.assertEqual(res, 1)
 
 
@@ -722,7 +799,15 @@ class test_hybridComparer_estimate_expected_unk_sites(unittest.TestCase):
             unittesting=True,
         )
         n = 0
-        originals = ["AAACGN", "CCCCGN", "TTTCGN", "GGGGGN", "NNNCGN", "ACTCGN", "TCTNGN"]
+        originals = [
+            "AAACGN",
+            "CCCCGN",
+            "TTTCGN",
+            "GGGGGN",
+            "NNNCGN",
+            "ACTCGN",
+            "TCTNGN",
+        ]
         guids = []
         for original in originals:
             n += 1
@@ -732,11 +817,15 @@ class test_hybridComparer_estimate_expected_unk_sites(unittest.TestCase):
             sc.persist(c, guid=guid)
 
         # evaluate Ms
-        res = sc.estimate_expected_unk_sites(unk_type="N", sites=set([]), sample_size=30)
+        res = sc.estimate_expected_unk_sites(
+            unk_type="N", sites=set([]), sample_size=30
+        )
         self.assertEqual(res, None)
         res = sc.estimate_expected_unk_sites(unk_type="N", sites=set([]), sample_size=7)
         self.assertEqual(res, 0)
-        res = sc.estimate_expected_unk_sites(unk_type="N", sites=set([0, 1, 2, 3, 4, 5]), sample_size=7)
+        res = sc.estimate_expected_unk_sites(
+            unk_type="N", sites=set([0, 1, 2, 3, 4, 5]), sample_size=7
+        )
         self.assertEqual(res, 1)
         # generate compressed sequences
         refSeq = "GGGGGG"
@@ -753,7 +842,15 @@ class test_hybridComparer_estimate_expected_unk_sites(unittest.TestCase):
             unittesting=True,
         )
         n = 0
-        originals = ["AAACGM", "CCCCGM", "TTTCGM", "GGGGGM", "MMMCGM", "ACTCGM", "TCTMGM"]
+        originals = [
+            "AAACGM",
+            "CCCCGM",
+            "TTTCGM",
+            "GGGGGM",
+            "MMMCGM",
+            "ACTCGM",
+            "TCTMGM",
+        ]
         guids = []
         for original in originals:
             n += 1
@@ -765,12 +862,14 @@ class test_hybridComparer_estimate_expected_unk_sites(unittest.TestCase):
         # analyse
         res = sc.estimate_expected_unk_sites(unk_type="M", sites=set([]), sample_size=7)
         self.assertEqual(res, 0)
-        res = sc.estimate_expected_unk_sites(unk_type="M", sites=set([0, 1, 2, 3, 4, 5]), sample_size=7)
+        res = sc.estimate_expected_unk_sites(
+            unk_type="M", sites=set([0, 1, 2, 3, 4, 5]), sample_size=7
+        )
         self.assertEqual(res, 1)
 
 
 class test_hybridComparer_45a(unittest.TestCase):
-    """ tests the generation of multiple alignments of variant sites."""
+    """tests the generation of multiple alignments of variant sites."""
 
     def runTest(self):
 
@@ -788,7 +887,15 @@ class test_hybridComparer_45a(unittest.TestCase):
             },
             unittesting=True,
         )
-        originals = ["AAACGN", "CCCCGN", "TTTCGN", "GGGGGN", "NNNCGN", "ACTCGN", "TCTNGN"]
+        originals = [
+            "AAACGN",
+            "CCCCGN",
+            "TTTCGN",
+            "GGGGGN",
+            "NNNCGN",
+            "ACTCGN",
+            "TCTNGN",
+        ]
         guid_names = []
         n = 0
         for original in originals:
@@ -808,7 +915,7 @@ class test_hybridComparer_45a(unittest.TestCase):
 
 
 class test_hybridComparer_45b(unittest.TestCase):
-    """ tests the generation of multiple alignments of variant sites."""
+    """tests the generation of multiple alignments of variant sites."""
 
     def runTest(self):
 
@@ -827,7 +934,15 @@ class test_hybridComparer_45b(unittest.TestCase):
             unittesting=True,
         )
 
-        originals = ["AAACGN", "CCCCGN", "TTTCGN", "GGGGGN", "NNNCGN", "ACTCGN", "TCTGGN"]
+        originals = [
+            "AAACGN",
+            "CCCCGN",
+            "TTTCGN",
+            "GGGGGN",
+            "NNNCGN",
+            "ACTCGN",
+            "TCTGGN",
+        ]
         guid_names = []
         n = 0
         for original in originals:
@@ -845,7 +960,7 @@ class test_hybridComparer_45b(unittest.TestCase):
 
 
 class test_hybridComparer_1(unittest.TestCase):
-    """ test init """
+    """test init"""
 
     def runTest(self):
         refSeq = "ACTG"
@@ -899,7 +1014,18 @@ class test_hybridComparer_3(unittest.TestCase):
             },
         )
         retVal = sc.compress(sequence="ACTG")
-        self.assertEqual(retVal, {"G": set([]), "A": set([]), "C": set([]), "T": set([]), "N": set([]), "M": {}, "invalid": 0})
+        self.assertEqual(
+            retVal,
+            {
+                "G": set([]),
+                "A": set([]),
+                "C": set([]),
+                "T": set([]),
+                "N": set([]),
+                "M": {},
+                "invalid": 0,
+            },
+        )
 
 
 class test_hybridComparer_3b(unittest.TestCase):
@@ -919,7 +1045,16 @@ class test_hybridComparer_3b(unittest.TestCase):
         )
         retVal = sc.compress(sequence="ACTQ")
         self.assertEqual(
-            retVal, {"G": set([]), "A": set([]), "C": set([]), "T": set([]), "N": set([]), "M": {3: "Q"}, "invalid": 0}
+            retVal,
+            {
+                "G": set([]),
+                "A": set([]),
+                "C": set([]),
+                "T": set([]),
+                "N": set([]),
+                "M": {3: "Q"},
+                "invalid": 0,
+            },
         )
 
 
@@ -941,7 +1076,15 @@ class test_hybridComparer_3c(unittest.TestCase):
         retVal = sc.compress(sequence="NYTQ")
         self.assertEqual(
             retVal,
-            {"G": set([]), "A": set([]), "C": set([]), "T": set([]), "N": set([0]), "M": {1: "Y", 3: "Q"}, "invalid": 0},
+            {
+                "G": set([]),
+                "A": set([]),
+                "C": set([]),
+                "T": set([]),
+                "N": set([0]),
+                "M": {1: "Y", 3: "Q"},
+                "invalid": 0,
+            },
         )
 
 
@@ -963,7 +1106,16 @@ class test_hybridComparer_4(unittest.TestCase):
 
         retVal = sc.compress(sequence="ACTN")
         self.assertEqual(
-            retVal, {"G": set([]), "A": set([]), "C": set([]), "T": set([]), "N": set([3]), "M": {}, "invalid": 0}
+            retVal,
+            {
+                "G": set([]),
+                "A": set([]),
+                "C": set([]),
+                "T": set([]),
+                "N": set([3]),
+                "M": {},
+                "invalid": 0,
+            },
         )
 
 
@@ -984,7 +1136,16 @@ class test_hybridComparer_5(unittest.TestCase):
         )
         retVal = sc.compress(sequence="ACT-")
         self.assertEqual(
-            retVal, {"G": set([]), "A": set([]), "C": set([]), "T": set([]), "N": set([3]), "M": {}, "invalid": 0}
+            retVal,
+            {
+                "G": set([]),
+                "A": set([]),
+                "C": set([]),
+                "T": set([]),
+                "N": set([3]),
+                "M": {},
+                "invalid": 0,
+            },
         )
 
 
@@ -1007,7 +1168,16 @@ class test_hybridComparer_6(unittest.TestCase):
 
         retVal = sc.compress(sequence="TCT-")
         self.assertEqual(
-            retVal, {"G": set([]), "A": set([]), "C": set([]), "T": set([0]), "N": set([3]), "M": {}, "invalid": 0}
+            retVal,
+            {
+                "G": set([]),
+                "A": set([]),
+                "C": set([]),
+                "T": set([0]),
+                "N": set([3]),
+                "M": {},
+                "invalid": 0,
+            },
         )
 
 
@@ -1029,7 +1199,16 @@ class test_hybridComparer_7(unittest.TestCase):
         )
         retVal = sc.compress(sequence="ATT-")
         self.assertEqual(
-            retVal, {"G": set([]), "A": set([]), "C": set([]), "T": set([1]), "N": set([3]), "M": {}, "invalid": 0}
+            retVal,
+            {
+                "G": set([]),
+                "A": set([]),
+                "C": set([]),
+                "T": set([1]),
+                "N": set([3]),
+                "M": {},
+                "invalid": 0,
+            },
         )
 
 
@@ -1049,7 +1228,18 @@ class test_hybridComparer_6b(unittest.TestCase):
                 "catWalk_parameters": {},
             },
         )
-        originals = ["AAAA", "CCCC", "TTTT", "GGGG", "NNNN", "ACTG", "ACTC", "TCTN", "NYTQ", "QRST"]
+        originals = [
+            "AAAA",
+            "CCCC",
+            "TTTT",
+            "GGGG",
+            "NNNN",
+            "ACTG",
+            "ACTC",
+            "TCTN",
+            "NYTQ",
+            "QRST",
+        ]
         for original in originals:
 
             compressed_sequence = sc.compress(sequence=original)
@@ -1107,7 +1297,7 @@ class test_hybridComparer_6d(unittest.TestCase):
 
 
 class test_hybridComparer_16(unittest.TestCase):
-    """ tests the comparison of two sequences where both differ from the reference. """
+    """tests the comparison of two sequences where both differ from the reference."""
 
     def runTest(self):
         # generate compressed sequences
@@ -1131,7 +1321,7 @@ class test_hybridComparer_16(unittest.TestCase):
 
 
 class test_hybridComparer_16b(unittest.TestCase):
-    """ tests the comparison of two sequences where both differ from the reference. """
+    """tests the comparison of two sequences where both differ from the reference."""
 
     def runTest(self):
         # generate compressed sequences
@@ -1155,7 +1345,7 @@ class test_hybridComparer_16b(unittest.TestCase):
 
 
 class test_hybridComparer_16c(unittest.TestCase):
-    """ tests the comparison of two sequences where both differ from the reference. """
+    """tests the comparison of two sequences where both differ from the reference."""
 
     def runTest(self):
         # generate compressed sequences
@@ -1179,7 +1369,7 @@ class test_hybridComparer_16c(unittest.TestCase):
 
 
 class test_hybridComparer_17(unittest.TestCase):
-    """ tests the comparison of two sequences where one is invalid """
+    """tests the comparison of two sequences where one is invalid"""
 
     def runTest(self):
         # generate compressed sequences
@@ -1203,7 +1393,7 @@ class test_hybridComparer_17(unittest.TestCase):
 
 
 class test_hybridComparer_18(unittest.TestCase):
-    """ tests the comparison of two sequences where one is invalid """
+    """tests the comparison of two sequences where one is invalid"""
 
     def runTest(self):
         # generate compressed sequences
@@ -1243,7 +1433,11 @@ class test_hybridComparer_saveload3(unittest.TestCase):
             maxNs=1e8,
             snpCeiling=20,
             reference=refSeq,
-            preComparer_parameters={"selection_cutoff": 20, "uncertain_base": "M", "over_selection_cutoff_ignore_factor": 5},
+            preComparer_parameters={
+                "selection_cutoff": 20,
+                "uncertain_base": "M",
+                "over_selection_cutoff_ignore_factor": 5,
+            },
             unittesting=True,
         )
         compressedObj = sc.compress(sequence="ACTTMN")
@@ -1251,17 +1445,23 @@ class test_hybridComparer_saveload3(unittest.TestCase):
         retVal = sc.load(guid="one")
 
         self.assertEqual(compressedObj, retVal)
-        self.assertEqual(len(sc.pc.seqProfile.keys()), 1)  # one entry in the preComparer
+        self.assertEqual(
+            len(sc.pc.seqProfile.keys()), 1
+        )  # one entry in the preComparer
 
         compressedObj = sc.compress(sequence="ACTTTT")
         sc.persist(compressedObj, "one")  # should succeed, but add nothing
-        self.assertEqual(len(sc.pc.seqProfile.keys()), 1)  # one entry in the preComparer
+        self.assertEqual(
+            len(sc.pc.seqProfile.keys()), 1
+        )  # one entry in the preComparer
 
         compressedObj = sc.compress(sequence="ACTTTA")
         sc.persist(compressedObj, "two")
         retVal = sc.load(guid="two")
         self.assertEqual(compressedObj, retVal)
-        self.assertEqual(len(sc.pc.seqProfile.keys()), 2)  # one entry in the preComparer
+        self.assertEqual(
+            len(sc.pc.seqProfile.keys()), 2
+        )  # one entry in the preComparer
 
 
 class test_hybridComparer_remove_all(unittest.TestCase):
@@ -1283,21 +1483,29 @@ class test_hybridComparer_remove_all(unittest.TestCase):
         sc.persist(compressedObj, "one")
         sc_obj = sc.load(guid="one")
         sc.seqProfile["one"] = sc_obj
-        self.assertEqual(len(sc.seqProfile.keys()), 1)  # 1 entry in the temporary  dictionary  either
-        self.assertEqual(len(sc.pc.seqProfile.keys()), 1)  # one entry in the preComparer
+        self.assertEqual(
+            len(sc.seqProfile.keys()), 1
+        )  # 1 entry in the temporary  dictionary  either
+        self.assertEqual(
+            len(sc.pc.seqProfile.keys()), 1
+        )  # one entry in the preComparer
 
         compressedObj = sc.compress(sequence="ACTT")
         sc.persist(compressedObj, "two")
         sc.load(guid="two")
-        self.assertEqual(len(sc.pc.seqProfile.keys()), 2)  # two entry in the preComparer
+        self.assertEqual(
+            len(sc.pc.seqProfile.keys()), 2
+        )  # two entry in the preComparer
 
         sc.remove_all_temporary_seqs()
         self.assertEqual(len(sc.pc.seqProfile.keys()), 2)  # 2 in preComparer
-        self.assertEqual(len(sc.seqProfile.keys()), 0)  # no entry in the temporary dictioanry
+        self.assertEqual(
+            len(sc.seqProfile.keys()), 0
+        )  # no entry in the temporary dictioanry
 
 
 class test_hybridComparer_24(unittest.TestCase):
-    """ tests N compression """
+    """tests N compression"""
 
     def runTest(self):
 
@@ -1344,7 +1552,7 @@ class test_hybridComparer_24(unittest.TestCase):
 
 
 class test_hybridComparer_29(unittest.TestCase):
-    """ tests _setStats """
+    """tests _setStats"""
 
     def runTest(self):
 
@@ -1363,53 +1571,217 @@ class test_hybridComparer_29(unittest.TestCase):
         )
         compressedObj1 = sc.compress(sequence="GGGGTTAANNNNNNNNNGGGGGAAAAGGGAA")
         compressedObj2 = sc.compress(sequence="ACTGTTAATTTTTTTTTNNNNNNNNNNNNNN")
-        (n1, n2, nall, rv1, rv2, retVal) = sc._setStats(compressedObj1["N"], compressedObj2["N"])
+        (n1, n2, nall, rv1, rv2, retVal) = sc._setStats(
+            compressedObj1["N"], compressedObj2["N"]
+        )
         self.assertEqual(
-            retVal, set([8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30])
+            retVal,
+            set(
+                [
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15,
+                    16,
+                    17,
+                    18,
+                    19,
+                    20,
+                    21,
+                    22,
+                    23,
+                    24,
+                    25,
+                    26,
+                    27,
+                    28,
+                    29,
+                    30,
+                ]
+            ),
         )
 
         compressedObj1 = sc.compress(sequence="GGGGTTAANNNNNNNNTGGGGGAAAAGGGAA")
         compressedObj2 = sc.compress(sequence="ACTGTTAATTTTTTTTTNNNNNNNNNNNNNN")
-        (n1, n2, nall, rv1, rv2, retVal) = sc._setStats(compressedObj1["N"], compressedObj2["N"])
-        self.assertEqual(retVal, set([8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]))
+        (n1, n2, nall, rv1, rv2, retVal) = sc._setStats(
+            compressedObj1["N"], compressedObj2["N"]
+        )
+        self.assertEqual(
+            retVal,
+            set(
+                [
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15,
+                    17,
+                    18,
+                    19,
+                    20,
+                    21,
+                    22,
+                    23,
+                    24,
+                    25,
+                    26,
+                    27,
+                    28,
+                    29,
+                    30,
+                ]
+            ),
+        )
 
         compressedObj1 = sc.compress(sequence="NNNGTTAANNNNNNNNTGGGGGAAAAGGGAA")
         compressedObj2 = sc.compress(sequence="ACTGTTAATTTTTTTTTNNNNNNNNNNNNNN")
-        (n1, n2, nall, rv1, rv2, retVal) = sc._setStats(compressedObj1["N"], compressedObj2["N"])
+        (n1, n2, nall, rv1, rv2, retVal) = sc._setStats(
+            compressedObj1["N"], compressedObj2["N"]
+        )
         self.assertEqual(
-            retVal, set([0, 1, 2, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30])
+            retVal,
+            set(
+                [
+                    0,
+                    1,
+                    2,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15,
+                    17,
+                    18,
+                    19,
+                    20,
+                    21,
+                    22,
+                    23,
+                    24,
+                    25,
+                    26,
+                    27,
+                    28,
+                    29,
+                    30,
+                ]
+            ),
         )
 
         compressedObj1 = sc.compress(sequence="NNNGTTAANNNNNNNNTGGGGGAAAAGGGAA")
         compressedObj2 = sc.compress(sequence="ACTNNNNNTTTTTTTTTNNNNNNNNNNNNNN")
-        (n1, n2, nall, rv1, rv2, retVal) = sc._setStats(compressedObj1["N"], compressedObj2["N"])
+        (n1, n2, nall, rv1, rv2, retVal) = sc._setStats(
+            compressedObj1["N"], compressedObj2["N"]
+        )
         self.assertEqual(
             retVal,
             set(
-                [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]
+                [
+                    0,
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15,
+                    17,
+                    18,
+                    19,
+                    20,
+                    21,
+                    22,
+                    23,
+                    24,
+                    25,
+                    26,
+                    27,
+                    28,
+                    29,
+                    30,
+                ]
             ),
         )
 
         compressedObj1 = sc.compress(sequence="NNNGTTAANNNNNNNNTGGGGGAAAAGGGAA")
         compressedObj2 = sc.compress(sequence="ACTNNNNNTTTTTTTTTQQQQQQQQQQQQQQ")
-        (n1, n2, nall, rv1, rv2, retVal) = sc._setStats(compressedObj1["N"], compressedObj2["N"])
-        self.assertEqual(retVal, set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]))
-        (n1, n2, nall, rv1, rv2, retVal) = sc._setStats(compressedObj1["M"], compressedObj2["M"])
-        self.assertEqual(retVal, set([17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]))
+        (n1, n2, nall, rv1, rv2, retVal) = sc._setStats(
+            compressedObj1["N"], compressedObj2["N"]
+        )
+        self.assertEqual(
+            retVal, set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
+        )
+        (n1, n2, nall, rv1, rv2, retVal) = sc._setStats(
+            compressedObj1["M"], compressedObj2["M"]
+        )
+        self.assertEqual(
+            retVal, set([17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30])
+        )
 
         compressedObj1 = sc.compress(sequence="qqqGTTAAqqqqqqqqTGGGGGAAAAGGGAA")
         compressedObj2 = sc.compress(sequence="ACTqqqqqTTTTTTTTTqqqqqqqqqqqqqq")
-        (n1, n2, nall, rv1, rv2, retVal) = sc._setStats(compressedObj1["M"], compressedObj2["M"])
+        (n1, n2, nall, rv1, rv2, retVal) = sc._setStats(
+            compressedObj1["M"], compressedObj2["M"]
+        )
         self.assertEqual(
             retVal,
             set(
-                [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]
+                [
+                    0,
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15,
+                    17,
+                    18,
+                    19,
+                    20,
+                    21,
+                    22,
+                    23,
+                    24,
+                    25,
+                    26,
+                    27,
+                    28,
+                    29,
+                    30,
+                ]
             ),
         )
 
 
 class test_hybridComparer_37(unittest.TestCase):
-    """ tests the loading of an exclusion file """
+    """tests the loading of an exclusion file"""
 
     def runTest(self):
 
@@ -1427,11 +1799,13 @@ class test_hybridComparer_37(unittest.TestCase):
                 "catWalk_parameters": {},
             },
         )
-        self.assertEqual(sc.excluded_hash(), "Excl 0 nt [d751713988987e9331980363e24189ce]")
+        self.assertEqual(
+            sc.excluded_hash(), "Excl 0 nt [d751713988987e9331980363e24189ce]"
+        )
 
 
 class test_hybridComparer_38(unittest.TestCase):
-    """ tests the loading of an exclusion file """
+    """tests the loading of an exclusion file"""
 
     def runTest(self):
 
@@ -1449,11 +1823,13 @@ class test_hybridComparer_38(unittest.TestCase):
                 "catWalk_parameters": {},
             },
         )
-        self.assertEqual(sc.excluded_hash(), "Excl 0 nt [d751713988987e9331980363e24189ce]")
+        self.assertEqual(
+            sc.excluded_hash(), "Excl 0 nt [d751713988987e9331980363e24189ce]"
+        )
 
 
 class test_hybridComparer_40(unittest.TestCase):
-    """ tests the computation of a hash of a compressed object """
+    """tests the computation of a hash of a compressed object"""
 
     def runTest(self):
 
@@ -1478,7 +1854,7 @@ class test_hybridComparer_40(unittest.TestCase):
 
 
 class test_hybridComparer_45(unittest.TestCase):
-    """ tests insertion of large sequences """
+    """tests insertion of large sequences"""
 
     def runTest(self):
         inputfile = "reference/NC_000962.fasta"
@@ -1544,7 +1920,7 @@ class test_hybridComparer_45(unittest.TestCase):
 
 
 class test_hybridComparer_47(unittest.TestCase):
-    """ tests raise_error"""
+    """tests raise_error"""
 
     def runTest(self):
         # generate compressed sequences
@@ -1600,7 +1976,7 @@ class test_hybridComparer_50(unittest.TestCase):
 
 
 class test_hybridComparer_51(unittest.TestCase):
-    """ tests repopulate_sample."""
+    """tests repopulate_sample."""
 
     def runTest(self):
 
@@ -1619,7 +1995,15 @@ class test_hybridComparer_51(unittest.TestCase):
             },
         )
 
-        originals = ["AAACGN", "CCCCGN", "TTTCGN", "GGGGGN", "NNNCGN", "ACTCGN", "TCTNGN"]
+        originals = [
+            "AAACGN",
+            "CCCCGN",
+            "TTTCGN",
+            "GGGGGN",
+            "NNNCGN",
+            "ACTCGN",
+            "TCTNGN",
+        ]
         guid_names = []
         n = 0
         for original in originals:
@@ -1648,7 +2032,7 @@ class test_hybridComparer_51(unittest.TestCase):
 
 
 class test_hybridComparer_52(unittest.TestCase):
-    """ tests catwalk with uncertain_base = M"""
+    """tests catwalk with uncertain_base = M"""
 
     def runTest(self):
         inputfile = "COMPASS_reference/R39/R00000039.fasta"
@@ -1773,7 +2157,9 @@ class test_hybridComparer_53(unittest.TestCase):
                 seq = originalseq.copy()
                 # make  mutations
                 if k == 1:
-                    for j in range(500000, 500005):  # make 5 mutants at position 500000k
+                    for j in range(
+                        500000, 500005
+                    ):  # make 5 mutants at position 500000k
                         mutbase = j
                         ref = seq[mutbase]
                         if not ref == "T":
@@ -1792,15 +2178,21 @@ class test_hybridComparer_53(unittest.TestCase):
             res = hc.mcompare(guid)
             # print("UNITTEST 53: MCOMPARE TIMINGS", guid, res['timings'])
             # print("UNITTEST 53: MCOMPARE NEIGHBOURS", res['neighbours'])
-            self.assertEqual(len(res["neighbours"]), len(inserted_guids) - 1)  # doesn't match self, but does match guid_ref
+            self.assertEqual(
+                len(res["neighbours"]), len(inserted_guids) - 1
+            )  # doesn't match self, but does match guid_ref
             self.assertEqual(res["timings"]["catWalk_enabled"], True)
             self.assertEqual(res["timings"]["preComparer_distances_are_exact"], True)
             self.assertTrue(res["timings"]["candidates"] == 0)  # doesn't report these
             self.assertEqual(res["timings"]["preCompared"], len(inserted_guids))
-            self.assertTrue(res["timings"]["matches"] == len(inserted_guids) - 1)  # doesn't report self self matches
+            self.assertTrue(
+                res["timings"]["matches"] == len(inserted_guids) - 1
+            )  # doesn't report self self matches
 
             # test everything was stored OK
-            stored_guids = hc.PERSIST.guid2neighbours(guid, returned_format=3, cutoff=20)["neighbours"]
+            stored_guids = hc.PERSIST.guid2neighbours(
+                guid, returned_format=3, cutoff=20
+            )["neighbours"]
             # print("UNITTEST 53: STORED GUIDS LINKED TO ", guid, 'are', stored_guids)
             expected = set(inserted_guids) - set([guid])  # everything except itself
             # print("UNITTEST 53: EXPECTED_LINKS to ", guid, 'are', expected)
@@ -1809,7 +2201,7 @@ class test_hybridComparer_53(unittest.TestCase):
 
 
 class test_hybridComparer_54(unittest.TestCase):
-    """ tests catwalk with insertion disabled (catwalk should not start)"""
+    """tests catwalk with insertion disabled (catwalk should not start)"""
 
     def runTest(self):
         inputfile = "COMPASS_reference/R39/R00000039.fasta"

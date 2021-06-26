@@ -370,9 +370,10 @@ class findNeighbour4:
     def reset(self):
         """ restarts the server, deleting any existing data """
         if not self.debugMode == 2:
+            app.logger.info("Call to reset ignored as debugMode is not 2")
             return  # no action taken by calls to this unless debugMode ==2
         else:
-            print("Deleting existing data and restarting")
+            app.logger.info("Deleting existing data and restarting")
             self.PERSIST._delete_existing_data()
             self._load_in_memory_data()
 
