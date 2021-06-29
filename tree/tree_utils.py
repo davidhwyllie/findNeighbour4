@@ -228,9 +228,10 @@ class DepictTree:
         self.page_width = 210
         self.dpi = 300
 
-    def _prepareTreeStyle(self):
+    def _prepareTreeStyle(self, mode = 'c'):
         """sets options for tree setting"""
         self._tss = ete3.TreeStyle()
+        self._tss.mode = mode
         self._tss.show_leaf_name = self.show_leaf_name
         self._tss.show_branch_length = self.show_branch_length
         self._tss.show_branch_support = self.show_branch_support
@@ -258,10 +259,8 @@ class DepictTree:
         if dist > 400:
             dist = 400
         scale_unit = float(int(400 / dist))
-        # self._tss.mode = 'c'
         self._tss.scale = scale_unit
         self._tss.optimal_scale_level = "full"
-        self._tss.mode = "r"
         root_to_tip = self.rtd()
         if self.genome_length is None:
             self.distance_unit = "Subs/ Kb"
@@ -276,6 +275,7 @@ class DepictTree:
         pca_info = "For expanding branches, the following are shown: {0}".format(
             ";".join(self.metadata.columns.to_list())
         )
+
         if self.title is not None:
             nrows = 0
             self._tss.title = ete3.treeview.main.FaceContainer()
@@ -317,10 +317,12 @@ class DepictTree:
                 node_list.append(x.name)
         return node_list
 
-    def render(self, outputfile, mode="r"):
+    def render(self, outputfile, mode):
         """render the tree to file"""
-        self._tss.mode = mode
-        self._prepareTreeStyle()
+        if mode not in ['c', 'r']:
+            raise ValueError("Mode must be either c or r (circular or radial)")
+        
+        self._prepareTreeStyle(mode= mode)
         if os.path.exists(outputfile):
             os.unlink(outputfile)  # get rid of it if exists
         self.tree.render(outputfile, tree_style=self._tss)
