@@ -10,8 +10,8 @@ Requires python 3.8 + on Linux
 
 Operating system
 ----------------
-The code has been tested on Linux (Ubuntu 16.04, 18.04, 20.04).  
-The below instruction include linux-specific commands.
+The code has been tested on Linux (Ubuntu 20.04).  The server uses a small number of linux specific packages.  It is not expected to work on Windows. 
+The below instructions include linux-specific commands.
 
 Dependencies
 ------------
@@ -45,19 +45,41 @@ It is strongly recommended, but not essential, to use a virtual environment.
 A pipenv Pipfile is provided which specifies dependencies.  See also [section](dependencies.md).
 
 cd /mydir/fn4       # or whatever you've installed into
-pipenv install
-pipenv install -e /mydir/fn4             # put fn4 packages in virtualenv (essential)
-In the root of your directory, you will need to create a .env file.  This sets environment variables required for the code to run.
+pipenv install --skip-lock         # can lock but is slow
+pipenv install . -e --skip-lock    # put fn4 packages in virtualenv (essential)
+
+Catwalk
+--------
+Catwalk is an external component which can be used by findneighbour4.  Doing so makes the system much faster.
+Example:
+
+```
+mkdir external_software       # or wherever you want catwalk to go
+sudo apt-get install nim
+cd external_software
+git clone https://gitea.mmmoxford.uk/dvolk/catwalk.git
+cd catwalk
+nimble -y build -d:release -d:danger -d:no_serialisation
+# add path to executable to .env file 
+echo CW_BINARY_FILEPATH=\"`pwd`/cw_server\" > ../../.env
+```
+
+.env file
+---------
+
+In the root of your directory, you will need to create a .env file.  This sets environment variables required for the code to run.  Because you are using a virtual environment, it has it's own environment variables.
+
 Here is an example:
 ```
 FN_SENTRY_URL="https://********************.ingest.sentry.io/*****"
 CW_BINARY_FILEPATH="/home/phe.gov.uk/david.wyllie/catwalk/cw_server"
 IQTREE="/home/phe.gov.uk/david.wyllie/software/iqtree-2.1.2-Linux/bin/iqtree2"
 ```
+
 All are optional, but the CW_BINARY_FILEPATH is required if (as is strongly recommended) you are using the catwalk comparison engine as part of findNeighbour4.
-FN_SENTRY_URL is an optional url for the sentry.io (error logging) service.  If present and Sentry.io (small free or paid service) configured, error logging will be collated there.  
-This is very useful for collating  & debugging server side errors.   If considering this, be aware that if identifiable data is in the server, errors trapped may be sent to the Sentry.io service.  
-IQTREE is an optional path to the IQTREE executable, a tree drawing software.
+FN_SENTRY_URL is an optional url for the sentry.io (error logging) service.  If present and Sentry.io (small free or paid service) configured, error logging will be collated there.    This is very useful for collating  & debugging server side errors.   If considering this, be aware that if identifiable data is in the server, errors trapped may be sent to the Sentry.io service.  
+
+IQTREE is an optional path to the IQTREE executable, a tree drawing software.  For details, see http://www.iqtree.org/
 
 
 To run with a virtual environment, preface command with ```pipenv run ..```
