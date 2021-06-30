@@ -150,6 +150,7 @@ pipenv run python3 pca/fn4_pca.py demos/covid/covid_config_v3.json --outputdir /
     parser.add_argument(
         "--analysis_dir",
         action="store",
+        default='/tmp',
         help="a temporary directory to write trees etc into ",
     )
     parser.add_argument(
@@ -157,6 +158,12 @@ pipenv run python3 pca/fn4_pca.py demos/covid/covid_config_v3.json --outputdir /
         action="store_true",
         default=False,
         help="if this option is specified, it will delete any temporary files generated in --analysis_dir ",
+    )
+    parser.add_argument(
+        "--only_produce_tree_output",
+        action="store_true",
+        default=False,
+        help="debug setting.  Doesn't do pca, just runs output (including tree depiction) on the last run",
     )
     args = parser.parse_args()
 
@@ -277,7 +284,8 @@ pipenv run python3 pca/fn4_pca.py demos/covid/covid_config_v3.json --outputdir /
         disable_insertion=True,
     )
 
-    if False:
+    
+    if args.only_produce_tree_output is False:
         logger.info("Loading cog-uk metadata")
         pdm.store_cog_metadata(cogfile=args.cogfile)
 
