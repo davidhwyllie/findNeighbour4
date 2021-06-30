@@ -283,7 +283,6 @@ pipenv run python3 pca/fn4_pca.py demos/covid/covid_config_v3.json --outputdir /
         PERSIST=PERSIST,
         disable_insertion=True,
     )
-
     
     if args.only_produce_tree_output is False:
         logger.info("Loading cog-uk metadata")
