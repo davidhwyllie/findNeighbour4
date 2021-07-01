@@ -35,7 +35,8 @@ from sqlalchemy import (
     String,
     DateTime,
     Identity,
-    ForeignKey
+    ForeignKey,
+    TIMESTAMP
 )
 
 #from sqlalchemy.dialects import oracle
@@ -67,6 +68,13 @@ class BulkLoadTest(db_pc):
     bulk1 = Column(Integer)
     bulk2 = Column(Integer)
 
+class Config(db_pc):
+    """stores config data"""
+
+    __tablename__ = "config"
+    cfg_int_id = Column(Integer, Identity(start=1), primary_key=True)
+    config_key = Column(String(56), index= True, unique = True)
+    config_value = Column(Text)     # blob
 
 class RefCompressedSeq(db_pc):
     """stores reference compressed sequences, which are large character objects
@@ -93,7 +101,7 @@ class RefCompressedSeq(db_pc):
         comment="the sample_id represented by the entry; sample_ids are typically guuids",
     )
     examination_date = Column(
-        DateTime,
+        TIMESTAMP,
         index=True,
         comment="the date and time the record was examined and compressed",
     )
@@ -105,7 +113,7 @@ class RefCompressedSeq(db_pc):
         index=True,
         comment="whether the sequence is of sufficient quality to be analysed (invalid = 0) or is not (invalid = 1).  Part of the annotations, but extracted into separate field for indexing.",
     )
-    propACTG = Column(
+    prop_actg = Column(
         Float,
         index=True,
         comment="the proportion of A,C,G,T (as opposed to N,-, or IUPAC codes).  Part of the annotations, but extracted into separate field for indexing.",
@@ -508,6 +516,7 @@ class fn3persistence:
             self.engine
         )  # create the table(s) if they don't already exist
         BulkLoadTest.__table__.drop(self.engine)
+        Config.__table__.drop(self.engine)
         Edge.__table__.drop(self.engine)
         Cluster.__table__.drop(self.engine)
         Monitor.__table__.drop(self.engine)
