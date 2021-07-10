@@ -7,7 +7,7 @@ import unittest
 import pandas as pd
 import pickle
 import datetime
-from pca.fittrend import PoissonModel
+from pca.fittrend import ModelCounts
 from pca.pcadb import PCADatabaseManager
 
 
@@ -16,38 +16,51 @@ class Test_pois_1(unittest.TestCase):
 
     def runTest(self):
         # load data for testing - the output from PCADatabaseManager.count_table()
-        inputfile = "testdata/pca/cntdata.pickle"
+        inputfile = "testdata/pca/count_format_1.pickle"
         with open(inputfile, "rb") as f:
             cntdata = pickle.load(f)
-
+        print(cntdata)
         # test constructor and data munging processes
         this_latest_date = datetime.date(2021, 6, 1)
-        nb = PoissonModel(**cntdata, latest_date=this_latest_date)
+        nb = ModelCounts(**cntdata, latest_date=this_latest_date)
         self.assertEqual(max(nb.date_range["sample_date"]), this_latest_date)
         self.assertIsInstance(nb.counts, pd.DataFrame)
         self.assertIsInstance(nb.denominators, pd.DataFrame)
 
         # test  select_data_to_model methods
-        res = nb.data_to_model(1)
+        res = nb.data_to_model(False)       # don't drop empty records
         self.assertIsInstance(res, pd.DataFrame)
-        self.assertEqual(len(res.index), 87)
 
+        self.assertEqual(len(res.index), 713)
+        # we expect the last day in data_to_model to be the latest sample_date 
+        self.assertEqual(this_latest_date, max(res['sample_date']))
+       
+        res = nb.data_to_model(True)      #  drop empty records
+        self.assertIsInstance(res, pd.DataFrame)
+        self.assertEqual(len(res.index), 652)
+        # we expect the last day in data_to_model to be the latest sample_date 
+        self.assertEqual(datetime.date(2021, 4, 1), max(res['sample_date']))
+       
+        nb = ModelCounts(**cntdata, latest_date=this_latest_date)
+        self.assertIsInstance(nb.counts, pd.DataFrame)
+        self.assertIsInstance(nb.denominators, pd.DataFrame)
 
+#@unittest.skip(reason='debug')
 class Test_pois_2(unittest.TestCase):
     """test Poisson model 2"""
 
     def runTest(self):
         # load data for testing - the output from PCADatabaseManager.count_table()
-        inputfile = "testdata/pca/cntdata.pickle"
+        inputfile = "testdata/pca/count_format_1.pickle"
         with open(inputfile, "rb") as f:
             cntdata = pickle.load(f)
 
         # test constructor and data munging processes
         this_latest_date = datetime.date(2021, 6, 1)
 
-        nb = PoissonModel(**cntdata, latest_date=this_latest_date)
+        nb = ModelCounts(**cntdata, latest_date=this_latest_date)
 
-        retVal = nb.fit()
+        retVal = nb.fit_poisson()
         self.assertEqual(
             set(["statistical_model", "modelled_data", "coefficients"]),
             set(retVal.keys()),
@@ -56,14 +69,14 @@ class Test_pois_2(unittest.TestCase):
         self.assertIsNone(retVal["statistical_model"]["errors_returned"])
         self.assertEqual(
             set(retVal["modelled_data"].columns.to_list()),
-            set(["n_total", "sample_date", "day_of_week", "n", "t", "pred"]),
+            set(["n_total", "sample_date", "day_of_week", "n", "t", "pred", 'sample_dow','pc_cat']),
         )
 
-        # inputfile = "testdata/pca/model_success.pickle"
-        # with open(inputfile, "wb") as f:
-        #    pickle.dump(retVal, f)
-
-        retVal = nb.fit(raise_error_for_unittest=True)
+        res = nb.data_to_model(False)
+        # we expect the last day in data_to_model to be the latest sample_date 
+        self.assertEqual(this_latest_date, max(res['sample_date']))
+       
+        retVal = nb.fit_poisson(raise_error_for_unittest=True)
         self.assertEqual(
             set(["statistical_model", "modelled_data", "coefficients"]),
             set(retVal.keys()),
@@ -73,13 +86,48 @@ class Test_pois_2(unittest.TestCase):
 
         self.assertEqual(
             set(retVal["modelled_data"].columns.to_list()),
-            set(["n_total", "sample_date", "day_of_week", "n", "t", "pred"]),
+            set(["n_total", "sample_date", "day_of_week", "n", "t", "pred",'sample_dow','pc_cat']),
         )
-        # inputfile = "testdata/pca/model_failed.pickle"
-        # with open(inputfile, "wb") as f:
-        #    pickle.dump(retVal, f)
+#@unittest.skip(reason='debug')
+class Test_negbin_1(unittest.TestCase):
+    """test negative binomial 1"""
 
+    def runTest(self):
+        # load data for testing - the output from PCADatabaseManager.count_table()
+        inputfile =  "testdata/pca/count_format_2.pickle"
+        with open(inputfile, "rb") as f:
+            input_data = pickle.load(f)
+        
+        # test constructor and data munging processes
+        this_latest_date = datetime.date(2021, 6, 1)
+        nb = ModelCounts(**input_data, latest_date=this_latest_date)
+        self.assertEqual(max(nb.date_range["sample_date"]), this_latest_date)
+        self.assertIsInstance(nb.counts, pd.DataFrame)
+        self.assertIsInstance(nb.denominators, pd.DataFrame)
 
+        # test  select_data_to_model methods
+        res = nb.data_to_model(False)
+        self.assertEqual(this_latest_date, max(res['sample_date']))
+
+        self.assertIsInstance(res, pd.DataFrame)
+        self.assertEqual(len(res.index), 3089)       # truncates the data
+
+        nb = ModelCounts(**input_data, latest_date=this_latest_date)
+        self.assertEqual(max(nb.date_range["sample_date"]), this_latest_date)
+        self.assertIsInstance(nb.counts, pd.DataFrame)
+        self.assertIsInstance(nb.denominators, pd.DataFrame)
+
+        # test  select_data_to_model methods
+        res = nb.data_to_model(True)
+        # we expect the last day in data_to_model to be the latest sample_date 
+        self.assertEqual(datetime.date(2021,4,1), max(res['sample_date']))
+        self.assertIsInstance(res, pd.DataFrame)
+        self.assertEqual(len(res.index), 2296)       # truncates the data
+
+        retVal = nb.fit_nb()
+        
+        
+#@unittest.skip(reason='debug')
 class Test_PCA_Database(unittest.TestCase):
     """establishes database connection strings for cross-database testing.
     Currently tests OCI (if relevant environment variables are set) and Sqlite
@@ -117,7 +165,7 @@ class Test_PCA_Database(unittest.TestCase):
                 if key.startswith("unittest_ora"):
                     self.engines[key] = key
                     pass
-
+#@unittest.skip(reason = "slow")
 class Test_create_pc_summary_13(Test_PCA_Database):
     """tests addition of statistical models"""
 
@@ -134,25 +182,37 @@ class Test_create_pc_summary_13(Test_PCA_Database):
             pdm = PCADatabaseManager(
                 connection_config=self.engines[engine], debug=True, show_bar=False
             )
+            print("Loading vm data")
             pdm.store_variation_model(vm)
+            print("Loading metadata")
             pdm.store_cog_metadata(cogfile="testdata/pca/cog_metadata_vm.csv")
+            print("Storing summary")
             pdm.store_pca_summary()  # store a summary
 
             pcas_df = pdm.pca_summary()
 
             n_modelled = 0
+            print("Modelling")
             for pcas_int_id in pcas_df.index:
+                print(n_modelled)
                 n_modelled += 1
 
-                if n_modelled == 20:
+                if n_modelled == 2:
                     break
-
+                print("Preparing count data")
                 pcas_obj = pdm.single_pcas_summary(pcas_int_id)
                 cntdata = pdm.pcas_count_table(pcas_obj)
 
                 # override earliest date as required
                 this_latest_date = datetime.date(2021, 6, 1)
-                nb = PoissonModel(**cntdata, latest_date=this_latest_date)
-                res = nb.fit()
+                nb = ModelCounts(**cntdata, latest_date=this_latest_date)
+                print("Fitting poisson")
+                res = nb.fit_poisson()
 
                 pdm.store_pcas_model_output(res)
+
+                print("Fitting negbin")
+                res = nb.fit_nb()
+
+                pdm.store_pcas_model_output(res)
+                

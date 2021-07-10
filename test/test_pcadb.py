@@ -6,6 +6,7 @@ import json
 import unittest
 import pandas as pd
 import pickle
+import datetime
 from sqlalchemy import func
 from pca.pca import VariationModel
 from pca.pcadb import ContingencyTable, BulkLoadTest
@@ -28,7 +29,7 @@ class Test_PCA_Database(unittest.TestCase):
 
     def setUp(self):
         self.engines = {}
-        self.engines["Sqlite"] = "sqlite://"  # in memory sqlite
+        self.engines["Sqlite"] = "sqlite://"  # in memory sqlite   
 
         conn_detail_file = None
 
@@ -129,11 +130,11 @@ class Test_load_clinical_data_3(Test_PCA_Database):
             x2 = pdm.existing_sample_ids_in_clinical_metadata()
             self.assertEqual(len(x1), 0)
             self.assertEqual(len(x2), 99)
-            self.assertEqual(len(x2), x3)
+            self.assertEqual(len(x2), len(x3))
 
             # try to add again
             x4 = pdm.store_cog_metadata(cogfile="testdata/pca/cog_metadata_test.csv")
-            self.assertEqual(x4, 0)
+            self.assertEqual(len(x4), 0)
             b4 = pdm.latest_build_int_id()
             self.assertIsNone(b4)
 
@@ -141,7 +142,7 @@ class Test_load_clinical_data_3(Test_PCA_Database):
             x5 = pdm.store_cog_metadata(
                 cogfile="testdata/pca/cog_metadata_test.csv", replace_all=True
             )
-            self.assertEqual(x5, 99)
+            self.assertEqual(len(x5), 99)
             b5 = pdm.latest_build_int_id()
             self.assertIsNone(b5)
 
@@ -293,7 +294,7 @@ class Test_count_per_day_6(Test_PCA_Database):
             self.assertEqual(initial_rows, final_rows)
 
 
-#@unittest.skip(reason="not routinely necessary ")
+##@unittest.skip(reason="not routinely necessary ")
 class Test_count_per_day_7(Test_PCA_Database):
     """tests computation of count data frames"""
 
@@ -346,7 +347,7 @@ class Test_create_sample_set_9(Test_PCA_Database):
             self.assertEqual(s2, 0)
 
 
-# #@unittest.skip(reason="not routinely necessary ")
+#@unittest.skip(reason="not routinely necessary ")
 class Test_create_pc_summary_10(Test_PCA_Database):
     """tests creation of a pc_summary"""
 
@@ -486,17 +487,89 @@ class Test_create_pc_summary_12(Test_PCA_Database):
                        
             for i, summary_entry in enumerate(pdm.session.query(PCASummary)):
                 pdm.single_population_studied(summary_entry.pcas_int_id)        # ensure no error
+
+                #print(summary_entry)
+                #print(summary_entry.__dict__)
+
+                with self.assertRaises(ValueError):
+                    res = pdm.pcas_count_table(summary_entry, output_format = 0)        # only 1 or 2 are allowed
+
+                res = pdm.pcas_count_table(summary_entry, output_format = 1)
+                #print(res)   
                 
-                res = pdm.pcas_count_table(summary_entry)
+                self.assertEqual(
+                    set(res.keys()),
+                    set([ "earliest_date",
+                            "pcas_int_id",
+                            "counts",
+                            "denominators",
+                            "pc_cat"])
+                ) 
+                self.assertIsInstance(res['pcas_int_id'], int)
+                self.assertIsInstance(res['earliest_date'], datetime.date)
+                self.assertIsInstance(res['pc_cat'], str)
+                self.assertIsInstance(res['counts'], pd.DataFrame)
+                self.assertIsInstance(res['denominators'],pd.DataFrame)
+                self.assertTrue(len(res['counts'].index) > 0)
+                self.assertTrue(len(res['denominators'].index) > 0)
+
+                # test data for poisson regression 
+                #outputfile = "testdata/pca/count_format_1.pickle"
+                #with open(outputfile, "wb") as f:
+                #    pickle.dump(res, f)      
+    
+                self.assertIsInstance(res, dict)
+                self.assertEqual(
+                    set(res.keys()),
+                    set(["earliest_date", "pcas_int_id", "counts", "denominators",'pc_cat']),
+                )
+                self.assertEqual(
+                    set(res['counts'].keys()),
+                    set(["sample_date", "n"]),
+                )
+                ntotal = sum(res["counts"]["n"])
+
+                res2 = pdm.pcas_members(summary_entry)
+                self.assertEqual(len(res2.index), ntotal)
+                self.assertTrue(ntotal > 0)
+                
+                res = pdm.pcas_count_table(summary_entry, output_format = 2)
+
+                self.assertEqual(
+                    set(res.keys()),
+                    set([ "earliest_date",
+                            "pcas_int_id",
+                            "counts",
+                            "denominators",
+                            "pc_cat"])
+                ) 
+                self.assertIsInstance(res['pcas_int_id'], int)
+                self.assertIsInstance(res['earliest_date'], datetime.date)
+                self.assertIsInstance(res['pc_cat'], str)
+                self.assertIsInstance(res['counts'], pd.DataFrame)
+                self.assertIsInstance(res['denominators'],pd.DataFrame)
+                self.assertTrue(len(res['counts'].index) > 0)
+                self.assertTrue(len(res['denominators'].index) > 0)
+
+                # test data for regression models
+                # outputfile = "testdata/pca/count_format_2.pickle"
+                #with open(outputfile, "wb") as f:
+                #   pickle.dump(res, f)
                 
                 self.assertIsInstance(res, dict)
                 self.assertEqual(
                     set(res.keys()),
-                    set(["earliest_date", "pcas_int_id", "counts", "denominators"]),
+                    set(["earliest_date", "pcas_int_id", "counts", "denominators", 'pc_cat']),
                 )
-                ntotal = sum(res["counts"]["n"])
-                res2 = pdm.pcas_members(summary_entry)
-                
-                self.assertEqual(len(res2.index), ntotal)
+                self.assertEqual(
+                    set(res['counts'].keys()),
+                    set(["sample_date", "pc_cat", "n"]),
+                )
+
+                ntotal1 = sum(res["counts"]["n"])
+                ntotal2 = sum(res["denominators"]["n"])
+                self.assertEqual(ntotal1, ntotal2)
+
                 self.assertTrue(ntotal > 0)
                 break
+

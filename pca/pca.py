@@ -24,7 +24,7 @@ This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published
 by the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.  See see <https://www.gnu.org/licenses/>.
-
+bu
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without tcen the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -400,15 +400,23 @@ class VariantMatrix:
         upper_cutoff = poisson.ppf(0.999, 2 * median_missingness)  # crude approximation to upper CI
         return upper_cutoff
 
-    def build(self, min_variant_freq=None, num_train_on=None, deterministic=True):
+    def build(self, min_variant_freq=None, num_train_on=None, deterministic=True, select_from=None):
         """
         input:
             min_variant_freq: the minimum proportion of samples with variation at that site for the site to be included.  If none, is set to 3/train_on, i.e. each variant has to appear 3 times to be considered
             num_train_on: only compute PCA on a subset of train_on samples.  Set to None for all samples.
             deterministic:  if num_train on is not None, setting deterministic = True (default) ensures the same samples are analysed each time.  If num_train_on is None, has no effect.
+            select_from: only build a model from the sample_ids in the list provided. If None, has no effect
         """
         # determine guids there in the database
         guids = self.guids()
+
+        if select_from is not None:
+            if not isinstance(select_from, list):
+                raise TypeError("Select from must be a list, not {0}".format(type(select_from)))
+            select_from = set(select_from)
+            guids = set(guids).intersection(select_from)
+            guids = list(guids)
 
         ########################################################################################################
         # if we have been told to use a subset of these to build the model, construct that subset.
