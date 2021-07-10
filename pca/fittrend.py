@@ -58,10 +58,14 @@ class ModelCounts:
 
         # check that the count data frame has the expected columns
         if not (
-                    set(counts.keys()),
-                    set(["sample_date","pc_cat", "n"]),
-                ):
-                raise KeyError("Passed data frame has {0} columns when {1} are expected.".format(set(counts.keys()),set(["sample_date","pc_cat", "n"])))
+            set(counts.keys()),
+            set(["sample_date", "pc_cat", "n"]),
+        ):
+            raise KeyError(
+                "Passed data frame has {0} columns when {1} are expected.".format(
+                    set(counts.keys()), set(["sample_date", "pc_cat", "n"])
+                )
+            )
 
         self.show_bar = show_bar
         self.earliest_date = earliest_date
@@ -84,27 +88,21 @@ class ModelCounts:
         self.pc_cat = pc_cat
         self.pcas_int_id = pcas_int_id
 
-        self.date_fields = ["sample_date",'pc_cat']
+        self.date_fields = ["sample_date", "pc_cat"]
 
         to_model = self.date_range.merge(
-            self.denominators, how="left", on=['sample_date']
+            self.denominators, how="left", on=["sample_date"]
         )
-        if 'pc_cat' not in self.counts.columns.to_list():
-            self.counts['pc_cat'] = pc_cat
-            
-        pc_cats = pd.DataFrame(
-            {
-                "pc_cat":self.counts['pc_cat'].unique()
-            }
-        
-        )
-        
-        to_model = to_model.merge(pc_cats, how='cross')
-        to_model['n_total'] = to_model['n_total'].fillna(0)
+        if "pc_cat" not in self.counts.columns.to_list():
+            self.counts["pc_cat"] = pc_cat
+
+        pc_cats = pd.DataFrame({"pc_cat": self.counts["pc_cat"].unique()})
+
+        to_model = to_model.merge(pc_cats, how="cross")
+        to_model["n_total"] = to_model["n_total"].fillna(0)
 
         self.to_model = to_model.merge(self.counts, how="left", on=self.date_fields)
-        self.to_model['n'] = self.to_model['n'].fillna(0)
-        
+        self.to_model["n"] = self.to_model["n"].fillna(0)
 
     def data_to_model(self, drop_days_with_no_samples=True):
         """
@@ -128,16 +126,16 @@ class ModelCounts:
 
         fit_df["t"] = [x.days for x in fit_df["sample_date"] - self.latest_date]
         fit_df["day_of_week"] = [x.weekday() for x in fit_df["sample_date"]]
-        fit_df['sample_dow'] = ['dow'+str(x) for x in fit_df['day_of_week']]
+        fit_df["sample_dow"] = ["dow" + str(x) for x in fit_df["day_of_week"]]
         if drop_days_with_no_samples is True:
             fit_df = fit_df[fit_df["n_total"] > 0]
 
         return fit_df
-    
+
     def fit_nb(self, raise_error_for_unittest=False):
         """fits negative binomial model with offset"""
 
-        cnt_df = self.data_to_model(drop_days_with_no_samples = True)
+        cnt_df = self.data_to_model(drop_days_with_no_samples=True)
         analysis_status = "started"
         errors_returned = None
         coeff_df = None
@@ -145,12 +143,12 @@ class ModelCounts:
         formula = """n ~ t*C(pc_cat, Treatment(reference='{0}'))""".format(self.pc_cat)
         warnings.simplefilter("error", category=RuntimeWarning)
 
-        try:       # debug disabled
+        try:  # debug disabled
             if raise_error_for_unittest:
                 raise ZeroDivisionError("Test error")
-            
+
             # generate model inputs
-            
+
             y, X = dmatrices(formula, cnt_df, return_type="dataframe")
 
             # fit model.  exposure = X just means offset = log(x).
@@ -159,7 +157,7 @@ class ModelCounts:
             # for the purpose of tracking modelling , we regard all of this as failure to fit
             # poisson_fit = sm.GLM(
             #    y, X, exposure=cnt_df["n_total"], family=sm.families.Poisson()
-            #).fit()
+            # ).fit()
 
             poisson_fit = sm.GLM(
                 y, X, exposure=cnt_df["n_total"], family=sm.families.NegativeBinomial()
@@ -167,10 +165,10 @@ class ModelCounts:
 
             cnt_df["pred"] = poisson_fit.predict(X)
             coeff_df = poisson_fit.summary2().tables[1]
-            
+
             # select the intercept and the time effect for the relevant pc_cat, which is set to the reference ccategory
             coeff_df = coeff_df.loc[["Intercept", "t"]]
-        
+
             # rename the data to match the StatisticalModelFit table
 
             coeff_df["param"] = coeff_df.index
@@ -197,7 +195,7 @@ class ModelCounts:
             ] = "Modelled rate at end of time period, per sample tested"
             analysis_status = "completed"
 
-        except Exception as e:     # debug disabled
+        except Exception as e:  # debug disabled
             errors_returned = str(e)
             analysis_status = "failed"
             cnt_df["pred"] = None
@@ -223,14 +221,13 @@ class ModelCounts:
             coefficients=coeff_df,
         )
 
-   
         return retVal
 
     def fit_poisson(self, raise_error_for_unittest=False):
         """fits poisson model with offset"""
 
-        cnt_df = self.data_to_model(drop_days_with_no_samples = True)
-        cnt_df = cnt_df[cnt_df['pc_cat']==self.pc_cat]
+        cnt_df = self.data_to_model(drop_days_with_no_samples=True)
+        cnt_df = cnt_df[cnt_df["pc_cat"] == self.pc_cat]
 
         analysis_status = "started"
         errors_returned = None
@@ -243,9 +240,9 @@ class ModelCounts:
 
             if raise_error_for_unittest:
                 raise ZeroDivisionError("Test error")
-            
+
             # generate model inputs
-            
+
             y, X = dmatrices(formula, cnt_df, return_type="dataframe")
 
             # fit model.  exposure = X just means offset = log(x).
@@ -294,7 +291,7 @@ class ModelCounts:
             errors_returned = str(e)
             analysis_status = "failed"
             cnt_df["pred"] = None
-            cnt_df['pc_cat'] = self.pc_cat
+            cnt_df["pc_cat"] = self.pc_cat
         warnings.resetwarnings()
         # reference to the PCASummary table
         retVal = dict(
@@ -317,4 +314,3 @@ class ModelCounts:
         )
 
         return retVal
-

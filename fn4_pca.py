@@ -172,7 +172,7 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
     parser.add_argument(
         "--analysis_dir",
         action="store",
-        default='/tmp',
+        default="/tmp",
         help="a temporary directory to write trees etc into ",
     )
     parser.add_argument(
@@ -187,7 +187,7 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
         default=False,
         help="debug setting.  Doesn't do pca, just runs output (including tree depiction) on the last run",
     )
-   
+
     args = parser.parse_args()
 
     ############################ LOAD CONFIG ######################################
@@ -207,7 +207,7 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
     CONFIG = cfm.read_config()
 
     # create an analysis dir if not present
-    os.makedirs(args.analysis_dir, exist_ok = True)
+    os.makedirs(args.analysis_dir, exist_ok=True)
 
     # determine whether a FNPERSISTENCE_CONNSTRING environment variable is present,
     # if so, the value of this will take precedence over any values in the config file.
@@ -309,11 +309,12 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
         PERSIST=PERSIST,
         disable_insertion=True,
     )
-    
+
     if args.only_produce_tree_output is False:
         logger.info("Loading cog-uk metadata")
-        samples_added = pdm.store_cog_metadata(cogfile=args.cogfile,  date_end=analysis_date)
-
+        samples_added = pdm.store_cog_metadata(
+            cogfile=args.cogfile, date_end=analysis_date
+        )
 
         # instantiate builder for PCA object
         try:
@@ -323,7 +324,7 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
             raise
 
         logging.info("Building snp matrix")
-        var_matrix.build(num_train_on=args.num_train_on, select_from = samples_added)
+        var_matrix.build(num_train_on=args.num_train_on, select_from=samples_added)
         logging.info("Running PCA on snp matrix")
         pca_runner = PCARunner(var_matrix)
         pca_runner.run(n_components=args.n_components, pca_parameters={})
@@ -335,7 +336,7 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
         logging.info("Building contingency tables, relating Lineage to pc_cat")
         pdm.make_contingency_tables(
             only_pc_cats_less_than_days_old=args.focus_on_most_recent_n_days,
-            today = analysis_date
+            today=analysis_date,
         )
 
         logging.info("Storing PCA summary")
@@ -343,7 +344,7 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
 
         pcas_df = pdm.pca_summary(
             only_pc_cats_less_than_days_old=args.focus_on_most_recent_n_days,
-            today = analysis_date
+            today=analysis_date,
         )
         pcas_df = pcas_df[pcas_df["n_days_observed"] >= 3]
         n_pc_cats = len(pcas_df["pc_cat"].unique())
@@ -357,52 +358,52 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
         for i, pcas_int_id in enumerate(pcas_df.index):
             bar.update(i)
 
-            #---------------------------------
+            # ---------------------------------
 
             pcas_obj = pdm.single_pcas_summary(pcas_int_id)
-            cntdata = pdm.pcas_count_table(pcas_obj, output_format = 1)
-            
+            cntdata = pdm.pcas_count_table(pcas_obj, output_format=1)
+
             # compute the date range over which the slope should be computed.
             # the last date is addition_date
             # the first date is either
             #  focus_on_most_recent_n_days before addition_date, OR
             #  the date the pc_cat was first seen, if that is later.
-            analysis_start = analysis_date - datetime.timedelta(days =  args.compute_slope_over)
-            
-            if cntdata['earliest_date'] > analysis_start:
-                analysis_start = cntdata['earliest_date']
+            analysis_start = analysis_date - datetime.timedelta(
+                days=args.compute_slope_over
+            )
 
+            if cntdata["earliest_date"] > analysis_start:
+                analysis_start = cntdata["earliest_date"]
 
             # specify latest date to be modelled
             mc = ModelCounts(
-            counts = cntdata['counts'],
-            denominators = cntdata['denominators'],
-            pcas_int_id = pcas_int_id,
-            pc_cat = pcas_obj.pc_cat,
-            earliest_date = analysis_start,
+                counts=cntdata["counts"],
+                denominators=cntdata["denominators"],
+                pcas_int_id=pcas_int_id,
+                pc_cat=pcas_obj.pc_cat,
+                earliest_date=analysis_start,
+                latest_date=analysis_date,
+            )
 
-            latest_date=analysis_date)
-                
             res = mc.fit_poisson()
             pdm.store_pcas_model_output(res)
 
- 
-            #--------------------------------------
+            # --------------------------------------
 
         bar.finish()
-       
+
     trending_details = pdm.trending_samples_metadata(
-                            max_size_of_trending_pc_cat=500,
-                            p_value_cutoff = fdr, 
-                            filtering_method = 'bh', 
-                            analysis_type = "GLM:Poisson regression"
-                        )
+        max_size_of_trending_pc_cat=500,
+        p_value_cutoff=fdr,
+        filtering_method="bh",
+        analysis_type="GLM:Poisson regression",
+    )
 
     if trending_details is None:
         # nothing found to analyse
         logging.info("Nothing found to analyse")
         exit(0)
-        
+
     logging.info("Identified trending pc_cats in the following:")
     logging.info(trending_details["population_meta"])
 
@@ -418,16 +419,22 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
         this_build_int_id = int(population_info.build_int_id)
 
         # make analysis dir
-        print("**************************************************************************************")
-        analysis_dir = os.path.join(args.analysis_dir, str(this_build_int_id), str(population_id))
-        os.makedirs(analysis_dir, exist_ok = True)
+        print(
+            "**************************************************************************************"
+        )
+        analysis_dir = os.path.join(
+            args.analysis_dir, str(this_build_int_id), str(population_id)
+        )
+        os.makedirs(analysis_dir, exist_ok=True)
 
         ## just those selected, up to 1000 samples
         to_tree_build = trending_details["population_annotations"][population_id].copy()
-        to_tree_build = to_tree_build.sort_values("sample_date", ascending=False)       # get most recent samples
+        to_tree_build = to_tree_build.sort_values(
+            "sample_date", ascending=False
+        )  # get most recent samples
         print(to_tree_build)
         to_tree_build["expanding"] = "Y"
-        
+
         exp_only = to_tree_build.head(1000)
         exp_only = exp_only.fillna("-")  # metadata
         logging.info(
@@ -437,11 +444,11 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
         )
 
         # don't root
-        sample_ids = exp_only.index.to_list()   
-        sample_ids.append("--Wuhan-Reference--")     
+        sample_ids = exp_only.index.to_list()
+        sample_ids.append("--Wuhan-Reference--")
         msa_result = hc.multi_sequence_alignment(sample_ids)
 
-        target_dir = os.path.join(analysis_dir, 'tree_no_controls')
+        target_dir = os.path.join(analysis_dir, "tree_no_controls")
         iqr = iq.build(
             msa_result.msa_fasta(), msa_result.fconst, targetdir=target_dir
         )  # note: if directory is hard coded, will generate conflict if two processes run at the same time
@@ -518,16 +525,20 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
         for add_info in add_infos:
             pdm.add_PopulationStudiedExtraInfo(**add_info)
 
-   
-
         ## include controls as well
-        print("**************************************************************************************")
-        pop_samples = pdm.population_members(population_id, max_rows=5000)      # comes ordered by date
+        print(
+            "**************************************************************************************"
+        )
+        pop_samples = pdm.population_members(
+            population_id, max_rows=5000
+        )  # comes ordered by date
         pop_samples = pop_samples.set_index("sample_id")
         pop_samples["expanding"] = "N"
 
         to_tree_build = trending_details["population_annotations"][population_id].copy()
-        to_tree_build = to_tree_build.sort_values("sample_date", ascending=False)       # get most recent samples
+        to_tree_build = to_tree_build.sort_values(
+            "sample_date", ascending=False
+        )  # get most recent samples
         to_tree_build["expanding"] = "Y"
 
         # drop any samples from pop_samples which are in the relevant pcs
@@ -545,11 +556,11 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
         )
 
         # build MSA including reference seq which we'll use to root.  We will then remove the reference.
-        sample_ids = exp_and_control.index.to_list()        
+        sample_ids = exp_and_control.index.to_list()
         sample_ids.append("--Wuhan-Reference--")
         msa_result = hc.multi_sequence_alignment(sample_ids)
 
-        target_dir = os.path.join(analysis_dir, 'tree_with_controls')
+        target_dir = os.path.join(analysis_dir, "tree_with_controls")
         iqr = iq.build(
             msa_result.msa_fasta(), msa_result.fconst, targetdir=target_dir
         )  # note: if directory is hard coded, will generate conflict if two processes run at the same time
@@ -560,12 +571,12 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
         newick_tree = rt.newick()
         iqr["output"]["newick"] = newick_tree  # store the re-rooted tree back
 
-        #outputfile =  "testdata/ete3/test{0}.nwk".format(population_id)
-        #with open(outputfile, "wt") as f:
+        # outputfile =  "testdata/ete3/test{0}.nwk".format(population_id)
+        # with open(outputfile, "wt") as f:
         #    f.write(newick_tree)
 
-        #outputfile = "testdata/ete3/test{0}.pickle".format(population_id)
-        #with open(outputfile, "wb") as f:
+        # outputfile = "testdata/ete3/test{0}.pickle".format(population_id)
+        # with open(outputfile, "wb") as f:
         #    pickle.dump(exp_and_control, f)
 
         title_info = "{0} {1}; {2} {3}".format(
@@ -634,11 +645,10 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
         for add_info in add_infos:
             pdm.add_PopulationStudiedExtraInfo(**add_info)
 
-
-           # cleanup
+        # cleanup
         if args.remove_temporary_trees:
             print("Deleting temporary files")
-            shutil.rmtree(analysis_dir)        # is this vulnerable to symlink attack? TBD
+            shutil.rmtree(analysis_dir)  # is this vulnerable to symlink attack? TBD
 
     logging.info("Build finished.  Results are in database.")
 

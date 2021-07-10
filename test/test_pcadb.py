@@ -29,7 +29,7 @@ class Test_PCA_Database(unittest.TestCase):
 
     def setUp(self):
         self.engines = {}
-        self.engines["Sqlite"] = "sqlite://"  # in memory sqlite   
+        self.engines["Sqlite"] = "sqlite://"  # in memory sqlite
 
         conn_detail_file = None
 
@@ -48,7 +48,9 @@ class Test_PCA_Database(unittest.TestCase):
         else:
             if not os.path.exists(conn_detail_file):
                 raise FileNotFoundError(
-                    "Connection file specified but not found: {0}".format(conn_detail_file)
+                    "Connection file specified but not found: {0}".format(
+                        conn_detail_file
+                    )
                 )
             # try to read the config file
             with open(conn_detail_file, "rt") as f:
@@ -59,7 +61,7 @@ class Test_PCA_Database(unittest.TestCase):
                         pass
 
 
-#@unittest.skip(reason="too slow")
+# @unittest.skip(reason="too slow")
 class Test_create_database_1(Test_PCA_Database):
     """tests creating the database and internal functions dropping tables"""
 
@@ -83,7 +85,7 @@ class Test_create_database_1(Test_PCA_Database):
             self.assertIsNone(res)
 
 
-#@unittest.skip(reason="too slow")
+# @unittest.skip(reason="too slow")
 class Test_create_database_2(Test_PCA_Database):
     """tests storing the results of a VariantModel"""
 
@@ -109,7 +111,7 @@ class Test_create_database_2(Test_PCA_Database):
             self.assertEqual(b2, 1)
 
 
-#@unittest.skip(reason="too slow")
+# @unittest.skip(reason="too slow")
 class Test_load_clinical_data_3(Test_PCA_Database):
     """tests storing clinical data from COG-UK in the data model"""
 
@@ -155,7 +157,7 @@ class Test_load_clinical_data_3(Test_PCA_Database):
             self.assertEqual(l1 + l2, l3)
 
 
-#@unittest.skip(reason="not necessary")
+# @unittest.skip(reason="not necessary")
 class Test_Contingency_table(unittest.TestCase):
     """tests the ContigencyTable class, which analyses 2x2 tables"""
 
@@ -186,7 +188,7 @@ class Test_Contingency_table(unittest.TestCase):
         self.assertIsInstance(res, FeatureAssociation)
 
 
-#@unittest.skip(reason ='too slow')
+# @unittest.skip(reason ='too slow')
 class Test_create_contingency_tables_4(Test_PCA_Database):
     """tests creation & storage of 2x2 contingency tables"""
 
@@ -206,7 +208,7 @@ class Test_create_contingency_tables_4(Test_PCA_Database):
             pdm.make_contingency_tables()
 
 
-#@unittest.skip(reason="not routinely necessary ")
+# @unittest.skip(reason="not routinely necessary ")
 class Test_oracle_bulk_upload_5a(Test_PCA_Database):
     """tests bulk upload"""
 
@@ -228,7 +230,7 @@ class Test_oracle_bulk_upload_5a(Test_PCA_Database):
             self.assertEqual(initial_rows, final_rows)
 
 
-#@unittest.skip(reason="not routinely necessary ")
+# @unittest.skip(reason="not routinely necessary ")
 class Test_oracle_bulk_upload_5b(Test_PCA_Database):
     """tests bulk upload with small number of samples"""
 
@@ -250,7 +252,7 @@ class Test_oracle_bulk_upload_5b(Test_PCA_Database):
             self.assertEqual(initial_rows, final_rows)
 
 
-#@unittest.skip(reason="not routinely necessary and slow")
+# @unittest.skip(reason="not routinely necessary and slow")
 class Test_oracle_bulk_upload_5c(Test_PCA_Database):
     """tests bulk upload with large numbers of samples"""
 
@@ -272,7 +274,7 @@ class Test_oracle_bulk_upload_5c(Test_PCA_Database):
             self.assertEqual(initial_rows, final_rows)
 
 
-#@unittest.skip(reason="not routinely necessary ")
+# @unittest.skip(reason="not routinely necessary ")
 class Test_count_per_day_6(Test_PCA_Database):
     """tests bulk upload with large numbers of samples"""
 
@@ -316,7 +318,7 @@ class Test_count_per_day_7(Test_PCA_Database):
                 pdm.make_contingency_tables()
 
 
-#@unittest.skip(reason="not r necessary ")
+# @unittest.skip(reason="not r necessary ")
 class Test_create_sample_set_9(Test_PCA_Database):
     """tests creation of sample sets"""
 
@@ -347,7 +349,7 @@ class Test_create_sample_set_9(Test_PCA_Database):
             self.assertEqual(s2, 0)
 
 
-#@unittest.skip(reason="not routinely necessary ")
+# @unittest.skip(reason="not routinely necessary ")
 class Test_create_pc_summary_10(Test_PCA_Database):
     """tests creation of a pc_summary"""
 
@@ -418,11 +420,14 @@ class Test_create_pc_summary_10(Test_PCA_Database):
             self.assertEqual(len(sigt.index), 0)
 
             # members of the trending samples
-            trending_details = pdm.trending_samples_metadata(max_size_of_trending_pc_cat = 100)
+            trending_details = pdm.trending_samples_metadata(
+                max_size_of_trending_pc_cat=100
+            )
             if trending_details is not None:
                 self.assertIsInstance(trending_details, dict)
-            
-#@unittest.skip(reason="not routinely necessary ")
+
+
+# @unittest.skip(reason="not routinely necessary ")
 class Test_create_pc_summary_12(Test_PCA_Database):
     """tests creation of a pc_summary"""
 
@@ -484,47 +489,63 @@ class Test_create_pc_summary_12(Test_PCA_Database):
             self.assertTrue(n_existing_records > 0)
 
             # test computation of count data
-                       
-            for i, summary_entry in enumerate(pdm.session.query(PCASummary)):
-                pdm.single_population_studied(summary_entry.pcas_int_id)        # ensure no error
 
-                #print(summary_entry)
-                #print(summary_entry.__dict__)
+            for i, summary_entry in enumerate(pdm.session.query(PCASummary)):
+                pdm.single_population_studied(
+                    summary_entry.pcas_int_id
+                )  # ensure no error
+
+                # print(summary_entry)
+                # print(summary_entry.__dict__)
 
                 with self.assertRaises(ValueError):
-                    res = pdm.pcas_count_table(summary_entry, output_format = 0)        # only 1 or 2 are allowed
+                    res = pdm.pcas_count_table(
+                        summary_entry, output_format=0
+                    )  # only 1 or 2 are allowed
 
-                res = pdm.pcas_count_table(summary_entry, output_format = 1)
-                #print(res)   
-                
+                res = pdm.pcas_count_table(summary_entry, output_format=1)
+                # print(res)
+
                 self.assertEqual(
                     set(res.keys()),
-                    set([ "earliest_date",
+                    set(
+                        [
+                            "earliest_date",
                             "pcas_int_id",
                             "counts",
                             "denominators",
-                            "pc_cat"])
-                ) 
-                self.assertIsInstance(res['pcas_int_id'], int)
-                self.assertIsInstance(res['earliest_date'], datetime.date)
-                self.assertIsInstance(res['pc_cat'], str)
-                self.assertIsInstance(res['counts'], pd.DataFrame)
-                self.assertIsInstance(res['denominators'],pd.DataFrame)
-                self.assertTrue(len(res['counts'].index) > 0)
-                self.assertTrue(len(res['denominators'].index) > 0)
+                            "pc_cat",
+                        ]
+                    ),
+                )
+                self.assertIsInstance(res["pcas_int_id"], int)
+                self.assertIsInstance(res["earliest_date"], datetime.date)
+                self.assertIsInstance(res["pc_cat"], str)
+                self.assertIsInstance(res["counts"], pd.DataFrame)
+                self.assertIsInstance(res["denominators"], pd.DataFrame)
+                self.assertTrue(len(res["counts"].index) > 0)
+                self.assertTrue(len(res["denominators"].index) > 0)
 
-                # test data for poisson regression 
-                #outputfile = "testdata/pca/count_format_1.pickle"
-                #with open(outputfile, "wb") as f:
-                #    pickle.dump(res, f)      
-    
+                # test data for poisson regression
+                # outputfile = "testdata/pca/count_format_1.pickle"
+                # with open(outputfile, "wb") as f:
+                #    pickle.dump(res, f)
+
                 self.assertIsInstance(res, dict)
                 self.assertEqual(
                     set(res.keys()),
-                    set(["earliest_date", "pcas_int_id", "counts", "denominators",'pc_cat']),
+                    set(
+                        [
+                            "earliest_date",
+                            "pcas_int_id",
+                            "counts",
+                            "denominators",
+                            "pc_cat",
+                        ]
+                    ),
                 )
                 self.assertEqual(
-                    set(res['counts'].keys()),
+                    set(res["counts"].keys()),
                     set(["sample_date", "n"]),
                 )
                 ntotal = sum(res["counts"]["n"])
@@ -532,37 +553,49 @@ class Test_create_pc_summary_12(Test_PCA_Database):
                 res2 = pdm.pcas_members(summary_entry)
                 self.assertEqual(len(res2.index), ntotal)
                 self.assertTrue(ntotal > 0)
-                
-                res = pdm.pcas_count_table(summary_entry, output_format = 2)
+
+                res = pdm.pcas_count_table(summary_entry, output_format=2)
 
                 self.assertEqual(
                     set(res.keys()),
-                    set([ "earliest_date",
+                    set(
+                        [
+                            "earliest_date",
                             "pcas_int_id",
                             "counts",
                             "denominators",
-                            "pc_cat"])
-                ) 
-                self.assertIsInstance(res['pcas_int_id'], int)
-                self.assertIsInstance(res['earliest_date'], datetime.date)
-                self.assertIsInstance(res['pc_cat'], str)
-                self.assertIsInstance(res['counts'], pd.DataFrame)
-                self.assertIsInstance(res['denominators'],pd.DataFrame)
-                self.assertTrue(len(res['counts'].index) > 0)
-                self.assertTrue(len(res['denominators'].index) > 0)
+                            "pc_cat",
+                        ]
+                    ),
+                )
+                self.assertIsInstance(res["pcas_int_id"], int)
+                self.assertIsInstance(res["earliest_date"], datetime.date)
+                self.assertIsInstance(res["pc_cat"], str)
+                self.assertIsInstance(res["counts"], pd.DataFrame)
+                self.assertIsInstance(res["denominators"], pd.DataFrame)
+                self.assertTrue(len(res["counts"].index) > 0)
+                self.assertTrue(len(res["denominators"].index) > 0)
 
                 # test data for regression models
                 # outputfile = "testdata/pca/count_format_2.pickle"
-                #with open(outputfile, "wb") as f:
+                # with open(outputfile, "wb") as f:
                 #   pickle.dump(res, f)
-                
+
                 self.assertIsInstance(res, dict)
                 self.assertEqual(
                     set(res.keys()),
-                    set(["earliest_date", "pcas_int_id", "counts", "denominators", 'pc_cat']),
+                    set(
+                        [
+                            "earliest_date",
+                            "pcas_int_id",
+                            "counts",
+                            "denominators",
+                            "pc_cat",
+                        ]
+                    ),
                 )
                 self.assertEqual(
-                    set(res['counts'].keys()),
+                    set(res["counts"].keys()),
                     set(["sample_date", "pc_cat", "n"]),
                 )
 
@@ -572,4 +605,3 @@ class Test_create_pc_summary_12(Test_PCA_Database):
 
                 self.assertTrue(ntotal > 0)
                 break
-
