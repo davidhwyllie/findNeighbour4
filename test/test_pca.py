@@ -7,7 +7,8 @@ import pandas as pd
 from findn import DEFAULT_CONFIG_FILE
 from pca.pca import PersistenceTest, MNStats, VariantMatrix, PCARunner
 from findn.common_utils import ConfigManager
-
+#import json
+#from test.storejson import DictStorage
 
 class Test_PersistenceTest_1(unittest.TestCase):
     """tests the PersistenceTest class"""
@@ -99,8 +100,8 @@ class Test_VariantMatrix_1(unittest.TestCase):
 
         TPERSIST = PersistenceTest(connstring="thing", number_samples=251)
         TPERSIST.load_data(
-            sample_ids_file="testdata/pca/seqs_5000test_ids.pickle",
-            sequences_file="testdata/pca/seqs_5000test.pickle",
+            sample_ids_file="testdata/pca/seqs_5000test_ids.json",
+            sequences_file="testdata/pca/seqs_5000test.json",
         )
         cfm = ConfigManager(DEFAULT_CONFIG_FILE)
         CONFIG = cfm.read_config()
@@ -143,8 +144,8 @@ class Test_VariantMatrix_2(unittest.TestCase):
 
         TPERSIST = PersistenceTest(connstring="thing", number_samples=251)
         TPERSIST.load_data(
-            sample_ids_file="testdata/pca/seqs_5000test_ids.pickle",
-            sequences_file="testdata/pca/seqs_5000test.pickle",
+            sample_ids_file="testdata/pca/seqs_5000test_ids.json",
+            sequences_file="testdata/pca/seqs_5000test.json",
         )
         cfm = ConfigManager(DEFAULT_CONFIG_FILE)
         CONFIG = cfm.read_config()
@@ -176,9 +177,3 @@ class Test_VariantMatrix_2(unittest.TestCase):
 
         # test cluster
         v = pcr.cluster()
-
-        # serialise v ; used as an example by unittests of database storage.
-        # open("testdata/pca/vm.pickle",'wb') as f:
-        #    pickle.dump(v, f)
-
-        v.to_sqlite("unittest_tmp")

@@ -5,7 +5,6 @@ import os
 import json
 import unittest
 import pandas as pd
-import pickle
 import datetime
 from sqlalchemy import func
 from pca.pca import VariationModel
@@ -18,6 +17,7 @@ from pca.pcadb import (
     PCASummary,
     PopulationStudied,
 )
+from test.storejson import DictStorage
 
 
 class Test_PCA_Database(unittest.TestCase):
@@ -52,12 +52,12 @@ class Test_PCA_Database(unittest.TestCase):
                         conn_detail_file
                     )
                 )
-            # try to read the config file
+            # try to read the connection detail file.  if there are keys starting with 'unittest_ora' these are to be used for unittesting, and are added to the test list.
             with open(conn_detail_file, "rt") as f:
                 conn_detail = json.load(f)
                 for key in conn_detail.keys():
                     if key.startswith("unittest_ora"):
-                        self.engines[key] = key
+                        # self.engines[key] = key
                         pass
 
 
@@ -92,9 +92,12 @@ class Test_create_database_2(Test_PCA_Database):
     def runTest(self):
 
         # load a variation model for testiong
-        inputfile = "testdata/pca/vm.pickle"
+        inputfile = "testdata/pca/vm.json"
         with open(inputfile, "rb") as f:
-            vm = pickle.load(f)
+            str_json = f.read()
+        ds = DictStorage()
+        vm = VariationModel()
+        vm.model = ds.from_json(str_json)
         self.assertIsInstance(vm, VariationModel)
 
         for engine in self.engines.keys():
@@ -195,9 +198,13 @@ class Test_create_contingency_tables_4(Test_PCA_Database):
     def runTest(self):
 
         # load a variation model for testiong
-        inputfile = "testdata/pca/vm.pickle"
+        inputfile = "testdata/pca/vm.json"
         with open(inputfile, "rb") as f:
-            vm = pickle.load(f)
+            str_json = f.read()
+        ds = DictStorage()
+        vm = VariationModel()
+        vm.model = ds.from_json(str_json)
+        self.assertIsInstance(vm, VariationModel)
 
         for engine in self.engines.keys():
             print(engine, "#4")
@@ -303,19 +310,21 @@ class Test_count_per_day_7(Test_PCA_Database):
     def runTest(self):
 
         # load a variation model for testiong
-        inputfile = "testdata/pca/vm.pickle"
+        inputfile = "testdata/pca/vm.json"
         with open(inputfile, "rb") as f:
-            vm = pickle.load(f)
+            str_json = f.read()
+        ds = DictStorage()
+        vm = VariationModel()
+        vm.model = ds.from_json(str_json)
+        self.assertIsInstance(vm, VariationModel)
 
-            for engine in self.engines.keys():
-                print(engine, "#7")
+        for engine in self.engines.keys():
+            print(engine, "#7")
 
-                pdm = PCADatabaseManager(
-                    connection_config=self.engines[engine], debug=True
-                )
-                pdm.store_variation_model(vm)
-                pdm.store_cog_metadata(cogfile="testdata/pca/cog_metadata_vm.csv")
-                pdm.make_contingency_tables()
+            pdm = PCADatabaseManager(connection_config=self.engines[engine], debug=True)
+            pdm.store_variation_model(vm)
+            pdm.store_cog_metadata(cogfile="testdata/pca/cog_metadata_vm.csv")
+            pdm.make_contingency_tables()
 
 
 # @unittest.skip(reason="not r necessary ")
@@ -356,9 +365,13 @@ class Test_create_pc_summary_10(Test_PCA_Database):
     def runTest(self):
 
         # load a variation model for testiong
-        inputfile = "testdata/pca/vm.pickle"
+        inputfile = "testdata/pca/vm.json"
         with open(inputfile, "rb") as f:
-            vm = pickle.load(f)
+            str_json = f.read()
+        ds = DictStorage()
+        vm = VariationModel()
+        vm.model = ds.from_json(str_json)
+        self.assertIsInstance(vm, VariationModel)
 
         for engine in self.engines.keys():
 
@@ -434,9 +447,13 @@ class Test_create_pc_summary_12(Test_PCA_Database):
     def runTest(self):
 
         # load a variation model for testiong
-        inputfile = "testdata/pca/vm.pickle"
+        inputfile = "testdata/pca/vm.json"
         with open(inputfile, "rb") as f:
-            vm = pickle.load(f)
+            str_json = f.read()
+        ds = DictStorage()
+        vm = VariationModel()
+        vm.model = ds.from_json(str_json)
+        self.assertIsInstance(vm, VariationModel)
 
         for engine in self.engines.keys():
 

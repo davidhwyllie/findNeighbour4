@@ -667,8 +667,13 @@ class fn3persistence:
     def refcompressedsequence_guids(self):
         """loads guids from refcompressedseq collection."""
 
-        return set(self.rcs.list())
-
+        # altered syntax because the .load() syntax previously used loaded > 16MB data and failed with > 600k samples
+        res = self.db.refcompressedseq.files.find({}, {'_id': 1})
+        guids = list()
+        for item in res:
+            guids.append(item['_id'])
+        return set(guids)
+        
     # methods for guid2meta
     def guid_annotate(self, guid, nameSpace, annotDict):
         """adds multiple annotations of guid from a dictionary;

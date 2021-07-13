@@ -5,21 +5,33 @@ import os
 import json
 import unittest
 import pandas as pd
-import pickle
 import datetime
 from pca.fittrend import ModelCounts
 from pca.pcadb import PCADatabaseManager
+from pca.pcadb import VariationModel
+from test.storejson import DictStorage
 
 
 class Test_pois_1(unittest.TestCase):
     """test Poisson 1"""
 
     def runTest(self):
-        # load data for testing - the output from PCADatabaseManager.count_table()
-        inputfile = "testdata/pca/count_format_1.pickle"
-        with open(inputfile, "rb") as f:
-            cntdata = pickle.load(f)
-        print(cntdata)
+        ds = DictStorage()
+
+        inputfile = "testdata/pca/count_format_1.json"
+        with open(inputfile, "rt") as f:
+            json_str = f.read()
+
+        cntdata = ds.from_json(json_str)
+        cntdata["counts"]["sample_date"] = [
+            datetime.date.fromisoformat(x[0:10])
+            for x in cntdata["counts"]["sample_date"]
+        ]
+        cntdata["denominators"]["sample_date"] = [
+            datetime.date.fromisoformat(x[0:10])
+            for x in cntdata["denominators"]["sample_date"]
+        ]
+
         # test constructor and data munging processes
         this_latest_date = datetime.date(2021, 6, 1)
         nb = ModelCounts(**cntdata, latest_date=this_latest_date)
@@ -36,7 +48,7 @@ class Test_pois_1(unittest.TestCase):
         self.assertEqual(this_latest_date, max(res["sample_date"]))
 
         # drop records where there were no cases at all
-        res = nb.data_to_model(True)  
+        res = nb.data_to_model(True)
         self.assertIsInstance(res, pd.DataFrame)
         self.assertEqual(len(res.index), 652)
         # we expect the last day in data_to_model to be the latest sample_date
@@ -53,9 +65,20 @@ class Test_pois_2(unittest.TestCase):
 
     def runTest(self):
         # load data for testing - the output from PCADatabaseManager.count_table()
-        inputfile = "testdata/pca/count_format_1.pickle"
-        with open(inputfile, "rb") as f:
-            cntdata = pickle.load(f)
+        ds = DictStorage()
+        inputfile = "testdata/pca/count_format_1.json"
+        with open(inputfile, "rt") as f:
+            json_str = f.read()
+
+        cntdata = ds.from_json(json_str)
+        cntdata["counts"]["sample_date"] = [
+            datetime.date.fromisoformat(x[0:10])
+            for x in cntdata["counts"]["sample_date"]
+        ]
+        cntdata["denominators"]["sample_date"] = [
+            datetime.date.fromisoformat(x[0:10])
+            for x in cntdata["denominators"]["sample_date"]
+        ]
 
         # test constructor and data munging processes
         this_latest_date = datetime.date(2021, 6, 1)
@@ -120,13 +143,26 @@ class Test_negbin_1(unittest.TestCase):
 
     def runTest(self):
         # load data for testing - the output from PCADatabaseManager.count_table()
-        inputfile = "testdata/pca/count_format_2.pickle"
-        with open(inputfile, "rb") as f:
-            input_data = pickle.load(f)
+
+        ds = DictStorage()
+
+        inputfile = "testdata/pca/count_format_2.json"
+        with open(inputfile, "rt") as f:
+            json_str = f.read()
+
+        cntdata = ds.from_json(json_str)
+        cntdata["counts"]["sample_date"] = [
+            datetime.date.fromisoformat(x[0:10])
+            for x in cntdata["counts"]["sample_date"]
+        ]
+        cntdata["denominators"]["sample_date"] = [
+            datetime.date.fromisoformat(x[0:10])
+            for x in cntdata["denominators"]["sample_date"]
+        ]
 
         # test constructor and data munging processes
         this_latest_date = datetime.date(2021, 6, 1)
-        nb = ModelCounts(**input_data, latest_date=this_latest_date)
+        nb = ModelCounts(**cntdata, latest_date=this_latest_date)
         self.assertEqual(max(nb.date_range["sample_date"]), this_latest_date)
         self.assertIsInstance(nb.counts, pd.DataFrame)
         self.assertIsInstance(nb.denominators, pd.DataFrame)
@@ -138,7 +174,7 @@ class Test_negbin_1(unittest.TestCase):
         self.assertIsInstance(res, pd.DataFrame)
         self.assertEqual(len(res.index), 3089)  # truncates the data
 
-        nb = ModelCounts(**input_data, latest_date=this_latest_date)
+        nb = ModelCounts(**cntdata, latest_date=this_latest_date)
         self.assertEqual(max(nb.date_range["sample_date"]), this_latest_date)
         self.assertIsInstance(nb.counts, pd.DataFrame)
         self.assertIsInstance(nb.denominators, pd.DataFrame)
@@ -200,9 +236,13 @@ class Test_create_pc_summary_13(Test_PCA_Database):
     def runTest(self):
 
         # load a variation model for testiong
-        inputfile = "testdata/pca/vm.pickle"
+        inputfile = "testdata/pca/vm.json"
         with open(inputfile, "rb") as f:
-            vm = pickle.load(f)
+            str_json = f.read()
+        ds = DictStorage()
+        vm = VariationModel()
+        vm.model = ds.from_json(str_json)
+        self.assertIsInstance(vm, VariationModel)
 
         for engine in self.engines.keys():
 

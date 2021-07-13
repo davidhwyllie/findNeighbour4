@@ -39,8 +39,8 @@ import datetime
 import random
 from typing import Tuple, Set
 from collections import defaultdict
-import pickle
 import hashlib
+import json
 import pathlib
 
 import pandas as pd
@@ -67,16 +67,20 @@ class PersistenceTest:
     """
 
     def __init__(self, **kwargs):
-        """ constructs the object.  Any parameters are accepted, and none have any effect """
+        """constructs the object.  Any parameters are accepted, and none have any effect"""
         self.seqs = {}
         self.sample_ids = set([])
 
     def load_data(self, sample_ids_file, sequences_file):
 
-        with open(sequences_file, "rb") as f:
-            self.seqs = pickle.load(f)
-        with open(sample_ids_file, "rb") as f:
-            self.sample_ids = set(pickle.load(f))
+        with open("testdata/pca/seqs_5000test.json", "rt") as f:
+            self.seqs = json.load(f)
+            for guid in self.seqs.keys():
+                for key in ["A", "C", "G", "T", "M", "N"]:
+                    self.seqs[guid][key] = set(self.seqs[guid][key])
+
+        with open("testdata/pca/sample_ids_5000test.json", "rt") as f:
+            self.sample_ids = set(json.load(f))
 
         # sanity check
         # check there are no samples in sample_ids which are not present in seqs
@@ -94,13 +98,14 @@ class PersistenceTest:
         return self.sample_ids
 
     def refcompressedsequence_read(self, guid):
-        """ read a single sequence """
+        """read a single sequence"""
         if guid not in self.sample_ids:
             return None
         return self.seqs[guid]
 
+
 class MNStats:
-    """ computes the number of M and N bases in a reference compressed object """
+    """computes the number of M and N bases in a reference compressed object"""
 
     def __init__(self, select_positions, analysed_reference_length):
         """input:
@@ -146,17 +151,26 @@ class MNStats:
 
             ## do binomial test
             not_model = self.analysed_reference_length - len(self.select_positions)
-            p_expected = (missing["{0}_total".format(base_l)] - missing["{0}_in_model".format(base_l)]) / not_model
+            p_expected = (
+                missing["{0}_total".format(base_l)]
+                - missing["{0}_in_model".format(base_l)]
+            ) / not_model
             missing["{0}_expected_proportion".format(base_l)] = p_expected
-            p_observed = missing["{0}_in_model".format(base_l)] / len(self.select_positions)
+            p_observed = missing["{0}_in_model".format(base_l)] / len(
+                self.select_positions
+            )
             missing["{0}_observed_proportion".format(base_l)] = p_observed
             p_val = binom_test(
-                missing["{0}_in_model".format(base_l)], len(self.select_positions), p_expected, alternative="greater"
+                missing["{0}_in_model".format(base_l)],
+                len(self.select_positions),
+                p_expected,
+                alternative="greater",
             )
 
             missing["{0}_p_value".format(base_l)] = p_val
 
         return missing
+
 
 class VariationModel:
     """Stores a VariantMatrix, the output of a PCA of the matrix, and (optionally) a clustering of the principal components.
@@ -179,7 +193,7 @@ class VariationModel:
         return self.model[key]
 
     def __setitem__(self, key, value):
-        """ adds a key-value pair to the model """
+        """adds a key-value pair to the model"""
         if key in self.model.keys():
             raise KeyError(f"Cannot replace key {key}")
         else:
@@ -194,12 +208,17 @@ class VariationModel:
         return "{0}".format(md5_l)
 
     def finish(self):
-        """ completes construction of the VariationModel """
+        """completes construction of the VariationModel"""
         self.model["build_time"] = datetime.datetime.now().isoformat()
         self.model["coefficients_hash"] = self._coefficients_hash()
         self.model["built"] = True
 
-    def to_sqlite(self, outputdir="", analysis_name="pca_output", rebuild_databases_if_present=True):
+    def to_sqlite(
+        self,
+        outputdir="",
+        analysis_name="pca_output",
+        rebuild_databases_if_present=True,
+    ):
         """write output to sqlite database
 
         Inputs
@@ -214,11 +233,13 @@ class VariationModel:
         """
 
         # ensure the outputdir exists
-        pathlib.Path(outputdir).mkdir(parents= True, exist_ok=True)
+        pathlib.Path(outputdir).mkdir(parents=True, exist_ok=True)
 
         # configure sqlite file for output.
         sqlite_file = os.path.join(outputdir, "{0}.sqlite".format(analysis_name))
-        engine = sqlalchemy.create_engine("sqlite:///{0}".format(sqlite_file), echo=False)
+        engine = sqlalchemy.create_engine(
+            "sqlite:///{0}".format(sqlite_file), echo=False
+        )
 
         # run checks on sqlite file
         if rebuild_databases_if_present:
@@ -234,13 +255,21 @@ class VariationModel:
         for key in self.model:
 
             if not (
-                key == "variant_matrix" or isinstance(self.model[key], PCA) or key == "transformed_coordinates"
+                key == "variant_matrix"
+                or isinstance(self.model[key], PCA)
+                or key == "transformed_coordinates"
             ):  # we don't serialise these; one is massive and the other can't be serialised
 
                 logging.info("Writing {0}".format(key))
                 native_type = type(self.model[key])
                 if native_type in [bool, int, float, str]:
-                    metadata.append({"variable": key, "value": str(self.model[key]), "native_type": str(native_type)})
+                    metadata.append(
+                        {
+                            "variable": key,
+                            "value": str(self.model[key]),
+                            "native_type": str(native_type),
+                        }
+                    )
                 elif type(self.model[key]) in [set, list]:
                     if type(self.model[key]) == set:
                         list_data = sorted(list(self.model[key]))
@@ -248,7 +277,9 @@ class VariationModel:
                         list_data = self.model[key]
                     tmp = pd.DataFrame(list_data, columns=[key])
 
-                    tmp.to_sql(key, conn, if_exists="fail")  # we don't serialise these at present
+                    tmp.to_sql(
+                        key, conn, if_exists="fail"
+                    )  # we don't serialise these at present
                 elif type(self.model[key]) in [dict, defaultdict]:
                     output_records = []
                     for this_key in self.model[key].keys():
@@ -262,25 +293,34 @@ class VariationModel:
                                 )
                             )
                         for list_element in item:
-                            output_records.append({key: this_key, "value": list_element})
+                            output_records.append(
+                                {key: this_key, "value": list_element}
+                            )
                     tmp = pd.DataFrame.from_records(output_records)
 
                 elif type(self.model[key]) == np.int64:
-                    metadata.append({"variable": key, "value": str(int(self.model[key]))})
+                    metadata.append(
+                        {"variable": key, "value": str(int(self.model[key]))}
+                    )
 
                 elif type(self.model[key]) == pd.core.frame.DataFrame:
 
                     # these types of dataframe have indices which are sample_ids.  We relabel the index sample_id
-                    if key in ['mix_quality_info', 'suspect_quality_seqs']:
-                        self.model[key].rename_axis('sample_id')
+                    if key in ["mix_quality_info", "suspect_quality_seqs"]:
+                        self.model[key].rename_axis("sample_id")
                     self.model[key].to_sql(key, conn, if_exists="fail")
                 else:
-                    warnings.warn("Not handled {0} with class {1}".format(key, type(self.model[key])))
+                    warnings.warn(
+                        "Not handled {0} with class {1}".format(
+                            key, type(self.model[key])
+                        )
+                    )
 
         metadata_df = pd.DataFrame.from_records(metadata)
         metadata_df.to_sql("Metadata", conn, if_exists="fail")
         conn.close()
         return sqlite_file
+
 
 class VariantMatrix:
     """In charge of producing a sample x SNP matrix"""
@@ -299,7 +339,9 @@ class VariantMatrix:
         self.PERSIST = PERSIST
 
         # set easy to read properties from the config
-        self.analysed_reference_length = len(CONFIG["reference"]) - len(set(CONFIG["excludePositions"]))
+        self.analysed_reference_length = len(CONFIG["reference"]) - len(
+            set(CONFIG["excludePositions"])
+        )
 
         # store whether we're using bars for display
         self.show_bar = show_bar
@@ -308,20 +350,20 @@ class VariantMatrix:
         self._reset()
 
     def _reset(self):
-        """ clears existing variation model and pca result """
+        """clears existing variation model and pca result"""
         self.vm = VariationModel()
         self._invalid = set()  # invalid guids for which we can't compute pcs
         self.model = {"built": False, "sample_id": []}
         self.validation_data = None
 
     def guids(self):
-        """ returns list of guids currently in the findNeighbour4 database"""
+        """returns list of guids currently in the findNeighbour4 database"""
         return sorted(
             self.PERSIST.refcompressedsequence_guids()
         )  # sorting is not essential, but makes more deterministic for testing
 
     def _column_name(self, pos, base):
-        """ given a base at a position, returns a position:base string suitable for use as a pandas column name """
+        """given a base at a position, returns a position:base string suitable for use as a pandas column name"""
         return f"{pos}:{base}"
 
     def get_position_counts(self, guids=None) -> Tuple[set, dict, dict]:
@@ -348,7 +390,9 @@ class VariantMatrix:
         for num_loaded, guid in enumerate(guids):
             if self.show_bar:
                 bar.update(num_loaded)
-            refcompressed_sample = self.PERSIST.refcompressedsequence_read(guid)  # ref compressed sequence
+            refcompressed_sample = self.PERSIST.refcompressedsequence_read(
+                guid
+            )  # ref compressed sequence
 
             if refcompressed_sample["invalid"] != 1:
                 guids_analysed.add(guid)
@@ -397,10 +441,18 @@ class VariantMatrix:
         # missingness_distribution = Counter(missingness)
 
         # use Poisson cdf with mu = 2x median_missingness; find 99% CI
-        upper_cutoff = poisson.ppf(0.999, 2 * median_missingness)  # crude approximation to upper CI
+        upper_cutoff = poisson.ppf(
+            0.999, 2 * median_missingness
+        )  # crude approximation to upper CI
         return upper_cutoff
 
-    def build(self, min_variant_freq=None, num_train_on=None, deterministic=True, select_from=None):
+    def build(
+        self,
+        min_variant_freq=None,
+        num_train_on=None,
+        deterministic=True,
+        select_from=None,
+    ):
         """
         input:
             min_variant_freq: the minimum proportion of samples with variation at that site for the site to be included.  If none, is set to 3/train_on, i.e. each variant has to appear 3 times to be considered
@@ -413,7 +465,9 @@ class VariantMatrix:
 
         if select_from is not None:
             if not isinstance(select_from, list):
-                raise TypeError("Select from must be a list, not {0}".format(type(select_from)))
+                raise TypeError(
+                    "Select from must be a list, not {0}".format(type(select_from))
+                )
             select_from = set(select_from)
             guids = set(guids).intersection(select_from)
             guids = list(guids)
@@ -425,7 +479,9 @@ class VariantMatrix:
         else:
             # randomise order for model training purposes if required
             if not deterministic:
-                random.shuffle(guids)  # makes pipeline non-deterministic if not all samples are analysed
+                random.shuffle(
+                    guids
+                )  # makes pipeline non-deterministic if not all samples are analysed
             else:
                 guids = sorted(guids)  # keep order constant between runs
         if num_train_on < len(guids):
@@ -442,7 +498,9 @@ class VariantMatrix:
         #########################################################################################################
         # determine the variation model.  In the first stage, we analyse by position
         # positions with unexpectedly high ltcels of missingness are excluded, as these may be hard to call.
-        logging.info("Assessing per-base variation from {0} samples".format(num_train_on))
+        logging.info(
+            "Assessing per-base variation from {0} samples".format(num_train_on)
+        )
         guids_analysed_stage1, vmodel, mmodel = self.get_position_counts(guids)
 
         # store variant model
@@ -459,7 +517,9 @@ class VariantMatrix:
             if variant_count >= cutoff_variant_number:
                 select_positions.add(pos)
         logging.info(
-            "Found {0} positions which vary at frequencies more than {1}.".format(len(select_positions), min_variant_freq)
+            "Found {0} positions which vary at frequencies more than {1}.".format(
+                len(select_positions), min_variant_freq
+            )
         )
 
         if len(select_positions) == 0:
@@ -467,8 +527,12 @@ class VariantMatrix:
                 "No variation found above cutoff. normally this is because you ran the PCA operation against an empty database; this is what happens if you omit a config file parameter, when a test database is examined by default.   Cannot continue"
             )
 
-        self.model["variant_positions_gt_cutoff_variant_number"] = len(select_positions)  # store result
-        upper_cutoff = self.get_missingness_cutoff(select_positions, mmodel)  # define cutoff
+        self.model["variant_positions_gt_cutoff_variant_number"] = len(
+            select_positions
+        )  # store result
+        upper_cutoff = self.get_missingness_cutoff(
+            select_positions, mmodel
+        )  # define cutoff
         self.vm["max_ok_missingness"] = float(upper_cutoff)
         self.vm["max_ok_missingness_pc"] = int(100 * upper_cutoff / num_train_on)
 
@@ -504,8 +568,13 @@ class VariantMatrix:
         for nLoaded, guid in enumerate(guids_analysed_stage1):
             if self.show_bar:
                 bar.update(nLoaded)
-            obj = self.PERSIST.refcompressedsequence_read(guid)  # ref compressed sequence
-            for base in ["M", "N"]:  # compute how many bases in this position are either M or N
+            obj = self.PERSIST.refcompressedsequence_read(
+                guid
+            )  # ref compressed sequence
+            for base in [
+                "M",
+                "N",
+            ]:  # compute how many bases in this position are either M or N
                 # examine all missing (N/M) sites, adding to a missingness model
                 try:
                     for pos in obj[base]:
@@ -539,7 +608,9 @@ class VariantMatrix:
         mix_quality_cutoff = 0.01 / len(
             mix_quality_info.index
         )  # 0.01 divided by the number of samples analysed;  Bonferroni adj.
-        suspect_quality = mix_quality_info.query("m_p_value < {0} or n_p_value < {0}".format(mix_quality_cutoff))
+        suspect_quality = mix_quality_info.query(
+            "m_p_value < {0} or n_p_value < {0}".format(mix_quality_cutoff)
+        )
         self.vm["suspect_quality_seqs"] = suspect_quality
         n_suspect = len(set(suspect_quality.index.to_list()))
         pc_suspect = int(100 * n_suspect / len(mix_quality_info.index))
@@ -548,7 +619,9 @@ class VariantMatrix:
                 n_suspect, pc_suspect, mix_quality_cutoff
             )
         )
-        guids_analysed_stage2 = guids_analysed_stage1 - set(suspect_quality.index.to_list())
+        guids_analysed_stage2 = guids_analysed_stage1 - set(
+            suspect_quality.index.to_list()
+        )
 
         #########################################################################################################
         # build a variation matrix for variant sites which pass, and samples which pass
@@ -570,7 +643,9 @@ class VariantMatrix:
             if self.show_bar:
                 bar.update(nLoaded)
 
-            obj = self.PERSIST.refcompressedsequence_read(guid)  # ref compressed sequence
+            obj = self.PERSIST.refcompressedsequence_read(
+                guid
+            )  # ref compressed sequence
             # for definite calls, compute variation at each position
 
             # for invalid samples, compute nothing
@@ -584,7 +659,9 @@ class VariantMatrix:
                 # positions of variation where a call was made
                 for base in set(["A", "C", "G", "T"]).intersection(obj.keys()):
                     target_positions = select_positions.intersection(obj[base])
-                    called_positions = dict((self._column_name(pos, base), 1) for pos in target_positions)
+                    called_positions = dict(
+                        (self._column_name(pos, base), 1) for pos in target_positions
+                    )
 
                     variants = {**variants, **called_positions}
 
@@ -594,27 +671,36 @@ class VariantMatrix:
 
         #########################################################################################################
         # build a variation matrix for variant sites using pandas - may take minutes for giant matrices
-        logging.info("Building variant matrix as pandas DataFrame.  May take several minutes for huge matrices.")
+        logging.info(
+            "Building variant matrix as pandas DataFrame.  May take several minutes for huge matrices."
+        )
         t0 = datetime.datetime.now()
-       
+
         vmodel = pd.DataFrame.from_dict(vmodel, orient="index")
         vmodel.fillna(value=0, inplace=True)  # if not completed, then it's reference
         # unless it's null, which we are ignoring at present- we have preselected sites as having low null frequencies
         t1 = datetime.datetime.now()
         elapsed = (t1 - t0).total_seconds()
-        logging.info("Matrix construction complete.  There are {0} sequences in the variation model, which took {1} seconds to build".format(len(vmodel.index), elapsed))
+        logging.info(
+            "Matrix construction complete.  There are {0} sequences in the variation model, which took {1} seconds to build".format(
+                len(vmodel.index), elapsed
+            )
+        )
         self.vm["variant_matrix"] = vmodel
         return None
 
+
 class PCARunner:
-    """ Performs PCA on a VariantMatrix """
+    """Performs PCA on a VariantMatrix"""
 
     def __init__(self, snp_matrix: VariantMatrix, show_bar=True):
         self.vm = snp_matrix.vm
         self.transformed_coordinates = None
         self.show_bar = show_bar
 
-    def run(self, n_components, pca_parameters={}, deterministic=True) -> VariationModel:
+    def run(
+        self, n_components, pca_parameters={}, deterministic=True
+    ) -> VariationModel:
         """conducts pca on a snp_matrix, storing the results in the snp_matrix's VariantModel object.
 
         input:
@@ -670,7 +756,9 @@ class PCARunner:
                         "outside_3mad": outside_3mad,
                     }
                 )
-            pc2contributing_pos[i] = sorted(list(pc2contributing_pos[i]))  # can be json serialised, unlike set
+            pc2contributing_pos[i] = sorted(
+                list(pc2contributing_pos[i])
+            )  # can be json serialised, unlike set
 
         # report eigenvectors which are different from median +- 3 median absolute dtciations
         self.eigenvectors = pd.DataFrame.from_records(contribs)
@@ -687,7 +775,9 @@ class PCARunner:
         transformed_coordinates_dict = {}
         for guid, tcs in zip(variant_matrix.index, pca.transform(variant_matrix)):
             transformed_coordinates_dict[guid] = tcs
-        self.transformed_coordinates = pd.DataFrame.from_dict(transformed_coordinates_dict, orient="index")
+        self.transformed_coordinates = pd.DataFrame.from_dict(
+            transformed_coordinates_dict, orient="index"
+        )
         self.transformed_coordinates.columns = range(n_components)
 
         self.vm["pca"] = pca
@@ -700,9 +790,15 @@ class PCARunner:
         self.vm["contributing_basepos"] = contributing_basepos
         self.vm["contributing_pos"] = contributing_pos
         self.vm["sample_id"] = variant_matrix.index.tolist()
-        self.vm["pos_per_pc"] = [len(x) for x in self.vm.model["pc2_contributing_positions"].values()]
+        self.vm["pos_per_pc"] = [
+            len(x) for x in self.vm.model["pc2_contributing_positions"].values()
+        ]
 
-        logging.info("PCA completed, identified {0} strongly contributing base/positions".format(len(contributing_basepos)))
+        logging.info(
+            "PCA completed, identified {0} strongly contributing base/positions".format(
+                len(contributing_basepos)
+            )
+        )
         self.vm.finish()
 
         return self.vm
@@ -731,14 +827,20 @@ class PCARunner:
 
         # check there is a model
         if self.transformed_coordinates is None:
-            raise NotImplementedError("No transformed_coordinates.  You must call .run() before calling .cluster()")
+            raise NotImplementedError(
+                "No transformed_coordinates.  You must call .run() before calling .cluster()"
+            )
 
-        t0 = datetime.datetime.now()        # startup time
-        
+        t0 = datetime.datetime.now()  # startup time
+
         # prepare data for clustering
-        tc = self.transformed_coordinates.copy()  # transformed_coordinates.  option to drop PCs of technical origin could be dropped.
+        tc = (
+            self.transformed_coordinates.copy()
+        )  # transformed_coordinates.  option to drop PCs of technical origin could be dropped.
         if self.show_bar:
-            bar = progressbar.ProgressBar(max_value=len(self.transformed_coordinates.columns.to_list()))
+            bar = progressbar.ProgressBar(
+                max_value=len(self.transformed_coordinates.columns.to_list())
+            )
 
         logging.info("Clustering transformed_coordinates")
         for i, col in enumerate(tc.columns):
@@ -749,7 +851,10 @@ class PCARunner:
             this_tc = tc[col].to_frame()
             this_tc.columns = ["transformed_coordinate"]
             this_tc["pc"] = col
-            this_tc["initial_cat"] = [int(x * initial_cats_per_unit) for x in this_tc["transformed_coordinate"]]
+            this_tc["initial_cat"] = [
+                int(x * initial_cats_per_unit)
+                for x in this_tc["transformed_coordinate"]
+            ]
 
             # how many non-zero categories
             cats = this_tc.groupby(["initial_cat"])["transformed_coordinate"].describe()
@@ -762,8 +867,8 @@ class PCARunner:
             this_tc["sample_id"] = this_tc.index
 
             # store a pc_cat field.  useful for searching later.
-            pc_cats = [str(col) + '_' + str(x) for x in this_tc["cat"]]
-            this_tc['pc_cat'] = pc_cats
+            pc_cats = [str(col) + "_" + str(x) for x in this_tc["cat"]]
+            this_tc["pc_cat"] = pc_cats
             this_tc.drop(["initial_cat"], axis=1)
             if col == 0:
                 tcs = this_tc
@@ -778,6 +883,8 @@ class PCARunner:
 
         t1 = datetime.datetime.now()
         elapsed = (t1 - t0).total_seconds()
-        logging.info("Transformed coordinate clustering took {0} seconds".format(elapsed))
+        logging.info(
+            "Transformed coordinate clustering took {0} seconds".format(elapsed)
+        )
 
         return self.vm

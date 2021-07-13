@@ -221,9 +221,9 @@ for (dbfile in sort(Sys.glob(globpath), decreasing=FALSE)){
   d2r <- readRDS(d2r_file)
   db_id <- db_id + 1
 
-  if (db_id > 150){
-    break   ## DEBUG
-  }
+  #if (db_id > 150){
+  #  break   ## DEBUG
+  #}
   print(dbfile)
   analysis_date <- gsub('.sqlite','',basename(dbfile), fixed=TRUE)
   analysis_date <- gsub('sim._','',analysis_date, perl=TRUE)
@@ -273,7 +273,7 @@ for (dbfile in sort(Sys.glob(globpath), decreasing=FALSE)){
   }
   
   both <- subset(both, adj_p_value < p_value_cutoff)
-  print(both)
+  #print(both)
   # export any positive trends
   md_sql = "select * from modelled_data"
   md <- database_query(db_conn, md_sql)
@@ -303,7 +303,7 @@ for (dbfile in sort(Sys.glob(globpath), decreasing=FALSE)){
   #}
   # get the categories
 
-  print(dbfile)
+  #print(dbfile)
  
   cmd <- "select * from clinical_metadata;"
   clin_df <- database_query(db_conn, cmd)
@@ -320,7 +320,7 @@ for (dbfile in sort(Sys.glob(globpath), decreasing=FALSE)){
   
   cmd <- "select pcas.* from pca_summary pcas inner join population_studied ps on ps.pop_int_id = pcas.pop_int_id where level_2_category = '--Any--';"
   pcas <- database_query(db_conn, cmd)
-  print(analysis_date)
+  #print(analysis_date)
   small_and_novel <- subset(pcas, n_days_observed < 10 & (analysis_date-30) <= latest_date )
  
   signal2 <- subset(small_and_novel, pc_cat %in% lin1_assocs_10$pc_cat)
@@ -366,9 +366,9 @@ for (dbfile in sort(Sys.glob(globpath), decreasing=FALSE)){
                     "max_estimate" = max_estimate,
                     "mean_estimate" = mean_estimate
   )
-  print(res_detection) 
-  print("-------------- signal 1 --------------------")   
-  print(signal1)
+  #print(res_detection) 
+  #print("-------------- signal 1 --------------------")   
+  #print(signal1)
   #print(lin1_assocs_10)   
   detections[[db_id]] = res_detection
   
