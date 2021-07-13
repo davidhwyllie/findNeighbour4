@@ -6,6 +6,7 @@ import json
 import unittest
 import pandas as pd
 import datetime
+import gzip
 from sqlalchemy import func
 from pca.pca import VariationModel
 from pca.pcadb import ContingencyTable, BulkLoadTest
@@ -92,8 +93,8 @@ class Test_create_database_2(Test_PCA_Database):
     def runTest(self):
 
         # load a variation model for testiong
-        inputfile = "testdata/pca/vm.json"
-        with open(inputfile, "rb") as f:
+        inputfile = "testdata/pca/vm.json.gz"
+        with gzip.open(inputfile, "rb") as f:
             str_json = f.read()
         ds = DictStorage()
         vm = VariationModel()
@@ -198,8 +199,8 @@ class Test_create_contingency_tables_4(Test_PCA_Database):
     def runTest(self):
 
         # load a variation model for testiong
-        inputfile = "testdata/pca/vm.json"
-        with open(inputfile, "rb") as f:
+        inputfile = "testdata/pca/vm.json.gz"
+        with gzip.open(inputfile, "rb") as f:
             str_json = f.read()
         ds = DictStorage()
         vm = VariationModel()
@@ -310,8 +311,8 @@ class Test_count_per_day_7(Test_PCA_Database):
     def runTest(self):
 
         # load a variation model for testiong
-        inputfile = "testdata/pca/vm.json"
-        with open(inputfile, "rb") as f:
+        inputfile = "testdata/pca/vm.json.gz"
+        with gzip.open(inputfile, "rb") as f:
             str_json = f.read()
         ds = DictStorage()
         vm = VariationModel()
@@ -365,8 +366,8 @@ class Test_create_pc_summary_10(Test_PCA_Database):
     def runTest(self):
 
         # load a variation model for testiong
-        inputfile = "testdata/pca/vm.json"
-        with open(inputfile, "rb") as f:
+        inputfile = "testdata/pca/vm.json.gz"
+        with gzip.open(inputfile, "rb") as f:
             str_json = f.read()
         ds = DictStorage()
         vm = VariationModel()
@@ -447,8 +448,8 @@ class Test_create_pc_summary_12(Test_PCA_Database):
     def runTest(self):
 
         # load a variation model for testiong
-        inputfile = "testdata/pca/vm.json"
-        with open(inputfile, "rb") as f:
+        inputfile = "testdata/pca/vm.json.gz"
+        with gzip.open(inputfile, "rb") as f:
             str_json = f.read()
         ds = DictStorage()
         vm = VariationModel()
