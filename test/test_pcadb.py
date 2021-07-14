@@ -5,7 +5,8 @@ import os
 import json
 import unittest
 import pandas as pd
-import pickle
+import datetime
+import gzip
 from sqlalchemy import func
 from pca.pca import VariationModel
 from pca.pcadb import ContingencyTable, BulkLoadTest
@@ -17,6 +18,7 @@ from pca.pcadb import (
     PCASummary,
     PopulationStudied,
 )
+from pca.storejson import DictStorage
 
 
 class Test_PCA_Database(unittest.TestCase):
@@ -47,18 +49,20 @@ class Test_PCA_Database(unittest.TestCase):
         else:
             if not os.path.exists(conn_detail_file):
                 raise FileNotFoundError(
-                    "Connection file specified but not found: {0}".format(conn_detail_file)
+                    "Connection file specified but not found: {0}".format(
+                        conn_detail_file
+                    )
                 )
-            # try to read the config file
+            # try to read the connection detail file.  if there are keys starting with 'unittest_ora' these are to be used for unittesting, and are added to the test list.
             with open(conn_detail_file, "rt") as f:
                 conn_detail = json.load(f)
                 for key in conn_detail.keys():
                     if key.startswith("unittest_ora"):
-                        self.engines[key] = key
+                        # self.engines[key] = key
                         pass
 
 
-#@unittest.skip(reason="too slow")
+# @unittest.skip(reason="too slow")
 class Test_create_database_1(Test_PCA_Database):
     """tests creating the database and internal functions dropping tables"""
 
@@ -82,16 +86,19 @@ class Test_create_database_1(Test_PCA_Database):
             self.assertIsNone(res)
 
 
-#@unittest.skip(reason="too slow")
+# @unittest.skip(reason="too slow")
 class Test_create_database_2(Test_PCA_Database):
     """tests storing the results of a VariantModel"""
 
     def runTest(self):
 
         # load a variation model for testiong
-        inputfile = "testdata/pca/vm.pickle"
-        with open(inputfile, "rb") as f:
-            vm = pickle.load(f)
+        inputfile = "testdata/pca/vm.json.gz"
+        with gzip.open(inputfile, "rb") as f:
+            str_json = f.read()
+        ds = DictStorage()
+        vm = VariationModel()
+        vm.model = ds.from_json(str_json)
         self.assertIsInstance(vm, VariationModel)
 
         for engine in self.engines.keys():
@@ -108,7 +115,7 @@ class Test_create_database_2(Test_PCA_Database):
             self.assertEqual(b2, 1)
 
 
-#@unittest.skip(reason="too slow")
+# @unittest.skip(reason="too slow")
 class Test_load_clinical_data_3(Test_PCA_Database):
     """tests storing clinical data from COG-UK in the data model"""
 
@@ -129,11 +136,11 @@ class Test_load_clinical_data_3(Test_PCA_Database):
             x2 = pdm.existing_sample_ids_in_clinical_metadata()
             self.assertEqual(len(x1), 0)
             self.assertEqual(len(x2), 99)
-            self.assertEqual(len(x2), x3)
+            self.assertEqual(len(x2), len(x3))
 
             # try to add again
             x4 = pdm.store_cog_metadata(cogfile="testdata/pca/cog_metadata_test.csv")
-            self.assertEqual(x4, 0)
+            self.assertEqual(len(x4), 0)
             b4 = pdm.latest_build_int_id()
             self.assertIsNone(b4)
 
@@ -141,7 +148,7 @@ class Test_load_clinical_data_3(Test_PCA_Database):
             x5 = pdm.store_cog_metadata(
                 cogfile="testdata/pca/cog_metadata_test.csv", replace_all=True
             )
-            self.assertEqual(x5, 99)
+            self.assertEqual(len(x5), 99)
             b5 = pdm.latest_build_int_id()
             self.assertIsNone(b5)
 
@@ -154,7 +161,7 @@ class Test_load_clinical_data_3(Test_PCA_Database):
             self.assertEqual(l1 + l2, l3)
 
 
-#@unittest.skip(reason="not necessary")
+# @unittest.skip(reason="not necessary")
 class Test_Contingency_table(unittest.TestCase):
     """tests the ContigencyTable class, which analyses 2x2 tables"""
 
@@ -185,16 +192,20 @@ class Test_Contingency_table(unittest.TestCase):
         self.assertIsInstance(res, FeatureAssociation)
 
 
-#@unittest.skip(reason ='too slow')
+# @unittest.skip(reason ='too slow')
 class Test_create_contingency_tables_4(Test_PCA_Database):
     """tests creation & storage of 2x2 contingency tables"""
 
     def runTest(self):
 
         # load a variation model for testiong
-        inputfile = "testdata/pca/vm.pickle"
-        with open(inputfile, "rb") as f:
-            vm = pickle.load(f)
+        inputfile = "testdata/pca/vm.json.gz"
+        with gzip.open(inputfile, "rb") as f:
+            str_json = f.read()
+        ds = DictStorage()
+        vm = VariationModel()
+        vm.model = ds.from_json(str_json)
+        self.assertIsInstance(vm, VariationModel)
 
         for engine in self.engines.keys():
             print(engine, "#4")
@@ -205,7 +216,7 @@ class Test_create_contingency_tables_4(Test_PCA_Database):
             pdm.make_contingency_tables()
 
 
-#@unittest.skip(reason="not routinely necessary ")
+# @unittest.skip(reason="not routinely necessary ")
 class Test_oracle_bulk_upload_5a(Test_PCA_Database):
     """tests bulk upload"""
 
@@ -227,7 +238,7 @@ class Test_oracle_bulk_upload_5a(Test_PCA_Database):
             self.assertEqual(initial_rows, final_rows)
 
 
-#@unittest.skip(reason="not routinely necessary ")
+# @unittest.skip(reason="not routinely necessary ")
 class Test_oracle_bulk_upload_5b(Test_PCA_Database):
     """tests bulk upload with small number of samples"""
 
@@ -249,7 +260,7 @@ class Test_oracle_bulk_upload_5b(Test_PCA_Database):
             self.assertEqual(initial_rows, final_rows)
 
 
-#@unittest.skip(reason="not routinely necessary and slow")
+# @unittest.skip(reason="not routinely necessary and slow")
 class Test_oracle_bulk_upload_5c(Test_PCA_Database):
     """tests bulk upload with large numbers of samples"""
 
@@ -271,7 +282,7 @@ class Test_oracle_bulk_upload_5c(Test_PCA_Database):
             self.assertEqual(initial_rows, final_rows)
 
 
-#@unittest.skip(reason="not routinely necessary ")
+# @unittest.skip(reason="not routinely necessary ")
 class Test_count_per_day_6(Test_PCA_Database):
     """tests bulk upload with large numbers of samples"""
 
@@ -293,29 +304,31 @@ class Test_count_per_day_6(Test_PCA_Database):
             self.assertEqual(initial_rows, final_rows)
 
 
-#@unittest.skip(reason="not routinely necessary ")
+##@unittest.skip(reason="not routinely necessary ")
 class Test_count_per_day_7(Test_PCA_Database):
     """tests computation of count data frames"""
 
     def runTest(self):
 
         # load a variation model for testiong
-        inputfile = "testdata/pca/vm.pickle"
-        with open(inputfile, "rb") as f:
-            vm = pickle.load(f)
+        inputfile = "testdata/pca/vm.json.gz"
+        with gzip.open(inputfile, "rb") as f:
+            str_json = f.read()
+        ds = DictStorage()
+        vm = VariationModel()
+        vm.model = ds.from_json(str_json)
+        self.assertIsInstance(vm, VariationModel)
 
-            for engine in self.engines.keys():
-                print(engine, "#7")
+        for engine in self.engines.keys():
+            print(engine, "#7")
 
-                pdm = PCADatabaseManager(
-                    connection_config=self.engines[engine], debug=True
-                )
-                pdm.store_variation_model(vm)
-                pdm.store_cog_metadata(cogfile="testdata/pca/cog_metadata_vm.csv")
-                pdm.make_contingency_tables()
+            pdm = PCADatabaseManager(connection_config=self.engines[engine], debug=True)
+            pdm.store_variation_model(vm)
+            pdm.store_cog_metadata(cogfile="testdata/pca/cog_metadata_vm.csv")
+            pdm.make_contingency_tables()
 
 
-#@unittest.skip(reason="not r necessary ")
+# @unittest.skip(reason="not r necessary ")
 class Test_create_sample_set_9(Test_PCA_Database):
     """tests creation of sample sets"""
 
@@ -346,16 +359,20 @@ class Test_create_sample_set_9(Test_PCA_Database):
             self.assertEqual(s2, 0)
 
 
-# #@unittest.skip(reason="not routinely necessary ")
+# @unittest.skip(reason="not routinely necessary ")
 class Test_create_pc_summary_10(Test_PCA_Database):
     """tests creation of a pc_summary"""
 
     def runTest(self):
 
         # load a variation model for testiong
-        inputfile = "testdata/pca/vm.pickle"
-        with open(inputfile, "rb") as f:
-            vm = pickle.load(f)
+        inputfile = "testdata/pca/vm.json.gz"
+        with gzip.open(inputfile, "rb") as f:
+            str_json = f.read()
+        ds = DictStorage()
+        vm = VariationModel()
+        vm.model = ds.from_json(str_json)
+        self.assertIsInstance(vm, VariationModel)
 
         for engine in self.engines.keys():
 
@@ -417,20 +434,27 @@ class Test_create_pc_summary_10(Test_PCA_Database):
             self.assertEqual(len(sigt.index), 0)
 
             # members of the trending samples
-            trending_details = pdm.trending_samples_metadata(max_size_of_trending_pc_cat = 100)
+            trending_details = pdm.trending_samples_metadata(
+                max_size_of_trending_pc_cat=100
+            )
             if trending_details is not None:
                 self.assertIsInstance(trending_details, dict)
-            
-#@unittest.skip(reason="not routinely necessary ")
+
+
+# @unittest.skip(reason="not routinely necessary ")
 class Test_create_pc_summary_12(Test_PCA_Database):
     """tests creation of a pc_summary"""
 
     def runTest(self):
 
         # load a variation model for testiong
-        inputfile = "testdata/pca/vm.pickle"
-        with open(inputfile, "rb") as f:
-            vm = pickle.load(f)
+        inputfile = "testdata/pca/vm.json.gz"
+        with gzip.open(inputfile, "rb") as f:
+            str_json = f.read()
+        ds = DictStorage()
+        vm = VariationModel()
+        vm.model = ds.from_json(str_json)
+        self.assertIsInstance(vm, VariationModel)
 
         for engine in self.engines.keys():
 
@@ -483,20 +507,119 @@ class Test_create_pc_summary_12(Test_PCA_Database):
             self.assertTrue(n_existing_records > 0)
 
             # test computation of count data
-                       
+
             for i, summary_entry in enumerate(pdm.session.query(PCASummary)):
-                pdm.single_population_studied(summary_entry.pcas_int_id)        # ensure no error
-                
-                res = pdm.pcas_count_table(summary_entry)
-                
+                pdm.single_population_studied(
+                    summary_entry.pcas_int_id
+                )  # ensure no error
+
+                # print(summary_entry)
+                # print(summary_entry.__dict__)
+
+                with self.assertRaises(ValueError):
+                    res = pdm.pcas_count_table(
+                        summary_entry, output_format=0
+                    )  # only 1 or 2 are allowed
+
+                res = pdm.pcas_count_table(summary_entry, output_format=1)
+                # print(res)
+
+                self.assertEqual(
+                    set(res.keys()),
+                    set(
+                        [
+                            "earliest_date",
+                            "pcas_int_id",
+                            "counts",
+                            "denominators",
+                            "pc_cat",
+                        ]
+                    ),
+                )
+                self.assertIsInstance(res["pcas_int_id"], int)
+                self.assertIsInstance(res["earliest_date"], datetime.date)
+                self.assertIsInstance(res["pc_cat"], str)
+                self.assertIsInstance(res["counts"], pd.DataFrame)
+                self.assertIsInstance(res["denominators"], pd.DataFrame)
+                self.assertTrue(len(res["counts"].index) > 0)
+                self.assertTrue(len(res["denominators"].index) > 0)
+
+                # test data for poisson regression
+                # outputfile = "testdata/pca/count_format_1.pickle"
+                # with open(outputfile, "wb") as f:
+                #    pickle.dump(res, f)
+
                 self.assertIsInstance(res, dict)
                 self.assertEqual(
                     set(res.keys()),
-                    set(["earliest_date", "pcas_int_id", "counts", "denominators"]),
+                    set(
+                        [
+                            "earliest_date",
+                            "pcas_int_id",
+                            "counts",
+                            "denominators",
+                            "pc_cat",
+                        ]
+                    ),
+                )
+                self.assertEqual(
+                    set(res["counts"].keys()),
+                    set(["sample_date", "n"]),
                 )
                 ntotal = sum(res["counts"]["n"])
+
                 res2 = pdm.pcas_members(summary_entry)
-                
                 self.assertEqual(len(res2.index), ntotal)
+                self.assertTrue(ntotal > 0)
+
+                res = pdm.pcas_count_table(summary_entry, output_format=2)
+
+                self.assertEqual(
+                    set(res.keys()),
+                    set(
+                        [
+                            "earliest_date",
+                            "pcas_int_id",
+                            "counts",
+                            "denominators",
+                            "pc_cat",
+                        ]
+                    ),
+                )
+                self.assertIsInstance(res["pcas_int_id"], int)
+                self.assertIsInstance(res["earliest_date"], datetime.date)
+                self.assertIsInstance(res["pc_cat"], str)
+                self.assertIsInstance(res["counts"], pd.DataFrame)
+                self.assertIsInstance(res["denominators"], pd.DataFrame)
+                self.assertTrue(len(res["counts"].index) > 0)
+                self.assertTrue(len(res["denominators"].index) > 0)
+
+                # test data for regression models
+                # outputfile = "testdata/pca/count_format_2.pickle"
+                # with open(outputfile, "wb") as f:
+                #   pickle.dump(res, f)
+
+                self.assertIsInstance(res, dict)
+                self.assertEqual(
+                    set(res.keys()),
+                    set(
+                        [
+                            "earliest_date",
+                            "pcas_int_id",
+                            "counts",
+                            "denominators",
+                            "pc_cat",
+                        ]
+                    ),
+                )
+                self.assertEqual(
+                    set(res["counts"].keys()),
+                    set(["sample_date", "pc_cat", "n"]),
+                )
+
+                ntotal1 = sum(res["counts"]["n"])
+                ntotal2 = sum(res["denominators"]["n"])
+                self.assertEqual(ntotal1, ntotal2)
+
                 self.assertTrue(ntotal > 0)
                 break

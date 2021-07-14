@@ -14,7 +14,7 @@ Paths expected are currently hard-coded
 Example usage: 
 ============== 
 # show command line options 
-python sim_load.py --help  
+python covidsim.py --help  
 
 # example usage
 pipenv run python3 demo/covidsim.py demos/covidsim/config.json /data/data/pca/sim/fasta  sim0.fasta --outputdir /data/data/pca/sim/sqlite --n_components 20
