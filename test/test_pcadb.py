@@ -18,7 +18,7 @@ from pca.pcadb import (
     PCASummary,
     PopulationStudied,
 )
-from test.storejson import DictStorage
+from pca.storejson import DictStorage
 
 
 class Test_PCA_Database(unittest.TestCase):

@@ -10,7 +10,7 @@ import gzip
 from pca.fittrend import ModelCounts
 from pca.pcadb import PCADatabaseManager
 from pca.pcadb import VariationModel
-from test.storejson import DictStorage
+from pca.storejson import DictStorage
 
 
 class Test_pois_1(unittest.TestCase):

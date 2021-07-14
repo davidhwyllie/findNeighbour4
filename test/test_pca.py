@@ -7,8 +7,6 @@ import pandas as pd
 from findn import DEFAULT_CONFIG_FILE
 from pca.pca import PersistenceTest, MNStats, VariantMatrix, PCARunner
 from findn.common_utils import ConfigManager
-#import json
-#from test.storejson import DictStorage
 
 class Test_PersistenceTest_1(unittest.TestCase):
     """tests the PersistenceTest class"""
