@@ -7,6 +7,7 @@
 import os
 import json
 import time
+import datetime
 import unittest
 import pandas as pd
 from sqlalchemy import func
@@ -78,7 +79,6 @@ class Test_to_string(Test_Database):
             self.assertIsInstance(r2, str)
 
 
-#@unittest.skip("Fails on Oracle with ORA-00054 error, related to schema modification")
 class Test_create_database_1(Test_Database):
     """tests creating the database and internal functions dropping tables"""
 
@@ -294,38 +294,30 @@ class Test_SeqMeta_singleton(Test_Database):
 
 
 class Test_SeqMeta_guid2neighbour_8(Test_Database):
-    """tests guid2neighboursOf"""
+    """tests adding links at scale"""
 
     def runTest(self):
         for pdm in self.pdms():
-            pdm.guid2neighbour_add_links(
-                "srcguid",
-                {
-                    "guid1": {"dist": 12},
-                    "guid2": {"dist": 0},
-                    "guid3": {"dist": 3},
-                    "guid4": {"dist": 4},
-                    "guid5": {"dist": 5},
-                },
-            )
+            for guid_id in range(10):
+                srcguid = "srcguid{0}".format(guid_id)
+                dist_dict = {}
+                for i in range(10000):
+                    guid2 = "guid{0}".format(i)
+                    dist_dict[guid2] = {'dist':i % 20}
 
-            res1 = pdm.guid2neighbours("srcguid", returned_format=1)
-            self.assertEqual(5, len(res1["neighbours"]))
-            with self.assertRaises(NotImplementedError):
-                res2 = pdm.guid2neighbours("srcguid", returned_format=2)
-                self.assertTrue(res2 is not None)
-
-            res3 = pdm.guid2neighbours("srcguid", returned_format=3)
-            self.assertEqual(5, len(res3["neighbours"]))
-            res4 = pdm.guid2neighbours("srcguid", returned_format=4)
-            self.assertEqual(5, len(res4["neighbours"]))
-
-            with self.assertRaises(ValueError):
-                pdm.guid2neighbours("srcguid", returned_format=5)
-
+                t0 = datetime.datetime.now()
+                pdm.guid2neighbour_add_links(
+                    srcguid,
+                    dist_dict
+                )
+                t1 = datetime.datetime.now()
+                res1 = pdm.guid2neighbours(srcguid, returned_format=1)
+                t2 = datetime.datetime.now()
+                print(guid_id, "Time to load / read 10k", t1-t0, t2-t1)
+                self.assertEqual(10000, len(res1["neighbours"]))
 
 class Test_SeqMeta_guid2neighbour_7(Test_Database):
-    """tests guid2neighboursOf"""
+    """tests guid2neighbours functions"""
 
     def runTest(self):
         for pdm in self.pdms():

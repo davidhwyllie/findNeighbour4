@@ -37,14 +37,15 @@ from sqlalchemy import (
     String,
     DateTime,
     Identity,
-    ForeignKey,
+    Index,
     TIMESTAMP,
     func,
     create_engine,
     inspect,
+    ForeignKey
 )
 
-# from sqlalchemy.dialects import oracle
+#from sqlalchemy.dialects import oracle
 from sqlalchemy.sql.expression import delete, desc
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
@@ -154,8 +155,15 @@ class Edge(db_pc):
     Note
     - that an edge A -> B is represented twice in this data representation: as A -> B, and as B -> A.
     - This means that all the edges of A can be obtained by
-    statements such as SELECT * from Edge where seq_int_id_1 = 217, where 217 is the seq_int_id of sequence A."""
+    statements such as SELECT * from Edge where seq_int_id_1 = 217, where 217 is the seq_int_id of sequence A.
 
+    - if insertion is fast enough, we could enable foreign key constraints here. 
+    - it is likely that insert speed will be the main determinant of server speed
+    - and the faster the inserts work the better.
+    - in the mongo implementation, FK constraints are not implemented, and the relationships are guaranteed by application logic, not at a database level .
+    At present, this approach is being used here too.
+
+    """
     __tablename__ = "edge"
     edge_int_id = Column(
         Integer,
@@ -163,16 +171,21 @@ class Edge(db_pc):
         primary_key=True,
         comment="the primary key to the table",
     )
-    seq_int_id_1 = Column(
-        Integer,
-        ForeignKey(RefCompressedSeq.seq_int_id),
-        comment="One of a pair of sequences. Note that for rapid loading, disabling of the FK could be considered.",
+    sequence_id_1= Column(
+        String(38),
+        comment="One of a pair of sequences. Note: foreign key constraint not enforced at a database level"
     )
-    seq_int_id_2 = Column(
-        Integer,
+    sequence_id_2 = Column(
+        String(38),
         comment="One of a pair of sequences.  Note: foreign key constraint not enforced at a database level ",
     )
     dist = Column(Integer, comment="the SNV distance between sequences")
+
+Index(
+    "ix_Edge_1",
+    Edge.sequence_id_1,
+    unique=False,
+    oracle_compress = 1)
 
 
 class Cluster(db_pc):
@@ -1340,27 +1353,12 @@ class fn3persistence:
     def singletons(
         self, method: str = "approximate", return_top: int = 1000
     ) -> pd.DataFrame:
-        """returns guids and the number of singleton records, which
-        (if high numbers are present) indicates repacking is needed.
-        Inclusion of max_records is important for very large datasets, or the query is slow.
+        """
 
-        Parameters:
-        method: either 'approximate' or 'exact'.  For ranking samples for repacking, the approximate method is recommended.
-        return_top:  the number of results to return.  Set > number of samples to return all records.  If method = 'exact', return_top is ignored and all records are returned.
-
-        The approximate method is much faster than the exact one if large numbers of singletons are present; it randomly downsamples the guid-neighbour pairs in
-        the guid2neighbour collection, taking 100k samples only, and the counts the number of singletons in the downsample.  This is therefore a method of ranking
-        samples which may benefit from repacking.  This sampling method returns queries in a few milliseconds in testing on large tables.
-        This method is not deterministic.
-
-        In the event of failure to successfully generate a sample of sufficient size (set to 100k at present),
-        which can happen if there are fewer than singletons, then the exact method will be used as a fallback.  If fallback of this kind occurs, only return_top samples will be returned.
-
-        The exact method computes the exact non-zero number of singletons for each sample.  This requires an index scan which can be
-        surprisingly slow, with the query taking > 30 seconds with > table size ~ 3 x10^7.   This method is deterministic.
+        This method is not important in the RDBMS implementation of the fn3persistence store.
 
         Returns:
-        a set of sample identifiers ('guids') which contain > min_number_records singleton entries.
+        An empty data frame.
         """
         return pd.DataFrame()
 
@@ -1547,19 +1545,6 @@ class fn3persistence:
 
         return self.guid2items([guid], None)  # restriction by guid.
 
-    def _id_for_guid(self, guid):
-        if (
-            row := self.session.query(RefCompressedSeq)
-            .filter_by(sequence_id=guid)
-            .first()
-        ):
-            return row.seq_int_id
-        else:
-            row = RefCompressedSeq(sequence_id=guid, annotations="{}", content="{}")
-            self.session.add(row)
-            self.session.commit()
-            return row.seq_int_id
-
     def guid2neighbour_add_links(
         self,
         guid: str,
@@ -1578,34 +1563,22 @@ class fn3persistence:
         use_update -  currently ignored, always False.  Setting True yields NotImplementedError
 
         This stores links in the guid2neighbour collection.
-        If use_update = True, will update target documents, adding a new link to the targetguid document.
-            {targetguid -> {previousguid: distance1, previousguid2: distance2}} --> {targetguid -> {previousguid: distance1, previousguid2: distance2, guid: distance}
-            This approach has many disadvantages
-            - multiple database accesses: one to find a document to update, and one to update it - may be hundreds or thousands of database connections for each insert operation
-            - approach is (with Mongodb) not inherently atomic.  If failure occurs in the middle of the process, database can be left in an inconsistent state, requiring use of transactions (slower)
-            - by contrast, the no_update method (default) requires a single insert_many operation, which is much cleaner and is atomic.
-            - the use_update approach is not implemented
-        If use_update = False (default), for each new link from targetguid -> guid, a new document will be inserted linking {targetguid -> {guid: distance}}
-
-        The function guid2neighbour_repack() reduces the number of documents
-        required to store the same information.
-
+        
         Returns:
         The number of records written
+
+        Note:
+        uses bulk upload methodology to write fast, as some samples may have thousands or tens of thousands of neighbours
+
         """
 
-        id_1 = self._id_for_guid(guid)
-
+        load_list = []
         for guid2, dist in targetguids.items():
-            id_2 = self._id_for_guid(guid2)
-            self.session.add(
-                Edge(seq_int_id_1=id_1, seq_int_id_2=id_2, dist=dist["dist"])
-            )
-            self.session.add(
-                Edge(seq_int_id_1=id_2, seq_int_id_2=id_1, dist=dist["dist"])
-            )
+            load_list.append({'sequence_id_1':guid, 'sequence_id_2':guid2, 'dist':dist['dist']})
+            load_list.append({'sequence_id_1':guid2, 'sequence_id_2':guid, 'dist':dist['dist']})
+        load_df = pd.DataFrame.from_records(load_list)
+        self._bulk_load(load_df, 'edge')
 
-        self.session.commit()
 
     class Guid2NeighbourRepackRet(TypedDict):
         guid: str
@@ -1616,25 +1589,9 @@ class fn3persistence:
     def guid2neighbour_repack(
         self, guid: str, always_optimise: bool = False, min_optimisable_size: int = 1
     ) -> Guid2NeighbourRepackRet:
-        """alters the mongodb representation of the links of guid.
+        """In the mongo implementation, alters the mongodb representation of the links of guid.
 
-        This stores links in the guid2neighbour collection;
-        each stored document links one guid to one target.
-
-        This function reduces the number of documents
-        required to store the same information.
-
-        Internally, the documents in guid2neighbour are of the form
-        {'guid':'guid1', 'rstat':'s', 'neighbours':{'guid2':{'dist':12, ...}}} OR
-        {'guid':'guid1', 'rstat':'m', 'neighbours':{'guid2':{'dist':12, ...}, 'guid3':{'dist':5, ...}} OR
-        {'guid':'guid1', 'rstat':'f', 'neighbours':{'guid2':{'dist':12, ...}, 'guid3':{'dist':5, ...}}
-
-        The last example occurs when the maximum number of neighbours permitted per record has been reached.
-
-        This operation moves rstat='s' record's neighbours into rstat='m' type records.
-        It guarantees that no guid-guid links will be lost, but more than one record of the same link may exist
-        during processing.  This does not matter, because guid2neighbours() deduplicates.
-
+        In the rdbms implementation, this does nothing, and just returns a status report.
         Parameters:
         guid : the identifier of a sample to repack
         always_optimise: consider for optimisation even if there are no 's' (single item) records
@@ -1657,6 +1614,12 @@ class fn3persistence:
         self, guid: str, cutoff: int = 20, returned_format: int = 2
     ) -> Guid2NeighboursRet:
         """returns neighbours of guid with cutoff <=cutoff.
+
+        Parameters:
+        guid: the sequence identifier
+        cutoff: a SNV distance cutoff
+        returned_format: see below.
+
         Returns links either as
 
         format 1 [[otherGuid, distance],[otherGuid2, distance2],...]
@@ -1678,12 +1641,7 @@ class fn3persistence:
         """
 
         def f(res):
-            otherGuid = (
-                self.session.query(RefCompressedSeq)
-                .filter_by(seq_int_id=res.seq_int_id_2)
-                .first()
-                .sequence_id
-            )
+            otherGuid = res.sequence_id_2
             dist = res.dist
             if returned_format == 1:
                 return [otherGuid, dist]
@@ -1703,7 +1661,7 @@ class fn3persistence:
             "neighbours": [
                 f(res)
                 for res in self.session.query(Edge)
-                .filter_by(seq_int_id_1=self._id_for_guid(guid))
+                .filter_by(sequence_id_1 = guid)
                 .filter(Edge.dist <= cutoff)
             ],
         }
