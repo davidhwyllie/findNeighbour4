@@ -2,15 +2,15 @@
 import unittest
 import time
 import json
-import pymongo
-import pandas as pd
+import pymongo      # type: ignore
+import pandas as pd # type: ignore
 import pickle
 from findn.NucleicAcid import NucleicAcid
 
 from findn.mongoStore import fn3persistence
 
 ## persistence unit tests
-UNITTEST_MONGOCONN = "mongodb://localhost"
+UNITTEST_MONGOCONN: str = "mongodb://localhost"
 
 
 class Test_Server_Monitoring_0(unittest.TestCase):
@@ -77,7 +77,7 @@ class Test_Server_Monitoring_2(unittest.TestCase):
             res = p.recent_server_monitoring(-1)
 
         with self.assertRaises(TypeError):
-            res = p.recent_server_monitoring("thing")
+            res = p.recent_server_monitoring("thing") # type: ignore
 
 
 class Test_Server_Monitoring_3(unittest.TestCase):
@@ -575,7 +575,7 @@ class Test_SeqMeta_guid_annotate_1(unittest.TestCase):
         guid = 1
         namespace = "ns"
         payload = {"one": 1, "two": 2}
-        res = p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
+        p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
         res = p.db.guid2meta.find_one({"_id": 1})
         self.assertEqual(res["sequence_meta"]["ns"], payload)
 
@@ -591,14 +591,14 @@ class Test_SeqMeta_guid_annotate_2(unittest.TestCase):
         # add the dictionary 'payload' to the namespace 'ns'
         namespace = "ns"
         payload = {"one": 1, "two": 2}
-        res = p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
+        p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
         res = p.db.guid2meta.find_one({"_id": 1})
         self.assertEqual(res["sequence_meta"]["ns"], payload)
 
         # add the dictionary 'payload' to the namespace 'ns'
         namespace = "ns"
         payload = {"three": 3}
-        res = p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
+        p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
         res = p.db.guid2meta.find_one({"_id": 1})
         self.assertEqual(res["sequence_meta"]["ns"], {"one": 1, "two": 2, "three": 3})
 
@@ -614,14 +614,14 @@ class Test_SeqMeta_guid_annotate_3(unittest.TestCase):
         # add the dictionary 'payload' to the namespace 'ns'
         namespace = "ns"
         payload = {"one": 1, "two": 2}
-        res = p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
+        p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
         res = p.db.guid2meta.find_one({"_id": 1})
         self.assertEqual(res["sequence_meta"]["ns"], payload)
 
         # add the dictionary 'payload' to the namespace 'ns'
         namespace = "ns"
         payload = {"two": 3}
-        res = p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
+        p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
         res = p.db.guid2meta.find_one({"_id": 1})
         self.assertEqual(res["sequence_meta"]["ns"], {"one": 1, "two": 3})
 
@@ -636,7 +636,7 @@ class Test_SeqMeta_guid_exists_1(unittest.TestCase):
         guid = 1
         namespace = "ns"
         payload = {"one": 1, "two": 2}
-        res = p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
+        p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
         res = p.guid_exists(guid)
         self.assertEqual(res, True)
         res = p.guid_exists(-1)
@@ -652,15 +652,15 @@ class Test_SeqMeta_guid_valid_1(unittest.TestCase):
         guid = "valid"
         namespace = "DNAQuality"
         payload = {"invalid": 0}
-        res = p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
+        p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
         guid = "invalid"
         namespace = "DNAQuality"
         payload = {"invalid": 1}
-        res = p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
+        p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
         guid = "missing"
         namespace = "DNAQuality"
         payload = {"N": 1}
-        res = p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
+        p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
 
         res = p.guid_valid("valid")
         self.assertEqual(res, 0)
@@ -681,20 +681,20 @@ class Test_SeqMeta_guid_valid_2(unittest.TestCase):
         guid = "valid1"
         namespace = "DNAQuality"
         payload = {"invalid": 0}
-        res = p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
+        p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
         guid = "valid2"
         namespace = "DNAQuality"
         payload = {"invalid": 0}
-        res = p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
+        p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
 
         guid = "invalid"
         namespace = "DNAQuality"
         payload = {"invalid": 1}
-        res = p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
+        p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
         guid = "missing"
         namespace = "DNAQuality"
         payload = {"N": 1}
-        res = p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
+        p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
 
         res = p.guids_valid()
         self.assertEqual(res, set(["valid1", "valid2"]))
@@ -712,11 +712,11 @@ class Test_SeqMeta_guid_annotate_5(unittest.TestCase):
         guid = 1
         namespace = "ns"
         payload1 = {"one": 1, "two": 2}
-        res = p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload1)
+        p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload1)
         res = p.db.guid2meta.find_one({"_id": 1})
         self.assertEqual(res["sequence_meta"]["ns"], payload1)
         payload2 = {"one": 1, "two": 2}
-        res = p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload2)
+        p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload2)
         res = p.db.guid2meta.find_one({"_id": 1})
         self.assertEqual(res["sequence_meta"]["ns"], payload2)
 
@@ -731,12 +731,12 @@ class Test_SeqMeta_guid_annotate_6(unittest.TestCase):
         guid = 1
         payload1 = {"one": 1, "two": 2}
 
-        res = p.guid_annotate(guid=guid, nameSpace="ns1", annotDict=payload1)
+        p.guid_annotate(guid=guid, nameSpace="ns1", annotDict=payload1)
         res = p.db.guid2meta.find_one({"_id": 1})
         self.assertEqual(res["sequence_meta"]["ns1"], payload1)
 
         payload2 = {"one": 1, "two": 2}
-        res = p.guid_annotate(guid=guid, nameSpace="ns2", annotDict=payload2)
+        p.guid_annotate(guid=guid, nameSpace="ns2", annotDict=payload2)
         res = p.db.guid2meta.find_one({"_id": 1})
 
         payloads = {"ns1": payload1, "ns2": payload2}
@@ -853,6 +853,7 @@ class Test_SeqMeta_guid2quality1(Test_SeqMeta_Base):
 
         resDict = self.t.guid2quality(None)  # restrict to nothing - return all
         self.assertTrue(resDict is not None)
+        assert resDict is not None  # for typing purposes
         self.assertEqual(resDict["g1"], 0.80)
         self.assertEqual(resDict["g2"], 0.60)
         self.assertEqual(resDict["g3"], 0.40)
@@ -888,6 +889,7 @@ class Test_SeqMeta_guid2quality2(Test_SeqMeta_Base):
 
         resDict = self.t.guid2quality(["g1", "g2", "g3"])
         self.assertTrue(resDict is not None)
+        assert resDict is not None  # for typing purposes
         self.assertEqual(resDict["g1"], 0.80)
         self.assertEqual(resDict["g2"], 0.60)
         self.assertEqual(resDict["g3"], 0.40)
@@ -937,6 +939,8 @@ class Test_SeqMeta_guid2ExaminationDateTime(Test_SeqMeta_Base1):
 
     def runTest(self):
         res = self.t.guid2ExaminationDateTime()
+        self.assertIsNotNone(res)
+        assert res is not None  # for typing purposes
         expected = 4
         self.assertEqual(len(res.keys()), expected)
       
@@ -946,6 +950,8 @@ class Test_SeqMeta_guid2ExaminationDateTime_order(Test_SeqMeta_Base1t):
 
     def runTest(self):
         res = self.t.guid2ExaminationDateTime()
+        self.assertIsNotNone(res)
+        assert res is not None  # for typing purposes
         expected = 4
         self.assertEqual(len(res.keys()), expected)
 
@@ -962,6 +968,8 @@ class Test_SeqMeta_guid_examination_time(Test_SeqMeta_Base1t):
 
     def runTest(self):
         res = self.t.guid2ExaminationDateTime()
+        self.assertIsNotNone(res)
+        assert res is not None  # for typing purposes
         expected = 4
         self.assertEqual(len(res.keys()), expected)
 
@@ -982,20 +990,24 @@ class Test_SeqMeta_guid_considered_after(Test_SeqMeta_Base1t):
 
     def runTest(self):
         res = self.t.guid2ExaminationDateTime()
+        self.assertIsNotNone(res)
+        assert res is not None  # for typing purposes
         expected = 4
         self.assertEqual(len(res.keys()), expected)
 
         # check that the sample were added in order, with increasing examination times.
         for i, guid in enumerate(sorted(self.seqs.keys())):  # the order added
             this_examination_time = self.t.guid_examination_time(guid)
-            res = self.t.guids_considered_after(this_examination_time)
+            self.assertIsNotNone(this_examination_time)
+            assert this_examination_time is not None  # for typing purposes
+            res2 = self.t.guids_considered_after(this_examination_time)
             self.assertEqual(
-                len(res), 3 - i
+                len(res2), 3 - i
             )  # with guid1, we expect three; with guid2, we expect 2; etc
 
-            res = self.t.guids_considered_after_guid(guid)
+            res2 = self.t.guids_considered_after_guid(guid)
             self.assertEqual(
-                len(res), 3 - i
+                len(res2), 3 - i
             )  # with guid1, we expect three; with guid2, we expect 2; etc
 
 
@@ -1015,6 +1027,8 @@ class Test_SeqMeta_allAnnotations(Test_SeqMeta_Base1):
 
     def runTest(self):
         df = self.t.guid_annotations()
+        self.assertIsNotNone(df)
+        assert df is not None  # for typing purposes
         self.assertEqual(len(df.keys()), 4)
 
 
@@ -1023,8 +1037,12 @@ class Test_SeqMeta_oneAnnotation(Test_SeqMeta_Base1):
 
     def runTest(self):
         df = self.t.guid_annotation("guid3")
+        self.assertIsNotNone(df)
+        assert df is not None  # for typing purposes
         self.assertEqual(len(df.keys()), 1)
         df = self.t.guid_annotation("missing")
+        self.assertIsNotNone(df)
+        assert df is not None  # for typing purposes
         self.assertEqual(len(df.keys()), 0)
 
 
@@ -1067,8 +1085,8 @@ class Test_Clusters(unittest.TestCase):
         self.assertNotEqual(clv, p.cluster_latest_version("cl1"))
         self.assertIsNotNone(p.cluster_read_update("cl1", clv))
 
-        payload4 = p.cluster_read("cl1")
-        self.assertEqual(payload4, payload3)
+        payload5 = p.cluster_read("cl1")
+        self.assertEqual(payload5, payload3)
 
         p.cluster_delete_legacy_by_key("cl1")
 

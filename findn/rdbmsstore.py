@@ -17,10 +17,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU Affero General Public License for more details.
 
 """
+import bson         # type: ignore
+from datetime import datetime, timedelta, timezone
+import hashlib
 import time
 import os
 import json
 import pandas as pd
+import psutil
 import logging
 
 import numpy as np
@@ -41,9 +45,22 @@ from sqlalchemy import (
 
 #from sqlalchemy.dialects import oracle
 from sqlalchemy import create_engine, inspect
+from sqlalchemy.sql.expression import delete, desc
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
+from typing import Any, Dict, Iterable, List, NoReturn, Optional, Set, Tuple, Type, TypedDict, Union
 import cx_Oracle
+
+Guid2NeighboursFormat1 = List[Union[str, int]]
+Guid2NeighboursFormat3 = Union[str]
+Guid2NeighboursFormat4 = Dict[str, Union[str, int]]
+Guid2NeighboursFormats = Union[Guid2NeighboursFormat1, Guid2NeighboursFormat3, Guid2NeighboursFormat4]
+
+class RecentDatabaseMonitoringRet(TypedDict, total=False):
+    recompression_data: bool
+    latest_stats: Dict[str, Union[int, np.float64]]
+    trend_stats: List[Dict[str, Any]]
+
 
 # global: definition of database structure
 # classes mapping to persistence database inherit from this
@@ -98,7 +115,7 @@ class RefCompressedSeq(db_pc):
         String(38),
         index=True,
         unique=True,
-        comment="the sample_id represented by the entry; sample_ids are typically guuids",
+        comment="the sample_id represented by the entry; sample_ids are typically guids",
     )
     examination_date = Column(
         TIMESTAMP,
@@ -110,6 +127,7 @@ class RefCompressedSeq(db_pc):
     )
     invalid = Column(
         Integer,
+        default=-1,
         index=True,
         comment="whether the sequence is of sufficient quality to be analysed (invalid = 0) or is not (invalid = 1).  Part of the annotations, but extracted into separate field for indexing.",
     )
@@ -159,14 +177,10 @@ class Cluster(db_pc):
         primary_key=True,
         comment="the primary key to the table",
     )
-    upload_date = Column(
-        DateTime, index=True, comment="the time the record was inserted"
-    )
     cluster_build_id = Column(
         String(40),
         index=True,
-        unique=True,
-        comment="an identifier for the contents; this is typically and sha-1 hash on the contents",
+        comment="an identifier for the contents; this is typically a sha-1 hash on the contents",
     )
     upload_date = Column(
         DateTime, index=True, comment="the time the record was inserted"
@@ -175,7 +189,7 @@ class Cluster(db_pc):
 
 
 class Monitor(db_pc):
-    """stores server monitoring entries, which are large character objects (json)"""
+    """stores monitor entries, which are large character objects (html)"""
 
     __tablename__ = "monitor"
     mo_int_id = Column(
@@ -183,6 +197,31 @@ class Monitor(db_pc):
         Identity(start=1),
         primary_key=True,
         comment="the primary key to the table",
+    )
+    mo_id = Column(
+        String(40),
+        index=True,
+        unique=True,
+        comment="an identifier for the contents; this is typically and sha-1 hash on the contents",
+    )
+    content = Column(Text, comment="html data")
+
+
+class ServerMonitoring(db_pc):
+    """stores server monitoring entries, which are large character objects (json)"""
+
+    __tablename__ = "server_monitoring"
+    sm_int_id = Column(
+        Integer,
+        Identity(start=1),
+        primary_key=True,
+        comment="the primary key to the table",
+    )
+    sm_id = Column(
+        String(40),
+        index=True,
+        unique=True,
+        comment="an identifier for the contents; this is typically and sha-1 hash on the contents",
     )
     upload_date = Column(
         DateTime, index=True, comment="the time the record was inserted"
@@ -228,7 +267,6 @@ class TreeStorage(db_pc):
         unique=True,
         comment="an identifier for the contents; this is typically and sha-1 hash on the contents",
     )
-
     upload_date = Column(
         DateTime, index=True, comment="the time the record was inserted"
     )
@@ -291,7 +329,12 @@ class fn3persistence:
 
     """
 
-    def __init__(self, connection_config=None, debug=0):
+    def __init__(
+            self,
+            connection_config=None,
+            debug=0,
+            server_monitoring_min_interval_msec=0,
+            ):
 
         """creates the RDBMS connection
 
@@ -391,8 +434,11 @@ class fn3persistence:
         GRANT CREATE TABLE TO PCADB;
         GRANT CREATE SYNONYM TO PCADB;
         ALTER USER PCADB DEFAULT TABLESPACE DATA quota unlimited on DATA;
-
         """
+
+        self.server_monitoring_min_interval_msec = server_monitoring_min_interval_msec
+        self.previous_server_monitoring_data = {}
+        self.previous_server_monitoring_time = None
 
         # connect and create session.  Validate inputs carefully.
         if connection_config is None:
@@ -510,7 +556,7 @@ class fn3persistence:
         # test - wait 10 seconds - for any existing transactions to cleartherwise, ORA-00054 can occur during oracle testing
         # happens only with multiple cpus
         if self.is_oracle:
-            time.sleep(0)
+            time.sleep(0)  # TODO
 
         self.Base.metadata.create_all(
             self.engine
@@ -520,6 +566,7 @@ class fn3persistence:
         Edge.__table__.drop(self.engine)
         Cluster.__table__.drop(self.engine)
         Monitor.__table__.drop(self.engine)
+        ServerMonitoring.__table__.drop(self.engine)
         MSA.__table__.drop(self.engine)
         TreeStorage.__table__.drop(self.engine)
         RefCompressedSeq.__table__.drop(self.engine)
@@ -534,7 +581,7 @@ class fn3persistence:
 
         # wait 10 seconds - otherwise, ORA-00054 can occur during oracle testing
         if self.is_oracle:
-            time.sleep(0)
+            time.sleep(0)  # TODO
         return
 
     def _bulk_load(self, upload_df, target_table, max_batch=100000):
@@ -676,3 +723,768 @@ class fn3persistence:
         if self.show_bar:
             bar.finish()
         return len(upload_df.index)
+
+    def delete_server_monitoring_entries(self, before_seconds: int) -> None:
+        """ deletes server monitoring entries more than before_seconds ago """
+        earliest_allowed = datetime.now() - timedelta(seconds=before_seconds)
+        self.session.query(ServerMonitoring).filter(ServerMonitoring.upload_date < earliest_allowed).delete()
+        self.session.commit()
+
+    def summarise_stored_items(self) -> Dict[str, Any]:
+        """ counts how many sequences exist of various types """
+        return {}
+
+    def connect(self) -> None:
+        """test whether the database is connected, and if not, tries to connect.
+        if the connection fails, raises pymongo.errors.ConnectionFailure"""
+        pass
+
+    def rotate_log(self) -> None:
+        """ forces rotation of the mongo log file """
+        pass
+
+    def raise_error(self, token: str) -> NoReturn:
+        """raises a ZeroDivisionError, with token as the message.
+        useful for unit tests of error logging"""
+        raise ZeroDivisionError(token)
+
+    def _delete_existing_data(self) -> None:
+        """ deletes existing data from the databases """
+        self.session.query(Config).delete()
+        self.session.query(RefCompressedSeq).delete()
+        self.session.query(Edge).delete()
+        self.session.query(Cluster).delete()
+        self.session.query(Monitor).delete()
+        self.session.query(ServerMonitoring).delete()
+        self.session.query(MSA).delete()
+        self.session.query(TreeStorage).delete()
+
+    def _delete_existing_clustering_data(self) -> None:
+        """ deletes any clustering data from the databases """
+        self.session.query(Cluster).delete()
+        self.session.query(MSA).delete()
+        self.session.query(TreeStorage).delete()
+
+    def first_run(self) -> bool:
+        """ if there is no config entry, it is a first-run situation """
+        row = self.session.query(Config).filter_by(config_key="config").first()
+        return row is None
+
+    def __del__(self) -> None:
+        """ closes any session """
+        self.closedown()
+
+    def closedown(self) -> None:
+        """ closes any session """
+        # client object has already been destroyed on reaching here
+        pass
+
+    def memory_usage(self) -> Dict[str, Union[int, float]]:
+        """returns memory usage by current python3 process
+        Uses the psutil module, as the resource module is not available in windows.
+        """
+        memdict = psutil.virtual_memory()._asdict()
+        sm = {"server|mstat|" + k: v for k, v in memdict.items()}
+        return sm
+
+    # methods for the config collection
+    def config_store(self, key: str, object: Dict[str, Any]) -> Any:
+        """stores object into config collection
+        It is assumed object is a dictionary
+        """
+
+        if not isinstance(object, dict):
+            raise TypeError("Can only store dictionary objects, not {0}".format(type(object)))
+
+        if row := self.session.query(Config).filter_by(config_key=key).first():
+            row.config_value = json.dumps(object).encode("utf-8")
+        else:
+            row = Config(config_key=key, config_value=json.dumps(object).encode("utf-8"))
+            self.session.add(row)
+        self.session.commit()
+
+    def config_read(self, key: str) -> Any:
+        """loads object from config.
+        It is assumed object is a dictionary"""
+        row = self.session.query(Config).filter_by(config_key=key).first()
+        if row is None:
+            return None
+        else:
+            return dict(_id=key, **json.loads(row.config_value.decode("utf-8")))
+
+    # methods for the server and database monitoring
+    def recent_database_monitoring(self, max_reported: int = 100) -> RecentDatabaseMonitoringRet:
+        """computes trends in the number of records holding pairs (guid2neighbours) vs. records.
+        This ratio is a measure of database health.  Ratios > 100 indicate the database may become very large, and query slowly"""
+        return {"recompression_data": False, "latest_stats": {"storage_ratio": 1}}
+
+    def recent_server_monitoring(self, max_reported: int = 100, selection_field: Optional[str] = None, selection_string: Optional[str] = None) -> List[dict]:
+        """returns a list containing recent server monitoring, in reverse order (i.e. tail first).
+        The _id field is an integer reflecting the order added.  Lowest numbers are most recent.
+
+        Inputs
+        max_reported - return this number of lines, at most.
+        selection_field - if not None, will only return lines containing selection_string
+                          in the 'selection_field' key of the returned dictionary.
+        selection_string -if selection_field is not None, only returns rows if
+                          selection_string is present in the 'selection_field' key of the
+                          monitoring element. If None, this constraint is ignored.
+        """
+
+
+
+        if not isinstance(max_reported, int):
+            raise TypeError(f"limit must be an integer, but it is a {type(max_reported)}")
+        if not max_reported >= 0:
+            raise ValueError("limit must be more than or equal to zero")
+
+        if max_reported == 0:
+            return []
+
+        def row_to_dict(res: ServerMonitoring) -> dict:
+            d = json.loads(res.content.decode("utf-8"))
+            d["_id"] = res.sm_int_id
+            if selection_field is None:
+                return d
+            else:
+                if d[selection_field] == selection_string:
+                    return d
+                else:
+                    return None
+
+        return [ d
+                for res in
+                self.session.query(ServerMonitoring)
+                .order_by(desc(ServerMonitoring.sm_int_id))
+                .limit(max_reported)
+                for d in (row_to_dict(res),)
+                if d is not None
+                ]
+
+
+    def server_monitoring_store(self, message: str = "No message provided", what: Optional[str] = None, guid: Optional[str] = None, content: Dict[str, Any] = {}) -> bool:
+        """ stores content, a dictionary, into the server monitoring log"""
+
+        if not isinstance(content, dict):
+            raise TypeError("Can only store dictionary objects, not {0}".format(type(content)))
+
+        now = dict(content)
+        if what is not None:
+            now["content|activity|whatprocess"] = what
+        if guid is not None:
+            now["content|activity|guid"] = guid
+        now["context|info|message"] = message
+        current_time = datetime.now()
+        now["context|time|time_now"] = str(current_time.isoformat())
+        now["context|time|time_boot"] = datetime.fromtimestamp(psutil.boot_time()).strftime("%Y-%m-%d %H:%M:%S")
+
+        # should we write this data?  We have the option not to log all messages, to prevent the store getting very full.
+        write_content = False
+        if self.previous_server_monitoring_time is None:
+            write_content = True  # yes if this is the first record written.
+        else:
+            time_since_last_write = current_time - self.previous_server_monitoring_time  # yes if it's after the server_moni
+            t = 1000 * float(time_since_last_write.seconds) + float(time_since_last_write.microseconds) / 1000
+            if t >= self.server_monitoring_min_interval_msec:
+                write_content = True
+
+        if write_content:
+            json_now = json.dumps(now).encode("utf-8")
+            row = ServerMonitoring(sm_id=hashlib.sha1(json_now).hexdigest(), upload_date=current_time, content=json_now)
+            self.session.add(row)
+            self.previous_server_monitoring_time = current_time
+            self.previous_server_monitoring_data = now
+            return True
+        else:
+            return False
+
+    # methods for monitor, which store the contents of an html file
+    # in a gridFS store.
+    def monitor_store(self, monitoring_id: str, html: str) -> str:
+        """stores the monitor output string html.  Overwrites any prior object."""
+
+        if not isinstance(html, str):
+            raise TypeError("Can only store string objects, not {0}".format(type(html)))
+
+        self.session.query(Monitor).filter_by(mo_id=monitoring_id).delete()
+
+        row = Monitor(mo_id=monitoring_id, content=html.encode("utf-8"))
+        self.session.add(row)
+        self.session.commit()
+
+    def monitor_read(self, monitoring_id: str) -> Optional[str]:
+        """ loads stored string (e.g. html object) from the monitor collection. """
+
+        if res := self.session.query(Monitor).filter_by(mo_id=monitoring_id).first():
+            return res.content.decode("utf-8")
+        else:
+            return None
+
+    # methods for multisequence alignments
+    def msa_store(self, msa_token: str, msa: dict) -> Optional[str]:
+        """ stores the msa object msa under token msa_token. """
+
+        if not isinstance(msa, dict):
+            raise TypeError("Can only store dictionary objects, not {0}".format(type(msa)))
+
+        # TODO is this the correct behaviour? Should we throw instead?
+        self.session.query(MSA).filter_by(msa_id=msa_token).delete()
+
+        res = MSA(
+                msa_id=msa_token,
+                upload_date=datetime.now(),
+                content=json.dumps(msa).encode("utf-8"),
+                )
+        self.session.add(res)
+        self.session.commit()
+
+    def msa_read(self, msa_token: str) -> Optional[dict]:
+        """loads object from msa collection.
+        It is assumed object is a dictionary"""
+
+        if res := self.session.query(MSA).filter_by(msa_id=msa_token).first():
+            return json.loads(res.content.decode("utf-8"))
+        else:
+            return None
+
+    def msa_delete(self, msa_token: str) -> None:
+        """deletes the msa with token msa_token"""
+
+        self.session.query(MSA).filter_by(msa_id=msa_token).delete()
+        self.session.commit()
+
+    def msa_stored_ids(self) -> List[str]:
+        """ returns a list of msa tokens of all objects stored """
+
+        return [res.msa_id for res in self.session.query(MSA)]
+
+    def msa_delete_unless_whitelisted(self, whitelist: Iterable[str]) -> None:
+        """deletes the msa unless the id is in whitelist"""
+
+        self.session.query(MSA).filter(MSA.msa_id.not_in(whitelist)).delete()
+        self.session.commit()
+
+    # methods for trees
+    
+    def tree_store(self, tree_token: str, tree: dict) -> Optional[str]:
+        """ stores the tree object tree under token tree_token. """
+
+        if not isinstance(tree, dict):
+            raise TypeError("Can only store dictionary objects, not {0}".format(type(tree)))
+
+        # TODO is this the correct behaviour? Should we throw instead?
+        self.session.query(TreeStorage).filter_by(ts_id=tree_token).delete()
+
+        row = TreeStorage(
+                ts_id=tree_token,
+                upload_date=datetime.now(),
+                content=json.dumps(tree).encode("utf-8"),
+                )
+        self.session.add(row)
+        self.session.commit()
+
+    def tree_read(self, tree_token: str) -> Optional[dict]:
+        """loads object from tree collection.
+        It is assumed object is a dictionary"""
+
+        if res := self.session.query(TreeStorage).filter_by(ts_id=tree_token).first():
+            return json.loads(res.content.decode("utf-8"))
+        else:
+            return None
+
+    def tree_delete(self, tree_token: str) -> None:
+        """deletes the tree with token tree_token"""
+
+        self.session.query(TreeStorage).filter_by(ts_id=tree_token).delete()
+        self.session.commit()
+
+    def tree_stored_ids(self) -> List[str]:
+        """ returns a list of tree tokens of all objects stored """
+
+        return [res.ts_id for res in self.session.query(TreeStorage)]
+
+    def tree_delete_unless_whitelisted(self, whitelist: Iterable[str]) -> None:
+        """deletes the tree unless the id is in whitelist"""
+
+        self.session.query(TreeStorage).filter(TreeStorage.ts_id.not_in(whitelist)).delete()
+        self.session.commit()
+
+    # methods for clusters
+    def cluster_store(self, clustering_key: str, obj: dict) -> int:
+        """stores the clustering object obj.  retains previous version.  To clean these up, call cluster_delete_legacy.
+
+        obj: a dictionary to store
+        clustering_key: the name of the clustering, e.g. TBSNP12-graph
+
+        Returns:
+        current cluster version
+
+        Note; does not replace previous version, but stores a new one.
+
+        cf. warning in Mongo docs:
+        Do not use GridFS if you need to update the content of the entire file atomically.
+        As an alternative you can store multiple versions of each file and specify the current version of the file in the metadata.
+        You can update the metadata field that indicates “latest” status in an atomic update after uploading the new version of the file,
+        and later remove previous versions if needed.
+        """
+
+        if not isinstance(obj, dict):
+            raise TypeError(f"Can only store dictionary objects, not {type(obj)}")
+
+        json_repr = json.dumps(obj, cls=NPEncoder).encode("utf-8")
+        cluster = Cluster(cluster_build_id=clustering_key, upload_date=datetime.now(), content=json_repr)
+        self.session.add(cluster)
+        self.session.commit()
+        return cluster.cl_int_id
+
+    def cluster_read(self, clustering_key: str) -> Optional[dict]:
+        """loads object from clusters collection corresponding to the most recent version of
+        the clustering, saved with cluster_build_id = 'clustering_key'.
+        """
+        if res := self.session.query(Cluster).filter_by(cluster_build_id=clustering_key).order_by(desc(Cluster.upload_date)).first():
+            return json.loads(res.content.decode("utf-8"))
+        else:
+            return None
+
+    def cluster_read_update(self, clustering_key: str, current_cluster_version: int) -> Optional[dict]:
+        """loads object from clusters collection corresponding to the most recent version
+        of the clustering, saved with cluster_build_id = 'clustering_key'.
+        it will read only if the current version is different from current_cluster_version; other wise, it returns None
+        It is assumed object is a dictionary"""
+
+        if res := self.session.query(Cluster).filter_by(cluster_build_id=clustering_key).order_by(desc(Cluster.upload_date)).first():
+            if res.cl_int_id != current_cluster_version:
+                return json.loads(res.content.decode("utf-8"))
+        return None
+
+    def cluster_latest_version(self, clustering_key: str) -> int:
+        """ returns id of latest version """
+
+        if res := self.session.query(Cluster).filter_by(cluster_build_id=clustering_key).order_by(desc(Cluster.upload_date)).first():
+            return res.cl_int_id
+        else:
+            return None
+
+    def cluster_keys(self, clustering_name: Optional[str] = None) -> List[str]:
+        """lists  clustering keys beginning with clustering_name.  If clustering_name is none, all clustering keys are returned."""
+
+        if clustering_name:
+            return list(sorted(set(res.cluster_build_id for res in self.session.query(Cluster).filter(Cluster.cluster_build_id.startswith(clustering_name)))))
+        else:
+            return list(sorted(set(res.cluster_build_id for res in self.session.query(Cluster))))
+
+    def cluster_versions(self, clustering_key: str) -> List[bson.objectid.ObjectId]:
+        """lists ids and storage dates corresponding to versions of clustering identifed by clustering_key.
+        the newest version is first.
+        """
+
+        return list(self.session.query(Cluster).filter_by(cluster_build_id=clustering_key).order_by(desc(Cluster.upload_date)))
+
+    def cluster_delete_all(self, clustering_key: str) -> None:
+        """delete all clustering objects, including the latest version, stored under clustering_key"""
+        
+        self.session.execute(delete(Cluster).where(Cluster.cluster_build_id == clustering_key))
+        self.session.commit()
+
+    def cluster_delete_legacy_by_key(self, clustering_key: str) -> None:
+        """delete all clustering objects, except latest version, stored with key clustering_key"""
+
+        # DELETE queries can't use offset
+        for row in self.session.query(Cluster).filter_by(cluster_build_id=clustering_key).offset(1):
+            self.session.delete(row)
+        self.session.commit()
+
+    def cluster_delete_legacy(self, clustering_name: str) -> None:
+        """delete all clustering objects, except latest version, stored with  clustering_name"""
+        for clustering_key in self.cluster_keys(clustering_name=clustering_name):
+            self.cluster_delete_legacy_by_key(clustering_key)
+
+    def refcompressedseq_store(self, guid: str, obj: dict) -> str:
+        """stores the json object obj with guid guid.
+        Issues an error FileExistsError
+        if the guid already exists."""
+
+        if not isinstance(obj, dict):
+            raise TypeError("Can only store dictionary objects, not {0}".format(type(obj)))
+ 
+        # TODO is this the correct behaviour
+        if row := self.session.query(RefCompressedSeq).filter_by(sequence_id=guid).delete():
+            pass
+        else:
+            row = RefCompressedSeq(sequence_id=guid, annotations="{}")
+            self.session.add(row)
+
+        row.content = json.dumps(obj).encode("utf-8")
+
+        self.session.commit()
+
+    def refcompressedsequence_read(self, guid: str) -> Any:
+        """loads object from refcompressedseq collection.
+        It is assumed object stored is a dictionary"""
+
+        if row := self.session.query(RefCompressedSeq).filter_by(sequence_id=guid).first():
+            return json.loads(row.content.decode("utf-8"))
+        else:
+            return None
+
+    def refcompressedsequence_guids(self) -> Set[str]:
+        """loads guids from refcompressedseq collection."""
+
+        return set(res.sequence_id for res in self.session.query(RefCompressedSeq))
+
+    # methods for guid2meta
+    def guid_annotate(self, guid: str, nameSpace: str, annotDict: dict) -> None:
+        """adds multiple annotations of guid from a dictionary;
+        all annotations go into a namespace.
+        creates the record if it does not exist"""
+
+        if not isinstance(annotDict, dict):
+            raise TypeError("Can only store dictionary objects, not {0}".format(type(annotDict)))
+
+        if row := self.session.query(RefCompressedSeq).filter_by(sequence_id=guid).first():
+            pass
+        else:
+            row = RefCompressedSeq(sequence_id=guid, annotations="{}".encode("utf-8"), content="{}".encode("utf-8"))
+            self.session.add(row)
+
+        if nameSpace == "DNAQuality":
+            if "examinationDate" in annotDict:
+                row.examination_date = annotDict["examinationDate"]
+                annotDict["examinationDate"] = annotDict["examinationDate"].isoformat()
+            if "invalid" in annotDict:
+                row.invalid = annotDict["invalid"]
+            if "propACTG" in annotDict:
+                row.prop_actg = annotDict["propACTG"]
+
+        annotations = json.loads(row.annotations.decode("utf-8"))
+        annotations[nameSpace] = annotDict
+        row.annotations = json.dumps(annotations).encode("utf-8")
+
+        self.session.commit()
+
+    def guids(self) -> Set[str]:
+        """ returns all registered guids """
+        return self.refcompressedsequence_guids()
+
+    def guids_considered_after(self, addition_datetime: datetime) -> Set[str]:
+        """ returns all registered guid added after addition_datetime
+        addition_datetime: a date of datetime class."""
+
+        if not isinstance(addition_datetime, datetime):
+            raise TypeError("addition_datetime must be a datetime value.  It is {0}.  Value = {1}".format(type(addition_datetime), addition_datetime))
+        return set(self.session.query(RefCompressedSeq).filter(RefCompressedSeq.examination_date > addition_datetime))
+
+    def _guids_selected_by_validity(self, validity: int) -> Set[str]:
+        """returns  registered guids, selected on their validity
+
+        0 = guid is valid
+        1 = guid is invalid
+
+        """
+
+        return set(res.sequence_id for res in self.session.query(RefCompressedSeq).filter_by(invalid=validity))
+
+    def singletons(self, method: str = "approximate", return_top: int = 1000) -> pd.DataFrame:
+        """returns guids and the number of singleton records, which
+        (if high numbers are present) indicates repacking is needed.
+        Inclusion of max_records is important for very large datasets, or the query is slow.
+
+        Parameters:
+        method: either 'approximate' or 'exact'.  For ranking samples for repacking, the approximate method is recommended.
+        return_top:  the number of results to return.  Set > number of samples to return all records.  If method = 'exact', return_top is ignored and all records are returned.
+
+        The approximate method is much faster than the exact one if large numbers of singletons are present; it randomly downsamples the guid-neighbour pairs in
+        the guid2neighbour collection, taking 100k samples only, and the counts the number of singletons in the downsample.  This is therefore a method of ranking
+        samples which may benefit from repacking.  This sampling method returns queries in a few milliseconds in testing on large tables.
+        This method is not deterministic.
+
+        In the event of failure to successfully generate a sample of sufficient size (set to 100k at present),
+        which can happen if there are fewer than singletons, then the exact method will be used as a fallback.  If fallback of this kind occurs, only return_top samples will be returned.
+
+        The exact method computes the exact non-zero number of singletons for each sample.  This requires an index scan which can be
+        surprisingly slow, with the query taking > 30 seconds with > table size ~ 3 x10^7.   This method is deterministic.
+
+        Returns:
+        a set of sample identifiers ('guids') which contain > min_number_records singleton entries.
+        """
+        return pd.DataFrame()
+
+    def guids_valid(self) -> set:
+        """return all registered valid guids.
+
+        Validity is determined by the contents of the DNAQuality.invalid field, on which there is an index"""
+        return self._guids_selected_by_validity(0)
+
+    def guids_invalid(self) -> set:
+        """return all invalid guids
+
+        Validity is determined by the contents of the DNAQuality.invalid field, on which there is an index"""
+        return self._guids_selected_by_validity(1)
+
+    def guid_exists(self, guid: str) -> bool:
+        """ checks the presence of a single guid """
+        return self.session.query(RefCompressedSeq).filter_by(sequence_id=guid).first() is not None
+
+    def guid_valid(self, guid: str) -> int:
+        """checks the validity of a single guid
+
+        Parameters:
+        guid: the sequence identifier
+
+        Returns
+        -1   The guid does not exist
+        0    The guid exists and the sequence is valid
+        1    The guid exists and the sequence is invalid
+        -2    The guid exists, but there is no DNAQuality.valid key"""
+
+        if res := self.session.query(RefCompressedSeq).filter_by(sequence_id=guid).first():
+            if res.invalid == 0:
+                return 0
+            elif res.invalid == 1:
+                return 1
+            else:
+                return -2
+        else:
+            return -1
+
+    def guid_examination_time(self, guid: str) -> Optional[datetime]:
+        """returns the examination time for a single guid
+
+        Parameters:
+        guid: the sequence identifier
+
+        Returns either
+        The examination datetime value for this guid OR
+        None if the guid does not exist
+        """
+        if res := self.session.query(RefCompressedSeq).filter_by(sequence_id=guid).first():
+            return res.examination_date
+        else:
+            return None
+
+    def guids_considered_after_guid(self, guid: str) -> Set[str]:
+        """ returns all registered guids added after guid
+        guid: a sequence identifier"""
+
+        if addition_datetime := self.guid_examination_time(guid):
+            return self.guids_considered_after(addition_datetime)
+        else:
+            raise ValueError("guid is not valid: {0}".format(guid))
+     
+    def guid_quality_check(self, guid: str, cutoff: Union[float, int]) -> Optional[bool]:
+        """Checks whether the quality of one guid exceeds the cutoff.
+
+        If the guid does not exist, returns None.
+        If the guid does exist and has quality< cutoff, returns False.
+        Otherwise, returns True.
+        """
+
+        # test input
+        if not type(cutoff) in [float, int]:
+            raise TypeError("Cutoff should be either floating point or integer, but it is %s" % type(cutoff))
+        if not type(guid) == str:
+            raise TypeError("The guid passed should be as string, not %s" % str(guid))
+
+        # recover record, compare with quality
+
+        res = self.session.query(RefCompressedSeq).filter_by(sequence_id=guid).first()
+        if res is None:  # no entry for this guid
+            return None
+        else:
+            # report whether it is larger or smaller than cutoff
+            return res.prop_actg >= cutoff
+
+    def _guid2seq(self, guidList: Optional[List[str]]) -> Iterable[RefCompressedSeq]:
+        """returns the RefCompressedSeq for each guid in guidList
+        If guidList is None, all items are returned.
+        """
+        if guidList is None:
+            return self.session.query(RefCompressedSeq)
+        else:
+            return self.session.query(RefCompressedSeq).filter(RefCompressedSeq.sequence_id.in_(guidList))
+
+
+    def guid2item(self, guidList: Optional[List[str]], namespace: str, tag: str) -> dict:
+        """returns the annotation (such as sequence quality, which is stored as an annotation)
+        in namespace:tag for all guids in guidlist.
+        If guidList is None, all items are returned.
+        An error is raised if namespace and tag is not present in each record.
+        """
+        return {res.sequence_id: json.loads(res.annotations.decode("utf-8"))[namespace][tag] for res in self._guid2seq(guidList)}
+
+    def guid2ExaminationDateTime(self, guidList: Optional[List[str]] = None) -> dict:
+        """ returns quality scores and examinationDate for all guids in guidlist.  If guidList is None, all results are returned. """
+
+        return {res.sequence_id: res.examination_date for res in self._guid2seq(guidList)}
+
+    def guid2quality(self, guidList: Optional[List[str]] = None) -> Optional[dict]:
+        """returns quality scores for all guids in guidlist (or all samples if guidList is None)
+        potentially expensive query if guidList is None."""
+
+        return {res.sequence_id: res.prop_actg for res in self._guid2seq(guidList)}
+
+    def guid2propACTG_filtered(self, cutoff: Union[int, float] = 0) -> Dict[str, float]:
+        """recover guids which have good quality, > cutoff.
+        These are in the majority, so we run a table scan to find these.
+
+        This query is potentially very inefficient- best avoided
+        """
+        
+        query = self.session.query(RefCompressedSeq).filter(RefCompressedSeq.prop_actg >= cutoff)
+
+        return {res.sequence_id: res.prop_actg for res in query}
+
+    def guid2items(self, guidList: Optional[List[str]], namespaces: Optional[Set[str]]) -> Dict[Any, Dict[str, Any]]:
+        """returns all annotations in namespaces, which is a list
+        If namespaces is None, all namespaces are returned.
+        If guidList is None, all items are returned.
+        To do this, a table scan is performed - indices are not used.
+        """
+
+        def select_namespaces(annotations: dict) -> dict:
+            if namespaces:
+                return {ns: annotations[ns]
+                        for ns in annotations.keys() & namespaces}
+            else:
+                return annotations
+
+        return {res.sequence_id: select_namespaces(json.loads(res.annotations.decode("utf-8")))
+                for res in self._guid2seq(guidList)}
+
+
+    def guid_annotations(self) -> Optional[Dict[Any, Dict[str, Any]]]:
+        """ return all annotations of all guids """
+
+        return self.guid2items(None, None)  # no restriction by namespace or by guid.
+
+    def guid_annotation(self, guid: str) -> Optional[Dict[Any, Dict[str, Any]]]:
+        """ return all annotations of one guid """
+
+        return self.guid2items([guid], None)  # restriction by guid.
+
+    def _id_for_guid(self, guid):
+        if row := self.session.query(RefCompressedSeq).filter_by(sequence_id=guid).first():
+            return row.seq_int_id
+        else:
+            row = RefCompressedSeq(sequence_id=guid, annotations="{}", content="{}")
+            self.session.add(row)
+            self.session.commit()
+            return row.seq_int_id
+
+    def guid2neighbour_add_links(self, guid: str, targetguids: Dict[str, Dict[str, int]], use_update: bool = False) -> Dict[str, int]:
+        """adds links between guid and their neighbours ('targetguids')
+
+        Parameters:
+        guid: the 'source' guid for the matches eg 'guid1'
+        targetguids: what is guid linked to, eg
+        {
+                'guid2':{'dist':12},
+                'guid3':{'dist':2}
+        }
+        use_update -  currently ignored, always False.  Setting True yields NotImplementedError
+
+        This stores links in the guid2neighbour collection.
+        If use_update = True, will update target documents, adding a new link to the targetguid document.
+            {targetguid -> {previousguid: distance1, previousguid2: distance2}} --> {targetguid -> {previousguid: distance1, previousguid2: distance2, guid: distance}
+            This approach has many disadvantages
+            - multiple database accesses: one to find a document to update, and one to update it - may be hundreds or thousands of database connections for each insert operation
+            - approach is (with Mongodb) not inherently atomic.  If failure occurs in the middle of the process, database can be left in an inconsistent state, requiring use of transactions (slower)
+            - by contrast, the no_update method (default) requires a single insert_many operation, which is much cleaner and is atomic.
+            - the use_update approach is not implemented
+        If use_update = False (default), for each new link from targetguid -> guid, a new document will be inserted linking {targetguid -> {guid: distance}}
+
+        The function guid2neighbour_repack() reduces the number of documents
+        required to store the same information.
+
+        Returns:
+        The number of records written
+        """
+
+        id_1 = self._id_for_guid(guid)
+
+        for guid2, dist in targetguids.items():
+            id_2 = self._id_for_guid(guid2)
+            self.session.add(Edge(seq_int_id_1=id_1, seq_int_id_2=id_2, dist=dist["dist"]))
+            self.session.add(Edge(seq_int_id_1=id_2, seq_int_id_2=id_1, dist=dist["dist"]))
+
+        self.session.commit()
+
+    class Guid2NeighbourRepackRet(TypedDict):
+        guid: str
+        finished: str
+        pre_optimisation: dict
+        actions_taken: Dict[str, int]
+
+    def guid2neighbour_repack(self, guid: str, always_optimise: bool = False, min_optimisable_size: int = 1) -> Guid2NeighbourRepackRet:
+        """alters the mongodb representation of the links of guid.
+
+        This stores links in the guid2neighbour collection;
+        each stored document links one guid to one target.
+
+        This function reduces the number of documents
+        required to store the same information.
+
+        Internally, the documents in guid2neighbour are of the form
+        {'guid':'guid1', 'rstat':'s', 'neighbours':{'guid2':{'dist':12, ...}}} OR
+        {'guid':'guid1', 'rstat':'m', 'neighbours':{'guid2':{'dist':12, ...}, 'guid3':{'dist':5, ...}} OR
+        {'guid':'guid1', 'rstat':'f', 'neighbours':{'guid2':{'dist':12, ...}, 'guid3':{'dist':5, ...}}
+
+        The last example occurs when the maximum number of neighbours permitted per record has been reached.
+
+        This operation moves rstat='s' record's neighbours into rstat='m' type records.
+        It guarantees that no guid-guid links will be lost, but more than one record of the same link may exist
+        during processing.  This does not matter, because guid2neighbours() deduplicates.
+
+        Parameters:
+        guid : the identifier of a sample to repack
+        always_optimise: consider for optimisation even if there are no 's' (single item) records
+        """
+        return {
+            "guid": guid,
+            "finished": datetime.now().isoformat(),
+            "pre_optimisation": {"s_records": 0, "msg": "Repacking not necessary on RDBMS"},
+            "actions_taken": {},
+        }
+
+    class Guid2NeighboursRet(TypedDict):
+        guid: str
+        neighbours: List[Guid2NeighboursFormats]
+
+    def guid2neighbours(self, guid: str, cutoff: int = 20, returned_format: int = 2) -> Guid2NeighboursRet:
+        """returns neighbours of guid with cutoff <=cutoff.
+        Returns links either as
+
+        format 1 [[otherGuid, distance],[otherGuid2, distance2],...]
+        or as
+        format 2 [[otherGuid, distance, N_just1, N_just2, N_either],[],...]
+        or as
+        format 3 [otherGuid1, otherGuid2, otherGuid3]
+        or as
+        format 4 [{'guid':otherguid, 'snv':distance}]
+
+            Internally, the documents in guid2neighbour are of the form
+            {'guid':'guid1', 'rstat':'s', 'neighbours':{'guid2':{'dist':12, ...}}} OR
+            {'guid':'guid1', 'rstat':'m', 'neighbours':{'guid2':{'dist':12, ...}, 'guid3':{'dist':5, ...}} OR
+            {'guid':'guid1', 'rstat':'f', 'neighbours':{'guid2':{'dist':12, ...}, 'guid3':{'dist':5, ...}}
+
+            However, irrespective of their internal representation, this function always returns
+            exactly one item for each link of 'guid'; duplicates are not possible.
+            The last example occurs when the maximum number of neighbours permitted per record has been reached.
+        """
+
+        def f(res):
+            otherGuid = self.session.query(RefCompressedSeq).filter_by(seq_int_id=res.seq_int_id_2).first().sequence_id
+            dist = res.dist
+            if returned_format == 1:
+                return [otherGuid, dist]
+            elif returned_format == 2:
+                raise NotImplementedError("format 2 is no longer supported")
+            elif returned_format == 3:
+                return otherGuid
+            elif returned_format == 4:
+                return {"guid": otherGuid, "snv": dist}
+            else:
+                raise ValueError(f"Unable to understand returned_format = {returned_format}")
+
+        return {"guid": guid,
+                "neighbours": [f(res) for res in self.session.query(Edge).filter_by(seq_int_id_1=self._id_for_guid(guid)).filter(Edge.dist <= cutoff)]}
