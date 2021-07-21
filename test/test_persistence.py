@@ -2,8 +2,8 @@
 import unittest
 import time
 import json
-import pymongo      # type: ignore
-import pandas as pd # type: ignore
+import pymongo  # type: ignore
+import pandas as pd  # type: ignore
 import pickle
 from findn.NucleicAcid import NucleicAcid
 
@@ -77,7 +77,7 @@ class Test_Server_Monitoring_2(unittest.TestCase):
             res = p.recent_server_monitoring(-1)
 
         with self.assertRaises(TypeError):
-            res = p.recent_server_monitoring("thing") # type: ignore
+            res = p.recent_server_monitoring("thing")  # type: ignore
 
 
 class Test_Server_Monitoring_3(unittest.TestCase):
@@ -87,9 +87,8 @@ class Test_Server_Monitoring_3(unittest.TestCase):
         p = fn3persistence(
             connString=UNITTEST_MONGOCONN,
             debug=2,
-
             server_monitoring_min_interval_msec=1000,
-        )       # no logging for within 1 secs of another event
+        )  # no logging for within 1 secs of another event
 
         retVal = p.server_monitoring_store(message="one")  # should insert
         self.assertEqual(retVal, True)
@@ -911,8 +910,8 @@ class Test_SeqMeta_Base1(unittest.TestCase):
             self.t.guid_annotate(
                 guid=guid, nameSpace="DNAQuality", annotDict=dna.composition
             )
-            
-            
+
+
 class Test_SeqMeta_Base1t(unittest.TestCase):
     """initialise FN persistence and adds data, 0.1 secs apart.
     Used for testing queries examining order of recovery of samples."""
@@ -943,7 +942,7 @@ class Test_SeqMeta_guid2ExaminationDateTime(Test_SeqMeta_Base1):
         assert res is not None  # for typing purposes
         expected = 4
         self.assertEqual(len(res.keys()), expected)
-      
+
 
 class Test_SeqMeta_guid2ExaminationDateTime_order(Test_SeqMeta_Base1t):
     """tests guid2ExaminationDateTime"""

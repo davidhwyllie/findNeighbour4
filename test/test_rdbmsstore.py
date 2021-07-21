@@ -7,7 +7,6 @@
 import os
 import json
 import time
-import hashlib
 import unittest
 import pandas as pd
 from sqlalchemy import func
@@ -118,9 +117,9 @@ class Test_Server_Monitoring_0(Test_Database):
     def runTest(self):
         for pdm in self.pdms():
             pdm.server_monitoring_store(message="one")
-    
+
             res = pdm.recent_server_monitoring(100)
-    
+
             self.assertEqual(len(res), 1)
             self.assertTrue(isinstance(res, list))
 
@@ -131,18 +130,19 @@ class Test_Server_Monitoring_1(Test_Database):
     def runTest(self):
         for pdm in self.pdms():
             res1 = pdm.recent_database_monitoring(100)
-    
+
             db_summary = pdm.summarise_stored_items()
             pdm.server_monitoring_store(
                 what="dbManager", message="Repacking", guid="-", content=db_summary
             )
             res2 = pdm.recent_database_monitoring(100)
             self.assertEqual(
-                res1, {"latest_stats": {"storage_ratio": 1}, "recompression_data": False}
+                res1,
+                {"latest_stats": {"storage_ratio": 1}, "recompression_data": False},
             )
             self.assertFalse(res2["recompression_data"])
             self.assertEqual(res2["latest_stats"]["storage_ratio"], 1)
-    
+
             json.dumps(res2)  # should succeed
 
 
@@ -154,31 +154,31 @@ class Test_Server_Monitoring_2(Test_Database):
             pdm.server_monitoring_store(message="one")
             pdm.server_monitoring_store(message="two")
             pdm.server_monitoring_store(message="three")
-    
+
             res = pdm.recent_server_monitoring(0)
             self.assertEqual(len(res), 0)
             self.assertTrue(isinstance(res, list))
-    
+
             res = pdm.recent_server_monitoring(1)
             self.assertEqual(len(res), 1)
             self.assertTrue(isinstance(res, list))
-    
+
             res = pdm.recent_server_monitoring(3)
             self.assertEqual(len(res), 3)
             self.assertTrue(isinstance(res, list))
-    
+
             res = pdm.recent_server_monitoring(5)
             self.assertEqual(len(res), 3)
             self.assertTrue(isinstance(res, list))
-    
+
             with self.assertRaises(TypeError):
-                res = pdm.server_monitoring_store(content=42) # type: ignore
+                res = pdm.server_monitoring_store(content=42)  # type: ignore
 
             with self.assertRaises(ValueError):
                 res = pdm.recent_server_monitoring(-1)
-    
+
             with self.assertRaises(TypeError):
-                res = pdm.recent_server_monitoring("thing") # type: ignore
+                res = pdm.recent_server_monitoring("thing")  # type: ignore
 
 
 class Test_Server_Monitoring_3(Test_Database):
@@ -192,13 +192,13 @@ class Test_Server_Monitoring_3(Test_Database):
             res = pdm.recent_server_monitoring(100)
             self.assertEqual(len(res), 1)
             self.assertTrue(isinstance(res, list))
-    
+
             retVal = pdm.server_monitoring_store(message="two")  # should not insert
             self.assertEqual(retVal, False)
             res = pdm.recent_server_monitoring(100)
             self.assertEqual(len(res), 1)
             self.assertTrue(isinstance(res, list))
-    
+
             time.sleep(2)  # seconds
             retVal = pdm.server_monitoring_store(message="three")  # should insert
             self.assertEqual(retVal, True)
@@ -221,9 +221,9 @@ class Test_Server_Monitoring_4(Test_Database):
             res = pdm.recent_server_monitoring(100)
             self.assertEqual(len(res), 1)
             self.assertTrue(isinstance(res, list))
-    
+
             time.sleep(2)  # seconds
-    
+
             pdm.delete_server_monitoring_entries(1)
             res = pdm.recent_server_monitoring(100)
             self.assertEqual(len(res), 0)
@@ -237,12 +237,14 @@ class Test_Server_Monitoring_5(Test_Database):
         for pdm in self.pdms():
             pdm.server_monitoring_store(content={"x": "true"})
             pdm.server_monitoring_store(content={"x": "false"})
-    
+
             res = pdm.recent_server_monitoring()
             self.assertEqual(len(res), 2)
             self.assertTrue(isinstance(res, list))
 
-            res = pdm.recent_server_monitoring(selection_field="x", selection_string="true")
+            res = pdm.recent_server_monitoring(
+                selection_field="x", selection_string="true"
+            )
             self.assertEqual(len(res), 1)
             self.assertTrue(isinstance(res, list))
 
@@ -263,7 +265,7 @@ class Test_SeqMeta_singleton(Test_Database):
                 },
             )
             res1 = pdm.guid2neighbours("srcguid", returned_format=1)
-    
+
             self.assertEqual(5, len(res1["neighbours"]))
             singletons = pdm.singletons(method="exact")
             self.assertEqual(len(singletons.index), 0)
@@ -286,13 +288,13 @@ class Test_SeqMeta_guid2neighbour_8(Test_Database):
                     "guid5": {"dist": 5},
                 },
             )
-    
+
             res1 = pdm.guid2neighbours("srcguid", returned_format=1)
             self.assertEqual(5, len(res1["neighbours"]))
             with self.assertRaises(NotImplementedError):
                 res2 = pdm.guid2neighbours("srcguid", returned_format=2)
                 self.assertTrue(res2 is not None)
-    
+
             res3 = pdm.guid2neighbours("srcguid", returned_format=3)
             self.assertEqual(5, len(res3["neighbours"]))
             res4 = pdm.guid2neighbours("srcguid", returned_format=4)
@@ -362,7 +364,7 @@ class Test_SeqMeta_guid_valid_1(Test_Database):
             namespace = "DNAQuality"
             payload = {"N": 1}
             pdm.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
-    
+
             res = pdm.guid_valid("valid")
             self.assertEqual(res, 0)
             res = pdm.guid_valid("invalid")
@@ -386,7 +388,7 @@ class Test_SeqMeta_guid_valid_2(Test_Database):
             namespace = "DNAQuality"
             payload = {"invalid": 0}
             pdm.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
-    
+
             guid = "invalid"
             namespace = "DNAQuality"
             payload = {"invalid": 1}
@@ -395,7 +397,7 @@ class Test_SeqMeta_guid_valid_2(Test_Database):
             namespace = "DNAQuality"
             payload = {"N": 1}
             pdm.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
-    
+
             res = pdm.guids_valid()
             self.assertEqual(res, set(["valid1", "valid2"]))
             res = pdm.guids_invalid()
@@ -783,7 +785,7 @@ class Test_Tree(Test_Database):
             pdm.tree_delete(tree_token="tree1")
             payload3 = pdm.tree_read(tree_token="tree1")
             self.assertIsNone(payload3)
-    
+
             payload1 = {"one": 1, "two": 2}
             pdm.tree_store(tree_token="tree1", tree=payload1)
             payload2 = {"one": 3, "two": 4}
@@ -810,7 +812,7 @@ class Test_MSA(Test_Database):
             pdm.msa_delete(msa_token="msa1")
             payload3 = pdm.msa_read(msa_token="msa1")
             self.assertIsNone(payload3)
-    
+
             payload1 = {"one": 1, "two": 2}
             pdm.msa_store(msa_token="msa1", msa=payload1)
             payload2 = {"one": 3, "two": 4}
@@ -865,6 +867,7 @@ class Test_rotate_log(Test_Database):
         for pdm in self.pdms():
             pdm.rotate_log()
 
+
 class Test_no_progressbar(Test_Database):
     """dummy test for coverage, this is not easily testable"""
 
@@ -872,12 +875,14 @@ class Test_no_progressbar(Test_Database):
         for pdm in self.pdms():
             pdm.no_progressbar()
 
+
 class Test_connect(Test_Database):
     """dummy test for coverage, this is a NOP"""
 
     def runTest(self):
         for pdm in self.pdms():
             pdm.connect()
+
 
 class Test_delete_existing_data(Test_Database):
     """check that all data is deleted"""
@@ -901,6 +906,7 @@ class Test_delete_existing_data(Test_Database):
             self.assertIsNone(pdm.tree_read("tree"))
             self.assertIsNone(pdm.cluster_read("cluster"))
             self.assertIsNone(pdm.refcompressedseq_store("guid", {"datum": 42}))
+
 
 class Test_delete_existing_clustering_data(Test_Database):
     """check that all clustering data is deleted"""
@@ -957,27 +963,32 @@ class Test_guid2items(Test_Database):
             pdm.guid_annotate("guid1", "ns2", {"datum": 2})
             pdm.guid_annotate("guid2", "ns2", {"datum": 3})
             self.assertEqual(
-                    pdm.guid2items(None, None),
-                    {"guid1": {"ns1": {"datum": 1}, "ns2": {"datum": 2}},
-                     "guid2": {"ns2": {"datum": 3}},
-                     }
-                    )
+                pdm.guid2items(None, None),
+                {
+                    "guid1": {"ns1": {"datum": 1}, "ns2": {"datum": 2}},
+                    "guid2": {"ns2": {"datum": 3}},
+                },
+            )
             self.assertEqual(
-                    pdm.guid2items(["guid1"], None),
-                    {"guid1": {"ns1": {"datum": 1}, "ns2": {"datum": 2}}}
-                    )
+                pdm.guid2items(["guid1"], None),
+                {"guid1": {"ns1": {"datum": 1}, "ns2": {"datum": 2}}},
+            )
             self.assertEqual(
-                    pdm.guid2items(None, ["ns1"]),
-                    {"guid1": {"ns1": {"datum": 1}},
-                     "guid2": {},
-                     }
-                    )
+                pdm.guid2items(None, ["ns1"]),
+                {
+                    "guid1": {"ns1": {"datum": 1}},
+                    "guid2": {},
+                },
+            )
             self.assertEqual(
-                    pdm.guid2items(None, ["ns2"]),
-                    {"guid1": {"ns2": {"datum": 2}},
-                     "guid2": {"ns2": {"datum": 3}},
-                     }
-                    )
+                pdm.guid2items(None, ["ns2"]),
+                {
+                    "guid1": {"ns2": {"datum": 2}},
+                    "guid2": {"ns2": {"datum": 3}},
+                },
+            )
 
-            self.assertEqual(pdm.guid2item(None, "ns2", "datum"), {"guid1": 2, "guid2": 3})
+            self.assertEqual(
+                pdm.guid2item(None, "ns2", "datum"), {"guid1": 2, "guid2": 3}
+            )
             self.assertEqual(pdm.guid2item(["guid1"], "ns1", "datum"), {"guid1": 1})

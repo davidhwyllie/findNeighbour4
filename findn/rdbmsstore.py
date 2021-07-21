@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 """ provides a storage layer for meta-data and snv distances from the
 findneighbour4 system in a RDBMS
-
 A component of the findNeighbour4 system for bacterial relatedness monitoring
 Copyright (C) 2021 David Wyllie david.wyllie@phe.gov.uk
 repo: https://github.com/davidhwyllie/findNeighbour4
@@ -17,8 +16,8 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU Affero General Public License for more details.
 
 """
-import bson         # type: ignore
-from datetime import datetime, timedelta, timezone
+import bson  # type: ignore
+from datetime import datetime, timedelta
 import hashlib
 import time
 import os
@@ -40,21 +39,34 @@ from sqlalchemy import (
     DateTime,
     Identity,
     ForeignKey,
-    TIMESTAMP
+    TIMESTAMP,
 )
 
-#from sqlalchemy.dialects import oracle
+# from sqlalchemy.dialects import oracle
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.sql.expression import delete, desc
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
-from typing import Any, Dict, Iterable, List, NoReturn, Optional, Set, Tuple, Type, TypedDict, Union
+from typing import (
+    Any,
+    Dict,
+    Iterable,
+    List,
+    NoReturn,
+    Optional,
+    Set,
+    TypedDict,
+    Union,
+)
 import cx_Oracle
 
 Guid2NeighboursFormat1 = List[Union[str, int]]
 Guid2NeighboursFormat3 = Union[str]
 Guid2NeighboursFormat4 = Dict[str, Union[str, int]]
-Guid2NeighboursFormats = Union[Guid2NeighboursFormat1, Guid2NeighboursFormat3, Guid2NeighboursFormat4]
+Guid2NeighboursFormats = Union[
+    Guid2NeighboursFormat1, Guid2NeighboursFormat3, Guid2NeighboursFormat4
+]
+
 
 class RecentDatabaseMonitoringRet(TypedDict, total=False):
     recompression_data: bool
@@ -85,13 +97,15 @@ class BulkLoadTest(db_pc):
     bulk1 = Column(Integer)
     bulk2 = Column(Integer)
 
+
 class Config(db_pc):
     """stores config data"""
 
     __tablename__ = "config"
     cfg_int_id = Column(Integer, Identity(start=1), primary_key=True)
-    config_key = Column(String(56), index= True, unique = True)
-    config_value = Column(Text)     # blob
+    config_key = Column(String(56), index=True, unique=True)
+    config_value = Column(Text)  # blob
+
 
 class RefCompressedSeq(db_pc):
     """stores reference compressed sequences, which are large character objects
@@ -330,11 +344,11 @@ class fn3persistence:
     """
 
     def __init__(
-            self,
-            connection_config=None,
-            debug=0,
-            server_monitoring_min_interval_msec=0,
-            ):
+        self,
+        connection_config=None,
+        debug=0,
+        server_monitoring_min_interval_msec=0,
+    ):
 
         """creates the RDBMS connection
 
@@ -725,13 +739,15 @@ class fn3persistence:
         return len(upload_df.index)
 
     def delete_server_monitoring_entries(self, before_seconds: int) -> None:
-        """ deletes server monitoring entries more than before_seconds ago """
+        """deletes server monitoring entries more than before_seconds ago"""
         earliest_allowed = datetime.now() - timedelta(seconds=before_seconds)
-        self.session.query(ServerMonitoring).filter(ServerMonitoring.upload_date < earliest_allowed).delete()
+        self.session.query(ServerMonitoring).filter(
+            ServerMonitoring.upload_date < earliest_allowed
+        ).delete()
         self.session.commit()
 
     def summarise_stored_items(self) -> Dict[str, Any]:
-        """ counts how many sequences exist of various types """
+        """counts how many sequences exist of various types"""
         return {}
 
     def connect(self) -> None:
@@ -740,7 +756,7 @@ class fn3persistence:
         pass
 
     def rotate_log(self) -> None:
-        """ forces rotation of the mongo log file """
+        """forces rotation of the mongo log file"""
         pass
 
     def raise_error(self, token: str) -> NoReturn:
@@ -749,7 +765,7 @@ class fn3persistence:
         raise ZeroDivisionError(token)
 
     def _delete_existing_data(self) -> None:
-        """ deletes existing data from the databases """
+        """deletes existing data from the databases"""
         self.session.query(Config).delete()
         self.session.query(RefCompressedSeq).delete()
         self.session.query(Edge).delete()
@@ -760,22 +776,22 @@ class fn3persistence:
         self.session.query(TreeStorage).delete()
 
     def _delete_existing_clustering_data(self) -> None:
-        """ deletes any clustering data from the databases """
+        """deletes any clustering data from the databases"""
         self.session.query(Cluster).delete()
         self.session.query(MSA).delete()
         self.session.query(TreeStorage).delete()
 
     def first_run(self) -> bool:
-        """ if there is no config entry, it is a first-run situation """
+        """if there is no config entry, it is a first-run situation"""
         row = self.session.query(Config).filter_by(config_key="config").first()
         return row is None
 
     def __del__(self) -> None:
-        """ closes any session """
+        """closes any session"""
         self.closedown()
 
     def closedown(self) -> None:
-        """ closes any session """
+        """closes any session"""
         # client object has already been destroyed on reaching here
         pass
 
@@ -794,12 +810,16 @@ class fn3persistence:
         """
 
         if not isinstance(object, dict):
-            raise TypeError("Can only store dictionary objects, not {0}".format(type(object)))
+            raise TypeError(
+                "Can only store dictionary objects, not {0}".format(type(object))
+            )
 
         if row := self.session.query(Config).filter_by(config_key=key).first():
             row.config_value = json.dumps(object).encode("utf-8")
         else:
-            row = Config(config_key=key, config_value=json.dumps(object).encode("utf-8"))
+            row = Config(
+                config_key=key, config_value=json.dumps(object).encode("utf-8")
+            )
             self.session.add(row)
         self.session.commit()
 
@@ -813,12 +833,19 @@ class fn3persistence:
             return dict(_id=key, **json.loads(row.config_value.decode("utf-8")))
 
     # methods for the server and database monitoring
-    def recent_database_monitoring(self, max_reported: int = 100) -> RecentDatabaseMonitoringRet:
+    def recent_database_monitoring(
+        self, max_reported: int = 100
+    ) -> RecentDatabaseMonitoringRet:
         """computes trends in the number of records holding pairs (guid2neighbours) vs. records.
         This ratio is a measure of database health.  Ratios > 100 indicate the database may become very large, and query slowly"""
         return {"recompression_data": False, "latest_stats": {"storage_ratio": 1}}
 
-    def recent_server_monitoring(self, max_reported: int = 100, selection_field: Optional[str] = None, selection_string: Optional[str] = None) -> List[dict]:
+    def recent_server_monitoring(
+        self,
+        max_reported: int = 100,
+        selection_field: Optional[str] = None,
+        selection_string: Optional[str] = None,
+    ) -> List[dict]:
         """returns a list containing recent server monitoring, in reverse order (i.e. tail first).
         The _id field is an integer reflecting the order added.  Lowest numbers are most recent.
 
@@ -831,10 +858,10 @@ class fn3persistence:
                           monitoring element. If None, this constraint is ignored.
         """
 
-
-
         if not isinstance(max_reported, int):
-            raise TypeError(f"limit must be an integer, but it is a {type(max_reported)}")
+            raise TypeError(
+                f"limit must be an integer, but it is a {type(max_reported)}"
+            )
         if not max_reported >= 0:
             raise ValueError("limit must be more than or equal to zero")
 
@@ -852,21 +879,28 @@ class fn3persistence:
                 else:
                     return None
 
-        return [ d
-                for res in
-                self.session.query(ServerMonitoring)
-                .order_by(desc(ServerMonitoring.sm_int_id))
-                .limit(max_reported)
-                for d in (row_to_dict(res),)
-                if d is not None
-                ]
+        return [
+            d
+            for res in self.session.query(ServerMonitoring)
+            .order_by(desc(ServerMonitoring.sm_int_id))
+            .limit(max_reported)
+            for d in (row_to_dict(res),)
+            if d is not None
+        ]
 
-
-    def server_monitoring_store(self, message: str = "No message provided", what: Optional[str] = None, guid: Optional[str] = None, content: Dict[str, Any] = {}) -> bool:
-        """ stores content, a dictionary, into the server monitoring log"""
+    def server_monitoring_store(
+        self,
+        message: str = "No message provided",
+        what: Optional[str] = None,
+        guid: Optional[str] = None,
+        content: Dict[str, Any] = {},
+    ) -> bool:
+        """stores content, a dictionary, into the server monitoring log"""
 
         if not isinstance(content, dict):
-            raise TypeError("Can only store dictionary objects, not {0}".format(type(content)))
+            raise TypeError(
+                "Can only store dictionary objects, not {0}".format(type(content))
+            )
 
         now = dict(content)
         if what is not None:
@@ -876,21 +910,32 @@ class fn3persistence:
         now["context|info|message"] = message
         current_time = datetime.now()
         now["context|time|time_now"] = str(current_time.isoformat())
-        now["context|time|time_boot"] = datetime.fromtimestamp(psutil.boot_time()).strftime("%Y-%m-%d %H:%M:%S")
+        now["context|time|time_boot"] = datetime.fromtimestamp(
+            psutil.boot_time()
+        ).strftime("%Y-%m-%d %H:%M:%S")
 
         # should we write this data?  We have the option not to log all messages, to prevent the store getting very full.
         write_content = False
         if self.previous_server_monitoring_time is None:
             write_content = True  # yes if this is the first record written.
         else:
-            time_since_last_write = current_time - self.previous_server_monitoring_time  # yes if it's after the server_moni
-            t = 1000 * float(time_since_last_write.seconds) + float(time_since_last_write.microseconds) / 1000
+            time_since_last_write = (
+                current_time - self.previous_server_monitoring_time
+            )  # yes if it's after the server_moni
+            t = (
+                1000 * float(time_since_last_write.seconds)
+                + float(time_since_last_write.microseconds) / 1000
+            )
             if t >= self.server_monitoring_min_interval_msec:
                 write_content = True
 
         if write_content:
             json_now = json.dumps(now).encode("utf-8")
-            row = ServerMonitoring(sm_id=hashlib.sha1(json_now).hexdigest(), upload_date=current_time, content=json_now)
+            row = ServerMonitoring(
+                sm_id=hashlib.sha1(json_now).hexdigest(),
+                upload_date=current_time,
+                content=json_now,
+            )
             self.session.add(row)
             self.previous_server_monitoring_time = current_time
             self.previous_server_monitoring_data = now
@@ -913,7 +958,7 @@ class fn3persistence:
         self.session.commit()
 
     def monitor_read(self, monitoring_id: str) -> Optional[str]:
-        """ loads stored string (e.g. html object) from the monitor collection. """
+        """loads stored string (e.g. html object) from the monitor collection."""
 
         if res := self.session.query(Monitor).filter_by(mo_id=monitoring_id).first():
             return res.content.decode("utf-8")
@@ -922,19 +967,21 @@ class fn3persistence:
 
     # methods for multisequence alignments
     def msa_store(self, msa_token: str, msa: dict) -> Optional[str]:
-        """ stores the msa object msa under token msa_token. """
+        """stores the msa object msa under token msa_token."""
 
         if not isinstance(msa, dict):
-            raise TypeError("Can only store dictionary objects, not {0}".format(type(msa)))
+            raise TypeError(
+                "Can only store dictionary objects, not {0}".format(type(msa))
+            )
 
         # TODO is this the correct behaviour? Should we throw instead?
         self.session.query(MSA).filter_by(msa_id=msa_token).delete()
 
         res = MSA(
-                msa_id=msa_token,
-                upload_date=datetime.now(),
-                content=json.dumps(msa).encode("utf-8"),
-                )
+            msa_id=msa_token,
+            upload_date=datetime.now(),
+            content=json.dumps(msa).encode("utf-8"),
+        )
         self.session.add(res)
         self.session.commit()
 
@@ -954,7 +1001,7 @@ class fn3persistence:
         self.session.commit()
 
     def msa_stored_ids(self) -> List[str]:
-        """ returns a list of msa tokens of all objects stored """
+        """returns a list of msa tokens of all objects stored"""
 
         return [res.msa_id for res in self.session.query(MSA)]
 
@@ -965,21 +1012,23 @@ class fn3persistence:
         self.session.commit()
 
     # methods for trees
-    
+
     def tree_store(self, tree_token: str, tree: dict) -> Optional[str]:
-        """ stores the tree object tree under token tree_token. """
+        """stores the tree object tree under token tree_token."""
 
         if not isinstance(tree, dict):
-            raise TypeError("Can only store dictionary objects, not {0}".format(type(tree)))
+            raise TypeError(
+                "Can only store dictionary objects, not {0}".format(type(tree))
+            )
 
         # TODO is this the correct behaviour? Should we throw instead?
         self.session.query(TreeStorage).filter_by(ts_id=tree_token).delete()
 
         row = TreeStorage(
-                ts_id=tree_token,
-                upload_date=datetime.now(),
-                content=json.dumps(tree).encode("utf-8"),
-                )
+            ts_id=tree_token,
+            upload_date=datetime.now(),
+            content=json.dumps(tree).encode("utf-8"),
+        )
         self.session.add(row)
         self.session.commit()
 
@@ -999,14 +1048,16 @@ class fn3persistence:
         self.session.commit()
 
     def tree_stored_ids(self) -> List[str]:
-        """ returns a list of tree tokens of all objects stored """
+        """returns a list of tree tokens of all objects stored"""
 
         return [res.ts_id for res in self.session.query(TreeStorage)]
 
     def tree_delete_unless_whitelisted(self, whitelist: Iterable[str]) -> None:
         """deletes the tree unless the id is in whitelist"""
 
-        self.session.query(TreeStorage).filter(TreeStorage.ts_id.not_in(whitelist)).delete()
+        self.session.query(TreeStorage).filter(
+            TreeStorage.ts_id.not_in(whitelist)
+        ).delete()
         self.session.commit()
 
     # methods for clusters
@@ -1032,7 +1083,11 @@ class fn3persistence:
             raise TypeError(f"Can only store dictionary objects, not {type(obj)}")
 
         json_repr = json.dumps(obj, cls=NPEncoder).encode("utf-8")
-        cluster = Cluster(cluster_build_id=clustering_key, upload_date=datetime.now(), content=json_repr)
+        cluster = Cluster(
+            cluster_build_id=clustering_key,
+            upload_date=datetime.now(),
+            content=json_repr,
+        )
         self.session.add(cluster)
         self.session.commit()
         return cluster.cl_int_id
@@ -1041,26 +1096,43 @@ class fn3persistence:
         """loads object from clusters collection corresponding to the most recent version of
         the clustering, saved with cluster_build_id = 'clustering_key'.
         """
-        if res := self.session.query(Cluster).filter_by(cluster_build_id=clustering_key).order_by(desc(Cluster.upload_date)).first():
+        if (
+            res := self.session.query(Cluster)
+            .filter_by(cluster_build_id=clustering_key)
+            .order_by(desc(Cluster.upload_date))
+            .first()
+        ):
             return json.loads(res.content.decode("utf-8"))
         else:
             return None
 
-    def cluster_read_update(self, clustering_key: str, current_cluster_version: int) -> Optional[dict]:
+    def cluster_read_update(
+        self, clustering_key: str, current_cluster_version: int
+    ) -> Optional[dict]:
         """loads object from clusters collection corresponding to the most recent version
         of the clustering, saved with cluster_build_id = 'clustering_key'.
         it will read only if the current version is different from current_cluster_version; other wise, it returns None
         It is assumed object is a dictionary"""
 
-        if res := self.session.query(Cluster).filter_by(cluster_build_id=clustering_key).order_by(desc(Cluster.upload_date)).first():
+        if (
+            res := self.session.query(Cluster)
+            .filter_by(cluster_build_id=clustering_key)
+            .order_by(desc(Cluster.upload_date))
+            .first()
+        ):
             if res.cl_int_id != current_cluster_version:
                 return json.loads(res.content.decode("utf-8"))
         return None
 
     def cluster_latest_version(self, clustering_key: str) -> int:
-        """ returns id of latest version """
+        """returns id of latest version"""
 
-        if res := self.session.query(Cluster).filter_by(cluster_build_id=clustering_key).order_by(desc(Cluster.upload_date)).first():
+        if (
+            res := self.session.query(Cluster)
+            .filter_by(cluster_build_id=clustering_key)
+            .order_by(desc(Cluster.upload_date))
+            .first()
+        ):
             return res.cl_int_id
         else:
             return None
@@ -1069,28 +1141,49 @@ class fn3persistence:
         """lists  clustering keys beginning with clustering_name.  If clustering_name is none, all clustering keys are returned."""
 
         if clustering_name:
-            return list(sorted(set(res.cluster_build_id for res in self.session.query(Cluster).filter(Cluster.cluster_build_id.startswith(clustering_name)))))
+            return list(
+                sorted(
+                    set(
+                        res.cluster_build_id
+                        for res in self.session.query(Cluster).filter(
+                            Cluster.cluster_build_id.startswith(clustering_name)
+                        )
+                    )
+                )
+            )
         else:
-            return list(sorted(set(res.cluster_build_id for res in self.session.query(Cluster))))
+            return list(
+                sorted(set(res.cluster_build_id for res in self.session.query(Cluster)))
+            )
 
     def cluster_versions(self, clustering_key: str) -> List[bson.objectid.ObjectId]:
         """lists ids and storage dates corresponding to versions of clustering identifed by clustering_key.
         the newest version is first.
         """
 
-        return list(self.session.query(Cluster).filter_by(cluster_build_id=clustering_key).order_by(desc(Cluster.upload_date)))
+        return list(
+            self.session.query(Cluster)
+            .filter_by(cluster_build_id=clustering_key)
+            .order_by(desc(Cluster.upload_date))
+        )
 
     def cluster_delete_all(self, clustering_key: str) -> None:
         """delete all clustering objects, including the latest version, stored under clustering_key"""
-        
-        self.session.execute(delete(Cluster).where(Cluster.cluster_build_id == clustering_key))
+
+        self.session.execute(
+            delete(Cluster).where(Cluster.cluster_build_id == clustering_key)
+        )
         self.session.commit()
 
     def cluster_delete_legacy_by_key(self, clustering_key: str) -> None:
         """delete all clustering objects, except latest version, stored with key clustering_key"""
 
         # DELETE queries can't use offset
-        for row in self.session.query(Cluster).filter_by(cluster_build_id=clustering_key).offset(1):
+        for row in (
+            self.session.query(Cluster)
+            .filter_by(cluster_build_id=clustering_key)
+            .offset(1)
+        ):
             self.session.delete(row)
         self.session.commit()
 
@@ -1105,10 +1198,16 @@ class fn3persistence:
         if the guid already exists."""
 
         if not isinstance(obj, dict):
-            raise TypeError("Can only store dictionary objects, not {0}".format(type(obj)))
- 
+            raise TypeError(
+                "Can only store dictionary objects, not {0}".format(type(obj))
+            )
+
         # TODO is this the correct behaviour
-        if row := self.session.query(RefCompressedSeq).filter_by(sequence_id=guid).delete():
+        if (
+            row := self.session.query(RefCompressedSeq)
+            .filter_by(sequence_id=guid)
+            .delete()
+        ):
             pass
         else:
             row = RefCompressedSeq(sequence_id=guid, annotations="{}")
@@ -1122,7 +1221,11 @@ class fn3persistence:
         """loads object from refcompressedseq collection.
         It is assumed object stored is a dictionary"""
 
-        if row := self.session.query(RefCompressedSeq).filter_by(sequence_id=guid).first():
+        if (
+            row := self.session.query(RefCompressedSeq)
+            .filter_by(sequence_id=guid)
+            .first()
+        ):
             return json.loads(row.content.decode("utf-8"))
         else:
             return None
@@ -1139,12 +1242,22 @@ class fn3persistence:
         creates the record if it does not exist"""
 
         if not isinstance(annotDict, dict):
-            raise TypeError("Can only store dictionary objects, not {0}".format(type(annotDict)))
+            raise TypeError(
+                "Can only store dictionary objects, not {0}".format(type(annotDict))
+            )
 
-        if row := self.session.query(RefCompressedSeq).filter_by(sequence_id=guid).first():
+        if (
+            row := self.session.query(RefCompressedSeq)
+            .filter_by(sequence_id=guid)
+            .first()
+        ):
             pass
         else:
-            row = RefCompressedSeq(sequence_id=guid, annotations="{}".encode("utf-8"), content="{}".encode("utf-8"))
+            row = RefCompressedSeq(
+                sequence_id=guid,
+                annotations="{}".encode("utf-8"),
+                content="{}".encode("utf-8"),
+            )
             self.session.add(row)
 
         if nameSpace == "DNAQuality":
@@ -1163,16 +1276,24 @@ class fn3persistence:
         self.session.commit()
 
     def guids(self) -> Set[str]:
-        """ returns all registered guids """
+        """returns all registered guids"""
         return self.refcompressedsequence_guids()
 
     def guids_considered_after(self, addition_datetime: datetime) -> Set[str]:
-        """ returns all registered guid added after addition_datetime
+        """returns all registered guid added after addition_datetime
         addition_datetime: a date of datetime class."""
 
         if not isinstance(addition_datetime, datetime):
-            raise TypeError("addition_datetime must be a datetime value.  It is {0}.  Value = {1}".format(type(addition_datetime), addition_datetime))
-        return set(self.session.query(RefCompressedSeq).filter(RefCompressedSeq.examination_date > addition_datetime))
+            raise TypeError(
+                "addition_datetime must be a datetime value.  It is {0}.  Value = {1}".format(
+                    type(addition_datetime), addition_datetime
+                )
+            )
+        return set(
+            self.session.query(RefCompressedSeq).filter(
+                RefCompressedSeq.examination_date > addition_datetime
+            )
+        )
 
     def _guids_selected_by_validity(self, validity: int) -> Set[str]:
         """returns  registered guids, selected on their validity
@@ -1182,9 +1303,14 @@ class fn3persistence:
 
         """
 
-        return set(res.sequence_id for res in self.session.query(RefCompressedSeq).filter_by(invalid=validity))
+        return set(
+            res.sequence_id
+            for res in self.session.query(RefCompressedSeq).filter_by(invalid=validity)
+        )
 
-    def singletons(self, method: str = "approximate", return_top: int = 1000) -> pd.DataFrame:
+    def singletons(
+        self, method: str = "approximate", return_top: int = 1000
+    ) -> pd.DataFrame:
         """returns guids and the number of singleton records, which
         (if high numbers are present) indicates repacking is needed.
         Inclusion of max_records is important for very large datasets, or the query is slow.
@@ -1222,8 +1348,11 @@ class fn3persistence:
         return self._guids_selected_by_validity(1)
 
     def guid_exists(self, guid: str) -> bool:
-        """ checks the presence of a single guid """
-        return self.session.query(RefCompressedSeq).filter_by(sequence_id=guid).first() is not None
+        """checks the presence of a single guid"""
+        return (
+            self.session.query(RefCompressedSeq).filter_by(sequence_id=guid).first()
+            is not None
+        )
 
     def guid_valid(self, guid: str) -> int:
         """checks the validity of a single guid
@@ -1237,7 +1366,11 @@ class fn3persistence:
         1    The guid exists and the sequence is invalid
         -2    The guid exists, but there is no DNAQuality.valid key"""
 
-        if res := self.session.query(RefCompressedSeq).filter_by(sequence_id=guid).first():
+        if (
+            res := self.session.query(RefCompressedSeq)
+            .filter_by(sequence_id=guid)
+            .first()
+        ):
             if res.invalid == 0:
                 return 0
             elif res.invalid == 1:
@@ -1257,21 +1390,27 @@ class fn3persistence:
         The examination datetime value for this guid OR
         None if the guid does not exist
         """
-        if res := self.session.query(RefCompressedSeq).filter_by(sequence_id=guid).first():
+        if (
+            res := self.session.query(RefCompressedSeq)
+            .filter_by(sequence_id=guid)
+            .first()
+        ):
             return res.examination_date
         else:
             return None
 
     def guids_considered_after_guid(self, guid: str) -> Set[str]:
-        """ returns all registered guids added after guid
+        """returns all registered guids added after guid
         guid: a sequence identifier"""
 
         if addition_datetime := self.guid_examination_time(guid):
             return self.guids_considered_after(addition_datetime)
         else:
             raise ValueError("guid is not valid: {0}".format(guid))
-     
-    def guid_quality_check(self, guid: str, cutoff: Union[float, int]) -> Optional[bool]:
+
+    def guid_quality_check(
+        self, guid: str, cutoff: Union[float, int]
+    ) -> Optional[bool]:
         """Checks whether the quality of one guid exceeds the cutoff.
 
         If the guid does not exist, returns None.
@@ -1281,7 +1420,10 @@ class fn3persistence:
 
         # test input
         if not type(cutoff) in [float, int]:
-            raise TypeError("Cutoff should be either floating point or integer, but it is %s" % type(cutoff))
+            raise TypeError(
+                "Cutoff should be either floating point or integer, but it is %s"
+                % type(cutoff)
+            )
         if not type(guid) == str:
             raise TypeError("The guid passed should be as string, not %s" % str(guid))
 
@@ -1301,21 +1443,29 @@ class fn3persistence:
         if guidList is None:
             return self.session.query(RefCompressedSeq)
         else:
-            return self.session.query(RefCompressedSeq).filter(RefCompressedSeq.sequence_id.in_(guidList))
+            return self.session.query(RefCompressedSeq).filter(
+                RefCompressedSeq.sequence_id.in_(guidList)
+            )
 
-
-    def guid2item(self, guidList: Optional[List[str]], namespace: str, tag: str) -> dict:
+    def guid2item(
+        self, guidList: Optional[List[str]], namespace: str, tag: str
+    ) -> dict:
         """returns the annotation (such as sequence quality, which is stored as an annotation)
         in namespace:tag for all guids in guidlist.
         If guidList is None, all items are returned.
         An error is raised if namespace and tag is not present in each record.
         """
-        return {res.sequence_id: json.loads(res.annotations.decode("utf-8"))[namespace][tag] for res in self._guid2seq(guidList)}
+        return {
+            res.sequence_id: json.loads(res.annotations.decode("utf-8"))[namespace][tag]
+            for res in self._guid2seq(guidList)
+        }
 
     def guid2ExaminationDateTime(self, guidList: Optional[List[str]] = None) -> dict:
-        """ returns quality scores and examinationDate for all guids in guidlist.  If guidList is None, all results are returned. """
+        """returns quality scores and examinationDate for all guids in guidlist.  If guidList is None, all results are returned."""
 
-        return {res.sequence_id: res.examination_date for res in self._guid2seq(guidList)}
+        return {
+            res.sequence_id: res.examination_date for res in self._guid2seq(guidList)
+        }
 
     def guid2quality(self, guidList: Optional[List[str]] = None) -> Optional[dict]:
         """returns quality scores for all guids in guidlist (or all samples if guidList is None)
@@ -1329,12 +1479,16 @@ class fn3persistence:
 
         This query is potentially very inefficient- best avoided
         """
-        
-        query = self.session.query(RefCompressedSeq).filter(RefCompressedSeq.prop_actg >= cutoff)
+
+        query = self.session.query(RefCompressedSeq).filter(
+            RefCompressedSeq.prop_actg >= cutoff
+        )
 
         return {res.sequence_id: res.prop_actg for res in query}
 
-    def guid2items(self, guidList: Optional[List[str]], namespaces: Optional[Set[str]]) -> Dict[Any, Dict[str, Any]]:
+    def guid2items(
+        self, guidList: Optional[List[str]], namespaces: Optional[Set[str]]
+    ) -> Dict[Any, Dict[str, Any]]:
         """returns all annotations in namespaces, which is a list
         If namespaces is None, all namespaces are returned.
         If guidList is None, all items are returned.
@@ -1343,27 +1497,33 @@ class fn3persistence:
 
         def select_namespaces(annotations: dict) -> dict:
             if namespaces:
-                return {ns: annotations[ns]
-                        for ns in annotations.keys() & namespaces}
+                return {ns: annotations[ns] for ns in annotations.keys() & namespaces}
             else:
                 return annotations
 
-        return {res.sequence_id: select_namespaces(json.loads(res.annotations.decode("utf-8")))
-                for res in self._guid2seq(guidList)}
-
+        return {
+            res.sequence_id: select_namespaces(
+                json.loads(res.annotations.decode("utf-8"))
+            )
+            for res in self._guid2seq(guidList)
+        }
 
     def guid_annotations(self) -> Optional[Dict[Any, Dict[str, Any]]]:
-        """ return all annotations of all guids """
+        """return all annotations of all guids"""
 
         return self.guid2items(None, None)  # no restriction by namespace or by guid.
 
     def guid_annotation(self, guid: str) -> Optional[Dict[Any, Dict[str, Any]]]:
-        """ return all annotations of one guid """
+        """return all annotations of one guid"""
 
         return self.guid2items([guid], None)  # restriction by guid.
 
     def _id_for_guid(self, guid):
-        if row := self.session.query(RefCompressedSeq).filter_by(sequence_id=guid).first():
+        if (
+            row := self.session.query(RefCompressedSeq)
+            .filter_by(sequence_id=guid)
+            .first()
+        ):
             return row.seq_int_id
         else:
             row = RefCompressedSeq(sequence_id=guid, annotations="{}", content="{}")
@@ -1371,7 +1531,12 @@ class fn3persistence:
             self.session.commit()
             return row.seq_int_id
 
-    def guid2neighbour_add_links(self, guid: str, targetguids: Dict[str, Dict[str, int]], use_update: bool = False) -> Dict[str, int]:
+    def guid2neighbour_add_links(
+        self,
+        guid: str,
+        targetguids: Dict[str, Dict[str, int]],
+        use_update: bool = False,
+    ) -> Dict[str, int]:
         """adds links between guid and their neighbours ('targetguids')
 
         Parameters:
@@ -1404,8 +1569,12 @@ class fn3persistence:
 
         for guid2, dist in targetguids.items():
             id_2 = self._id_for_guid(guid2)
-            self.session.add(Edge(seq_int_id_1=id_1, seq_int_id_2=id_2, dist=dist["dist"]))
-            self.session.add(Edge(seq_int_id_1=id_2, seq_int_id_2=id_1, dist=dist["dist"]))
+            self.session.add(
+                Edge(seq_int_id_1=id_1, seq_int_id_2=id_2, dist=dist["dist"])
+            )
+            self.session.add(
+                Edge(seq_int_id_1=id_2, seq_int_id_2=id_1, dist=dist["dist"])
+            )
 
         self.session.commit()
 
@@ -1415,7 +1584,9 @@ class fn3persistence:
         pre_optimisation: dict
         actions_taken: Dict[str, int]
 
-    def guid2neighbour_repack(self, guid: str, always_optimise: bool = False, min_optimisable_size: int = 1) -> Guid2NeighbourRepackRet:
+    def guid2neighbour_repack(
+        self, guid: str, always_optimise: bool = False, min_optimisable_size: int = 1
+    ) -> Guid2NeighbourRepackRet:
         """alters the mongodb representation of the links of guid.
 
         This stores links in the guid2neighbour collection;
@@ -1442,7 +1613,10 @@ class fn3persistence:
         return {
             "guid": guid,
             "finished": datetime.now().isoformat(),
-            "pre_optimisation": {"s_records": 0, "msg": "Repacking not necessary on RDBMS"},
+            "pre_optimisation": {
+                "s_records": 0,
+                "msg": "Repacking not necessary on RDBMS",
+            },
             "actions_taken": {},
         }
 
@@ -1450,7 +1624,9 @@ class fn3persistence:
         guid: str
         neighbours: List[Guid2NeighboursFormats]
 
-    def guid2neighbours(self, guid: str, cutoff: int = 20, returned_format: int = 2) -> Guid2NeighboursRet:
+    def guid2neighbours(
+        self, guid: str, cutoff: int = 20, returned_format: int = 2
+    ) -> Guid2NeighboursRet:
         """returns neighbours of guid with cutoff <=cutoff.
         Returns links either as
 
@@ -1473,7 +1649,12 @@ class fn3persistence:
         """
 
         def f(res):
-            otherGuid = self.session.query(RefCompressedSeq).filter_by(seq_int_id=res.seq_int_id_2).first().sequence_id
+            otherGuid = (
+                self.session.query(RefCompressedSeq)
+                .filter_by(seq_int_id=res.seq_int_id_2)
+                .first()
+                .sequence_id
+            )
             dist = res.dist
             if returned_format == 1:
                 return [otherGuid, dist]
@@ -1484,7 +1665,16 @@ class fn3persistence:
             elif returned_format == 4:
                 return {"guid": otherGuid, "snv": dist}
             else:
-                raise ValueError(f"Unable to understand returned_format = {returned_format}")
+                raise ValueError(
+                    f"Unable to understand returned_format = {returned_format}"
+                )
 
-        return {"guid": guid,
-                "neighbours": [f(res) for res in self.session.query(Edge).filter_by(seq_int_id_1=self._id_for_guid(guid)).filter(Edge.dist <= cutoff)]}
+        return {
+            "guid": guid,
+            "neighbours": [
+                f(res)
+                for res in self.session.query(Edge)
+                .filter_by(seq_int_id_1=self._id_for_guid(guid))
+                .filter(Edge.dist <= cutoff)
+            ],
+        }
