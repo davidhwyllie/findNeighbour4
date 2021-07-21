@@ -81,10 +81,7 @@ metadata = MetaData()
 
 
 class RDBMSError(Exception):
-    """a general purpose error used by the rdbms module.
-
-    ## NOTE: not clear whether this needed at present"""
-
+    """a general purpose error used by the rdbms module. """
     pass
 
 
@@ -184,7 +181,7 @@ class Edge(db_pc):
 class Cluster(db_pc):
     """stores clusters, which are large character objects (json)"""
 
-    __tablename__ = "cluster"
+    __tablename__ = "sequence_cluster"
     cl_int_id = Column(
         Integer,
         Identity(start=1),
