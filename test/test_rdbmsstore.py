@@ -1,4 +1,4 @@
-""" tests pcadb.py - software to do store output from PCA
+""" tests rdbms backend to findneighbour4
 
     to invoke, either run automatically with pytest or do
     pipenv run python3 -m unittest test/test_rdbmsstore.py
@@ -11,7 +11,7 @@ import unittest
 import pandas as pd
 from sqlalchemy import func
 from findn.NucleicAcid import NucleicAcid
-from findn.rdbmsstore import fn3persistence, BulkLoadTest, RDBMSError
+from findn.rdbmsstore import fn3persistence, BulkLoadTest, RDBMSError, RefCompressedSeq
 
 
 class Test_Database(unittest.TestCase):
@@ -27,17 +27,17 @@ class Test_Database(unittest.TestCase):
 
         conn_detail_file = None
 
-        # try to read the environment variable 'PCA_CONNECTION_CONFIG_FILE'
+        # try to read the environment variable 'DB_CONNECTION_CONFIG_FILE'
         try:
-            conn_detail_file = os.environ["PCA_CONNECTION_CONFIG_FILE"]
+            conn_detail_file = os.environ["DB_CONNECTION_CONFIG_FILE"]
         except KeyError:
             # doesn't exist; we just run with sqlite, which is the default if engine is None.
             print(
-                "No environment variable PCA_CONNECTION_CONFIG_FILE found.  Testing with sqlite only."
+                "No environment variable DB_CONNECTION_CONFIG_FILE found.  Testing with sqlite only."
             )
         if conn_detail_file is None:
             print(
-                "No environment variable PCA_CONNECTION_CONFIG_FILE found.  Testing with sqlite only."
+                "No environment variable DB_CONNECTION_CONFIG_FILE found.  Testing with sqlite only."
             )
         else:
             if not os.path.exists(conn_detail_file):
@@ -55,11 +55,30 @@ class Test_Database(unittest.TestCase):
                         pass
 
     def pdms(self, **kwargs):
+        """yields fn3persistence objects, one for each database server being tested."""
         for engine, config in self.engines.items():
             print(engine, type(self).__name__)
-            yield fn3persistence(connection_config=config, debug=2, **kwargs)
+            pdm = fn3persistence(connection_config=config, debug=2, **kwargs)
+            yield pdm
+
+            # explicitly close connection (required for unittesting)
+            pdm.explicitly_close_connections()
 
 
+class Test_to_string(Test_Database):
+    """tests conversion of bytes to string transparently"""
+
+    def runTest(self):
+        for pdm in self.pdms():
+            x = "david"
+            r1 = pdm._to_string(x)
+            y = b"david"
+            r2 = pdm._to_string(y)
+            self.assertIsInstance(r1, str)
+            self.assertIsInstance(r2, str)
+
+
+#@unittest.skip("Fails on Oracle with ORA-00054 error, related to schema modification")
 class Test_create_database_1(Test_Database):
     """tests creating the database and internal functions dropping tables"""
 
@@ -69,8 +88,9 @@ class Test_create_database_1(Test_Database):
                 "fn4_bulk_load_test",
                 "refcompressedseq",
                 "edge",
-                "cluster",
+                "sequence_cluster",
                 "monitor",
+                "server_monitoring",
                 "msa",
                 "tree",
             ]
@@ -79,7 +99,7 @@ class Test_create_database_1(Test_Database):
             n1 = pdm._table_names()
             pdm._drop_existing_tables()
             n2 = pdm._table_names()
-            self.assertEqual(len(expected_tables.intersection(set(n1))), 7)
+            self.assertEqual(len(expected_tables.intersection(set(n1))), 8)
             self.assertEqual(len(expected_tables.intersection(set(n2))), 0)
 
 
@@ -334,13 +354,14 @@ class Test_SeqMeta_guid_exists_1(Test_Database):
     def runTest(self):
         for pdm in self.pdms():
             # test there is no 'test' item; insert, and confirm insert
-            guid = 1
+            guid = "sequence1"
             namespace = "ns"
             payload = {"one": 1, "two": 2}
+            pdm.refcompressedseq_store(guid, {"seq": "ACTG"})
             pdm.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
             res = pdm.guid_exists(guid)
             self.assertEqual(res, True)
-            res = pdm.guid_exists(-1)
+            res = pdm.guid_exists("missing")
             self.assertEqual(res, False)
 
             with self.assertRaises(TypeError):
@@ -355,51 +376,40 @@ class Test_SeqMeta_guid_valid_1(Test_Database):
             guid = "valid"
             namespace = "DNAQuality"
             payload = {"invalid": 0}
+            pdm.refcompressedseq_store(guid, {"seq": "ACTG"})
+
             pdm.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
             guid = "invalid"
+            pdm.refcompressedseq_store(guid, {"seq": "ACTG"})
+
             namespace = "DNAQuality"
             payload = {"invalid": 1}
             pdm.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
+
             guid = "missing"
             namespace = "DNAQuality"
             payload = {"N": 1}
-            pdm.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
+            with self.assertRaises(RDBMSError):
+                pdm.guid_annotate(
+                    guid=guid, nameSpace=namespace, annotDict=payload
+                )  # does not exist
 
             res = pdm.guid_valid("valid")
             self.assertEqual(res, 0)
             res = pdm.guid_valid("invalid")
             self.assertEqual(res, 1)
             res = pdm.guid_valid("missing")
-            self.assertEqual(res, -2)
-            res = pdm.guid_valid("noguid")
             self.assertEqual(res, -1)
 
-
-class Test_SeqMeta_guid_valid_2(Test_Database):
-    """tests insert of new data item and validity check"""
-
-    def runTest(self):
-        for pdm in self.pdms():
-            guid = "valid1"
-            namespace = "DNAQuality"
-            payload = {"invalid": 0}
-            pdm.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
-            guid = "valid2"
-            namespace = "DNAQuality"
-            payload = {"invalid": 0}
-            pdm.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
-
-            guid = "invalid"
-            namespace = "DNAQuality"
-            payload = {"invalid": 1}
-            pdm.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
-            guid = "missing"
-            namespace = "DNAQuality"
-            payload = {"N": 1}
-            pdm.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
-
             res = pdm.guids_valid()
-            self.assertEqual(res, set(["valid1", "valid2"]))
+            self.assertEqual(
+                res,
+                set(
+                    [
+                        "valid",
+                    ]
+                ),
+            )
             res = pdm.guids_invalid()
             self.assertEqual(res, set(["invalid"]))
 
@@ -439,17 +449,20 @@ class Test_SeqMeta_guid_quality_check_1(Test_Database):
         """tests return of sequences and their qualities"""
         # set up nucleic acid object
         na = NucleicAcid()
-        na.examine("ACGTACGTNN")  # 20% bad
 
         for pdm in self.pdms():
+            na.examine("ACGTACGTNN")  # 20% bad
+            pdm.refcompressedseq_store("g1", {"seq": "ACGTACGTNN"})
             pdm.guid_annotate(
                 guid="g1", nameSpace="DNAQuality", annotDict=na.composition
             )
             na.examine("ACGTACNNNN")  # 40% bad
+            pdm.refcompressedseq_store("g2", {"seq": "ACGTACNNNN"})
             pdm.guid_annotate(
                 guid="g2", nameSpace="DNAQuality", annotDict=na.composition
             )
             na.examine("ACGTNNNNNN")  # 60% bad
+            pdm.refcompressedseq_store("g3", {"seq": "ACGNNNNNNN"})
             pdm.guid_annotate(
                 guid="g3", nameSpace="DNAQuality", annotDict=na.composition
             )
@@ -470,40 +483,8 @@ class Test_SeqMeta_guid_quality_check_1(Test_Database):
             with self.assertRaises(TypeError):
                 pdm.guid_quality_check(1, 0.80)
 
-
-class Test_SeqMeta_guid2quality1(Test_Database):
-    def runTest(self):
-        """tests return of sequences and their qualities"""
-        # set up nucleic acid object
-        na = NucleicAcid()
-        na.examine("ACGTACGTNN")  # 20% bad
-
-        for pdm in self.pdms():
-            pdm.guid_annotate(
-                guid="g1", nameSpace="DNAQuality", annotDict=na.composition
-            )
-            na.examine("ACGTACNNNN")  # 40% bad
-            pdm.guid_annotate(
-                guid="g2", nameSpace="DNAQuality", annotDict=na.composition
-            )
-            na.examine("ACGTNNNNNN")  # 60% bad
-            pdm.guid_annotate(
-                guid="g3", nameSpace="DNAQuality", annotDict=na.composition
-            )
-
-            r1 = pdm.guid_quality_check("g1", 0.80)  # valid
-            r2 = pdm.guid_quality_check("g2", 0.80)  # invalid
-            r3 = pdm.guid_quality_check("g3", 0.80)  # invalid
-            r4 = pdm.guid_quality_check("g4", 0.80)  # invalid; does not exist.
-
-            self.assertTrue(r1)
-            self.assertFalse(r2)
-            self.assertFalse(r3)
-            self.assertIsNone(r4)
-
             resDict = pdm.guid2quality(None)  # restrict to nothing - return all
             self.assertIsNotNone(resDict)
-            assert resDict is not None  # for typing purposes
             self.assertEqual(resDict["g1"], 0.80)
             self.assertEqual(resDict["g2"], 0.60)
             self.assertEqual(resDict["g3"], 0.40)
@@ -515,21 +496,23 @@ class Test_SeqMeta_guid2quality2(Test_Database):
         # set up nucleic acid object
 
         na = NucleicAcid()
-        na.examine("ACGTACGTNN")  # 20% bad
 
         for pdm in self.pdms():
+            na.examine("ACGTACGTNN")  # 20% bad
+            pdm.refcompressedseq_store("g1", {"seq": "ACGTACGTNN"})
             pdm.guid_annotate(
                 guid="g1", nameSpace="DNAQuality", annotDict=na.composition
             )
             na.examine("ACGTACNNNN")  # 40% bad
+            pdm.refcompressedseq_store("g2", {"seq": "ACGTACNNNN"})
             pdm.guid_annotate(
                 guid="g2", nameSpace="DNAQuality", annotDict=na.composition
             )
             na.examine("ACGTNNNNNN")  # 60% bad
+            pdm.refcompressedseq_store("g3", {"seq": "ACGNNNNNNN"})
             pdm.guid_annotate(
                 guid="g3", nameSpace="DNAQuality", annotDict=na.composition
             )
-
             r1 = pdm.guid_quality_check("g1", 0.80)  # valid
             r2 = pdm.guid_quality_check("g2", 0.80)  # invalid
             r3 = pdm.guid_quality_check("g3", 0.80)  # invalid
@@ -556,9 +539,17 @@ class Test_SeqMeta_Base1(Test_Database):
         for pdm in super().pdms():
             for guid, seq in seqs.items():
                 dna.examine(seq)
+                pdm.refcompressedseq_store(
+                    guid, {"seq": seq}
+                )  # in real application, seq would be a dictionary of reference compressed data
                 pdm.guid_annotate(
                     guid=guid, nameSpace="DNAQuality", annotDict=dna.composition
                 )
+
+            res = set()
+            for (x,) in pdm.session.query(RefCompressedSeq.sequence_id).all():
+                res.add(x)
+            self.assertTrue(x, set(seqs.keys()))
             yield pdm
 
 
@@ -574,9 +565,16 @@ class Test_SeqMeta_Base1t(Test_Database):
             for guid, seq in self.seqs.items():
                 time.sleep(0.1)
                 dna.examine(seq)
+                pdm.refcompressedseq_store(
+                    guid, {"seq": seq}
+                )  # in real application, seq would be a dictionary of reference compressed data
                 pdm.guid_annotate(
                     guid=guid, nameSpace="DNAQuality", annotDict=dna.composition
                 )
+            res = set()
+            for (x,) in pdm.session.query(RefCompressedSeq.sequence_id).all():
+                res.add(x)
+            self.assertTrue(x, set(self.seqs.keys()))
             yield pdm
 
 
@@ -708,37 +706,64 @@ class Test_Clusters(Test_Database):
 
     def runTest(self):
         for pdm in self.pdms():
-            self.assertIsNone(pdm.cluster_latest_version("cl1"))
 
+            # there aren't any clusters initially
+            self.assertIsNone(pdm.cluster_latest_version("cl1"))
             self.assertEqual(0, len(pdm.cluster_versions("cl1")))
 
+            # we store a dictionary as cluster 1 (cl1)
             payload1 = {"one": 1, "two": 2}
-            x = pdm.cluster_store("cl1", payload1)
+            x = pdm.cluster_store("cl1", payload1)  # returns the cluster number
 
+            # and another s cluster2
             payload1b = {"2_one": 1, "2_two": 2}
-            y = pdm.cluster_store("cl2", payload1b)
+            y = pdm.cluster_store("cl2", payload1b)  # returns the cluster number
             self.assertIsNotNone(y)
-
             self.assertIsNotNone(pdm.cluster_latest_version("cl1"))
+
+            # we measure the id of the latest version of cluster 1.
             clv = pdm.cluster_latest_version("cl1")
-            self.assertEqual(x, clv)
-            self.assertEqual(1, len(pdm.cluster_versions("cl1")))
+            self.assertEqual(x, clv)  # it's the same number we were given initially
+            self.assertEqual(
+                1, len(pdm.cluster_versions("cl1"))
+            )  # there is only one version
+
+            # this should not find any newer versions than clv; it should return none
             self.assertIsNone(pdm.cluster_read_update("cl1", clv))
 
+            # should get back what we put in
             payload2 = pdm.cluster_read("cl1")
             self.assertEqual(payload1, payload2)
 
+            # now we load an update.
             payload3 = {"one": 10, "two": 20}
-            pdm.cluster_store("cl1", payload3)  # this is now the latest version
+            x2 = pdm.cluster_store(
+                "cl1", payload3
+            )  # this is now the latest version of cl1
+            self.assertTrue(x2 > x)  # will have a higher number
 
             payload4 = {"2-one": 10, "2-two": 20}
-            pdm.cluster_store("cl2", payload4)  # this is now the latest version
+            y2 = pdm.cluster_store(
+                "cl2", payload4
+            )  # this is now the latest version of cl2
+            self.assertTrue(y2 > y)  # will have a higher number
 
-            self.assertEqual(pdm.cluster_keys(), ["cl1", "cl2"])
-            self.assertEqual(pdm.cluster_keys(clustering_name="cl1"), ["cl1"])
+            self.assertEqual(
+                pdm.cluster_keys(), ["cl1", "cl2"]
+            )  # there should be two clusters in the dictionary
+            self.assertEqual(
+                pdm.cluster_keys(clustering_name="cl1"), ["cl1"]
+            )  # selecting one should yield only one
 
-            self.assertEqual(2, len(pdm.cluster_versions("cl1")))
-            self.assertNotEqual(clv, pdm.cluster_latest_version("cl1"))
+            self.assertEqual(
+                2, len(pdm.cluster_versions("cl1"))
+            )  # there are two different cluster 1 versions
+            self.assertEqual(
+                x2, pdm.cluster_latest_version("cl1")
+            )  # should return the latest version
+            self.assertNotEqual(x2, x)
+
+            self.assertNotEqual(clv, pdm.cluster_latest_version("cl1"))  # fails
             self.assertIsNotNone(pdm.cluster_read_update("cl1", clv))
 
             payload5 = pdm.cluster_read("cl1")
@@ -884,18 +909,19 @@ class Test_connect(Test_Database):
             pdm.connect()
 
 
+# @unittest.skip("On oracle, connection drops, reason unknown")
 class Test_delete_existing_data(Test_Database):
     """check that all data is deleted"""
 
     def runTest(self):
         for pdm in self.pdms():
+            pdm.refcompressedseq_store("guid", {"datum": 42})
             pdm.config_store("config", {"datum": 42})
             pdm.server_monitoring_store()
             pdm.monitor_store("monitor", "<html></html>")
             pdm.msa_store("msa", {"datum": 42})
             pdm.tree_store("tree", {"datum": 42})
             pdm.cluster_store("cluster", {"datum": 42})
-            pdm.refcompressedseq_store("guid", {"datum": 42})
 
             pdm._delete_existing_data()
 
@@ -958,7 +984,10 @@ class Test_guid2items(Test_Database):
     """this is mostly tested by other test cases, just test the edge cases"""
 
     def runTest(self):
+
         for pdm in self.pdms():
+            pdm.refcompressedseq_store("guid1", {"seq": "ACTG"})
+            pdm.refcompressedseq_store("guid2", {"seq": "ACTG"})
             pdm.guid_annotate("guid1", "ns1", {"datum": 1})
             pdm.guid_annotate("guid1", "ns2", {"datum": 2})
             pdm.guid_annotate("guid2", "ns2", {"datum": 3})

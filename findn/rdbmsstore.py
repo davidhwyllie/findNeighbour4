@@ -25,7 +25,6 @@ import json
 import pandas as pd
 import psutil
 import logging
-
 import numpy as np
 import warnings
 import progressbar
@@ -40,10 +39,12 @@ from sqlalchemy import (
     Identity,
     ForeignKey,
     TIMESTAMP,
+    func,
+    create_engine,
+    inspect,
 )
 
 # from sqlalchemy.dialects import oracle
-from sqlalchemy import create_engine, inspect
 from sqlalchemy.sql.expression import delete, desc
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
@@ -81,7 +82,8 @@ metadata = MetaData()
 
 
 class RDBMSError(Exception):
-    """a general purpose error used by the rdbms module. """
+    """a general purpose error used by the rdbms module."""
+
     pass
 
 
@@ -105,14 +107,9 @@ class Config(db_pc):
 
 
 class RefCompressedSeq(db_pc):
-    """stores reference compressed sequences, which are large character objects
+    """stores reference compressed sequences, which are large character objects, and their annotations.
 
-    Note: the mongodb equivalent is the GridFS meta-collection refcompressedseq.
-    Note: the mongodb equivalent stores the reference compressed sequence objects pickled.
-    Note:  There is no good reason to do this, apart from speed (not tested).  JSON object storage is completely acceptable
-
-    For details see:
-    https://docs.mongodb.com/manual/core/gridfs/
+    Note: the mongodb equivalent is the GridFS meta-collection refcompressedseq and the standard collection guid2meta.
     """
 
     __tablename__ = "refcompressedseq"
@@ -357,7 +354,7 @@ class fn3persistence:
         2. a valid sqlalchemy database connection string (if this is sufficient for connections)  e.g. 'pyodbc+mssql://myserver'
         3. None.  This is considered to mean 'sqlite://' i.e. an in memory sqlite database, which is not persisted when the program stops.
 
-        if it is not none, a variable called PCA_CONNECTION_CONFIG_FILE must be present.  This must point to a file containing credentials.
+        if it is not none, a variable called DB_CONNECTION_CONFIG_FILE must be present.  This must point to a file containing credentials.
         the name of an environment variable containing (in json format) a dictionary, or None if it is not required.
         An example of such a dictionary is as below:
         {
@@ -461,19 +458,19 @@ class fn3persistence:
             )
             self.engine_name = connection_config
         else:
-            # PCA_CONNECTION_CONFIG_FILE should contain credentials
+            # DB_CONNECTION_CONFIG_FILE should contain credentials
             conn_detail_file = None
             try:
-                conn_detail_file = os.environ["PCA_CONNECTION_CONFIG_FILE"]
+                conn_detail_file = os.environ["DB_CONNECTION_CONFIG_FILE"]
             except KeyError:
                 raise RDBMSError(
-                    "Environment variable PCA_CONNECTION_CONFIG_FILE does not exist; however, it is required.  If you are using a python virtual environment, you need to set it in .env, not globally"
+                    "Environment variable DB_CONNECTION_CONFIG_FILE does not exist; however, it is required.  If you are using a python virtual environment, you need to set it in .env, not globally"
                 )
 
             if conn_detail_file is None:
                 # we failed to set it
                 raise RDBMSError(
-                    "Tried to set conn_detail_file from environment variable PCA_CONNECTION_CONFIG_FILE, but it is still None."
+                    "Tried to set conn_detail_file from environment variable DB_CONNECTION_CONFIG_FILE, but it is still None."
                 )
 
             if not os.path.exists(conn_detail_file):
@@ -543,15 +540,24 @@ class fn3persistence:
             )
         )
 
-        # drop existing tables if in debug mode
-        if debug == 2:
-            print("Dropping existing tables")
-            self._drop_existing_tables()
-
+        self.Base.metadata.create_all(
+            bind=self.engine
+        )  # create the table(s) if they don't exist
         Session = sessionmaker(bind=self.engine)
         self.session = Session()
-        self.Base.metadata.create_all(bind=self.engine)  # create the table(s)
+
+        # drop existing tables if in debug mode
+        if debug == 2:
+            logging.info("Deleting existing data")
+            self._delete_existing_data()
+
         self.session.commit()
+
+    def explicitly_close_connections(self):
+        """closes the session & disposes of any engine.
+        Is required for unit testing"""
+        self.session.close()
+        self.engine.dispose()
 
     def no_progressbar(self):
         """don't use progress bars"""
@@ -562,16 +568,12 @@ class fn3persistence:
         return inspect(self.engine).get_table_names()
 
     def _drop_existing_tables(self):
-        """drops any existing tables"""
-
-        # test - wait 10 seconds - for any existing transactions to cleartherwise, ORA-00054 can occur during oracle testing
-        # happens only with multiple cpus
-        if self.is_oracle:
-            time.sleep(0)  # TODO
+        """empties, but does not drop, any existing tables"""
 
         self.Base.metadata.create_all(
             self.engine
         )  # create the table(s) if they don't already exist
+
         BulkLoadTest.__table__.drop(self.engine)
         Config.__table__.drop(self.engine)
         Edge.__table__.drop(self.engine)
@@ -764,11 +766,12 @@ class fn3persistence:
     def _delete_existing_data(self) -> None:
         """deletes existing data from the databases"""
         self.session.query(Config).delete()
-        self.session.query(RefCompressedSeq).delete()
         self.session.query(Edge).delete()
-        self.session.query(Cluster).delete()
+        self.session.query(RefCompressedSeq).delete()
         self.session.query(Monitor).delete()
         self.session.query(ServerMonitoring).delete()
+        self.session.query(BulkLoadTest).delete()
+        self.session.query(Cluster).delete()
         self.session.query(MSA).delete()
         self.session.query(TreeStorage).delete()
 
@@ -827,7 +830,7 @@ class fn3persistence:
         if row is None:
             return None
         else:
-            return dict(_id=key, **json.loads(row.config_value.decode("utf-8")))
+            return dict(_id=key, **json.loads(row.config_value))
 
     # methods for the server and database monitoring
     def recent_database_monitoring(
@@ -836,6 +839,18 @@ class fn3persistence:
         """computes trends in the number of records holding pairs (guid2neighbours) vs. records.
         This ratio is a measure of database health.  Ratios > 100 indicate the database may become very large, and query slowly"""
         return {"recompression_data": False, "latest_stats": {"storage_ratio": 1}}
+
+    def _to_string(self, x=[str, bytes]) -> str:
+        """returns a string version of x; if x is bytes, returns a string, assuming utf-8 encoding
+
+        This function is required because some databases return bytes objects
+        from 'text' fields (like sqlite) while others return str objects (like oracle)
+        """
+
+        if isinstance(x, bytes):
+            return x.decode("utf-8")
+        else:
+            return x
 
     def recent_server_monitoring(
         self,
@@ -866,7 +881,7 @@ class fn3persistence:
             return []
 
         def row_to_dict(res: ServerMonitoring) -> dict:
-            d = json.loads(res.content.decode("utf-8"))
+            d = json.loads(res.content)
             d["_id"] = res.sm_int_id
             if selection_field is None:
                 return d
@@ -958,7 +973,7 @@ class fn3persistence:
         """loads stored string (e.g. html object) from the monitor collection."""
 
         if res := self.session.query(Monitor).filter_by(mo_id=monitoring_id).first():
-            return res.content.decode("utf-8")
+            return self._to_string(res.content)
         else:
             return None
 
@@ -987,7 +1002,7 @@ class fn3persistence:
         It is assumed object is a dictionary"""
 
         if res := self.session.query(MSA).filter_by(msa_id=msa_token).first():
-            return json.loads(res.content.decode("utf-8"))
+            return json.loads(res.content)
         else:
             return None
 
@@ -1034,7 +1049,7 @@ class fn3persistence:
         It is assumed object is a dictionary"""
 
         if res := self.session.query(TreeStorage).filter_by(ts_id=tree_token).first():
-            return json.loads(res.content.decode("utf-8"))
+            return json.loads(res.content)
         else:
             return None
 
@@ -1059,7 +1074,7 @@ class fn3persistence:
 
     # methods for clusters
     def cluster_store(self, clustering_key: str, obj: dict) -> int:
-        """stores the clustering object obj.  retains previous version.  To clean these up, call cluster_delete_legacy.
+        """stores the clustering object obj.  retains previous version.
 
         obj: a dictionary to store
         clustering_key: the name of the clustering, e.g. TBSNP12-graph
@@ -1067,13 +1082,8 @@ class fn3persistence:
         Returns:
         current cluster version
 
-        Note; does not replace previous version, but stores a new one.
-
-        cf. warning in Mongo docs:
-        Do not use GridFS if you need to update the content of the entire file atomically.
-        As an alternative you can store multiple versions of each file and specify the current version of the file in the metadata.
-        You can update the metadata field that indicates “latest” status in an atomic update after uploading the new version of the file,
-        and later remove previous versions if needed.
+        Note: does not replace previous version, but stores a new one.
+        Note: to delete legacy versions, call cluster_delete_legacy().
         """
 
         if not isinstance(obj, dict):
@@ -1091,15 +1101,21 @@ class fn3persistence:
 
     def cluster_read(self, clustering_key: str) -> Optional[dict]:
         """loads object from clusters collection corresponding to the most recent version of
-        the clustering, saved with cluster_build_id = 'clustering_key'.
+        the clustering identified by 'clustering_key'.
+
+        Parameters:
+        clustering_key: a string identifying a clustering result
+
+        Returns:
+        the clustering information, in the form of a dictionary if it exists, or None if it does not
         """
         if (
             res := self.session.query(Cluster)
             .filter_by(cluster_build_id=clustering_key)
-            .order_by(desc(Cluster.upload_date))
+            .order_by(desc(Cluster.cl_int_id))
             .first()
         ):
-            return json.loads(res.content.decode("utf-8"))
+            return json.loads(res.content)
         else:
             return None
 
@@ -1109,28 +1125,42 @@ class fn3persistence:
         """loads object from clusters collection corresponding to the most recent version
         of the clustering, saved with cluster_build_id = 'clustering_key'.
         it will read only if the current version is different from current_cluster_version; other wise, it returns None
-        It is assumed object is a dictionary"""
+
+
+        Parameters:
+        clustering_key: a string identifying the cluster
+        current_cluster_version: an integer identifying a legacy cluster version
+
+        Returns:
+        the clustering information, in the form of a dictionary if it exists, or None if it does not
+        """
 
         if (
             res := self.session.query(Cluster)
             .filter_by(cluster_build_id=clustering_key)
-            .order_by(desc(Cluster.upload_date))
+            .filter(Cluster.cl_int_id != current_cluster_version)
+            .order_by(desc(Cluster.cl_int_id))
             .first()
         ):
-            if res.cl_int_id != current_cluster_version:
-                return json.loads(res.content.decode("utf-8"))
+            return json.loads(res.content)
         return None
 
     def cluster_latest_version(self, clustering_key: str) -> int:
-        """returns id of latest version"""
+        """returns id of latest version, which is the maximum number
+
+        Parameters:
+        clustering_key: a string identifying the cluster
+
+        Returns:
+        cl_int_id, the primary key to the cluster table"""
 
         if (
-            res := self.session.query(Cluster)
-            .filter_by(cluster_build_id=clustering_key)
-            .order_by(desc(Cluster.upload_date))
+            res := self.session.query(func.max(Cluster.cl_int_id))
+            .filter(Cluster.cluster_build_id == clustering_key)
             .first()
         ):
-            return res.cl_int_id
+            retVal = res[0]  # it's a tuple
+            return retVal
         else:
             return None
 
@@ -1223,7 +1253,7 @@ class fn3persistence:
             .filter_by(sequence_id=guid)
             .first()
         ):
-            return json.loads(row.content.decode("utf-8"))
+            return json.loads(row.content)
         else:
             return None
 
@@ -1236,39 +1266,41 @@ class fn3persistence:
     def guid_annotate(self, guid: str, nameSpace: str, annotDict: dict) -> None:
         """adds multiple annotations of guid from a dictionary;
         all annotations go into a namespace.
-        creates the record if it does not exist"""
+        updates the annotation if it exists"""
 
         if not isinstance(annotDict, dict):
             raise TypeError(
                 "Can only store dictionary objects, not {0}".format(type(annotDict))
             )
 
-        if (
-            row := self.session.query(RefCompressedSeq)
-            .filter_by(sequence_id=guid)
-            .first()
-        ):
-            pass
-        else:
-            row = RefCompressedSeq(
-                sequence_id=guid,
-                annotations="{}".encode("utf-8"),
-                content="{}".encode("utf-8"),
+        # The reference compressed sequence must exist.
+        rcs = (
+            self.session.query(RefCompressedSeq)
+            .filter(RefCompressedSeq.sequence_id == guid)
+            .one_or_none()
+        )
+        if rcs is None:
+            raise RDBMSError(
+                "Asked to annotate a record {0} but it does not exist".format(guid)
             )
-            self.session.add(row)
 
         if nameSpace == "DNAQuality":
+            # coerce examination date to string
             if "examinationDate" in annotDict:
-                row.examination_date = annotDict["examinationDate"]
-                annotDict["examinationDate"] = annotDict["examinationDate"].isoformat()
+                rcs.examination_date = annotDict["examinationDate"]
+                if isinstance(annotDict["examinationDate"], datetime):
+                    # convert to isoformat pre-jsonisation
+                    annotDict["examinationDate"] = annotDict[
+                        "examinationDate"
+                    ].isoformat()
             if "invalid" in annotDict:
-                row.invalid = annotDict["invalid"]
+                rcs.invalid = annotDict["invalid"]
             if "propACTG" in annotDict:
-                row.prop_actg = annotDict["propACTG"]
+                rcs.prop_actg = annotDict["propACTG"]
 
-        annotations = json.loads(row.annotations.decode("utf-8"))
-        annotations[nameSpace] = annotDict
-        row.annotations = json.dumps(annotations).encode("utf-8")
+        annotations = json.loads(rcs.annotations)  # what's there now
+        annotations[nameSpace] = annotDict  # replace or add the new namespace
+        rcs.annotations = json.dumps(annotations).encode("utf-8")
 
         self.session.commit()
 
@@ -1361,7 +1393,7 @@ class fn3persistence:
         -1   The guid does not exist
         0    The guid exists and the sequence is valid
         1    The guid exists and the sequence is invalid
-        -2    The guid exists, but there is no DNAQuality.valid key"""
+        """
 
         if (
             res := self.session.query(RefCompressedSeq)
@@ -1373,7 +1405,9 @@ class fn3persistence:
             elif res.invalid == 1:
                 return 1
             else:
-                return -2
+                raise ValueError(
+                    "invalid is neither 1 nor 0 but {0}".format(res.invalid)
+                )
         else:
             return -1
 
@@ -1453,7 +1487,7 @@ class fn3persistence:
         An error is raised if namespace and tag is not present in each record.
         """
         return {
-            res.sequence_id: json.loads(res.annotations.decode("utf-8"))[namespace][tag]
+            res.sequence_id: json.loads(res.annotations)[namespace][tag]
             for res in self._guid2seq(guidList)
         }
 
@@ -1499,9 +1533,7 @@ class fn3persistence:
                 return annotations
 
         return {
-            res.sequence_id: select_namespaces(
-                json.loads(res.annotations.decode("utf-8"))
-            )
+            res.sequence_id: select_namespaces(json.loads(res.annotations))
             for res in self._guid2seq(guidList)
         }
 
