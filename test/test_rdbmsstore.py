@@ -12,9 +12,18 @@ import unittest
 import pandas as pd
 from sqlalchemy import func
 from findn.NucleicAcid import NucleicAcid
-from findn.rdbmsstore import fn3persistence, BulkLoadTest, RDBMSError, RefCompressedSeq
+from findn.rdbmsstore import (
+    fn3persistence_r,
+    BulkLoadTest,
+    RDBMSError,
+    RefCompressedSeq,
+)
+
+# skip these tests if the NORDBMSTESTS variable exists
+rdbms_test = unittest.skipIf(os.environ.get("NO_RDBMS_TESTS", False), "No rdbms tests")
 
 
+@rdbms_test
 class Test_Database(unittest.TestCase):
     """establishes database connection strings for cross-database testing.
     Currently tests OCI (if relevant environment variables are set) and Sqlite
@@ -55,17 +64,28 @@ class Test_Database(unittest.TestCase):
                         self.engines[key] = key
                         pass
 
+        # define a sequence object for testing
+        self.seqobj = {
+            "A": set([1, 2, 3]),
+            "C": set([6]),
+            "T": set([4]),
+            "G": set([5]),
+            "M": {11: "Y", 12: "k"},
+            "invalid": 1,
+        }
+
     def pdms(self, **kwargs):
-        """yields fn3persistence objects, one for each database server being tested."""
+        """yields fn3persistence_r objects, one for each database server being tested."""
         for engine, config in self.engines.items():
             print(engine, type(self).__name__)
-            pdm = fn3persistence(connection_config=config, debug=2, **kwargs)
+            pdm = fn3persistence_r(connection_config=config, debug=2, **kwargs)
             yield pdm
 
             # explicitly close connection (required for unittesting)
-            pdm.explicitly_close_connections()
+            pdm.closedown()
 
 
+@rdbms_test
 class Test_to_string(Test_Database):
     """tests conversion of bytes to string transparently"""
 
@@ -79,6 +99,10 @@ class Test_to_string(Test_Database):
             self.assertIsInstance(r2, str)
 
 
+@rdbms_test
+@unittest.skip(
+    "Unittesting with oracle fails if schemas a repeatedly recreated; ORA-00054"
+)
 class Test_create_database_1(Test_Database):
     """tests creating the database and internal functions dropping tables"""
 
@@ -103,6 +127,7 @@ class Test_create_database_1(Test_Database):
             self.assertEqual(len(expected_tables.intersection(set(n2))), 0)
 
 
+@rdbms_test
 class Test_oracle_bulk_upload_2(Test_Database):
     """tests bulk upload with small number of samples"""
 
@@ -131,6 +156,7 @@ class Test_oracle_bulk_upload_2(Test_Database):
                 pdm._bulk_load(empty_df, "fn4_bulk_load_test", max_batch=10)
 
 
+@rdbms_test
 class Test_Server_Monitoring_0(Test_Database):
     """adds server monitoring info"""
 
@@ -144,6 +170,7 @@ class Test_Server_Monitoring_0(Test_Database):
             self.assertTrue(isinstance(res, list))
 
 
+@rdbms_test
 class Test_Server_Monitoring_1(Test_Database):
     """tests recovery of database monitoring info"""
 
@@ -166,6 +193,7 @@ class Test_Server_Monitoring_1(Test_Database):
             json.dumps(res2)  # should succeed
 
 
+@rdbms_test
 class Test_Server_Monitoring_2(Test_Database):
     """adds server monitoring info"""
 
@@ -201,6 +229,7 @@ class Test_Server_Monitoring_2(Test_Database):
                 res = pdm.recent_server_monitoring("thing")  # type: ignore
 
 
+@rdbms_test
 class Test_Server_Monitoring_3(Test_Database):
     """checks whether server_monitoring_min_interval_msec control works"""
 
@@ -227,6 +256,7 @@ class Test_Server_Monitoring_3(Test_Database):
             self.assertTrue(isinstance(res, list))
 
 
+@rdbms_test
 class Test_Server_Monitoring_4(Test_Database):
     """checks whether delete_server_monitoring_entries"""
 
@@ -250,6 +280,7 @@ class Test_Server_Monitoring_4(Test_Database):
             self.assertTrue(isinstance(res, list))
 
 
+@rdbms_test
 class Test_Server_Monitoring_5(Test_Database):
     """adds server monitoring info"""
 
@@ -269,6 +300,7 @@ class Test_Server_Monitoring_5(Test_Database):
             self.assertTrue(isinstance(res, list))
 
 
+@rdbms_test
 class Test_SeqMeta_singleton(Test_Database):
     """tests guid2neighboursOf"""
 
@@ -293,6 +325,7 @@ class Test_SeqMeta_singleton(Test_Database):
             self.assertEqual(len(singletons.index), 0)
 
 
+@rdbms_test
 class Test_SeqMeta_guid2neighbour_8(Test_Database):
     """tests adding links at scale"""
 
@@ -303,19 +336,18 @@ class Test_SeqMeta_guid2neighbour_8(Test_Database):
                 dist_dict = {}
                 for i in range(10000):
                     guid2 = "guid{0}".format(i)
-                    dist_dict[guid2] = {'dist':i % 20}
+                    dist_dict[guid2] = {"dist": i % 20}
 
                 t0 = datetime.datetime.now()
-                pdm.guid2neighbour_add_links(
-                    srcguid,
-                    dist_dict
-                )
+                pdm.guid2neighbour_add_links(srcguid, dist_dict)
                 t1 = datetime.datetime.now()
                 res1 = pdm.guid2neighbours(srcguid, returned_format=1)
                 t2 = datetime.datetime.now()
-                print(guid_id, "Time to load / read 10k", t1-t0, t2-t1)
+                print(guid_id, "Time to load / read 10k", t1 - t0, t2 - t1)
                 self.assertEqual(10000, len(res1["neighbours"]))
 
+
+@rdbms_test
 class Test_SeqMeta_guid2neighbour_7(Test_Database):
     """tests guid2neighbours functions"""
 
@@ -340,6 +372,7 @@ class Test_SeqMeta_guid2neighbour_7(Test_Database):
             self.assertEqual(5, len(res2["neighbours"]))
 
 
+@rdbms_test
 class Test_SeqMeta_guid_exists_1(Test_Database):
     """tests insert of new data item and existence check"""
 
@@ -347,19 +380,48 @@ class Test_SeqMeta_guid_exists_1(Test_Database):
         for pdm in self.pdms():
             # test there is no 'test' item; insert, and confirm insert
             guid = "sequence1"
-            namespace = "ns"
             payload = {"one": 1, "two": 2}
-            pdm.refcompressedseq_store(guid, {"seq": "ACTG"})
-            pdm.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
+            pdm.refcompressedseq_store_and_annotate(
+                guid, self.seqobj, "DNAQuality", payload
+            )
+
             res = pdm.guid_exists(guid)
             self.assertEqual(res, True)
             res = pdm.guid_exists("missing")
             self.assertEqual(res, False)
 
-            with self.assertRaises(TypeError):
-                pdm.guid_annotate(guid=guid, nameSpace=namespace, annotDict=42)
+            guid = "sequence2"
+            na = NucleicAcid()
+            na.examine("ACGTACGTNN")
+            pdm.refcompressedseq_store_and_annotate(
+                guid, self.seqobj, "DNAQuality", na.composition
+            )
+
+            res = pdm.guid_exists(guid)
+            self.assertEqual(res, True)
+
+            seq2 = (
+                pdm.session.query(RefCompressedSeq)
+                .filter(RefCompressedSeq.sequence_id == "sequence2")
+                .one()
+            )
+            self.assertEqual(seq2.sequence_id, "sequence2")
+            self.assertEqual(seq2.invalid, 0)
+            self.assertEqual(seq2.prop_actg, 0.8)
+            self.assertIsInstance(seq2.examination_date, DateTime)
+
+            seq1 = (
+                pdm.session.query(RefCompressedSeq)
+                .filter(RefCompressedSeq.sequence_id == "sequence1")
+                .one()
+            )
+            self.assertEqual(seq1.sequence_id, "sequence1")
+            self.assertIsNone(seq1.invalid, None)
+            self.assertIsNone(seq1.prop_actg, None)
+            self.assertIsInstance(seq1.examination_date, DateTime)
 
 
+@rdbms_test
 class Test_SeqMeta_guid_valid_1(Test_Database):
     """tests insert of new data item and validity check"""
 
@@ -368,11 +430,12 @@ class Test_SeqMeta_guid_valid_1(Test_Database):
             guid = "valid"
             namespace = "DNAQuality"
             payload = {"invalid": 0}
-            pdm.refcompressedseq_store(guid, {"seq": "ACTG"})
+
+            pdm.refcompressedseq_store(guid, self.seqobj)
 
             pdm.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
             guid = "invalid"
-            pdm.refcompressedseq_store(guid, {"seq": "ACTG"})
+            pdm.refcompressedseq_store(guid, self.seqobj)
 
             namespace = "DNAQuality"
             payload = {"invalid": 1}
@@ -406,6 +469,7 @@ class Test_SeqMeta_guid_valid_1(Test_Database):
             self.assertEqual(res, set(["invalid"]))
 
 
+@rdbms_test
 class Test_SeqMeta_init(Test_Database):
     """tests database creation"""
 
@@ -436,6 +500,7 @@ class Test_SeqMeta_init(Test_Database):
                 pdm.config_store("", 42)
 
 
+@rdbms_test
 class Test_SeqMeta_guid_quality_check_1(Test_Database):
     def runTest(self):
         """tests return of sequences and their qualities"""
@@ -444,17 +509,17 @@ class Test_SeqMeta_guid_quality_check_1(Test_Database):
 
         for pdm in self.pdms():
             na.examine("ACGTACGTNN")  # 20% bad
-            pdm.refcompressedseq_store("g1", {"seq": "ACGTACGTNN"})
+            pdm.refcompressedseq_store("g1", self.seqobj)
             pdm.guid_annotate(
                 guid="g1", nameSpace="DNAQuality", annotDict=na.composition
             )
             na.examine("ACGTACNNNN")  # 40% bad
-            pdm.refcompressedseq_store("g2", {"seq": "ACGTACNNNN"})
+            pdm.refcompressedseq_store("g2", self.seqobj)
             pdm.guid_annotate(
                 guid="g2", nameSpace="DNAQuality", annotDict=na.composition
             )
             na.examine("ACGTNNNNNN")  # 60% bad
-            pdm.refcompressedseq_store("g3", {"seq": "ACGNNNNNNN"})
+            pdm.refcompressedseq_store("g3", self.seqobj)
             pdm.guid_annotate(
                 guid="g3", nameSpace="DNAQuality", annotDict=na.composition
             )
@@ -482,6 +547,7 @@ class Test_SeqMeta_guid_quality_check_1(Test_Database):
             self.assertEqual(resDict["g3"], 0.40)
 
 
+@rdbms_test
 class Test_SeqMeta_guid2quality2(Test_Database):
     def runTest(self):
         """tests return of sequences and their qualities"""
@@ -491,17 +557,17 @@ class Test_SeqMeta_guid2quality2(Test_Database):
 
         for pdm in self.pdms():
             na.examine("ACGTACGTNN")  # 20% bad
-            pdm.refcompressedseq_store("g1", {"seq": "ACGTACGTNN"})
+            pdm.refcompressedseq_store("g1", self.seqobj)
             pdm.guid_annotate(
                 guid="g1", nameSpace="DNAQuality", annotDict=na.composition
             )
             na.examine("ACGTACNNNN")  # 40% bad
-            pdm.refcompressedseq_store("g2", {"seq": "ACGTACNNNN"})
+            pdm.refcompressedseq_store("g2", self.seqobj)
             pdm.guid_annotate(
                 guid="g2", nameSpace="DNAQuality", annotDict=na.composition
             )
             na.examine("ACGTNNNNNN")  # 60% bad
-            pdm.refcompressedseq_store("g3", {"seq": "ACGNNNNNNN"})
+            pdm.refcompressedseq_store("g3", self.seqobj)
             pdm.guid_annotate(
                 guid="g3", nameSpace="DNAQuality", annotDict=na.composition
             )
@@ -521,6 +587,7 @@ class Test_SeqMeta_guid2quality2(Test_Database):
             self.assertEqual(resDict["g3"], 0.40)
 
 
+@rdbms_test
 class Test_SeqMeta_Base1(Test_Database):
     """initialise FN persistence and adds data"""
 
@@ -532,19 +599,36 @@ class Test_SeqMeta_Base1(Test_Database):
             for guid, seq in seqs.items():
                 dna.examine(seq)
                 pdm.refcompressedseq_store(
-                    guid, {"seq": seq}
+                    guid, self.seqobj
                 )  # in real application, seq would be a dictionary of reference compressed data
                 pdm.guid_annotate(
                     guid=guid, nameSpace="DNAQuality", annotDict=dna.composition
                 )
 
             res = set()
+            n = 0
             for (x,) in pdm.session.query(RefCompressedSeq.sequence_id).all():
                 res.add(x)
+                n += 1
             self.assertTrue(x, set(seqs.keys()))
+
+            pdm.refcompressedseq_store(
+                guid, self.seqobj
+            )  # try to add the last item again; nothing should happen
+            n2 = 0
+            res = set()
+            for (x,) in pdm.session.query(RefCompressedSeq.sequence_id).all():
+                res.add(x)
+                n2 += 1
+            self.assertTrue(x, set(seqs.keys()))
+            self.assertEqual(n, n2)
             yield pdm
 
+            # explicitly close connection (required for unittesting)
+            pdm.closedown()
 
+
+@rdbms_test
 class Test_SeqMeta_Base1t(Test_Database):
     """initialise FN persistence and adds data, 0.1 secs apart.
     Used for testing queries examining order of recovery of samples."""
@@ -558,7 +642,7 @@ class Test_SeqMeta_Base1t(Test_Database):
                 time.sleep(0.1)
                 dna.examine(seq)
                 pdm.refcompressedseq_store(
-                    guid, {"seq": seq}
+                    guid, self.seqobj
                 )  # in real application, seq would be a dictionary of reference compressed data
                 pdm.guid_annotate(
                     guid=guid, nameSpace="DNAQuality", annotDict=dna.composition
@@ -569,7 +653,11 @@ class Test_SeqMeta_Base1t(Test_Database):
             self.assertTrue(x, set(self.seqs.keys()))
             yield pdm
 
+            # explicitly close connection (required for unittesting)
+            pdm.closedown()
 
+
+@rdbms_test
 class Test_SeqMeta_guid2ExaminationDateTime(Test_SeqMeta_Base1):
     """recovering guids and examination times;"""
 
@@ -581,6 +669,7 @@ class Test_SeqMeta_guid2ExaminationDateTime(Test_SeqMeta_Base1):
             self.assertEqual(len(res.keys()), expected)
 
 
+@rdbms_test
 class Test_SeqMeta_guid2ExaminationDateTime_order(Test_SeqMeta_Base1t):
     """tests guid2ExaminationDateTime"""
 
@@ -599,6 +688,7 @@ class Test_SeqMeta_guid2ExaminationDateTime_order(Test_SeqMeta_Base1t):
                 previous_addition_time = res[guid]
 
 
+@rdbms_test
 class Test_SeqMeta_guid_examination_time(Test_SeqMeta_Base1t):
     """tests guid_examination_time()"""
 
@@ -622,6 +712,7 @@ class Test_SeqMeta_guid_examination_time(Test_SeqMeta_Base1t):
             self.assertIsNone(this_examination_time)
 
 
+@rdbms_test
 class Test_SeqMeta_guid_considered_after(Test_SeqMeta_Base1t):
     """recovering guids and examination times;"""
 
@@ -639,11 +730,15 @@ class Test_SeqMeta_guid_considered_after(Test_SeqMeta_Base1t):
                 self.assertIsNotNone(this_examination_time)
                 assert this_examination_time is not None  # for typing purposes
                 res2 = pdm.guids_considered_after(this_examination_time)
+                self.assertIsInstance(res2, set)
                 self.assertEqual(
                     len(res2), 3 - i
                 )  # with guid1, we expect three; with guid2, we expect 2; etc
 
                 res2 = pdm.guids_considered_after_guid(guid)
+                self.assertIsInstance(res2, set)
+                for item in res2:
+                    self.assertIsInstance(item, str)
                 self.assertEqual(
                     len(res2), 3 - i
                 )  # with guid1, we expect three; with guid2, we expect 2; etc
@@ -655,6 +750,7 @@ class Test_SeqMeta_guid_considered_after(Test_SeqMeta_Base1t):
                 pdm.guids_considered_after(42)
 
 
+@rdbms_test
 class Test_SeqMeta_propACTG_filteredSequenceGuids(Test_SeqMeta_Base1):
     """recovered guids filtered by the propACTG criterion"""
 
@@ -667,6 +763,7 @@ class Test_SeqMeta_propACTG_filteredSequenceGuids(Test_SeqMeta_Base1):
             self.assertEqual(n, expected)
 
 
+@rdbms_test
 class Test_SeqMeta_allAnnotations(Test_SeqMeta_Base1):
     """tests recovery of all annoations"""
 
@@ -678,6 +775,7 @@ class Test_SeqMeta_allAnnotations(Test_SeqMeta_Base1):
             self.assertEqual(len(df.keys()), 4)
 
 
+@rdbms_test
 class Test_SeqMeta_oneAnnotation(Test_SeqMeta_Base1):
     """tests recovery of one annotations"""
 
@@ -693,6 +791,7 @@ class Test_SeqMeta_oneAnnotation(Test_SeqMeta_Base1):
             self.assertEqual(len(df.keys()), 0)
 
 
+@rdbms_test
 class Test_Clusters(Test_Database):
     """tests saving and recovery of dictionaries to Clusters"""
 
@@ -790,6 +889,7 @@ class Test_Clusters(Test_Database):
                 pdm.cluster_store("", 42)
 
 
+@rdbms_test
 class Test_Tree(Test_Database):
     """tests saving and recovery of dictionaries to Tree"""
 
@@ -817,6 +917,7 @@ class Test_Tree(Test_Database):
                 pdm.tree_store("", 42)
 
 
+@rdbms_test
 class Test_MSA(Test_Database):
     """tests saving and recovery of dictionaries to MSA"""
 
@@ -844,6 +945,7 @@ class Test_MSA(Test_Database):
                 pdm.msa_store("", 42)
 
 
+@rdbms_test
 class Test_Monitor(Test_Database):
     """tests saving and recovery of strings to monitor"""
 
@@ -860,6 +962,7 @@ class Test_Monitor(Test_Database):
                 pdm.monitor_store("", 42)
 
 
+@rdbms_test
 class test_Raise_error(Test_Database):
     """tests raise_error"""
 
@@ -869,6 +972,7 @@ class test_Raise_error(Test_Database):
                 pdm.raise_error("token")
 
 
+@rdbms_test
 class Test_summarise_stored_items(Test_Database):
     """adds server monitoring info"""
 
@@ -877,6 +981,7 @@ class Test_summarise_stored_items(Test_Database):
             self.assertIsNotNone(pdm.summarise_stored_items())
 
 
+@rdbms_test
 class Test_rotate_log(Test_Database):
     """dummy test for coverage, this is a NOP"""
 
@@ -885,6 +990,7 @@ class Test_rotate_log(Test_Database):
             pdm.rotate_log()
 
 
+@rdbms_test
 class Test_no_progressbar(Test_Database):
     """dummy test for coverage, this is not easily testable"""
 
@@ -893,6 +999,7 @@ class Test_no_progressbar(Test_Database):
             pdm.no_progressbar()
 
 
+@rdbms_test
 class Test_connect(Test_Database):
     """dummy test for coverage, this is a NOP"""
 
@@ -901,13 +1008,13 @@ class Test_connect(Test_Database):
             pdm.connect()
 
 
-# @unittest.skip("On oracle, connection drops, reason unknown")
+@rdbms_test
 class Test_delete_existing_data(Test_Database):
     """check that all data is deleted"""
 
     def runTest(self):
         for pdm in self.pdms():
-            pdm.refcompressedseq_store("guid", {"datum": 42})
+            pdm.refcompressedseq_store("guid", self.seqobj)
             pdm.config_store("config", {"datum": 42})
             pdm.server_monitoring_store()
             pdm.monitor_store("monitor", "<html></html>")
@@ -923,25 +1030,10 @@ class Test_delete_existing_data(Test_Database):
             self.assertIsNone(pdm.msa_read("msa"))
             self.assertIsNone(pdm.tree_read("tree"))
             self.assertIsNone(pdm.cluster_read("cluster"))
-            self.assertIsNone(pdm.refcompressedseq_store("guid", {"datum": 42}))
+            self.assertIsNone(pdm.refcompressedseq_store("guid", self.seqobj))
 
 
-class Test_delete_existing_clustering_data(Test_Database):
-    """check that all clustering data is deleted"""
-
-    def runTest(self):
-        for pdm in self.pdms():
-            pdm.msa_store("msa", {"datum": 42})
-            pdm.tree_store("tree", {"datum": 42})
-            pdm.cluster_store("cluster", {"datum": 42})
-
-            pdm._delete_existing_clustering_data()
-
-            self.assertIsNone(pdm.msa_read("msa"))
-            self.assertIsNone(pdm.tree_read("tree"))
-            self.assertIsNone(pdm.cluster_read("cluster"))
-
-
+@rdbms_test
 class Test_memory_usage(Test_Database):
     """get memory usage"""
 
@@ -955,31 +1047,43 @@ class Test_memory_usage(Test_Database):
             self.assertTrue(0 <= res["server|mstat|percent"] <= 100)
 
 
+@rdbms_test
 class Test_refcompressedseq_store(Test_Database):
-    """this is mostly tested by the edges, just test the edge cases"""
+    """this is mostly tested by other tests , just test the edge cases"""
 
     def runTest(self):
         for pdm in self.pdms():
-            payload = {"datum": 42}
+            payload = self.seqobj
             pdm.refcompressedseq_store("guid", payload)
             self.assertEqual(pdm.refcompressedsequence_read("guid"), payload)
-            pdm.refcompressedseq_store("guid2", {})
+            self.assertEqual(pdm.guids(), {"guid"})
+
+            payload = self.seqobj
+            pdm.refcompressedseq_store("guid2", payload)
+            self.assertEqual(pdm.refcompressedsequence_read("guid2"), payload)
+
             self.assertEqual(pdm.guids(), {"guid", "guid2"})
 
             self.assertIsNone(pdm.refcompressedsequence_read("not_a_guid"))
 
             with self.assertRaises(TypeError):
-                pdm.refcompressedseq_store("", 42)
+                pdm.refcompressedseq_store("guid3", 42)
+            self.assertEqual(pdm.guids(), {"guid", "guid2"})
+
+            with self.assertRaises(KeyError):
+                pdm.refcompressedseq_store("guid4", {})
+            self.assertEqual(pdm.guids(), {"guid", "guid2"})
 
 
+@rdbms_test
 class Test_guid2items(Test_Database):
     """this is mostly tested by other test cases, just test the edge cases"""
 
     def runTest(self):
 
         for pdm in self.pdms():
-            pdm.refcompressedseq_store("guid1", {"seq": "ACTG"})
-            pdm.refcompressedseq_store("guid2", {"seq": "ACTG"})
+            pdm.refcompressedseq_store("guid1", self.seqobj)
+            pdm.refcompressedseq_store("guid2", self.seqobj)
             pdm.guid_annotate("guid1", "ns1", {"datum": 1})
             pdm.guid_annotate("guid1", "ns2", {"datum": 2})
             pdm.guid_annotate("guid2", "ns2", {"datum": 3})

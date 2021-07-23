@@ -666,7 +666,8 @@ class test_server_config(unittest.TestCase):
 
 
 class test_server_memory_usage_1(unittest.TestCase):
-    """ tests route /api/v2/server_memory_usage"""
+    """tests route /api/v2/server_memory_usage"""
+
     def runTest(self):
 
         # default: response should be json
@@ -689,7 +690,7 @@ class test_server_memory_usage_1(unittest.TestCase):
 
 
 class test_server_memory_usage_2(unittest.TestCase):
-    """ tests route /api/v2/server_memory_usage"""
+    """tests route /api/v2/server_memory_usage"""
 
     def runTest(self):
         # default: response should be html

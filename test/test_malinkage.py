@@ -20,7 +20,7 @@ import os
 import unittest
 import json
 from findn.common_utils import ConfigManager
-from findn.mongoStore import fn3persistence
+from findn.persistence import Persistence
 from findn.hybridComparer import hybridComparer
 from catwalk.pycw_client import CatWalk
 from snpclusters.ma_linkage import (
@@ -32,6 +32,8 @@ from snpclusters.ma_linkage import (
 )
 
 # unittests
+UNITTEST_MONGOCONN: str = "mongodb://localhost"
+UNITTEST_RDBMSCONN: str = "sqlite://"
 
 
 class Test_MP(unittest.TestCase):
@@ -944,134 +946,6 @@ class test_Raise_error(unittest.TestCase):
             m.raise_error("token")
 
 
-class test_MIXCHECK_1(unittest.TestCase):
-    """tests mixpore mixture checker"""
-
-    def runTest(self):
-
-        rc = ConfigManager(os.path.join("config", "default_test_config.json"))
-        CONFIG = rc.read_config()
-
-        # get a clustering object's settings
-        for clustering_name in CONFIG["CLUSTERING"].keys():
-            clustering_setting = CONFIG["CLUSTERING"][clustering_name]
-
-            PERSIST = fn3persistence(
-                dbname=CONFIG["SERVERNAME"],
-                connString=CONFIG["FNPERSISTENCE_CONNSTRING"],
-                debug=CONFIG["DEBUGMODE"],
-            )
-            PERSIST._delete_existing_data()
-
-            # empty any test catwalk server
-            cw = CatWalk(
-                cw_binary_filepath=None,
-                reference_name="H37RV",
-                reference_filepath="reference/TB-ref.fasta",
-                mask_filepath="reference/TB-exclude-adaptive.txt",
-                max_distance=20,
-                bind_host="localhost",
-                bind_port=5998,
-            )
-
-            # stop the server if it is running
-            cw.stop()
-            self.assertFalse(cw.server_is_running())
-
-            hc = hybridComparer(
-                reference=CONFIG["reference"],
-                maxNs=CONFIG["MAXN_STORAGE"],
-                snpCeiling=CONFIG["SNPCEILING"],
-                excludePositions=CONFIG["excludePositions"],
-                preComparer_parameters=CONFIG["PRECOMPARER_PARAMETERS"],
-                PERSIST=PERSIST,
-                unittesting=True,
-            )
-
-            mpmc = MixPOREMixtureChecker(hc, **clustering_setting)
-
-            # check update adds remaining guids
-            m = MixtureAwareLinkage(
-                PERSIST=PERSIST,
-                MIXCHECK=mpmc,
-                mixed_sample_management=clustering_setting["mixed_sample_management"],
-                snv_threshold=clustering_setting["snv_threshold"],
-            )
-
-            # add fake data
-            guids_inserted = list()
-            for i in range(1, 4):
-                # print("Inserting",i)
-
-                seq = list(str(CONFIG["reference"]))
-
-                if i % 3 == 0:  # every third sample is mixed
-                    is_mixed = True
-                    guid_to_insert = "mixed_{0}".format(i)
-                else:
-                    is_mixed = False
-                    guid_to_insert = "nomix_{0}".format(i)
-
-                # make 5 mutations at position 500,000
-
-                offset = 700000
-                for j in range(i + 5):
-                    mutbase = offset + j
-                    ref = seq[mutbase]
-                    if is_mixed is False:
-                        if i % 2 == 0:
-                            if not ref == "T":
-                                seq[mutbase] = "T"
-                            else:
-                                seq[mutbase] = "A"
-                        elif i % 2 == 1:
-                            if not ref == "C":
-                                seq[mutbase] = "C"
-                            else:
-                                seq[mutbase] = "G"
-                    else:
-                        seq[mutbase] = "M"
-                seq = "".join(seq)
-                # print(i,guid_to_insert, seq[699995:700020])
-                guids_inserted.append(guid_to_insert)
-                obj = hc.compress(seq)
-                loginfo = hc.persist(obj, guid_to_insert)
-                # print(loginfo)
-                self.assertTrue(loginfo is not None)
-            # test the mixporemixture checker.
-            for guid in guids_inserted:
-                res = mpmc.is_mixed(guid)
-                # print(guid, res)
-                self.assertEqual(
-                    "mixed" in guid, res["is_mixed"]
-                )  # should identify all mixed guids
-
-            m.update()
-            m.cluster()
-
-            res = m.name2meta()
-            # print(res)
-            for guid in res.index:
-
-                self.assertEqual(
-                    "mixed" in guid, res.at[guid, "is_mixed"]
-                )  # should identify all mixed guids
-
-                # check whether it's what we expect
-                if clustering_setting["mixed_sample_management"] in [
-                    "ignore",
-                    "exclude",
-                ]:
-                    self.assertEqual(
-                        len(res.at[guid, "cluster_id"]), 1
-                    )  # samples are in one cluster
-                if clustering_setting["mixed_sample_management"] == "include":
-                    if "mixed" in guid:
-                        self.assertTrue(len(res.at[guid, "cluster_id"]) > 0)
-                    else:
-                        self.assertEqual(len(res.at[guid, "cluster_id"]), 1)
-
-
 class Test_MALR_1(unittest.TestCase):
     """tests MixtureAwareLinkageResults"""
 
@@ -1213,3 +1087,279 @@ class Test_MALR_1(unittest.TestCase):
         malr.refresh()
         t2 = malr.current_version_load_time
         self.assertNotEqual(t1, t2)  # updated
+
+
+## database dependent tests
+
+rdbms_test = unittest.skipIf(os.environ.get("NO_RDBMS_TESTS", False), "No rdbms tests")
+
+
+@rdbms_test
+class test_MIXCHECK_1_rdbms(unittest.TestCase):
+    """tests mixpore mixture checker"""
+
+    def runTest(self):
+
+        rc = ConfigManager(os.path.join("config", "default_test_config.json"))
+        CONFIG = rc.read_config()
+
+        # get a clustering object's settings
+        for clustering_name in CONFIG["CLUSTERING"].keys():
+            clustering_setting = CONFIG["CLUSTERING"][clustering_name]
+
+            pm = Persistence()
+            PERSIST = pm.get_storage_object(
+                dbname=CONFIG["SERVERNAME"],
+                connString=UNITTEST_RDBMSCONN,
+                debug=CONFIG["DEBUGMODE"],
+                verbose=True,
+            )
+            PERSIST._delete_existing_data()
+
+            # empty any test catwalk server
+            cw = CatWalk(
+                cw_binary_filepath=None,
+                reference_name="H37RV",
+                reference_filepath="reference/TB-ref.fasta",
+                mask_filepath="reference/TB-exclude-adaptive.txt",
+                max_distance=20,
+                bind_host="localhost",
+                bind_port=5998,
+            )
+
+            # stop the server if it is running
+            cw.stop()
+            self.assertFalse(cw.server_is_running())
+
+            hc = hybridComparer(
+                reference=CONFIG["reference"],
+                maxNs=CONFIG["MAXN_STORAGE"],
+                snpCeiling=CONFIG["SNPCEILING"],
+                excludePositions=CONFIG["excludePositions"],
+                preComparer_parameters=CONFIG["PRECOMPARER_PARAMETERS"],
+                PERSIST=PERSIST,
+                unittesting=True,
+            )
+
+            mpmc = MixPOREMixtureChecker(hc, **clustering_setting)
+
+            # check update adds remaining guids
+            m = MixtureAwareLinkage(
+                PERSIST=PERSIST,
+                MIXCHECK=mpmc,
+                mixed_sample_management=clustering_setting["mixed_sample_management"],
+                snv_threshold=clustering_setting["snv_threshold"],
+            )
+
+            # add fake data
+            guids_inserted = list()
+            for i in range(1, 4):
+                # print("Inserting",i)
+
+                seq = list(str(CONFIG["reference"]))
+
+                if i % 3 == 0:  # every third sample is mixed
+                    is_mixed = True
+                    guid_to_insert = "mixed_{0}".format(i)
+                else:
+                    is_mixed = False
+                    guid_to_insert = "nomix_{0}".format(i)
+
+                # make 5 mutations at position 500,000
+
+                offset = 700000
+                for j in range(i + 5):
+                    mutbase = offset + j
+                    ref = seq[mutbase]
+                    if is_mixed is False:
+                        if i % 2 == 0:
+                            if not ref == "T":
+                                seq[mutbase] = "T"
+                            else:
+                                seq[mutbase] = "A"
+                        elif i % 2 == 1:
+                            if not ref == "C":
+                                seq[mutbase] = "C"
+                            else:
+                                seq[mutbase] = "G"
+                    else:
+                        seq[mutbase] = "M"
+                seq = "".join(seq)
+                # print(i,guid_to_insert, seq[699995:700020])
+                guids_inserted.append(guid_to_insert)
+                obj = hc.compress(seq)
+                loginfo = hc.persist(obj, guid_to_insert)
+                # print(loginfo)
+                self.assertTrue(loginfo is not None)
+            # test the mixporemixture checker.
+            for guid in guids_inserted:
+                res = mpmc.is_mixed(guid)
+                # print(guid, res)
+                self.assertEqual(
+                    "mixed" in guid, res["is_mixed"]
+                )  # should identify all mixed guids
+
+            m.update()
+            m.cluster()
+
+            res = m.name2meta()
+            # print(res)
+            for guid in res.index:
+
+                self.assertEqual(
+                    "mixed" in guid, res.at[guid, "is_mixed"]
+                )  # should identify all mixed guids
+
+                # check whether it's what we expect
+                if clustering_setting["mixed_sample_management"] in [
+                    "ignore",
+                    "exclude",
+                ]:
+                    self.assertEqual(
+                        len(res.at[guid, "cluster_id"]), 1
+                    )  # samples are in one cluster
+                if clustering_setting["mixed_sample_management"] == "include":
+                    if "mixed" in guid:
+                        self.assertTrue(len(res.at[guid, "cluster_id"]) > 0)
+                    else:
+                        self.assertEqual(len(res.at[guid, "cluster_id"]), 1)
+
+            PERSIST.closedown()
+
+
+# skip these tests if the NO_MONGO_TESTS variable exists
+mongo_test = unittest.skipIf(
+    os.environ.get("NO_MONGO_TESTS", False), "no mongo tests performed"
+)
+
+
+@mongo_test
+class test_MIXCHECK_1_mongo(unittest.TestCase):
+    """tests mixpore mixture checker"""
+
+    def runTest(self):
+
+        rc = ConfigManager(os.path.join("config", "default_test_config.json"))
+        CONFIG = rc.read_config()
+
+        # get a clustering object's settings
+        for clustering_name in CONFIG["CLUSTERING"].keys():
+            clustering_setting = CONFIG["CLUSTERING"][clustering_name]
+
+            pm = Persistence()
+            PERSIST = pm.get_storage_object(
+                dbname=CONFIG["SERVERNAME"],
+                connString=UNITTEST_MONGOCONN,
+                debug=CONFIG["DEBUGMODE"],
+                verbose=True,
+            )
+            PERSIST._delete_existing_data()
+
+            # empty any test catwalk server
+            cw = CatWalk(
+                cw_binary_filepath=None,
+                reference_name="H37RV",
+                reference_filepath="reference/TB-ref.fasta",
+                mask_filepath="reference/TB-exclude-adaptive.txt",
+                max_distance=20,
+                bind_host="localhost",
+                bind_port=5998,
+            )
+
+            # stop the server if it is running
+            cw.stop()
+            self.assertFalse(cw.server_is_running())
+
+            hc = hybridComparer(
+                reference=CONFIG["reference"],
+                maxNs=CONFIG["MAXN_STORAGE"],
+                snpCeiling=CONFIG["SNPCEILING"],
+                excludePositions=CONFIG["excludePositions"],
+                preComparer_parameters=CONFIG["PRECOMPARER_PARAMETERS"],
+                PERSIST=PERSIST,
+                unittesting=True,
+            )
+
+            mpmc = MixPOREMixtureChecker(hc, **clustering_setting)
+
+            # check update adds remaining guids
+            m = MixtureAwareLinkage(
+                PERSIST=PERSIST,
+                MIXCHECK=mpmc,
+                mixed_sample_management=clustering_setting["mixed_sample_management"],
+                snv_threshold=clustering_setting["snv_threshold"],
+            )
+
+            # add fake data
+            guids_inserted = list()
+            for i in range(1, 4):
+                # print("Inserting",i)
+
+                seq = list(str(CONFIG["reference"]))
+
+                if i % 3 == 0:  # every third sample is mixed
+                    is_mixed = True
+                    guid_to_insert = "mixed_{0}".format(i)
+                else:
+                    is_mixed = False
+                    guid_to_insert = "nomix_{0}".format(i)
+
+                # make 5 mutations at position 500,000
+
+                offset = 700000
+                for j in range(i + 5):
+                    mutbase = offset + j
+                    ref = seq[mutbase]
+                    if is_mixed is False:
+                        if i % 2 == 0:
+                            if not ref == "T":
+                                seq[mutbase] = "T"
+                            else:
+                                seq[mutbase] = "A"
+                        elif i % 2 == 1:
+                            if not ref == "C":
+                                seq[mutbase] = "C"
+                            else:
+                                seq[mutbase] = "G"
+                    else:
+                        seq[mutbase] = "M"
+                seq = "".join(seq)
+                # print(i,guid_to_insert, seq[699995:700020])
+                guids_inserted.append(guid_to_insert)
+                obj = hc.compress(seq)
+                loginfo = hc.persist(obj, guid_to_insert)
+                # print(loginfo)
+                self.assertTrue(loginfo is not None)
+            # test the mixporemixture checker.
+            for guid in guids_inserted:
+                res = mpmc.is_mixed(guid)
+                # print(guid, res)
+                self.assertEqual(
+                    "mixed" in guid, res["is_mixed"]
+                )  # should identify all mixed guids
+
+            m.update()
+            m.cluster()
+
+            res = m.name2meta()
+            # print(res)
+            for guid in res.index:
+
+                self.assertEqual(
+                    "mixed" in guid, res.at[guid, "is_mixed"]
+                )  # should identify all mixed guids
+
+                # check whether it's what we expect
+                if clustering_setting["mixed_sample_management"] in [
+                    "ignore",
+                    "exclude",
+                ]:
+                    self.assertEqual(
+                        len(res.at[guid, "cluster_id"]), 1
+                    )  # samples are in one cluster
+                if clustering_setting["mixed_sample_management"] == "include":
+                    if "mixed" in guid:
+                        self.assertTrue(len(res.at[guid, "cluster_id"]) > 0)
+                    else:
+                        self.assertEqual(len(res.at[guid, "cluster_id"]), 1)
+            PERSIST.closedown()

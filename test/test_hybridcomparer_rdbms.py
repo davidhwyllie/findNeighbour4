@@ -1,4 +1,4 @@
-""" tests hybridcomparer.py
+""" tests hybridcomparer.py using rdbms
 
 A component of the findNeighbour4 system for bacterial relatedness monitoring
 Copyright (C) 2021 David Wyllie david.wyllie@phe.gov.uk
@@ -20,13 +20,19 @@ import unittest
 from findn.hybridComparer import hybridComparer
 from catwalk.pycw_client import CatWalk
 from findn.msa import MSAResult
+import os
 from Bio import SeqIO
 
 ## persistence unit tests
-UNITTEST_MONGOCONN = "mongodb://localhost"
-UNITTEST_RDBMSCONN = "sqlite://"
+UNITTEST_RDBMSCONN = "unittest_oracle"  # "sqlite://"
+
+# skip these tests if the NORDBMSTESTS variable exists
+rdbms_test = unittest.skipIf(
+    os.environ.get("NO_RDBMS_TESTS", False), "Non graphical tests only"
+)
 
 
+@rdbms_test
 class test_hybridComparer_update_preComparer_settings(unittest.TestCase):
     """tests update preComparer settings"""
 
@@ -36,6 +42,7 @@ class test_hybridComparer_update_preComparer_settings(unittest.TestCase):
         refSeq = "GGGGGG"
 
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             maxNs=1e8,
             reference=refSeq,
             snpCeiling=10,
@@ -68,6 +75,7 @@ class test_hybridComparer_update_preComparer_settings(unittest.TestCase):
         sc.PERSIST.config_store("preComparer", preComparer_settings)
 
 
+@rdbms_test
 class test_hybridComparer_mcompare(unittest.TestCase):
     """tests mcompare"""
 
@@ -75,6 +83,7 @@ class test_hybridComparer_mcompare(unittest.TestCase):
         # generate compressed sequences
         refSeq = "GGGGGG"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             maxNs=1e8,
             reference=refSeq,
             snpCeiling=10,
@@ -111,6 +120,7 @@ class test_hybridComparer_mcompare(unittest.TestCase):
         self.assertEqual(len(res), len(originals) - 1)
 
 
+@rdbms_test
 class test_hybridComparer_summarise_stored_items(unittest.TestCase):
     """tests reporting on stored contents"""
 
@@ -118,6 +128,7 @@ class test_hybridComparer_summarise_stored_items(unittest.TestCase):
         # generate compressed sequences
         refSeq = "GGGGGG"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             maxNs=1e8,
             reference=refSeq,
             snpCeiling=10,
@@ -188,6 +199,7 @@ class test_hybridComparer_summarise_stored_items(unittest.TestCase):
         self.assertTrue("server|pcstat|nSeqs" in set(res.keys()))
 
 
+@rdbms_test
 class test_hybridComparer_48(unittest.TestCase):
     """tests computations of p values from exact bionomial test"""
 
@@ -195,6 +207,7 @@ class test_hybridComparer_48(unittest.TestCase):
         # generate compressed sequences
         refSeq = "GGGGGG"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             maxNs=1e8,
             reference=refSeq,
             snpCeiling=10,
@@ -261,6 +274,7 @@ class test_hybridComparer_48(unittest.TestCase):
             guid_names.append(this_guid)
 
 
+@rdbms_test
 class test_hybridComparer_47b3(unittest.TestCase):
     """tests generation of a multisequence alignment with
     testing for the correct selection of non-variant bases"""
@@ -269,6 +283,7 @@ class test_hybridComparer_47b3(unittest.TestCase):
         # generate compressed sequences
         refSeq = "GGGGGG"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             maxNs=6,
             reference=refSeq,
             snpCeiling=10,
@@ -321,6 +336,7 @@ class test_hybridComparer_47b3(unittest.TestCase):
             )  # first 4
 
 
+@rdbms_test
 class test_hybridComparer_47c(unittest.TestCase):
     """tests generation of a multisequence alignment with
     testing for the proportion of Ns.
@@ -330,6 +346,7 @@ class test_hybridComparer_47c(unittest.TestCase):
         # generate compressed sequences
         refSeq = "GGGGGG"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             maxNs=8,
             reference=refSeq,
             snpCeiling=10,
@@ -455,6 +472,7 @@ class test_hybridComparer_47c(unittest.TestCase):
         )  # check is used the value passed
 
 
+@rdbms_test
 class test_hybridComparer_47b2(unittest.TestCase):
     """tests generation of a multisequence alignment with
     testing for the proportion of Ms.
@@ -464,6 +482,7 @@ class test_hybridComparer_47b2(unittest.TestCase):
         # generate compressed sequences
         refSeq = "GGGGGG"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             maxNs=6,
             reference=refSeq,
             snpCeiling=10,
@@ -593,6 +612,7 @@ class test_hybridComparer_47b2(unittest.TestCase):
         )
 
 
+@rdbms_test
 class test_hybridComparer_47b(unittest.TestCase):
     """tests generation of a multisequence alignment with
     testing for the proportion of Ns.
@@ -602,6 +622,7 @@ class test_hybridComparer_47b(unittest.TestCase):
         # generate compressed sequences
         refSeq = "GGGGGG"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             maxNs=6,
             reference=refSeq,
             snpCeiling=10,
@@ -730,6 +751,7 @@ class test_hybridComparer_47b(unittest.TestCase):
         )
 
 
+@rdbms_test
 class test_hybridComparer_estimate_expected_unk(unittest.TestCase):
     """tests estimate_expected_unk, a function estimating the number of Ns in sequences
     by sampling"""
@@ -738,6 +760,7 @@ class test_hybridComparer_estimate_expected_unk(unittest.TestCase):
         # generate compressed sequences
         refSeq = "GGGGGG"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             maxNs=1e8,
             reference=refSeq,
             snpCeiling=10,
@@ -783,6 +806,7 @@ class test_hybridComparer_estimate_expected_unk(unittest.TestCase):
         self.assertEqual(res, 1)
 
 
+@rdbms_test
 class test_hybridComparer_estimate_expected_unk_sites(unittest.TestCase):
     """tests estimate_expected_unk_sites, a function estimating the number of Ns or Ms in sequences
     by sampling"""
@@ -791,6 +815,7 @@ class test_hybridComparer_estimate_expected_unk_sites(unittest.TestCase):
         # generate compressed sequences
         refSeq = "GGGGGG"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             maxNs=1e8,
             reference=refSeq,
             snpCeiling=10,
@@ -834,6 +859,7 @@ class test_hybridComparer_estimate_expected_unk_sites(unittest.TestCase):
         # generate compressed sequences
         refSeq = "GGGGGG"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             maxNs=1e8,
             reference=refSeq,
             snpCeiling=10,
@@ -872,6 +898,7 @@ class test_hybridComparer_estimate_expected_unk_sites(unittest.TestCase):
         self.assertEqual(res, 1)
 
 
+@rdbms_test
 class test_hybridComparer_45a(unittest.TestCase):
     """tests the generation of multiple alignments of variant sites."""
 
@@ -880,6 +907,7 @@ class test_hybridComparer_45a(unittest.TestCase):
         # generate compressed sequences
         refSeq = "GGGGGG"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             maxNs=1e8,
             reference=refSeq,
             snpCeiling=10,
@@ -918,6 +946,7 @@ class test_hybridComparer_45a(unittest.TestCase):
         self.assertEqual(msa.variant_positions, [0, 1, 2, 3])
 
 
+@rdbms_test
 class test_hybridComparer_45b(unittest.TestCase):
     """tests the generation of multiple alignments of variant sites."""
 
@@ -926,6 +955,7 @@ class test_hybridComparer_45b(unittest.TestCase):
         # generate compressed sequences
         refSeq = "GGGGGG"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             maxNs=6,
             reference=refSeq,
             snpCeiling=10,
@@ -963,12 +993,14 @@ class test_hybridComparer_45b(unittest.TestCase):
         self.assertEqual(msa.variant_positions, [0, 1, 2, 3])
 
 
+@rdbms_test
 class test_hybridComparer_1(unittest.TestCase):
     """test init"""
 
     def runTest(self):
         refSeq = "ACTG"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             unittesting=True,
             maxNs=1e8,
             snpCeiling=20,
@@ -983,10 +1015,12 @@ class test_hybridComparer_1(unittest.TestCase):
         self.assertEqual(sc.reference, refSeq)
 
 
+@rdbms_test
 class test_hybridComparer_2(unittest.TestCase):
     def runTest(self):
         refSeq = "ACTG"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             unittesting=True,
             maxNs=1e8,
             snpCeiling=20,
@@ -1002,10 +1036,12 @@ class test_hybridComparer_2(unittest.TestCase):
             sc.compress(sequence="AC")
 
 
+@rdbms_test
 class test_hybridComparer_3(unittest.TestCase):
     def runTest(self):
         refSeq = "ACTG"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             unittesting=True,
             maxNs=1e8,
             snpCeiling=20,
@@ -1032,10 +1068,12 @@ class test_hybridComparer_3(unittest.TestCase):
         )
 
 
+@rdbms_test
 class test_hybridComparer_3b(unittest.TestCase):
     def runTest(self):
         refSeq = "ACTG"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             unittesting=True,
             maxNs=1e8,
             snpCeiling=20,
@@ -1062,10 +1100,12 @@ class test_hybridComparer_3b(unittest.TestCase):
         )
 
 
+@rdbms_test
 class test_hybridComparer_3c(unittest.TestCase):
     def runTest(self):
         refSeq = "ACTG"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             unittesting=True,
             maxNs=1e8,
             snpCeiling=20,
@@ -1092,10 +1132,12 @@ class test_hybridComparer_3c(unittest.TestCase):
         )
 
 
+@rdbms_test
 class test_hybridComparer_4(unittest.TestCase):
     def runTest(self):
         refSeq = "ACTG"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             unittesting=True,
             maxNs=1e8,
             snpCeiling=20,
@@ -1123,10 +1165,12 @@ class test_hybridComparer_4(unittest.TestCase):
         )
 
 
+@rdbms_test
 class test_hybridComparer_5(unittest.TestCase):
     def runTest(self):
         refSeq = "ACTG"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             unittesting=True,
             maxNs=1e8,
             snpCeiling=20,
@@ -1153,11 +1197,13 @@ class test_hybridComparer_5(unittest.TestCase):
         )
 
 
+@rdbms_test
 class test_hybridComparer_6(unittest.TestCase):
     def runTest(self):
         refSeq = "ACTG"
 
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             unittesting=True,
             maxNs=1e8,
             snpCeiling=20,
@@ -1185,11 +1231,13 @@ class test_hybridComparer_6(unittest.TestCase):
         )
 
 
+@rdbms_test
 class test_hybridComparer_7(unittest.TestCase):
     def runTest(self):
         refSeq = "ACTG"
 
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             unittesting=True,
             maxNs=1e8,
             snpCeiling=20,
@@ -1216,11 +1264,13 @@ class test_hybridComparer_7(unittest.TestCase):
         )
 
 
+@rdbms_test
 class test_hybridComparer_6b(unittest.TestCase):
     def runTest(self):
         refSeq = "ACTG"
 
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             unittesting=True,
             maxNs=1e8,
             snpCeiling=20,
@@ -1252,11 +1302,13 @@ class test_hybridComparer_6b(unittest.TestCase):
             self.assertEqual(original, roundtrip)
 
 
+@rdbms_test
 class test_hybridComparer_6c(unittest.TestCase):
     def runTest(self):
         refSeq = "ACTG"
 
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             maxNs=1e8,
             snpCeiling=20,
             reference=refSeq,
@@ -1276,11 +1328,13 @@ class test_hybridComparer_6c(unittest.TestCase):
             self.assertEqual(original, roundtrip)
 
 
+@rdbms_test
 class test_hybridComparer_6d(unittest.TestCase):
     def runTest(self):
         refSeq = "ACTG"
 
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             maxNs=3,
             snpCeiling=20,
             reference=refSeq,
@@ -1300,6 +1354,7 @@ class test_hybridComparer_6d(unittest.TestCase):
                 sc.uncompress(compressed_sequence)
 
 
+@rdbms_test
 class test_hybridComparer_16(unittest.TestCase):
     """tests the comparison of two sequences where both differ from the reference."""
 
@@ -1307,6 +1362,7 @@ class test_hybridComparer_16(unittest.TestCase):
         # generate compressed sequences
         refSeq = "ACTG"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             maxNs=1e8,
             reference=refSeq,
             snpCeiling=10,
@@ -1324,6 +1380,7 @@ class test_hybridComparer_16(unittest.TestCase):
         self.assertEqual(sc.countDifferences("k1", "k2", seq1, seq2), ("k1", "k2", 4))
 
 
+@rdbms_test
 class test_hybridComparer_16b(unittest.TestCase):
     """tests the comparison of two sequences where both differ from the reference."""
 
@@ -1331,6 +1388,7 @@ class test_hybridComparer_16b(unittest.TestCase):
         # generate compressed sequences
         refSeq = "ACTG"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             maxNs=1e8,
             reference=refSeq,
             snpCeiling=10,
@@ -1348,6 +1406,7 @@ class test_hybridComparer_16b(unittest.TestCase):
         self.assertEqual(sc.countDifferences("k1", "k2", seq1, seq2), ("k1", "k2", 2))
 
 
+@rdbms_test
 class test_hybridComparer_16c(unittest.TestCase):
     """tests the comparison of two sequences where both differ from the reference."""
 
@@ -1355,6 +1414,7 @@ class test_hybridComparer_16c(unittest.TestCase):
         # generate compressed sequences
         refSeq = "ACTG"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             maxNs=1e8,
             reference=refSeq,
             snpCeiling=10,
@@ -1372,6 +1432,7 @@ class test_hybridComparer_16c(unittest.TestCase):
         self.assertEqual(sc.countDifferences("k1", "k2", seq1, seq2), ("k1", "k2", 0))
 
 
+@rdbms_test
 class test_hybridComparer_17(unittest.TestCase):
     """tests the comparison of two sequences where one is invalid"""
 
@@ -1379,6 +1440,7 @@ class test_hybridComparer_17(unittest.TestCase):
         # generate compressed sequences
         refSeq = "ACTG"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             maxNs=3,
             reference=refSeq,
             snpCeiling=10,
@@ -1396,6 +1458,7 @@ class test_hybridComparer_17(unittest.TestCase):
         self.assertEqual(sc.countDifferences("k1", "k2", seq1, seq2), None)
 
 
+@rdbms_test
 class test_hybridComparer_18(unittest.TestCase):
     """tests the comparison of two sequences where one is invalid"""
 
@@ -1403,6 +1466,7 @@ class test_hybridComparer_18(unittest.TestCase):
         # generate compressed sequences
         refSeq = "ACTG"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             maxNs=3,
             reference=refSeq,
             snpCeiling=10,
@@ -1430,10 +1494,12 @@ class test_hybridComparer_18(unittest.TestCase):
         self.assertEqual(len(res), 0)
 
 
+@rdbms_test
 class test_hybridComparer_saveload3(unittest.TestCase):
     def runTest(self):
         refSeq = "ACTGGG"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             maxNs=1e8,
             snpCeiling=20,
             reference=refSeq,
@@ -1468,10 +1534,12 @@ class test_hybridComparer_saveload3(unittest.TestCase):
         )  # one entry in the preComparer
 
 
+@rdbms_test
 class test_hybridComparer_remove_all(unittest.TestCase):
     def runTest(self):
         refSeq = "ACTG"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             unittesting=True,
             maxNs=1e8,
             snpCeiling=20,
@@ -1508,6 +1576,7 @@ class test_hybridComparer_remove_all(unittest.TestCase):
         )  # no entry in the temporary dictioanry
 
 
+@rdbms_test
 class test_hybridComparer_24(unittest.TestCase):
     """tests N compression"""
 
@@ -1515,6 +1584,7 @@ class test_hybridComparer_24(unittest.TestCase):
 
         refSeq = "ACTGTTAATTTTTTTTTGGGGGGGGGGGGAA"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             unittesting=True,
             maxNs=1e8,
             snpCeiling=20,
@@ -1555,6 +1625,7 @@ class test_hybridComparer_24(unittest.TestCase):
         )
 
 
+@rdbms_test
 class test_hybridComparer_29(unittest.TestCase):
     """tests _setStats"""
 
@@ -1562,6 +1633,7 @@ class test_hybridComparer_29(unittest.TestCase):
 
         refSeq = "ACTGTTAATTTTTTTTTGGGGGGGGGGGGAA"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             unittesting=True,
             maxNs=1e8,
             snpCeiling=20,
@@ -1784,6 +1856,7 @@ class test_hybridComparer_29(unittest.TestCase):
         )
 
 
+@rdbms_test
 class test_hybridComparer_37(unittest.TestCase):
     """tests the loading of an exclusion file"""
 
@@ -1792,6 +1865,7 @@ class test_hybridComparer_37(unittest.TestCase):
         # default exclusion file
         refSeq = "ACTG"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             unittesting=True,
             maxNs=1e8,
             reference=refSeq,
@@ -1808,6 +1882,7 @@ class test_hybridComparer_37(unittest.TestCase):
         )
 
 
+@rdbms_test
 class test_hybridComparer_38(unittest.TestCase):
     """tests the loading of an exclusion file"""
 
@@ -1816,6 +1891,7 @@ class test_hybridComparer_38(unittest.TestCase):
         # no exclusion file
         refSeq = "ACTG"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             unittesting=True,
             maxNs=1e8,
             reference=refSeq,
@@ -1832,6 +1908,7 @@ class test_hybridComparer_38(unittest.TestCase):
         )
 
 
+@rdbms_test
 class test_hybridComparer_40(unittest.TestCase):
     """tests the computation of a hash of a compressed object"""
 
@@ -1840,6 +1917,7 @@ class test_hybridComparer_40(unittest.TestCase):
         # generate compressed sequences
         refSeq = "ACTG"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             unittesting=True,
             maxNs=1e8,
             reference=refSeq,
@@ -1857,6 +1935,7 @@ class test_hybridComparer_40(unittest.TestCase):
         self.assertEqual(res, "6ce0e55c4ab092f560e03c5d2de53098")
 
 
+@rdbms_test
 class test_hybridComparer_45(unittest.TestCase):
     """tests insertion of large sequences"""
 
@@ -1868,6 +1947,7 @@ class test_hybridComparer_45(unittest.TestCase):
                 badseq = "".join("N" * len(goodseq))
                 originalseq = list(str(record.seq))
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             unittesting=True,
             maxNs=1e8,
             reference=record.seq,
@@ -1923,6 +2003,7 @@ class test_hybridComparer_45(unittest.TestCase):
             sc.persist(c, guid=guid_to_insert)
 
 
+@rdbms_test
 class test_hybridComparer_47(unittest.TestCase):
     """tests raise_error"""
 
@@ -1930,6 +2011,7 @@ class test_hybridComparer_47(unittest.TestCase):
         # generate compressed sequences
         refSeq = "GGGGGGGGGGGG"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             unittesting=True,
             maxNs=1e8,
             reference=refSeq,
@@ -1945,6 +2027,7 @@ class test_hybridComparer_47(unittest.TestCase):
             sc.raise_error("token")
 
 
+@rdbms_test
 class test_hybridComparer_50(unittest.TestCase):
     """tests estimate_expected_proportion, a function computing the proportion of Ns expected based on the median
     Ns in a list of sequences"""
@@ -1952,6 +2035,7 @@ class test_hybridComparer_50(unittest.TestCase):
     def runTest(self):
         refSeq = "GGGGGGGGGGGG"
         sc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             unittesting=True,
             maxNs=1e8,
             reference=refSeq,
@@ -1979,17 +2063,25 @@ class test_hybridComparer_50(unittest.TestCase):
         self.assertAlmostEqual(res, 1 / 3)
 
 
+@rdbms_test
 class test_hybridComparer_51(unittest.TestCase):
     """tests repopulate_sample."""
 
     def runTest(self):
 
-        # generate compressed sequences
+        # remove any temporary database
+
+        sqlite_file = "unitTest_tmp/test_51.sqlite"
+        if os.path.exists(sqlite_file):
+            os.unlink(sqlite_file)
+
+        # remove any temporary database
         refSeq = "GGGGGG"
         sc = hybridComparer(
+            PERSIST="sqlite:///{0}".format(sqlite_file),
             maxNs=1e8,
             reference=refSeq,
-            unittesting=True,
+            unittesting=False,
             snpCeiling=10,
             preComparer_parameters={
                 "selection_cutoff": 20,
@@ -2018,11 +2110,16 @@ class test_hybridComparer_51(unittest.TestCase):
             guid_names.append(this_guid)
 
         self.assertEqual(len(sc.pc.seqProfile.keys()), 7)
+        self.assertEqual(len(sc.PERSIST.guids()), 7)
+
+        ## try to repopulate it
         refSeq = "GGGGGG"
         sc = hybridComparer(
+            PERSIST="sqlite:///{0}".format(sqlite_file),
             maxNs=1e8,
             reference=refSeq,
             snpCeiling=10,
+            unittesting=False,
             preComparer_parameters={
                 "selection_cutoff": 20,
                 "uncertain_base": "M",
@@ -2031,10 +2128,14 @@ class test_hybridComparer_51(unittest.TestCase):
             },
         )
 
+        self.assertEqual(len(sc.pc.seqProfile.keys()), 0)
+        self.assertEqual(len(sc.PERSIST.guids()), 7)
+
         sc.repopulate_sample(n=7)  # defaults to 100
         self.assertEqual(len(sc.pc.seqProfile.keys()), 7)
 
 
+@rdbms_test
 class test_hybridComparer_52(unittest.TestCase):
     """tests catwalk with uncertain_base = M"""
 
@@ -2045,6 +2146,7 @@ class test_hybridComparer_52(unittest.TestCase):
                 refSeq = str(record.seq)
                 originalseq = list(str(record.seq))
         hc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             maxNs=1e8,
             reference=refSeq,
             snpCeiling=10,
@@ -2100,6 +2202,7 @@ class test_hybridComparer_52(unittest.TestCase):
             self.assertTrue(res["timings"]["candidates"] > 0)
 
 
+@rdbms_test
 class test_hybridComparer_53(unittest.TestCase):
     """tests catwalk with uncertain_base = N_or_M.
     cf. hybridComparer test 11, which tests python vs. catwalk methods.
@@ -2128,6 +2231,7 @@ class test_hybridComparer_53(unittest.TestCase):
                 refSeq = str(record.seq)
                 originalseq = list(str(record.seq))
         hc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             maxNs=1e8,
             reference=refSeq,
             snpCeiling=20,
@@ -2204,6 +2308,7 @@ class test_hybridComparer_53(unittest.TestCase):
             self.assertEqual(expected, set(stored_guids))
 
 
+@rdbms_test
 class test_hybridComparer_54(unittest.TestCase):
     """tests catwalk with insertion disabled (catwalk should not start)"""
 
@@ -2214,6 +2319,7 @@ class test_hybridComparer_54(unittest.TestCase):
                 refSeq = str(record.seq)
 
         hc = hybridComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
             maxNs=1e8,
             reference=refSeq,
             snpCeiling=10,

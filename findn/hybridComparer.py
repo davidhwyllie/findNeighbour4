@@ -27,7 +27,9 @@ import pandas as pd
 import logging
 
 from collections import Counter
+from findn.persistence import Persistence
 from findn.mongoStore import fn3persistence
+from findn.rdbmsstore import fn3persistence_r
 from findn.preComparer import preComparer  # catwalk enabled
 from findn.msa import MSAResult
 
@@ -36,7 +38,7 @@ UNITTEST_MONGOCONN = "mongodb://localhost"
 
 
 class NeighbourStorageFailureError(Exception):
-    """ what we stored isn't what we got back"""
+    """what we stored isn't what we got back"""
 
     def __init__(self, expression, message):
         self.expression = expression
@@ -86,7 +88,7 @@ class hybridComparer:
          SNP distances more than over_selection_cutoff_ignore_factor * selection_cutoff do not need to be further analysed.  For example, if a SNP cutoff was 20, and over_selection_cutoff_ignore_factor is 5, we can safely consider with SNV distances > 100 (=20*5) as being unrelated.
 
          catWalk_parameters:  parameters for catWalk function.  If empty {}, catWalk is not run.
-         PERSIST: either a mongo connection string, or an instance of fn3persistence
+         PERSIST: either a mongo/rdbms connection string, or an instance of fn3persistence
 
          unittesting: if True, will remove any stored data from the associated database [Careful!]
         David Wyllie, September 2019
@@ -110,7 +112,11 @@ class hybridComparer:
         self.reference_list = list(self.reference)  # a list, one element per nt
         letters = Counter(self.reference)
         if len(set(letters.keys()) - set(["A", "C", "G", "T"])) > 0:
-            raise TypeError("Reference sequence supplied contains characters other than ACTG: {0}".format(letters))
+            raise TypeError(
+                "Reference sequence supplied contains characters other than ACTG: {0}".format(
+                    letters
+                )
+            )
 
         # load the excluded bases
         self.excluded = excludePositions
@@ -121,18 +127,33 @@ class hybridComparer:
         # initialise pairwise sequences for comparison.
         self._refresh()
 
+        # open a persist object
+
         if isinstance(PERSIST, str):
-            self.PERSIST = fn3persistence(PERSIST)
-        else:
+            pm = Persistence()
+            self.PERSIST = pm.get_storage_object(PERSIST, verbose=True)
+
+        elif isinstance(PERSIST, fn3persistence) | isinstance(
+            PERSIST, fn3persistence_r
+        ):
             self.PERSIST = PERSIST  # passed a persistence object
+        else:
+            raise ValueError(
+                "Expected a connection string or an fn3persistence object but got {0}; can't proceed".format(
+                    type(PERSIST)
+                )
+            )
 
         if unittesting:
             self.PERSIST._delete_existing_data()
 
-        # attempt to load preComparer_parameters from the mongoStore
+        # attempt to load preComparer_parameters from the mongo / rdbms
         stored_preComparer_parameters = self.PERSIST.config_read("preComparer")
         if stored_preComparer_parameters is not None:
-            del stored_preComparer_parameters["_id"]
+            try:
+                del stored_preComparer_parameters["_id"]
+            except KeyError:
+                pass  # not present in rdbms
             preComparer_parameters = stored_preComparer_parameters
         else:
             # store them, if any are supplied
@@ -168,11 +189,10 @@ class hybridComparer:
 
     def repopulate(self, guid):
         """saves a reference compressed object in the precomparer,
-        as loaded from the mongo db using its reference guid.
+        as loaded from the db using its reference guid.
 
         parameters:
         guid: the identity (name) of the sequence
-
 
         """
         # load
@@ -183,14 +203,20 @@ class hybridComparer:
         return
 
     def update_precomparer_parameters(self):
-        """ ensures precomparer settings are up to date.  Precomparer settings may be optimised by external processes, such as preComparer_calibrator. 
+        """ensures precomparer settings are up to date.  Precomparer settings may be optimised by external processes, such as preComparer_calibrator.
         [Note: in the current implementation, this doesn't happen; it should not be necessary to call this method during normal running]"""
 
         stored_preComparer_parameters = self.PERSIST.config_read("preComparer")
         if stored_preComparer_parameters is not None:  # if settings exist on disc
-            del stored_preComparer_parameters["_id"]  # remove the mongoDb id
+            try:
+                del stored_preComparer_parameters["_id"]  # remove the db id if present
+            except KeyError:
+                pass  # not present in RDBMS
             if len(stored_preComparer_parameters.keys()) > 0:
-                if self.pc.check_operating_parameters(**stored_preComparer_parameters) is False:
+                if (
+                    self.pc.check_operating_parameters(**stored_preComparer_parameters)
+                    is False
+                ):
                     self.pc.set_operating_parameters(**stored_preComparer_parameters)
         return ()
 
@@ -199,7 +225,7 @@ class hybridComparer:
         in the fnpersistence.
 
         also saves object in the preComparer, and ensures the preComparer's settings
-        are in sync with those on in the mongoStore. this enables external software, such as that calibrating preComparer's performance, to update preComparer settings while  the server is operating.
+        are in sync with those on in the db. this enables external software, such as that calibrating preComparer's performance, to update preComparer settings while  the server is operating.
 
         note that this call should be made serially - not synchronously from different threads.
 
@@ -215,16 +241,21 @@ class hybridComparer:
         """
         # check that insertion is allowed
         if self.disable_insertion:
-            raise NotImplementedError("Persistence is not permitted via this hybridComparer")
+            raise NotImplementedError(
+                "Persistence is not permitted via this hybridComparer"
+            )
 
         # check preComparer settings are up to date
         # self.update_precomparer_parameters()           # no longer necessary
 
         # add sequence and its links to disc
         try:
-            self.PERSIST.refcompressedseq_store(guid, obj)  # store in the mongostore
+            self.PERSIST.refcompressedseq_store(guid, obj)  # store in the db
         except FileExistsError:
-            return {"guid": guid, "result": "already present"}  # exists - we don't need to re-add it.
+            return {
+                "guid": guid,
+                "result": "already present",
+            }  # exists - we don't need to re-add it.
 
         pc_obj = copy.deepcopy(obj)
         # store object in the precomparer
@@ -234,7 +265,9 @@ class hybridComparer:
 
         # add links
         links = {}
-        loginfo = ["inserted {0} into precomparer; is_invalid = {1}".format(guid, is_invalid)]
+        loginfo = [
+            "inserted {0} into precomparer; is_invalid = {1}".format(guid, is_invalid)
+        ]
 
         mcompare_result = self.mcompare(guid)  # compare guid against all
 
@@ -261,7 +294,9 @@ class hybridComparer:
         # add all annotations
         if annotations is not None:
             for nameSpace in annotations.keys():
-                self.PERSIST.guid_annotate(guid=guid, nameSpace=nameSpace, annotDict=annotations[nameSpace])
+                self.PERSIST.guid_annotate(
+                    guid=guid, nameSpace=nameSpace, annotDict=annotations[nameSpace]
+                )
 
         # if we found neighbours, report mcompare timings to log
         msg = "mcompare|"
@@ -278,7 +313,7 @@ class hybridComparer:
         return self.PERSIST.refcompressedsequence_read(guid)
 
     def _refresh(self):
-        """ empties any sequence data from ram in any precomparer object existing. """
+        """empties any sequence data from ram in any precomparer object existing."""
         if hasattr(self, "pc"):
             self.pc.seqProfile = {}
         self.seqProfile = {}
@@ -316,7 +351,9 @@ class hybridComparer:
         exact_comparison = False
         for match in self.pc.mcompare(guid, guids):
 
-            if self.pc.distances_are_exact:  # then the precomparer is computing an exact distance
+            if (
+                self.pc.distances_are_exact
+            ):  # then the precomparer is computing an exact distance
                 exact_comparison = True
                 if match["dist"] <= self.snpCeiling:
 
@@ -341,8 +378,12 @@ class hybridComparer:
                     l2 = datetime.datetime.now()
                     i4 = l2 - l1
                     load_time = load_time + i4.total_seconds()
-                    comparison = self.countDifferences(guid, key2, seq1, seq2, cutoff=self.snpCeiling)
-                    if comparison is not None:  # is is none if one of the samples is invalid
+                    comparison = self.countDifferences(
+                        guid, key2, seq1, seq2, cutoff=self.snpCeiling
+                    )
+                    if (
+                        comparison is not None
+                    ):  # is is none if one of the samples is invalid
 
                         (guid1, guid2, dist) = comparison
                         if dist <= self.snpCeiling:
@@ -380,20 +421,20 @@ class hybridComparer:
         return {"neighbours": neighbours, "timings": timings}
 
     def summarise_stored_items(self):
-        """ counts how many sequences exist of various types in the preComparer and seqComparer objects """
+        """counts how many sequences exist of various types in the preComparer and seqComparer objects"""
 
         return self.pc.summarise_stored_items()
 
     def iscachedinram(self, guid):
-        """ returns true or false depending whether we have a  copy of the limited refCompressed representation of a sequence (name=guid) in RAM"""
+        """returns true or false depending whether we have a  copy of the limited refCompressed representation of a sequence (name=guid) in RAM"""
         return self.pc.iscachedinram(guid)
 
     def guidscachedinram(self):
-        """ returns all guids with full sequence profiles in RAM """
+        """returns all guids with full sequence profiles in RAM"""
         return self.pc.guidscachedinram()
 
     def _delta(self, x):
-        """ returns the difference between two numbers in a tuple x """
+        """returns the difference between two numbers in a tuple x"""
         return x[1] - x[0]
 
     def excluded_hash(self):
@@ -407,7 +448,7 @@ class hybridComparer:
         return "Excl {0} nt [{1}]".format(len_l, md5_l)
 
     def uncompress(self, compressed_sequence):
-        """ returns a sequence from a compressed_sequence """
+        """returns a sequence from a compressed_sequence"""
         if "invalid" in compressed_sequence.keys():
             if compressed_sequence["invalid"] == 1:
                 raise ValueError(
@@ -428,12 +469,14 @@ class hybridComparer:
                 seq[x] = item
 
         # add any mixed bases
-        for x in compressed_sequence["M"].keys():  # the 'M' option includes iupac coding
+        for x in compressed_sequence[
+            "M"
+        ].keys():  # the 'M' option includes iupac coding
             seq[x] = compressed_sequence["M"][x]
         return "".join(seq)
 
     def uncompress_guid(self, guid):
-        """ uncompresses a saved sequence """
+        """uncompresses a saved sequence"""
         seq = self.load(guid)
         return self.uncompress(seq)
 
@@ -457,7 +500,14 @@ class hybridComparer:
         # we only record differences relative to to refSeq.
         # anything the same as the refSeq is not recorded.
         # a dictionary, M, records the mixed base calls.
-        diffDict = {"A": set([]), "C": set([]), "T": set([]), "G": set([]), "N": set([]), "M": {}}
+        diffDict = {
+            "A": set([]),
+            "C": set([]),
+            "T": set([]),
+            "G": set([]),
+            "N": set([]),
+            "M": {},
+        }
 
         for i in self.included:  # for the bases we need to compress
             if not sequence[i] == self.reference[i]:  # if it's not reference
@@ -548,14 +598,16 @@ class hybridComparer:
                 list_compressed = sorted(list(compressed_sequence[key]))
             else:
                 list_compressed = compressed_sequence[key]
-            serialised_compressed_sequence = serialised_compressed_sequence + key + ":" + str(list_compressed) + ";"
+            serialised_compressed_sequence = (
+                serialised_compressed_sequence + key + ":" + str(list_compressed) + ";"
+            )
         h = hashlib.md5()
         h.update(serialised_compressed_sequence.encode("utf-8"))
         md5 = h.hexdigest()
         return md5
 
     def remove(self, guid):
-        """ removes guid  from preComparer """
+        """removes guid  from preComparer"""
         self.pc.remove(guid)
 
     def estimate_expected_proportion(self, seqs):
@@ -573,7 +625,9 @@ class hybridComparer:
             Ns.append(seq.count("N"))
         return np.median(Ns) / len(seqs[0])
 
-    def estimate_expected_unk(self, sample_size=30, exclude_guids=set(), unk_type="N", what="median"):
+    def estimate_expected_unk(
+        self, sample_size=30, exclude_guids=set(), unk_type="N", what="median"
+    ):
         """computes the median numbers of unk_type (N,M,or N_or_N) for sample_size guids, randomly selected from all guids except for exclude_guids.
 
                 Parameters
@@ -589,9 +643,15 @@ class hybridComparer:
 
         if unk_type not in ["N", "M", "N_or_M"]:
             raise KeyError("unk_type can be one of 'N' 'M' 'N_or_M'")
-        current_composition = copy.copy(self.pc.composition)  # can be changed by flask, so duplicate it
-        composition = pd.DataFrame.from_dict(current_composition, orient="index")  # preComparer maintains a composition list
-        composition.drop(exclude_guids, inplace=True)  # remove the ones we want to exclude
+        current_composition = copy.copy(
+            self.pc.composition
+        )  # can be changed by flask, so duplicate it
+        composition = pd.DataFrame.from_dict(
+            current_composition, orient="index"
+        )  # preComparer maintains a composition list
+        composition.drop(
+            exclude_guids, inplace=True
+        )  # remove the ones we want to exclude
 
         if len(composition) == 0:
 
@@ -599,7 +659,9 @@ class hybridComparer:
         if sample_size is not None:
             guids = composition.index.tolist()
             np.random.shuffle(guids)
-            not_these_guids = guids[sample_size:]  # if there are more guids than sample_size, drop these
+            not_these_guids = guids[
+                sample_size:
+            ]  # if there are more guids than sample_size, drop these
             composition.drop(not_these_guids, inplace=True)
 
         composition["N_or_M"] = composition["N"] + composition["M"]
@@ -677,7 +739,14 @@ class hybridComparer:
 
         return np.median(observed)
 
-    def multi_sequence_alignment(self, guids, sample_size=30, expected_p1=None, uncertain_base_type="N", outgroup=None):
+    def multi_sequence_alignment(
+        self,
+        guids,
+        sample_size=30,
+        expected_p1=None,
+        uncertain_base_type="N",
+        outgroup=None,
+    ):
         """computes a multiple sequence alignment containing only sites which vary between guids.
 
             Parameters:
@@ -780,7 +849,9 @@ class hybridComparer:
         # this is a very fast method which won't materially slow down the msa
         if expected_p1 is None:
             expected_N1 = self.estimate_expected_unk(
-                sample_size=sample_size, exclude_guids=invalid_guids, unk_type=uncertain_base_type
+                sample_size=sample_size,
+                exclude_guids=invalid_guids,
+                unk_type=uncertain_base_type,
             )
             if expected_N1 is None:
                 expected_p1 = None
@@ -789,9 +860,24 @@ class hybridComparer:
         else:
             expected_N1 = np.floor(expected_p1 * len(self.reference))
 
-        return self._msa(valid_guids, invalid_guids, expected_p1, sample_size, uncertain_base_type, outgroup=outgroup)
+        return self._msa(
+            valid_guids,
+            invalid_guids,
+            expected_p1,
+            sample_size,
+            uncertain_base_type,
+            outgroup=outgroup,
+        )
 
-    def _msa(self, valid_guids, invalid_guids, expected_p1, sample_size, uncertain_base_type="N", outgroup=None):
+    def _msa(
+        self,
+        valid_guids,
+        invalid_guids,
+        expected_p1,
+        sample_size,
+        uncertain_base_type="N",
+        outgroup=None,
+    ):
         """perform multisequence alignment and significance tests.
         It assumes that the relevant sequences (valid_guids) are in-ram in this hybridComparer object as part of the seqProfile dictionary.
 
@@ -874,7 +960,9 @@ class hybridComparer:
         for guid in valid_guids:
 
             if self.seqProfile[guid]["invalid"] == 1:
-                raise TypeError("Invalid sequence {0} passed in valid_guids".format(guid))
+                raise TypeError(
+                    "Invalid sequence {0} passed in valid_guids".format(guid)
+                )
 
             for unk_type in ["N", "M"]:
 
@@ -886,9 +974,15 @@ class hybridComparer:
             for base in ["A", "C", "T", "G"]:
                 positions = self.seqProfile[guid][base]
                 for position in positions:
-                    if position not in nrps.keys():  # if it's non-reference, and we've got no record of this position
-                        nrps[position] = set()  # then we generate a set of bases at this position
-                    nrps[position].add(base)  # either way add the current non-reference base there
+                    if (
+                        position not in nrps.keys()
+                    ):  # if it's non-reference, and we've got no record of this position
+                        nrps[
+                            position
+                        ] = set()  # then we generate a set of bases at this position
+                    nrps[position].add(
+                        base
+                    )  # either way add the current non-reference base there
 
         # step 2: for the non-reference called positions,
         # record whether there's a reference base there.
@@ -900,10 +994,13 @@ class hybridComparer:
                         psn_accounted_for = 1
                 if psn_accounted_for == 0:  # no record of non-ref seq here
                     if not (
-                        position in self.seqProfile[guid]["N"] or position in self.seqProfile[guid]["M"].keys()
+                        position in self.seqProfile[guid]["N"]
+                        or position in self.seqProfile[guid]["M"].keys()
                     ):  # not M or N so non-reference
                         # it is reference; this guid has no record of a variant base at this position, so it must be reference.
-                        nrps[position].add(self.reference[position])  # add reference psn
+                        nrps[position].add(
+                            self.reference[position]
+                        )  # add reference psn
 
         # step 3: find those which have multiple bases at a position
         variant_positions = set()
@@ -950,7 +1047,9 @@ class hybridComparer:
             guid2msa_mseq[guid] = "".join(guid2mseq[guid])
 
         # step 5: determine the expected_p2 at the ordered_variant_positions:
-        expected_N2 = self.estimate_expected_unk_sites(sites=set(ordered_variant_positions), unk_type=uncertain_base_type)
+        expected_N2 = self.estimate_expected_unk_sites(
+            sites=set(ordered_variant_positions), unk_type=uncertain_base_type
+        )
         if expected_N2 is None:
             expected_p2 = None
         elif len(ordered_variant_positions) == 0:
@@ -975,18 +1074,29 @@ class hybridComparer:
                 # is GREATER than those expected from the expected_N in the population of whole sequences.
                 for unk_type in ["N", "M"]:
                     guid2align[unk_type][guid] = guid2msa_seq[guid].count(unk_type)
-                guid2align["N_or_M"][guid] = guid2align["N"][guid] + guid2align["M"][guid]
+                guid2align["N_or_M"][guid] = (
+                    guid2align["N"][guid] + guid2align["M"][guid]
+                )
 
-                if expected_p1 is None:  # we don't have an expectation, so we can't assess the first binomial test;
+                if (
+                    expected_p1 is None
+                ):  # we don't have an expectation, so we can't assess the first binomial test;
                     p_value1 = None
                     observed_p = None
-                elif len(guid2msa_seq[guid]) == 0:  # we don't have any information to work with
+                elif (
+                    len(guid2msa_seq[guid]) == 0
+                ):  # we don't have any information to work with
                     p_value1 = None
                     observed_p = None
                 else:
-                    observed_p = guid2align[uncertain_base_type][guid] / len(guid2msa_seq[guid])
+                    observed_p = guid2align[uncertain_base_type][guid] / len(
+                        guid2msa_seq[guid]
+                    )
                     p_value1 = binom_test(
-                        guid2align[uncertain_base_type][guid], len(guid2msa_seq[guid]), expected_p1, alternative="greater"
+                        guid2align[uncertain_base_type][guid],
+                        len(guid2msa_seq[guid]),
+                        expected_p1,
+                        alternative="greater",
                     )
 
                 guid2pvalue1[guid] = p_value1
@@ -996,14 +1106,21 @@ class hybridComparer:
                 # compute p value 2.  This tests the hypothesis that the number of Ns or Ms in the *alignment*
                 # is GREATER than those expected from the expected_N in the population of whole sequences
                 # at these sites.
-                if expected_p2 is None:  # we don't have an expectation, so we can't assess the binomial test;
+                if (
+                    expected_p2 is None
+                ):  # we don't have an expectation, so we can't assess the binomial test;
                     p_value2 = None
-                elif len(guid2msa_seq[guid]) == 0:  # we don't have any information to work with
+                elif (
+                    len(guid2msa_seq[guid]) == 0
+                ):  # we don't have any information to work with
                     p_value2 = None
                 else:
 
                     p_value2 = binom_test(
-                        guid2align[uncertain_base_type][guid], len(guid2msa_seq[guid]), expected_p2, alternative="greater"
+                        guid2align[uncertain_base_type][guid],
+                        len(guid2msa_seq[guid]),
+                        expected_p2,
+                        alternative="greater",
                     )
                 guid2pvalue2[guid] = p_value2
                 guid2expected_p2[guid] = expected_p2
@@ -1012,11 +1129,15 @@ class hybridComparer:
                 # is GREATER than the number of Ns or Ms not in the alignment  IN THIS SEQUENCE
                 # based on sequences not in the alignment
 
-                expected_p3 = (guid2all[uncertain_base_type][guid] - guid2align[uncertain_base_type][guid]) / (
-                    len(self.reference) - len(guid2msa_seq[guid])
-                )
+                expected_p3 = (
+                    guid2all[uncertain_base_type][guid]
+                    - guid2align[uncertain_base_type][guid]
+                ) / (len(self.reference) - len(guid2msa_seq[guid]))
                 p_value = binom_test(
-                    guid2align[uncertain_base_type][guid], len(guid2msa_seq[guid]), expected_p3, alternative="greater"
+                    guid2align[uncertain_base_type][guid],
+                    len(guid2msa_seq[guid]),
+                    expected_p3,
+                    alternative="greater",
                 )
                 guid2pvalue3[guid] = p_value
                 guid2expected_p3[guid] = expected_p3
@@ -1038,7 +1159,10 @@ class hybridComparer:
                     p_value = None
                 else:
                     p_value = binom_test(
-                        guid2align[uncertain_base_type][guid], len(guid2msa_seq[guid]), expected_p4, alternative="greater"
+                        guid2align[uncertain_base_type][guid],
+                        len(guid2msa_seq[guid]),
+                        expected_p4,
+                        alternative="greater",
                     )
                 guid2pvalue4[guid] = p_value
                 guid2expected_p4[guid] = expected_p4
@@ -1122,7 +1246,7 @@ class hybridComparer:
             return None
 
     def remove_all_temporary_seqs(self):
-        """ empties any sequence data from ram in the .seqProfile dictionary; these are used for MSAs.  Does not affect the preComparer. """
+        """empties any sequence data from ram in the .seqProfile dictionary; these are used for MSAs.  Does not affect the preComparer."""
         self.seqProfile = {}
 
     def raise_error(self, token):

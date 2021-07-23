@@ -25,6 +25,8 @@ GNU Affero General Public License for more details.
 
 import bisect
 import datetime
+
+
 class guidSearcher:
     """stores a list of sample numbers (such as guids) and provides
     methods to add more, and to search them rapidly"""
@@ -46,13 +48,13 @@ class guidSearcher:
 
         """
         self.guids = []
-    
+
     def add(self, guid):
-        """ add a string ('guid') into an ordered list """
+        """add a string ('guid') into an ordered list"""
         self._add(guid)
 
     def _add(self, guid):
-        """ add a string ('guid') into an ordered list """
+        """add a string ('guid') into an ordered list"""
         insertion_point = bisect.bisect_left(self.guids, guid)
 
         if not isinstance(guid, str):
@@ -105,28 +107,36 @@ class guidSearcher:
 
 
 class guidDbSearcher(guidSearcher):
-    """ maintains a list of sample numbers (such as guids), keeping the list synchronised with an underlying
-    PERSISTENCE object, which is a database """
+    """maintains a list of sample numbers (such as guids), keeping the list synchronised with an underlying
+    PERSISTENCE object, which is a database"""
 
-    def __init__(self, PERSIST, recheck_interval_seconds = 60):
-        """ create a guidDbSearcher object, which recovers its guids from the fn3/4 persistence object PERSIST
-        
+    def __init__(self, PERSIST, recheck_interval_seconds=60):
+        """create a guidDbSearcher object, which recovers its guids from the fn3/4 persistence object PERSIST
+
         parameters:
         PERSIST: an fn3/4 persistence object
-        recheck_interval_seconds:  integer, how many seconds to wait before rechecking PERSIST for new samples. """
-        self.PERSIST= PERSIST
+        recheck_interval_seconds:  integer, how many seconds to wait before rechecking PERSIST for new samples."""
+        self.PERSIST = PERSIST
         self.recheck_interval_seconds = recheck_interval_seconds
         self.last_check_time = datetime.datetime.now()
-        self.next_recheck_time = self.last_check_time + datetime.timedelta(seconds= recheck_interval_seconds)
+        self.next_recheck_time = self.last_check_time + datetime.timedelta(
+            seconds=recheck_interval_seconds
+        )
 
-        self.guids = sorted(self.PERSIST.guids())      # return a list
+        self.guids = sorted(self.PERSIST.guids())  # return a list
 
-        if not(recheck_interval_seconds, int):
-            raise TypeError("recheck_interval_seconds must be an integer, not a {0}.  Value={1}".format(type(recheck_interval_seconds), recheck_interval_seconds))
+        if not (recheck_interval_seconds, int):
+            raise TypeError(
+                "recheck_interval_seconds must be an integer, not a {0}.  Value={1}".format(
+                    type(recheck_interval_seconds), recheck_interval_seconds
+                )
+            )
 
     def add(self, guid):
-        """ not implemented: to add a sample to a guidDbSearcher, add it to the underlying PERSIST object (database)"""
-        raise NotImplementedError("guidDbSearcher objects do not allow direct addition of samples.  Just ensure the database")
+        """not implemented: to add a sample to a guidDbSearcher, add it to the underlying PERSIST object (database)"""
+        raise NotImplementedError(
+            "guidDbSearcher objects do not allow direct addition of samples.  Just ensure the database"
+        )
 
     def search(self, search_string, max_returned=30, return_subset=True):
         """
@@ -140,8 +150,10 @@ class guidDbSearcher(guidSearcher):
         if datetime.datetime.now() > self.next_recheck_time:
             new_guids = self.PERSIST.guids_considered_after(self.last_check_time)
             self.last_check_time = datetime.datetime.now()
-            self.next_recheck_time = self.last_check_time + datetime.timedelta(seconds= self.recheck_interval_seconds)
+            self.next_recheck_time = self.last_check_time + datetime.timedelta(
+                seconds=self.recheck_interval_seconds
+            )
             for this_guid in new_guids:
-                self._add(this_guid)      
+                self._add(this_guid)
 
         return self._search(search_string, max_returned, return_subset)

@@ -131,9 +131,8 @@ class fn3persistence:
         # client calling mongostore should trap for connection errors etc
         self.connString = connString
         self.dbname = dbname
+        self.debug = debug
         self._connect()  # will raise ConnectionError if fails
-
-        logging.info("Created connection to mongodb db named {0}".format(dbname))
 
         # can check what exists with connection.database_names()
         self.expected_collections = [
@@ -158,6 +157,7 @@ class fn3persistence:
             "tree.chunks",
             "tree.files",
         ]
+        self.storage_technology = "mongodb"
         self.max_neighbours_per_document = max_neighbours_per_document
         self.server_monitoring_min_interval_msec = server_monitoring_min_interval_msec
         self.previous_server_monitoring_data: Dict[str, Any] = {}
@@ -770,8 +770,17 @@ class fn3persistence:
         for clustering_key in clustering_keys:
             self.cluster_delete_legacy_by_key(clustering_key)
 
+    def refcompressedseq_store_and_annotate(
+        self, guid: str, obj: Any, nameSpace: str, annotDict: dict
+    ) -> str:
+        """stores the object obj as sample_id guid, and also adds annotation annotDict to namespace nameSpace"""
+
+        retVal = self.refcompressedseq_store(guid, obj)
+        self.guid_annotate(guid, nameSpace, annotDict)
+        return retVal
+
     def refcompressedseq_store(self, guid: str, obj: Any) -> str:
-        """stores the pickled object obj with guid guid.
+        """stores the sequence object obj with guid guid.
         Issues an error FileExistsError
         if the guid already exists."""
         pickled_obj = pickle.dumps(obj, protocol=2)

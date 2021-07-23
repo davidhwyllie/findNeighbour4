@@ -24,7 +24,7 @@ from findn.msaviewer import DepictMSA
 
 
 class MSAStore:
-    """ stores multisequence alignments, both in ram and in a database """
+    """stores multisequence alignments, both in ram and in a database"""
 
     def __init__(self, PERSIST, in_ram_persistence_time=60):
         """sets up an MSA cache, which stores MSAs on disc and in ram
@@ -37,30 +37,30 @@ class MSAStore:
         self.PERSIST = PERSIST
         self.iss = IdentifySequenceSet()
         self.in_ram_persistence_time = in_ram_persistence_time
-        self.tree = None        # placeholder, not used
-        self.comment = None     # placeholder, not used
-        
+        self.tree = None  # placeholder, not used
+        self.comment = None  # placeholder, not used
+
     def get_token(self, what, has_outgroup, guids):
-        """ computes a token representing a set of guids with or without an outgroup """
+        """computes a token representing a set of guids with or without an outgroup"""
         return self.iss.make_identifier("msa", what, has_outgroup, guids)
 
     def existing_tokens(self):
-        """ returns a set of all tokens on disc """
+        """returns a set of all tokens on disc"""
         return set(self.PERSIST.msa_stored_ids())
 
     def is_in_ram(self, token):
-        """ whether the msa identifed by token is cached in ram """
+        """whether the msa identifed by token is cached in ram"""
         return token in self.cache.keys()
 
         return token in self.cache.keys()
 
     def persist(self, token, msa_result):
-        """ stores a MSAResult object in mongo identified by token """
+        """stores a MSAResult object in mongo identified by token"""
         self.PERSIST.msa_store(token, msa_result.serialise())
         self.cache_in_ram(token, msa_result)
 
     def load(self, token):
-        """ recovers an MSAResult identified by token.  Caches it in ram"""
+        """recovers an MSAResult identified by token.  Caches it in ram"""
         persisted_dict = self.PERSIST.msa_read(token)
         if persisted_dict is not None:
             msa_result = MSAResult(**persisted_dict)
@@ -70,7 +70,7 @@ class MSAStore:
             return None
 
     def cache_in_ram(self, token, msa_result):
-        """ stores a MSAResult object in ram identified by token """
+        """stores a MSAResult object in ram identified by token"""
         self.purge_ram()
         now = datetime.datetime.now()
         expiry_time = now + datetime.timedelta(seconds=self.in_ram_persistence_time)
@@ -80,7 +80,7 @@ class MSAStore:
             self.cache[token]["expiry_time"] = expiry_time  # update expiry time
 
     def purge_ram(self):
-        """ removes any in-ram objects which are time expired """
+        """removes any in-ram objects which are time expired"""
         now = datetime.datetime.now()
         to_delete = set()
         for token in self.cache.keys():
@@ -90,12 +90,12 @@ class MSAStore:
             del self.cache[token]
 
     def unpersist(self, whitelist):
-        """ removes any on-disc msa results the ids of which are not in the whitelist """
+        """removes any on-disc msa results the ids of which are not in the whitelist"""
         self.PERSIST.msa_delete_unless_whitelisted(whitelist)
 
 
 class MSAResult:
-    """ a representation of a multisequence alignment """
+    """a representation of a multisequence alignment"""
 
     def __init__(
         self,
@@ -142,36 +142,40 @@ class MSAResult:
         self.annotation = None
 
         iss = IdentifySequenceSet()
-        self.token = iss.make_identifier("msa", self.what_tested, outgroup is not None, valid_guids)
+        self.token = iss.make_identifier(
+            "msa", self.what_tested, outgroup is not None, valid_guids
+        )
 
     def msa_df(self):
-        """ return the msa as a dataframe """
+        """return the msa as a dataframe"""
         return self.df
 
     def msa_html(self):
-        """ returns the msa as an html table """
+        """returns the msa as an html table"""
         return self.df.to_html()
 
     def msa_fasta(self):
-        """ returns the msa as fasta """
+        """returns the msa as fasta"""
         fasta = ""
         for guid in self.df.index:
             fasta = fasta + ">{0}\n{1}\n".format(guid, self.df.loc[guid, "aligned_seq"])
         return fasta
 
     def msa_dict(self):
-        """ return the msa as a dictionary """
+        """return the msa as a dictionary"""
         return self.df.to_dict(orient="index")
 
     def msa_interactive_depiction(self):
         """returns an interactive depiction of the msa object.
         This is an html file string, with embedded data and javascript.
         rendering it will produce an interactive visualisation"""
-        dep_msa = DepictMSA(self.df, positions_analysed=sorted(list(self.variant_positions)))
+        dep_msa = DepictMSA(
+            self.df, positions_analysed=sorted(list(self.variant_positions))
+        )
         return dep_msa.render_msa()
 
     def serialise(self):
-        """ return the entire object in a serialisable format (dictionary) """
+        """return the entire object in a serialisable format (dictionary)"""
         return {
             "variant_positions": self.variant_positions,
             "invalid_guids": self.invalid_guids,

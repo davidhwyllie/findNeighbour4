@@ -42,10 +42,9 @@ from sqlalchemy import (
     func,
     create_engine,
     inspect,
-    ForeignKey
+    ForeignKey,
 )
-
-#from sqlalchemy.dialects import oracle
+from findn.seq2json import SeqDictConverter
 from sqlalchemy.sql.expression import delete, desc
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
@@ -157,13 +156,14 @@ class Edge(db_pc):
     - This means that all the edges of A can be obtained by
     statements such as SELECT * from Edge where seq_int_id_1 = 217, where 217 is the seq_int_id of sequence A.
 
-    - if insertion is fast enough, we could enable foreign key constraints here. 
+    - if insertion is fast enough, we could enable foreign key constraints here.
     - it is likely that insert speed will be the main determinant of server speed
     - and the faster the inserts work the better.
     - in the mongo implementation, FK constraints are not implemented, and the relationships are guaranteed by application logic, not at a database level .
     At present, this approach is being used here too.
 
     """
+
     __tablename__ = "edge"
     edge_int_id = Column(
         Integer,
@@ -171,9 +171,9 @@ class Edge(db_pc):
         primary_key=True,
         comment="the primary key to the table",
     )
-    sequence_id_1= Column(
+    sequence_id_1 = Column(
         String(38),
-        comment="One of a pair of sequences. Note: foreign key constraint not enforced at a database level"
+        comment="One of a pair of sequences. Note: foreign key constraint not enforced at a database level",
     )
     sequence_id_2 = Column(
         String(38),
@@ -181,11 +181,8 @@ class Edge(db_pc):
     )
     dist = Column(Integer, comment="the SNV distance between sequences")
 
-Index(
-    "ix_Edge_1",
-    Edge.sequence_id_1,
-    unique=False,
-    oracle_compress = 1)
+
+Index("ix_Edge_1", Edge.sequence_id_1, unique=False, oracle_compress=1)
 
 
 class Cluster(db_pc):
@@ -308,7 +305,7 @@ class NPEncoder(json.JSONEncoder):
             return super(NPEncoder, self).default(obj)
 
 
-class fn3persistence:
+class fn3persistence_r:
     """System for persisting results from  large numbers of sequences stored in FindNeighbour 3+.
     Uses a generic rdbms, with optimisations for Oracle databases when using the cx_oracle package.
 
@@ -318,43 +315,14 @@ class fn3persistence:
     In future, it may be possible to integrate this class with that, if successful
     implementation of findNeighbour4 functionality using an RDBMS is possible
 
-
-    Note:
-    #################################################################################################################################
-    to what extent the api for this class can be made to exactly match the mongodb fn3persistence object deserves thought,
-    because if it can't, then a lot of breaking changes are going to have to be made and mongo either removed or a fork maintained.
-    Doing this is highly undesirable
-
-    Mongodb persistence object creation method looks like
-
-        CONFIG OF MONGOSTORE
-            # code handling startup and shutdown.
-            def __init__(
-                self,
-                connString,
-                dbname="fn3_unittesting",
-                debug=0,
-                config_settings={},
-                max_neighbours_per_document=100000,
-                server_monitoring_min_interval_msec=0,
-            ):
-                Creates a connection to a MongoDb database.
-
-                connString : the mongoDb connection string
-                dbname: the name of the mongoDb database to use.
-                if debug = 0 or 1, the database is opened or created.
-                if debug = 2, any existing collections are deleted.
-                config_settings: only used on db creation; optional dictionary to note items in the database's config collection.
-    ##################################################################################################################################
-    this work has not yet been carried out.
+    See also the Persistence class in the persistence module.
+    This provides an API which will either use this class, or the mongo based fn3persistence class, depending on
+    software settings.
 
     """
 
     def __init__(
-        self,
-        connection_config=None,
-        debug=0,
-        server_monitoring_min_interval_msec=0,
+        self, connection_config, debug=0, server_monitoring_min_interval_msec=0
     ):
 
         """creates the RDBMS connection
@@ -457,16 +425,24 @@ class fn3persistence:
         ALTER USER PCADB DEFAULT TABLESPACE DATA quota unlimited on DATA;
         """
 
+        self.sjc = SeqDictConverter()
+        self.logger = logging.getLogger()
+        self.logger.setLevel(logging.INFO)
+
+        self.debug = debug
+        self.storage_technology = "rdbms"
+        self.logger.info("Storage technology is {0}".format(self.storage_technology))
+
         self.server_monitoring_min_interval_msec = server_monitoring_min_interval_msec
         self.previous_server_monitoring_data = {}
         self.previous_server_monitoring_time = None
 
         # connect and create session.  Validate inputs carefully.
         if connection_config is None:
-            logging.info("Connection config is None: using in-memory sqlite.")
+            self.logger.info("Connection config is None: using in-memory sqlite.")
             self.engine_name = "sqlite://"
         elif "://" in connection_config:
-            logging.info(
+            self.logger.info(
                 "Connection config provided; using {0}".format(connection_config)
             )
             self.engine_name = connection_config
@@ -529,25 +505,25 @@ class fn3persistence:
                     )
 
                 # set the TNS_ADMIN variable.
-                logging.info(
+                self.logger.info(
                     "Set TNS_ADMIN to value specified in config file {0}".format(
                         this_configuration["TNS_ADMIN"]
                     )
                 )
                 os.environ["TNS_ADMIN"] = this_configuration["TNS_ADMIN"]
 
-            logging.info("Set ENGINE_NAME configuration string from config file.")
+            self.logger.info("Set ENGINE_NAME configuration string from config file.")
             self.engine_name = this_configuration["ENGINE_NAME"]
 
         # now we can start
         self.Base = db_pc
-        logging.info("DatabaseManager: Connecting to database")
+        self.logger.info("DatabaseManager: Connecting to database")
         self.engine = create_engine(self.engine_name)
         self.is_oracle = "oracle+cx" in self.engine_name
         self.is_sqlite = "sqlite://" in self.engine_name
         self.show_bar = True  # maybe define a method to switch this off
 
-        logging.info(
+        self.logger.info(
             "DatabaseManager: Database connection made; there are {0} tables.  Oracle database = {1}".format(
                 len(self._table_names()), self.is_oracle
             )
@@ -560,13 +536,22 @@ class fn3persistence:
         self.session = Session()
 
         # drop existing tables if in debug mode
+        # delete any pre-existing data if we are in debug mode.
         if debug == 2:
-            logging.info("Deleting existing data")
+            logging.warning(
+                "Debug mode operational [DEBUG={0}]; deleting all data from tables.".format(
+                    debug
+                )
+            )
+            self._delete_existing_clustering_data()
             self._delete_existing_data()
+
+        else:
+            self.logger.info("Using stored data in mongostore")
 
         self.session.commit()
 
-    def explicitly_close_connections(self):
+    def closedown(self):
         """closes the session & disposes of any engine.
         Is required for unit testing"""
         self.session.close()
@@ -659,13 +644,13 @@ class fn3persistence:
                 )
             )
 
-        logging.info("Bulk upload to {0} started".format(target_table))
+        self.logger.info("Bulk upload to {0} started".format(target_table))
 
         if self.is_sqlite:
             # there is a max variable limit of 32,766 for Sqlite 3.32.0 on https://www.sqlite.org/limits.html
             # set max_batch to keep below this.
             max_batch = int(32000 / ncol)
-            logging.info(
+            self.logger.info(
                 "Autoset max_batch to {0}, as running SQLite".format(max_batch)
             )
 
@@ -687,7 +672,7 @@ class fn3persistence:
             )  # large margin of safety 10M batch size
             if estimated_max_batch < max_batch:
                 max_batch = estimated_max_batch
-                logging.info(
+                self.logger.info(
                     "Reduced max_batch to keep estimated buffer size within acceptable limits (<= 10M target).  max_batch is {0}".format(
                         max_batch
                     )
@@ -728,7 +713,7 @@ class fn3persistence:
                 bar = progressbar.ProgressBar(max_value=start_n)
 
             while len(upload_df.index) > 0:
-                logging.info(
+                self.logger.info(
                     "Bulk upload of {0} : {1} remain".format(
                         target_table, len(upload_df)
                     )
@@ -745,7 +730,7 @@ class fn3persistence:
                 if self.show_bar:
                     bar.update(start_n - len(upload_df.index))
 
-        logging.info("Bulk upload to {0} complete".format(target_table))
+        self.logger.info("Bulk upload to {0} complete".format(target_table))
         if self.show_bar:
             bar.finish()
         return len(upload_df.index)
@@ -764,11 +749,11 @@ class fn3persistence:
 
     def connect(self) -> None:
         """test whether the database is connected, and if not, tries to connect.
-        if the connection fails, raises pymongo.errors.ConnectionFailure"""
+        Does nothing here, just a stub."""
         pass
 
     def rotate_log(self) -> None:
-        """forces rotation of the mongo log file"""
+        """forces rotation of the mongo log file; a stub here, does nothing"""
         pass
 
     def raise_error(self, token: str) -> NoReturn:
@@ -1218,13 +1203,20 @@ class fn3persistence:
     def cluster_delete_legacy_by_key(self, clustering_key: str) -> None:
         """delete all clustering objects, except latest version, stored with key clustering_key"""
 
-        # DELETE queries can't use offset
-        for row in (
-            self.session.query(Cluster)
-            .filter_by(cluster_build_id=clustering_key)
-            .offset(1)
+        cl_int_ids = set()
+        for (cl_int_id,) in self.session.query(Cluster.cl_int_id).filter_by(
+            cluster_build_id=clustering_key
         ):
-            self.session.delete(row)
+            cl_int_ids.add(cl_int_id)
+        if len(cl_int_ids) == 0:
+            return
+        else:
+            latest_cl_int_id = max(cl_int_ids)
+            for this_cl_int_id in cl_int_ids:
+                if not this_cl_int_id == latest_cl_int_id:
+                    self.session.query(Cluster).filter_by(
+                        cl_int_id=this_cl_int_id
+                    ).delete()
         self.session.commit()
 
     def cluster_delete_legacy(self, clustering_name: str) -> None:
@@ -1232,30 +1224,118 @@ class fn3persistence:
         for clustering_key in self.cluster_keys(clustering_name=clustering_name):
             self.cluster_delete_legacy_by_key(clustering_key)
 
-    def refcompressedseq_store(self, guid: str, obj: dict) -> str:
+    def refcompressedseq_store_and_annotate(
+        self, guid: str, obj: dict, nameSpace: str, annotDict: dict
+    ) -> str:
         """stores the json object obj with guid guid.
-        Issues an error FileExistsError
-        if the guid already exists."""
+
+        Parameters:
+        guid:  the sequence identifer
+        obj:   a reference compressed sequence representation, as produced by seqComparer.compress().
+        namespace: a namespace for the annotations, e.g. 'SequenceQuality'
+        annotDict: a dictionary of key:value pairs, where the values are strings, which are the annotations of the sequence
+
+        Here is an example of obj:
+
+        {
+            'A':set([1,2,3]), 'C':set([6]), 'T':set([4]), 'G':set([5]), 'M':{11:'Y', 12:'k'}, 'invalid':0
+        }
+
+        If the guid already exists in the database, ignores the request silently."""
 
         if not isinstance(obj, dict):
             raise TypeError(
                 "Can only store dictionary objects, not {0}".format(type(obj))
             )
 
-        # TODO is this the correct behaviour
-        if (
-            row := self.session.query(RefCompressedSeq)
+        if not "invalid" in obj.keys():
+            raise KeyError(
+                "An invalid key must be present.  Keys are: {0}".format(obj.keys())
+            )
+
+        if not isinstance(annotDict, dict):
+            raise TypeError(
+                "Can only store dictionary objects, not {0}".format(type(annotDict))
+            )
+
+        # if the record already exists, we don't re-add it
+        res = (
+            self.session.query(RefCompressedSeq.seq_int_id)
             .filter_by(sequence_id=guid)
-            .delete()
-        ):
-            pass
-        else:
-            row = RefCompressedSeq(sequence_id=guid, annotations="{}")
-            self.session.add(row)
+            .one_or_none()
+        )
 
-        row.content = json.dumps(obj).encode("utf-8")
+        if res is None:
+            examination_date = datetime.now()
+            invalid = None
+            prop_actg = None
+            if nameSpace == "DNAQuality":
+                if "examinationDate" in annotDict:
+                    examination_date = annotDict["examinationDate"]
+                    if isinstance(annotDict["examinationDate"], datetime):
+                        # convert to isoformat pre-jsonisation
+                        annotDict["examinationDate"] = annotDict[
+                            "examinationDate"
+                        ].isoformat()
+                if "invalid" in annotDict:
+                    invalid = annotDict["invalid"]
+                if "propACTG" in annotDict:
+                    prop_actg = annotDict["propACTG"]
 
-        self.session.commit()
+            to_add = RefCompressedSeq(
+                sequence_id=guid,
+                invalid=invalid,
+                examination_date=datetime.now(),
+                content=self.sjc.to_json(obj),
+                prop_actg=prop_actg,
+                annotations=json.dumps(annotDict),
+            )
+
+            self.session.add(to_add)
+            self.session.commit()
+
+    def refcompressedseq_store(self, guid: str, obj: dict) -> str:
+        """stores the json object obj with guid guid.
+
+        Parameters:
+        guid:  the sequence identifer
+        obj:   a reference compressed sequence representation, as produced by seqComparer.compress().
+        Here is an example:
+
+        {
+            'A':set([1,2,3]), 'C':set([6]), 'T':set([4]), 'G':set([5]), 'M':{11:'Y', 12:'k'}, 'invalid':0
+        }
+
+        If the guid already exists in the database, ignores the request silently."""
+
+        if not isinstance(obj, dict):
+            raise TypeError(
+                "Can only store dictionary objects, not {0}".format(type(obj))
+            )
+
+        if not "invalid" in obj.keys():
+            raise KeyError(
+                "An invalid key must be present.  Keys are: {0}".format(obj.keys())
+            )
+
+        # if the record already exists, we don't re-add it
+        res = (
+            self.session.query(RefCompressedSeq.seq_int_id)
+            .filter_by(sequence_id=guid)
+            .one_or_none()
+        )
+        if res is None:
+            self.session.add(
+                RefCompressedSeq(
+                    sequence_id=guid,
+                    invalid=obj["invalid"],
+                    examination_date=datetime.now(),
+                    content=self.sjc.to_json(obj),
+                    prop_actg=None,
+                    annotations=json.dumps({}),
+                )
+            )
+            self.session.commit()
 
     def refcompressedsequence_read(self, guid: str) -> Any:
         """loads object from refcompressedseq collection.
@@ -1266,7 +1346,7 @@ class fn3persistence:
             .filter_by(sequence_id=guid)
             .first()
         ):
-            return json.loads(row.content)
+            return self.sjc.from_json(row.content)
         else:
             return None
 
@@ -1275,7 +1355,6 @@ class fn3persistence:
 
         return set(res.sequence_id for res in self.session.query(RefCompressedSeq))
 
-    # methods for guid2meta
     def guid_annotate(self, guid: str, nameSpace: str, annotDict: dict) -> None:
         """adds multiple annotations of guid from a dictionary;
         all annotations go into a namespace.
@@ -1331,11 +1410,12 @@ class fn3persistence:
                     type(addition_datetime), addition_datetime
                 )
             )
-        return set(
-            self.session.query(RefCompressedSeq).filter(
-                RefCompressedSeq.examination_date > addition_datetime
-            )
-        )
+        retVal = []
+        for (guid,) in self.session.query(RefCompressedSeq.sequence_id).filter(
+            RefCompressedSeq.examination_date > addition_datetime
+        ):
+            retVal.append(guid)
+        return set(retVal)
 
     def _guids_selected_by_validity(self, validity: int) -> Set[str]:
         """returns  registered guids, selected on their validity
@@ -1563,7 +1643,7 @@ class fn3persistence:
         use_update -  currently ignored, always False.  Setting True yields NotImplementedError
 
         This stores links in the guid2neighbour collection.
-        
+
         Returns:
         The number of records written
 
@@ -1574,11 +1654,16 @@ class fn3persistence:
 
         load_list = []
         for guid2, dist in targetguids.items():
-            load_list.append({'sequence_id_1':guid, 'sequence_id_2':guid2, 'dist':dist['dist']})
-            load_list.append({'sequence_id_1':guid2, 'sequence_id_2':guid, 'dist':dist['dist']})
+            load_list.append(
+                {"sequence_id_1": guid, "sequence_id_2": guid2, "dist": dist["dist"]}
+            )
+            load_list.append(
+                {"sequence_id_1": guid2, "sequence_id_2": guid, "dist": dist["dist"]}
+            )
         load_df = pd.DataFrame.from_records(load_list)
-        self._bulk_load(load_df, 'edge')
 
+        if len(load_df.index) > 0:
+            self._bulk_load(load_df, "edge")
 
     class Guid2NeighbourRepackRet(TypedDict):
         guid: str
@@ -1661,7 +1746,7 @@ class fn3persistence:
             "neighbours": [
                 f(res)
                 for res in self.session.query(Edge)
-                .filter_by(sequence_id_1 = guid)
+                .filter_by(sequence_id_1=guid)
                 .filter(Edge.dist <= cutoff)
             ],
         }

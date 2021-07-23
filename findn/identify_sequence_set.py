@@ -20,16 +20,18 @@ import hashlib
 
 
 class IdentifySequenceSet:
-    """ generates a unique key for a given set of sequence identifiers """
+    """generates a unique key for a given set of sequence identifiers"""
 
     def __init__(self):
-        """ create the object """
-        self.permitted_collection_types = set(["cluster", "connections", "msa", "distmat", "njtree", "iqtree", "raxml"])
+        """create the object"""
+        self.permitted_collection_types = set(
+            ["cluster", "connections", "msa", "distmat", "njtree", "iqtree", "raxml"]
+        )
         self.has_outgroup2label = {True: "og", False: "no_og"}
         self.permitted_what = set(["M", "N", "N_or_M", "-"])
 
     def _hashComponents(self, x: list) -> str:
-        """ returns an sha1 hash on a list, x """
+        """returns an sha1 hash on a list, x"""
         x = sorted(x)
 
         to_hash = ";".join([str(item) for item in x])
@@ -44,10 +46,17 @@ class IdentifySequenceSet:
         x: a collection of sample names, excluding any outgroup"""
 
         if collection_type not in self.permitted_collection_types:
-            raise ValueError("collection type {0} is not allowed".format(collection_type))
+            raise ValueError(
+                "collection type {0} is not allowed".format(collection_type)
+            )
         if what not in self.permitted_what:
             raise ValueError("what {0} is not allowed".format(what))
         if not isinstance(has_outgroup, bool):
             raise TypeError("has_outgroup must be boolean")
 
-        return "{0}|{1}|{2}|{3}".format(collection_type, what, self.has_outgroup2label[has_outgroup], self._hashComponents(x))
+        return "{0}|{1}|{2}|{3}".format(
+            collection_type,
+            what,
+            self.has_outgroup2label[has_outgroup],
+            self._hashComponents(x),
+        )

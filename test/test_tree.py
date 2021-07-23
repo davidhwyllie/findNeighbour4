@@ -105,7 +105,9 @@ class Test_ManipulateTree(unittest.TestCase):
         # print(d1,d2,d3)
 
 
-@unittest.skip("causes core dump in gitlab actions environment. runs in standard environment. reason requires investigation.")
+@unittest.skip(
+    "causes core dump in gitlab actions environment. runs in standard environment. reason requires investigation."
+)
 class Test_DepictTree_1(unittest.TestCase):
     """tests the DepictTree class"""
 
@@ -117,7 +119,7 @@ class Test_DepictTree_1(unittest.TestCase):
             metadata = pickle.load(f)
 
         mt = DepictTree(treetxt, metadata)
-        mt.render("unittest_tmp/test.png")      # svg output causes github actions to fail
+        mt.render("unittest_tmp/test.png")  # svg output causes github actions to fail
 
 
 class Test_DepictTree_2(unittest.TestCase):

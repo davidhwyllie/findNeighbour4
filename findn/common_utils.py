@@ -30,7 +30,7 @@ ConfigLike = Union[str, dict]
 
 class ConfigManager:
     """
-     reads, and where approporiate modified from environmental variables containing secret 
+     reads, and where approporiate modifies from environmental variables containing secret
     configuration parameters etc, a findNeighbour config dictionary
 
     Can read from file, or (where configuration is present) from database.
@@ -42,7 +42,7 @@ class ConfigManager:
 
     An example CONFIG is below:
 
-    {			
+    {
     "DESCRIPTION":"A test server operating in ../unittest_tmp, only suitable for testing",
     "IP":"127.0.0.1",
     "INPUTREF":"../reference/TB-ref.fasta",
@@ -96,7 +96,7 @@ class ConfigManager:
             raise KeyError(f"Keys: {missing_keys} are required but were not found.")
 
     def _enforce_config_object_type(self, config_like: ConfigLike) -> dict:
-        """ require that the config object is valid json, or a dictionary """
+        """require that the config object is valid json, or a dictionary"""
         CONFIG = config_like
         if isinstance(CONFIG, str):
             CONFIG = json.loads(CONFIG)  # assume JSON string; convert.
@@ -117,14 +117,28 @@ class ConfigManager:
         """
 
         # read the results from disc
-        required_keys = {"IP": True, "REST_PORT": True, "DEBUGMODE": True, "LOGFILE": True, "MAXN_PROP_DEFAULT": True}
-        self.CONFIG = self._read_config_from_file(self.config_fpath, required_keys=required_keys)
+        required_keys = {
+            "IP": True,
+            "REST_PORT": True,
+            "DEBUGMODE": True,
+            "LOGFILE": True,
+            "MAXN_PROP_DEFAULT": True,
+        }
+        self.CONFIG = self._read_config_from_file(
+            self.config_fpath, required_keys=required_keys
+        )
 
         # check precomparer parameters
         if len(self.CONFIG["PRECOMPARER_PARAMETERS"]) > 0:
             # these are supplied
             observed_keys = set(list(self.CONFIG["PRECOMPARER_PARAMETERS"].keys()))
-            expected_keys = set(["selection_cutoff", "over_selection_cutoff_ignore_factor", "uncertain_base"])
+            expected_keys = set(
+                [
+                    "selection_cutoff",
+                    "over_selection_cutoff_ignore_factor",
+                    "uncertain_base",
+                ]
+            )
 
             missing = expected_keys - observed_keys
             if len(missing) > 0:
@@ -140,7 +154,9 @@ class ConfigManager:
 
         try:
             self.PERSIST = fn3persistence(
-                dbname=self.CONFIG["SERVERNAME"], connString=self.CONFIG["FNPERSISTENCE_CONNSTRING"], debug=debug_status
+                dbname=self.CONFIG["SERVERNAME"],
+                connString=self.CONFIG["FNPERSISTENCE_CONNSTRING"],
+                debug=debug_status,
             )
         except Exception:
             logging.exception("Error raised on creating persistence object")
@@ -166,7 +182,11 @@ class ConfigManager:
         # load the result from database
         stored_config = self.PERSIST.config_read("config")
         stored_config["excludePositions"] = set(stored_config["excludePositions"])
-        for key in do_not_persist_keys:  # update stored config with any of the do_not_persist_keys
+        for (
+            key
+        ) in (
+            do_not_persist_keys
+        ):  # update stored config with any of the do_not_persist_keys
             if key in self.CONFIG.keys():
                 stored_config[key] = self.CONFIG[key]
         self.CONFIG = stored_config
@@ -178,7 +198,7 @@ class ConfigManager:
         return self.CONFIG
 
     def _first_run(self, do_not_persist_keys):
-        """ first run actions.  Stores CONFIG to database, minus any keys in do_not_persist_keys """
+        """first run actions.  Stores CONFIG to database, minus any keys in do_not_persist_keys"""
 
         # create a config dictionary
         config_settings = {}
@@ -219,7 +239,9 @@ class ConfigManager:
 
         self.PERSIST.config_store("config", config_settings)
 
-    def _read_config_from_file(self, config_fpath: PathLike, required_keys: dict = dict()) -> dict:
+    def _read_config_from_file(
+        self, config_fpath: PathLike, required_keys: dict = dict()
+    ) -> dict:
         """read a config file
 
         input:      config_fpath, a path to a configuration file
@@ -238,14 +260,18 @@ class ConfigManager:
 
         return CONFIG
 
-    def _environment_variables_override_config_defaults(self, config_like: ConfigLike) -> dict:
-        """ if environment variables are present containing connection strings, use these in precedence to results in CONFIG """
+    def _environment_variables_override_config_defaults(
+        self, config_like: ConfigLike
+    ) -> dict:
+        """if environment variables are present containing connection strings, use these in precedence to results in CONFIG"""
         CONFIG = config_like
         # determine whether a FNPERSISTENCE_CONNSTRING environment variable is present,
         # if so, the value of this will take precedence over any values in the config file.
         # This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuraton file.
         if os.environ.get("FNPERSISTENCE_CONNSTRING") is not None:
-            CONFIG["FNPERSISTENCE_CONNSTRING"] = os.environ.get("FNPERSISTENCE_CONNSTRING")
+            CONFIG["FNPERSISTENCE_CONNSTRING"] = os.environ.get(
+                "FNPERSISTENCE_CONNSTRING"
+            )
             logging.info("Set mongodb connection string  from environment variable")
         else:
             logging.info("Using mongodb connection string from configuration file.")
@@ -263,14 +289,16 @@ class ConfigManager:
         if os.environ.get("CW_BINARY_FILEPATH") is not None:
 
             try:
-                CONFIG["PRECOMPARER_PARAMETERS"]["catWalk_parameters"]["cw_binary_filepath"] = os.environ.get(
-                    "CW_BINARY_FILEPATH"
-                )
+                CONFIG["PRECOMPARER_PARAMETERS"]["catWalk_parameters"][
+                    "cw_binary_filepath"
+                ] = os.environ.get("CW_BINARY_FILEPATH")
             except KeyError:
                 pass  # no key
 
         return CONFIG
 
-    def validate_server_config(self, config_like: ConfigLike, required_keys: dict = dict()) -> None:
+    def validate_server_config(
+        self, config_like: ConfigLike, required_keys: dict = dict()
+    ) -> None:
         CONFIG = self._enforce_config_object_type(config_like)
         self._enforce_key_presence(CONFIG, required_keys)
