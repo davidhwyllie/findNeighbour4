@@ -20,7 +20,7 @@ import json
 import datetime
 from Bio import SeqIO
 import logging
-from findn.mongoStore import fn3persistence
+from findn.persistence import Persistence
 from pathlib import Path
 from typing import Union
 
@@ -76,9 +76,7 @@ class ConfigManager:
     SENTRY_URL (optional)
     Note: if a FN_SENTRY URL environment variable is present, then the value of this will take precedence over any values in the config file.
     This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuraton file.
-    PERSIST is a storage object needs to be supplied.  The fn3Persistence class in mongoStore is one suitable object.
-    PERSIST=fn3persistence(connString=CONFIG['FNPERSISTENCE_CONNSTRING'])
-
+    PERSIST is a storage object needs to be supplied.  
     """
 
     def __init__(self, config_fpath):
@@ -152,15 +150,12 @@ class ConfigManager:
         if not_debug_mode:
             debug_status = 0
 
-        try:
-            self.PERSIST = fn3persistence(
-                dbname=self.CONFIG["SERVERNAME"],
-                connString=self.CONFIG["FNPERSISTENCE_CONNSTRING"],
-                debug=debug_status,
-            )
-        except Exception:
-            logging.exception("Error raised on creating persistence object")
-            raise
+        pm = Persistence()
+        self.PERSIST = pm.get_storage_object(
+            dbname=self.CONFIG["SERVERNAME"],
+            connString=self.CONFIG["FNPERSISTENCE_CONNSTRING"],
+            debug=debug_status,
+            verbose=False)
 
         do_not_persist_keys = set(
             [

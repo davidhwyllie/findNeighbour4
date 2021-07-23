@@ -17,7 +17,7 @@ GNU Affero General Public License for more details.
 
 """
 import bson  # type: ignore
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import hashlib
 import time
 import os
@@ -258,7 +258,7 @@ class MSA(db_pc):
         comment="the primary key to the table",
     )
     msa_id = Column(
-        String(40),
+        String(60),
         index=True,
         unique=True,
         comment="an identifier for the contents; this is typically and sha-1 hash on the contents",
@@ -292,7 +292,7 @@ class TreeStorage(db_pc):
 
 
 class NPEncoder(json.JSONEncoder):
-    """encodes Numpy types as jsonisable equivalents"""
+    """encodes Numpy  and datetime types as jsonisable equivalents"""
 
     def default(self, obj):
         if isinstance(obj, np.integer):
@@ -301,6 +301,10 @@ class NPEncoder(json.JSONEncoder):
             return float(obj)
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
+        elif isinstance(obj, date):
+            return obj.isoformat()
+        elif isinstance(obj, datetime):
+            return obj.isoformat()
         else:
             return super(NPEncoder, self).default(obj)
 
@@ -812,10 +816,10 @@ class fn3persistence_r:
             )
 
         if row := self.session.query(Config).filter_by(config_key=key).first():
-            row.config_value = json.dumps(object).encode("utf-8")
+            row.config_value = json.dumps(object, cls=NPEncoder).encode("utf-8")
         else:
             row = Config(
-                config_key=key, config_value=json.dumps(object).encode("utf-8")
+                config_key=key, config_value=json.dumps(object, cls=NPEncoder).encode("utf-8")
             )
             self.session.add(row)
         self.session.commit()

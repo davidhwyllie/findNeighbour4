@@ -12,8 +12,7 @@ import sentry_sdk
 import json
 
 # fn3 storage module
-from mongoStore import fn3persistence
-
+from findn.persistence import Persistence
 
 if __name__ == "__main__":
     # command line usage.  Pass the location of a config file as a single argument.
@@ -112,18 +111,12 @@ if __name__ == "__main__":
     logger.info("Preparing to produce visualisations")
 
     print("Connecting to backend data store at {0}".format(CONFIG["SERVERNAME"]))
-    try:
-        PERSIST = fn3persistence(
-            dbname=CONFIG["SERVERNAME"],
-            connString=CONFIG["FNPERSISTENCE_CONNSTRING"],
-            debug=CONFIG["DEBUGMODE"],
-            server_monitoring_min_interval_msec=CONFIG["SERVER_MONITORING_MIN_INTERVAL_MSEC"],
-        )
-    except Exception as e:
-        logger.exception("Error raised on creating persistence object")
-        if e.__module__ == "pymongo.errors":
-            logger.info("Error raised pertains to pyMongo connectivity")
-            raise
+    pm = Persistence()
+    PERSIST = pm.get_storage_object(
+        dbname=CONFIG["SERVERNAME"],
+        connString=CONFIG["FNPERSISTENCE_CONNSTRING"],
+        debug=CONFIG["DEBUGMODE"],
+        verbose=True)
 
     print("Recovering data from server ..")
     insert_data = PERSIST.recent_server_monitoring(

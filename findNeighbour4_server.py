@@ -229,9 +229,8 @@ class findNeighbour4:
         SENTRY_URL (optional)
         Note: if a FN_SENTRY URL environment variable is present, then the value of this will take precedence over any values in the config file.
         This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuraton file.
-        PERSIST is a storage object needs to be supplied.  The fn3Persistence class in mongoStore is one suitable object.
-        PERSIST=fn3persistence(connString=CONFIG['FNPERSISTENCE_CONNSTRING'])
-
+        PERSIST is a storage object needs to be supplied.  The fn3Persistence class in mongoStore or rdbmsStore are suitable objects.
+     
         """
 
         # store the persistence object as part of this object
@@ -1837,3 +1836,4 @@ python findNeighbour4_server.py ../config/myconfig_file.json
         "Launching server listening to IP {0}, debug = {1}, port = {2}".format(LISTEN_TO, flask_debug, CONFIG["REST_PORT"])
     )
     app.run(host=LISTEN_TO, debug=flask_debug, port=CONFIG["REST_PORT"])
+    

@@ -52,7 +52,7 @@ import shutil
 import progressbar
 
 # reference based compression storage and clustering modules
-from findn.mongoStore import fn3persistence
+from findn.persistence import Persistence
 from findn import DEFAULT_CONFIG_FILE
 from findn.common_utils import ConfigManager
 from findn.hybridComparer import hybridComparer
@@ -249,16 +249,12 @@ pipenv run python3 pca/fn4_pca.py demos/covid/covid_config_v3.json --outputdir /
 
     # prepare to connection
     logging.info("Connecting to backend data store")
-    try:
-        PERSIST = fn3persistence(
-            dbname=CONFIG["SERVERNAME"],
-            connString=CONFIG["FNPERSISTENCE_CONNSTRING"],
-            debug=CONFIG["DEBUGMODE"],
-            server_monitoring_min_interval_msec=0,
-        )
-    except Exception:
-        logging.info("Error raised on creating persistence object")
-        raise
+    pm = Persistence()
+    PERSIST = pm.get_storage_object(
+        dbname=CONFIG["SERVERNAME"],
+        connString=CONFIG["FNPERSISTENCE_CONNSTRING"],
+        debug=CONFIG["DEBUGMODE"],
+        verbose=True)
 
     if args.remove_existing_data:
         logging.info("fn4_pca is set to remove all existing data from database")

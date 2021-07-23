@@ -67,7 +67,7 @@ class PCADBManagerError(Exception):
 class BulkLoadTest(db_pc):
     """used for testing bulk uploads as part of unit testing"""
 
-    __tablename__ = "test"
+    __tablename__ = "test_pca_bulkload"
     blt_int_id = Column(Integer, Identity(start=1), primary_key=True)
     bulk1 = Column(Integer)
     bulk2 = Column(Integer)

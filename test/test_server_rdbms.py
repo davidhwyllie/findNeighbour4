@@ -5,11 +5,11 @@ See documentation for full details of its functionality.
 There are unit tests for the server component.  To run them:
 
 # starting a test RESTFUL server 
-# NOTE: this uses the default testing config file at config/default_test_config.json, which launches a server on 5020
-nohup pipenv run python3 findNeighbour4_server.py &
+nohup pipenv run python3 findNeighbour4_server.py config/default_test_config_rdbms.json &
+# NOTE: this uses the default testing config file for rdbms at config/default_test_config_rdbms.json, which launches a server on 5021
 
 # And then  launching unit tests with
-pipenv run python3 -m unittest test/test_server.py              # tests the server running on the default testing port, 5020
+pipenv run python3 -m unittest test/test_server_rdbms.py         # tests the server running on the rdbms server testing port, 5021
 
 """
 
@@ -28,7 +28,7 @@ from Bio import SeqIO
 import unittest
 from urllib.parse import urljoin as urljoiner
 
-RESTBASEURL = "http://127.0.0.1:5020"
+RESTBASEURL = "http://127.0.0.1:5021"
 
 print("Running unit tests against a server expected to be operational on {0}".format(RESTBASEURL))
 ISDEBUG = True
@@ -289,7 +289,7 @@ class test_cl2network(unittest.TestCase):
 
         # run the clustering engine.
 
-        os.system("pipenv run python3 findNeighbour4_clustering.py")
+        os.system("pipenv run python3 findNeighbour4_clustering.py config/default_test_config_rdbms.json --run_once")
 
         # do tests
         relpath = "/api/v2/clustering/SNV12_ignore/cluster_ids"
@@ -527,7 +527,7 @@ class test_msa_2(unittest.TestCase):
 
         # Do clustering
         # "Doing clustering")
-        os.system("pipenv run python3 findNeighbour4_clustering.py")
+        os.system("pipenv run python3 findNeighbour4_clustering.py config/default_test_config_rdbms.json --run_once")
 
         relpath = "/api/v2/clustering/SNV12_ignore/guids2clusters"
         res = do_GET(relpath)
@@ -961,7 +961,7 @@ class test_clusters_sample(unittest.TestCase):
         self.assertEqual(info, [])
 
         # Do clustering
-        os.system("pipenv run python3 findNeighbour4_clustering.py")
+        os.system("pipenv run python3 findNeighbour4_clustering.py config/default_test_config_rdbms.json --run_once")
 
         relpath = "/api/v2/guids"
         res = do_GET(relpath)
@@ -1012,7 +1012,7 @@ class test_clusters_what(unittest.TestCase):
         self.assertEqual(info, "Guid {0} inserted.".format(guid_to_insert))
 
         # Do clustering
-        os.system("pipenv run python3 findNeighbour4_clustering.py")
+        os.system("pipenv run python3 findNeighbour4_clustering.py config/default_test_config_rdbms.json --run_once")
 
         # what happens if there is nothing there
         relpath = "/api/v2/non_existent_guid/clusters"
@@ -1085,7 +1085,7 @@ class test_what_tested(unittest.TestCase):
         self.assertEqual(info, "Guid {0} inserted.".format(guid_to_insert))
 
         # Do clustering
-        os.system("pipenv run python3 findNeighbour4_clustering.py")
+        os.system("pipenv run python3 findNeighbour4_clustering.py config/default_test_config_rdbms.json --run_once")
 
         relpath = "/api/v2/clustering/SNV12_exclude/what_tested"
         res = do_GET(relpath)
@@ -1142,7 +1142,7 @@ class test_g2c(unittest.TestCase):
             self.assertEqual(info, "Guid {0} inserted.".format(guid_to_insert))
 
         # Do clustering
-        os.system("pipenv run python3 findNeighbour4_clustering.py")
+        os.system("pipenv run python3 findNeighbour4_clustering.py config/default_test_config_rdbms.json --run_once")
 
         relpath = "/api/v2/clustering/SNV12_ignore/guids2clusters"
         res = do_GET(relpath)
@@ -1194,7 +1194,7 @@ class test_clusters2cnt(unittest.TestCase):
         self.assertEqual(info, "Guid {0} inserted.".format(guid_to_insert))
 
         # Do clustering
-        os.system("pipenv run python3 findNeighbour4_clustering.py")
+        os.system("pipenv run python3 findNeighbour4_clustering.py config/default_test_config_rdbms.json --run_once")
 
         relpath = "/api/v2/clustering/SNV12_ignore/clusters"
         res = do_GET(relpath)
@@ -1304,7 +1304,7 @@ class test_g2ca(unittest.TestCase):
         self.assertEqual(info, "Guid {0} inserted.".format(guid_to_insert))
 
         # Do clustering
-        os.system("pipenv run python3 findNeighbour4_clustering.py")
+        os.system("pipenv run python3 findNeighbour4_clustering.py config/default_test_config_rdbms.json --run_once")
 
         relpath = "/api/v2/clustering/SNV12_ignore/guids2clusters"
 

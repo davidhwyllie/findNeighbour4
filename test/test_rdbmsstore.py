@@ -88,8 +88,9 @@ class Test_Database(unittest.TestCase):
             "C": set([6]),
             "T": set([4]),
             "G": set([5]),
-            "M": {11: "Y", 12: "k"}
+            "M": {11: "Y", 12: "k"},
         }
+
     def pdms(self, **kwargs):
         """yields fn3persistence_r objects, one for each database server being tested."""
         for engine, config in self.engines.items():
@@ -388,7 +389,6 @@ class Test_SeqMeta_guid2neighbour_7(Test_Database):
             self.assertEqual(5, len(res2["neighbours"]))
 
 
-
 @rdbms_test
 class Test_SeqMeta_guid_exists_1(Test_Database):
     """tests insert of new data item and existence check"""
@@ -401,10 +401,8 @@ class Test_SeqMeta_guid_exists_1(Test_Database):
             na.examine("ACGTACGTNN")
 
             with self.assertRaises(KeyError):
-                pdm.refcompressedseq_store(
-                    guid, self.seqobj3
-                )  # no key
-            
+                pdm.refcompressedseq_store(guid, self.seqobj3)  # no key
+
             res = pdm.guid_exists(guid)
             self.assertEqual(res, False)
 
@@ -412,10 +410,8 @@ class Test_SeqMeta_guid_exists_1(Test_Database):
             na = NucleicAcid()
             na.examine("ACGTACGTNN")
 
-            pdm.refcompressedseq_store(
-                    guid, self.seqobj
-                )  
-            
+            pdm.refcompressedseq_store(guid, self.seqobj)
+
             res = pdm.guid_exists(guid)
             self.assertEqual(res, True)
 
@@ -436,26 +432,26 @@ class Test_SeqMeta_guid_exists_1(Test_Database):
                 .one()
             )
             self.assertEqual(seq1.sequence_id, "sequence1")
-            self.assertEqual(seq1.invalid, 1)                      # as before
-            self.assertEqual(seq1.prop_actg, 0.8)                  # updated it
+            self.assertEqual(seq1.invalid, 1)  # as before
+            self.assertEqual(seq1.prop_actg, 0.8)  # updated it
             self.assertIsInstance(seq1.examination_date, datetime.datetime)
 
             annotation = json.loads(seq1.annotations)
-            self.assertEqual(set(annotation.keys()), set(['DNAQuality']))
+            self.assertEqual(set(annotation.keys()), set(["DNAQuality"]))
 
             # update a new namespace
             pdm.guid_annotate(guid, "MoreDNAQuality", na.composition)
             annotation = json.loads(seq1.annotations)
-            self.assertEqual(set(annotation.keys()), set(['MoreDNAQuality','DNAQuality']))
-            
+            self.assertEqual(
+                set(annotation.keys()), set(["MoreDNAQuality", "DNAQuality"])
+            )
+
             guid = "sequence2"
             na = NucleicAcid()
             na.examine("ACGTACGTNN")
 
-            pdm.refcompressedseq_store(
-                    guid, self.seqobj2
-                )  
-            
+            pdm.refcompressedseq_store(guid, self.seqobj2)
+
             res = pdm.guid_exists(guid)
             self.assertEqual(res, True)
 
@@ -488,6 +484,7 @@ class Test_SeqMeta_guid_exists_1(Test_Database):
 
             res = pdm.guids_invalid()
             self.assertEqual(res, set(["sequence1"]))
+
 
 @rdbms_test
 class Test_SeqMeta_init(Test_Database):

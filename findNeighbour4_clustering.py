@@ -85,6 +85,11 @@ Checks for new sequences are conducted once per minute.
         help="label clusters based on existing membership, as in the two column excel file referred to.  The program will stop after the initial run if this option is used, and will need to be restarted without this option to function normally",
         action="store",
     )
+    parser.add_argument(
+        "--run_once",
+        help="run once only.  The program will stop after the initial run if this option is used, and will need to be restarted without this option to function normally",
+        action="store_true",
+    )
     args = parser.parse_args()
 
     # an example config file is default_test_config.json
@@ -101,7 +106,6 @@ Checks for new sequences are conducted once per minute.
         warnings.warn(
             "No config file name supplied ; using a configuration ('default_test_config.json') suitable only for testing, not for production. "
         )
-
     cfm = ConfigManager(config_file)
     CONFIG = cfm.read_config(
         not_debug_mode=True
@@ -308,9 +312,9 @@ Checks for new sequences are conducted once per minute.
             ms.unpersist(whitelist=whitelist)
             logger.info("Cleanup complete.  Stored data on {0} MSAs; Built {1} new clusters".format(len(whitelist), nbuilt))
 
-        if debugmode | relabel:
+        if debugmode | relabel | args.run_once:
             PERSIST.closedown()
             exit(0)
-
+        
         logger.info("Waiting 60 seconds")
         time.sleep(60)

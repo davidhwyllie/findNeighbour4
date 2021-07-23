@@ -15,6 +15,9 @@ pipenv run python3 findNeighbour4_server.py
 
 # And then (e.g. in a different terminal) launching unit tests with
 pipenv run python3 -m unittest test/test_fn4client.py
+
+This code expects a server operational on port 5020 to test against.
+
 """
 
 import unittest
