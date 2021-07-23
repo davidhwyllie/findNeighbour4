@@ -770,15 +770,6 @@ class fn3persistence:
         for clustering_key in clustering_keys:
             self.cluster_delete_legacy_by_key(clustering_key)
 
-    def refcompressedseq_store_and_annotate(
-        self, guid: str, obj: Any, nameSpace: str, annotDict: dict
-    ) -> str:
-        """stores the object obj as sample_id guid, and also adds annotation annotDict to namespace nameSpace"""
-
-        retVal = self.refcompressedseq_store(guid, obj)
-        self.guid_annotate(guid, nameSpace, annotDict)
-        return retVal
-
     def refcompressedseq_store(self, guid: str, obj: Any) -> str:
         """stores the sequence object obj with guid guid.
         Issues an error FileExistsError

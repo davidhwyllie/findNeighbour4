@@ -306,7 +306,7 @@ class test_gdm_3r(Test_Base1tr):
         self.assertEqual(retVal, ["b1", "b2", "b3", "b4", "b5", "b6"])
 
 
-class test_gdm_4(Test_Base1tr):
+class test_gdm_4r(Test_Base1tr):
     def runTest(self):
         """Tests add method in guidDbSearcher, which should return a NotImplementedError"""
         gs = guidDbSearcher(self.t)

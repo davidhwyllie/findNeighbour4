@@ -35,7 +35,7 @@ class Persistence:
 
         if verbose:
             print(
-                "** PROVIDED DATA ACCESS OBJECT FOR {0} called {1} **".format(
+                "Set up data access object {0} called {1} **".format(
                     pdm.storage_technology, dbname
                 )
             )

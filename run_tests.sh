@@ -8,8 +8,4 @@ echo "Starting test findNeighbour server to run tests with; waiting 15 seconds t
 nohup pipenv run python3 findNeighbour4_server.py &
 sleep 15 # wait for it to start
 
-# don't do coverage on the virtual env
-#EXCLUDEPKGSDIR=`pipenv --venv`;export EXCLUDEPKGSDIR
-
-# no coverage yet
 pipenv run pytest

@@ -2,8 +2,7 @@
     monogo or rdbms based fn3persistence object.
 
 """
-import os
-import json
+
 import unittest
 from findn.persistence import Persistence
 from findn.mongoStore import fn3persistence

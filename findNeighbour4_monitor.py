@@ -33,7 +33,7 @@ from bokeh.resources import CDN
 from findn.common_utils import ConfigManager
 
 # fn3 storage module
-from findn.mongoStore import fn3persistence
+from findn.persistence import Persistence
 from findn.depictStatus import DepictServerStatus
 
 # startup
@@ -99,21 +99,17 @@ if __name__ == "__main__":
     # #######################  START Operations ###################################
     logger.info("Preparing to produce visualisations")
 
-    logger.info("Connecting to backend data store at {0}".format(CONFIG["SERVERNAME"]))
-    try:
-        PERSIST = fn3persistence(
-            dbname=CONFIG["SERVERNAME"],
-            connString=CONFIG["FNPERSISTENCE_CONNSTRING"],
-            debug=CONFIG["DEBUGMODE"],
-            server_monitoring_min_interval_msec=CONFIG["SERVER_MONITORING_MIN_INTERVAL_MSEC"],
-        )
-    except Exception as e:
-        logger.exception("Error raised on creating persistence object")
-        if e.__module__ == "pymongo.errors":
-            logger.info("Error raised pertains to pyMongo connectivity")
-            raise
+    logger.info("Connecting to backend data store")
+    pm = Persistence()
+    PERSIST = pm.get_storage_object(
+        dbname=CONFIG["SERVERNAME"],
+        connString=CONFIG["FNPERSISTENCE_CONNSTRING"],
+        debug=CONFIG["DEBUGMODE"],
+        server_monitoring_min_interval_msec=CONFIG["SERVER_MONITORING_MIN_INTERVAL_MSEC"], 
+        verbose=True)
 
     processes = ["server", "dbmanager", "clustering"]
+
     logfiles = {}
     for process in processes:
         logfiles[process] = os.path.join(logdir, "{0}-{1}".format(process, os.path.basename(CONFIG["LOGFILE"])))

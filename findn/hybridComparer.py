@@ -128,7 +128,6 @@ class hybridComparer:
         self._refresh()
 
         # open a persist object
-
         if isinstance(PERSIST, str):
             pm = Persistence()
             self.PERSIST = pm.get_storage_object(PERSIST, verbose=True)
@@ -182,7 +181,7 @@ class hybridComparer:
             guids = random.sample(guids, n)
         for guid in guids:
             obj = self.PERSIST.refcompressedsequence_read(guid)
-
+            
             # store object in the precomparer
             self.pc.persist(obj, guid)  # store in the preComparer
         return

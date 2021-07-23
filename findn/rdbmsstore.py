@@ -28,6 +28,7 @@ import logging
 import numpy as np
 import warnings
 import progressbar
+
 from sqlalchemy import (
     Integer,
     Column,
@@ -42,7 +43,6 @@ from sqlalchemy import (
     func,
     create_engine,
     inspect,
-    ForeignKey,
 )
 from findn.seq2json import SeqDictConverter
 from sqlalchemy.sql.expression import delete, desc
@@ -555,7 +555,11 @@ class fn3persistence_r:
         """closes the session & disposes of any engine.
         Is required for unit testing"""
         self.session.close()
-        self.engine.dispose()
+
+        try:
+            self.engine.dispose()
+        except KeyError:
+            pass        # can occur if dispose() has already been called
 
     def no_progressbar(self):
         """don't use progress bars"""
@@ -787,11 +791,6 @@ class fn3persistence_r:
     def __del__(self) -> None:
         """closes any session"""
         self.closedown()
-
-    def closedown(self) -> None:
-        """closes any session"""
-        # client object has already been destroyed on reaching here
-        pass
 
     def memory_usage(self) -> Dict[str, Union[int, float]]:
         """returns memory usage by current python3 process
@@ -1224,76 +1223,6 @@ class fn3persistence_r:
         for clustering_key in self.cluster_keys(clustering_name=clustering_name):
             self.cluster_delete_legacy_by_key(clustering_key)
 
-    def refcompressedseq_store_and_annotate(
-        self, guid: str, obj: dict, nameSpace: str, annotDict: dict
-    ) -> str:
-        """stores the json object obj with guid guid.
-
-        Parameters:
-        guid:  the sequence identifer
-        obj:   a reference compressed sequence representation, as produced by seqComparer.compress().
-        namespace: a namespace for the annotations, e.g. 'SequenceQuality'
-        annotDict: a dictionary of key:value pairs, where the values are strings, which are the annotations of the sequence
-
-        Here is an example of obj:
-
-        {
-            'A':set([1,2,3]), 'C':set([6]), 'T':set([4]), 'G':set([5]), 'M':{11:'Y', 12:'k'}, 'invalid':0
-        }
-
-        If the guid already exists in the database, ignores the request silently."""
-
-        if not isinstance(obj, dict):
-            raise TypeError(
-                "Can only store dictionary objects, not {0}".format(type(obj))
-            )
-
-        if not "invalid" in obj.keys():
-            raise KeyError(
-                "An invalid key must be present.  Keys are: {0}".format(obj.keys())
-            )
-
-        if not isinstance(annotDict, dict):
-            raise TypeError(
-                "Can only store dictionary objects, not {0}".format(type(annotDict))
-            )
-
-        # if the record already exists, we don't re-add it
-        res = (
-            self.session.query(RefCompressedSeq.seq_int_id)
-            .filter_by(sequence_id=guid)
-            .one_or_none()
-        )
-
-        if res is None:
-            examination_date = datetime.now()
-            invalid = None
-            prop_actg = None
-            if nameSpace == "DNAQuality":
-                if "examinationDate" in annotDict:
-                    examination_date = annotDict["examinationDate"]
-                    if isinstance(annotDict["examinationDate"], datetime):
-                        # convert to isoformat pre-jsonisation
-                        annotDict["examinationDate"] = annotDict[
-                            "examinationDate"
-                        ].isoformat()
-                if "invalid" in annotDict:
-                    invalid = annotDict["invalid"]
-                if "propACTG" in annotDict:
-                    prop_actg = annotDict["propACTG"]
-
-            to_add = RefCompressedSeq(
-                sequence_id=guid,
-                invalid=invalid,
-                examination_date=datetime.now(),
-                content=self.sjc.to_json(obj),
-                prop_actg=prop_actg,
-                annotations=json.dumps(annotDict),
-            )
-
-            self.session.add(to_add)
-            self.session.commit()
-
     def refcompressedseq_store(self, guid: str, obj: dict) -> str:
         """stores the json object obj with guid guid.
 
@@ -1313,7 +1242,7 @@ class fn3persistence_r:
                 "Can only store dictionary objects, not {0}".format(type(obj))
             )
 
-        if not "invalid" in obj.keys():
+        if "invalid" not in obj.keys():
             raise KeyError(
                 "An invalid key must be present.  Keys are: {0}".format(obj.keys())
             )
@@ -1385,8 +1314,7 @@ class fn3persistence_r:
                     annotDict["examinationDate"] = annotDict[
                         "examinationDate"
                     ].isoformat()
-            if "invalid" in annotDict:
-                rcs.invalid = annotDict["invalid"]
+
             if "propACTG" in annotDict:
                 rcs.prop_actg = annotDict["propACTG"]
 

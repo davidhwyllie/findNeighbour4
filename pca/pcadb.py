@@ -21,7 +21,7 @@ import os
 import json
 import pandas as pd
 import logging
-
+import warnings
 import numpy as np
 import datetime
 import time
@@ -987,7 +987,7 @@ class PCADatabaseManager:
         #Build.__table__.create(self.engine)
         remaining = len(self._table_names())
         if remaining > 0:
-            raise PCADBManagerError(
+            warnings.warn(
                 "Failed to remove all tables in the database.  The following remain: {0}".format(
                     self._table_names()
                 )

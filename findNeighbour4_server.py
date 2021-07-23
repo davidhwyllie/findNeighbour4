@@ -80,7 +80,7 @@ from findn.common_utils import ConfigManager
 
 # reference based compression, storage and clustering modules
 from findn.NucleicAcid import NucleicAcid
-from findn.mongoStore import fn3persistence
+from findn.persistence import Persistence
 from findn.hybridComparer import hybridComparer
 from findn.guidLookup import guidDbSearcher  # fast lookup of first part of guids
 from snpclusters.ma_linkage import MixtureAwareLinkageResult
@@ -1811,13 +1811,12 @@ python findNeighbour4_server.py ../config/myconfig_file.json
     matplotlib.use("agg")  
 
     print("Connecting to backend data store")
-    try:
-        PERSIST = fn3persistence(
-            dbname=CONFIG["SERVERNAME"], connString=CONFIG["FNPERSISTENCE_CONNSTRING"], debug=CONFIG["DEBUGMODE"]
-        )
-    except Exception:
-        app.logger.exception("Error raised on creating persistence object {0}")
-        raise
+    pm = Persistence()
+    PERSIST = pm.get_storage_object(
+        dbname=CONFIG["SERVERNAME"],
+        connString=CONFIG["FNPERSISTENCE_CONNSTRING"],
+        debug=CONFIG["DEBUGMODE"],
+        verbose=True)
 
     # instantiate server class
     print("Loading sequences into server, please wait ...")

@@ -9,7 +9,6 @@
      which cannot be assured in CI environments.
 """
 
-import unittest
 import json
 
 

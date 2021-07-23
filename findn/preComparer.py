@@ -198,18 +198,22 @@ class preComparer:
             invalid: 0 if valid, 1 if invalid
         """
 
-        # check if the guid exists.  Does not allow overwriting
+        # check obj is valid
+        if obj is None:
+            raise ValueError("refcompressed sequence object is None..  This is not allowed.  Associated guid: {0}".format(guid))
+            
+        # check if the guid exists.  Does not allow overwriting / double entries
         if guid in self.seqProfile.keys():
-            return self.seqProfile[guid]["invalid"]
-            # raise KeyError("Duplicate guid supplied; already exists in preComparer: {0}".format(guid))
+            try:
+                return self.seqProfile[guid]["invalid"]
+            except KeyError:
+                raise KeyError("seqProfile stored as {0} lacks an 'invalid' key.  Keys are {1}".format(guid, self.seqProfile[guid].keys()))  
+
+        if 'invalid' not in obj.keys():     # assign it a valid status if we're not told it's invalid
+            obj['invalid'] = 0
 
         # check it is not invalid
-        isinvalid = False
-        try:
-            isinvalid = obj["invalid"] == 1
-        except KeyError:
-            # no invalid tag
-            obj["invalid"] = 0
+        isinvalid = obj["invalid"] == 1
 
         # construct an object to be stored either directly in the self.seqProfile or in catWalk
 
@@ -224,7 +228,7 @@ class preComparer:
         for key in set(["A", "C", "G", "T"]) - set(obj.keys()):  # what is missing
             obj[key] = set()  # add empty set if no key exists.
 
-        # create a smaller object to store.
+        # create a smaller object to store in memory.
         smaller_obj = {}
         for item in ["A", "C", "G", "T"]:
             smaller_obj[item] = copy.deepcopy(obj[item])
@@ -249,7 +253,7 @@ class preComparer:
                 "Invalid uncertain_base: got {0}".format(self.uncertain_base)
             )
 
-        # add the uncertain bases to the smaller object for storage
+        # add the uncertain bases to the smaller object for storage in ram/catwalk
         smaller_obj["U"] = copy.deepcopy(obj["U"])
         key_mapping = {
             "A": "A",

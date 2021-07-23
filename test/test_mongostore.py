@@ -100,6 +100,9 @@ class Test_Server_Monitoring_3(unittest.TestCase):
             server_monitoring_min_interval_msec=1000,
         )  # no logging for within 1 secs of another event
 
+        res = p.recent_server_monitoring(100)
+        self.assertEqual(len(res), 0)
+
         retVal = p.server_monitoring_store(message="one")  # should insert
         self.assertEqual(retVal, True)
         res = p.recent_server_monitoring(100)
@@ -112,7 +115,7 @@ class Test_Server_Monitoring_3(unittest.TestCase):
         self.assertEqual(len(res), 1)
         self.assertTrue(isinstance(res, list))
 
-        time.sleep(2)  # seconds
+        time.sleep(3)  # seconds
         retVal = p.server_monitoring_store(message="three")  # should insert
         self.assertEqual(retVal, True)
         res = p.recent_server_monitoring(100)
@@ -557,26 +560,6 @@ class Test_SeqMeta_file_store1(unittest.TestCase):
 
 
 @mongo_test
-class Test_SeqMeta_and_annotation_store1(unittest.TestCase):
-    """tests storage of sequence object in database, and annotation."""
-
-    def runTest(self):
-        p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
-        obj1 = {1, 2, 3}
-        guid = "guid1"
-        namespace = "ns"
-        payload = {"one": 1, "two": 2}
-        p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
-
-        p.rcs.delete({"filename": guid})  # delete if present
-        p.refcompressedseq_store_and_annotate(guid, obj1, namespace, payload)
-
-        res = p.rcs.find_one({"filename": guid}).read()
-        obj2 = pickle.loads(res)
-        self.assertEqual(obj1, obj2)
-
-
-@mongo_test
 class Test_SeqMeta_file_store2(unittest.TestCase):
     """tests storage of pickle files in database"""
 
@@ -674,24 +657,6 @@ class Test_SeqMeta_guid_annotate_3(unittest.TestCase):
         p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
         res = p.db.guid2meta.find_one({"_id": 1})
         self.assertEqual(res["sequence_meta"]["ns"], {"one": 1, "two": 3})
-
-
-@mongo_test
-class Test_SeqMeta_guid_exists_1(unittest.TestCase):
-    """tests insert of new data item and existence check"""
-
-    def runTest(self):
-        p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
-
-        # test there is no 'test' item; insert, and confirm insert
-        guid = 1
-        namespace = "ns"
-        payload = {"one": 1, "two": 2}
-        p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
-        res = p.guid_exists(guid)
-        self.assertEqual(res, True)
-        res = p.guid_exists(-1)
-        self.assertEqual(res, False)
 
 
 @mongo_test
