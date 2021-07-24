@@ -18,7 +18,7 @@ import networkx as nx
 
 
 class snvNetwork:
-    """ build and output Cytoscape compatible  networks """
+    """build and output Cytoscape compatible  networks"""
 
     def __init__(self, snv_threshold=None):
         """makes a undirected graph of samples;
@@ -32,7 +32,7 @@ class snvNetwork:
         self.snv_threshold = snv_threshold
 
     def is_mixed(self, guid):
-        """ returns True if the is_mixed attribute is set True """
+        """returns True if the is_mixed attribute is set True"""
         try:
             if self.G.nodes[guid]["is_mixed"] is True:
                 return True
@@ -42,7 +42,7 @@ class snvNetwork:
         return False
 
     def snv2weight(self, x):
-        """ returns 1/(1+x) """
+        """returns 1/(1+x)"""
         x = float(x)
         return 1 / (1 + x)
 
@@ -52,7 +52,7 @@ class snvNetwork:
         raise ZeroDivisionError(token)
 
     def to_dict(self):
-        """ converts snv_clustering object to a dictionary.  """
+        """converts snv_clustering object to a dictionary."""
         return nx.json_graph.node_link_data(self.G)
 
     def set_mixed(self, guid):
@@ -77,7 +77,11 @@ class snvNetwork:
         self.G.add_node(starting_guid, **kwargs)
         for item in neighbours:
             if not len(item) == 2:
-                raise TypeError("Neighbours must be a list of tuples (guid, snv) but it is {0}".format(item))
+                raise TypeError(
+                    "Neighbours must be a list of tuples (guid, snv) but it is {0}".format(
+                        item
+                    )
+                )
             add_edge = False
             if guids is None:
                 add_edge = True
@@ -85,10 +89,12 @@ class snvNetwork:
                 if starting_guid in guids and item[0] in guids:
                     add_edge = True
             if add_edge is True:
-                self.G.add_edge(starting_guid, item[0], weight=self.snv2weight(item[1]), snv=item[1])
+                self.G.add_edge(
+                    starting_guid, item[0], weight=self.snv2weight(item[1]), snv=item[1]
+                )
 
     def guids(self):
-        """ returns a set of all guids in the graph """
+        """returns a set of all guids in the graph"""
         return set(self.G.nodes)
 
     def network2cytoscapejs(self, max_edges=1e5):
@@ -110,7 +116,13 @@ class snvNetwork:
             elements.append({"group": "nodes", "data": dat})
         nNodes = len(elements)
         if nNodes == 0:
-            return {"elements": elements, "success": 1, "message": "No nodes found", "nNodes": 0, "nEdges": 0}
+            return {
+                "elements": elements,
+                "success": 1,
+                "message": "No nodes found",
+                "nNodes": 0,
+                "nEdges": 0,
+            }
 
         # load all edges to edges array
         edge_id = 0
@@ -120,7 +132,13 @@ class snvNetwork:
                 edge_id += 1
 
                 if edge_id > max_edges:
-                    return {"elements": {}, "message": "Not rendered; > {0} edges present".format(max_edges), "success": 0}
+                    return {
+                        "elements": {},
+                        "message": "Not rendered; > {0} edges present".format(
+                            max_edges
+                        ),
+                        "success": 0,
+                    }
                 elements.append(
                     {
                         "group": "edges",
@@ -136,7 +154,9 @@ class snvNetwork:
         return {
             "elements": elements,
             "success": 1,
-            "message": "Graph with {0} nodes and {1} edges <= {2} SNV".format(nNodes, edge_id, self.snv_threshold),
+            "message": "Graph with {0} nodes and {1} edges <= {2} SNV".format(
+                nNodes, edge_id, self.snv_threshold
+            ),
             "nNodes": nNodes,
             "nEdges": edge_id,
         }

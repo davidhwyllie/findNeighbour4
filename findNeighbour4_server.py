@@ -80,7 +80,7 @@ from findn.common_utils import ConfigManager
 
 # reference based compression, storage and clustering modules
 from findn.NucleicAcid import NucleicAcid
-from findn.mongoStore import fn3persistence
+from findn.persistence import Persistence
 from findn.hybridComparer import hybridComparer
 from findn.guidLookup import guidDbSearcher  # fast lookup of first part of guids
 from snpclusters.ma_linkage import MixtureAwareLinkageResult
@@ -97,6 +97,9 @@ from findn.depictStatus import MakeHumanReadable
 from Bio import SeqIO
 from urllib.parse import urljoin as urljoiner
 
+class SQLiteBackendErrror(Exception):
+    """ can't use SQLite in a multithreaded environment """
+    pass
 
 class findNeighbour4:
     """a server based application for maintaining a record of bacterial relatedness using SNP distances.
@@ -229,9 +232,8 @@ class findNeighbour4:
         SENTRY_URL (optional)
         Note: if a FN_SENTRY URL environment variable is present, then the value of this will take precedence over any values in the config file.
         This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuraton file.
-        PERSIST is a storage object needs to be supplied.  The fn3Persistence class in mongoStore is one suitable object.
-        PERSIST=fn3persistence(connString=CONFIG['FNPERSISTENCE_CONNSTRING'])
-
+        PERSIST is a storage object needs to be supplied.  The fn3Persistence class in mongoStore or rdbmsStore are suitable objects.
+     
         """
 
         # store the persistence object as part of this object
@@ -1811,14 +1813,21 @@ python findNeighbour4_server.py ../config/myconfig_file.json
     matplotlib.use("agg")  
 
     print("Connecting to backend data store")
-    try:
-        PERSIST = fn3persistence(
-            dbname=CONFIG["SERVERNAME"], connString=CONFIG["FNPERSISTENCE_CONNSTRING"], debug=CONFIG["DEBUGMODE"]
-        )
-    except Exception:
-        app.logger.exception("Error raised on creating persistence object {0}")
-        raise
+    pm = Persistence()
+    PERSIST = pm.get_storage_object(
+        dbname=CONFIG["SERVERNAME"],
+        connString=CONFIG["FNPERSISTENCE_CONNSTRING"],
+        debug=CONFIG["DEBUGMODE"],
+        verbose=True)
 
+    # check is it not sqlite.  We can't run sqlite in a multithreaded environment like flask.
+    # you need a proper database managing concurrent connections, such as mongo, or a standard rdbms
+    if PERSIST.using_sqlite:
+        raise SQLiteBackendErrror("""Can't use SQlite as a backend for findNeighbour4_server.  
+        A database handing sessions is required.  Some unit tests use SQLite; 
+        however, you can't run integration tests (test_server_rdbms.py) against sqlite.
+        To test the server, edit the config/default_test_config_rdbms.json file's "FNPERSISTENCE_CONNSTRING": connection string to
+        point to an suitable database.  For more details of how to do this, see installation instructions on github.""")
     # instantiate server class
     print("Loading sequences into server, please wait ...")
     try:
@@ -1838,3 +1847,4 @@ python findNeighbour4_server.py ../config/myconfig_file.json
         "Launching server listening to IP {0}, debug = {1}, port = {2}".format(LISTEN_TO, flask_debug, CONFIG["REST_PORT"])
     )
     app.run(host=LISTEN_TO, debug=flask_debug, port=CONFIG["REST_PORT"])
+    

@@ -42,7 +42,7 @@ from Bio import Phylo
 from findn.common_utils import ConfigManager
 
 # startup
-from findn.mongoStore import fn3persistence
+from findn.persistence import Persistence
 from findn.hybridComparer import hybridComparer
 
 # from tree.manipulate_tree import ManipulateTree
@@ -166,14 +166,8 @@ Checks for new sequences are conducted once per minute.
     # inserts are not allowed
 
     logger.info("Connecting to backend data store")
-    try:
-        PERSIST = fn3persistence(
-            dbname=CONFIG["SERVERNAME"], connString=CONFIG["FNPERSISTENCE_CONNSTRING"], debug=0
-        )  # if in debug mode wipes all data.  This is not what is wanted here, even if we are using unittesting database
-
-    except Exception:
-        logger.exception("Error raised on creating persistence object")
-        raise
+    pm = Persistence()
+    PERSIST = pm.get_storage_object(dbname=CONFIG["SERVERNAME"], connString=CONFIG["FNPERSISTENCE_CONNSTRING"], debug=0, verbose=True)
 
     ################################# object to do MSA if required #############################################
     # open PERSIST and hybridComparer object used by all samples

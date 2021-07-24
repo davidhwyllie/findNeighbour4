@@ -35,10 +35,12 @@ from bokeh.resources import CDN
 
 
 class SimulateSequenceData:
-    """ makes simulated sequence data for testing """
+    """makes simulated sequence data for testing"""
 
     def make_seq(self, alignment_width=40):
-        return "".join([random.choice(["A", "C", "T", "G"]) for i in range(alignment_width)])
+        return "".join(
+            [random.choice(["A", "C", "T", "G"]) for i in range(alignment_width)]
+        )
 
     def mutate_seq(self, seq, iupac=False):
         """
@@ -49,7 +51,22 @@ class SimulateSequenceData:
         if not iupac:
             options = ["A", "C", "T", "G", "M", "N"]
         else:
-            options = ["A", "C", "T", "G", "R", "Y", "S", "M", "K", "B", "D", "H", "V", "N"]
+            options = [
+                "A",
+                "C",
+                "T",
+                "G",
+                "R",
+                "Y",
+                "S",
+                "M",
+                "K",
+                "B",
+                "D",
+                "H",
+                "V",
+                "N",
+            ]
 
         seq = list(seq)
         pos = np.random.randint(1, len(seq), 6)
@@ -66,14 +83,23 @@ class SimulateSequenceData:
             seq_name = "seq_{0}".format(seq_id)
             msa_dict[seq_name] = {"aligned_seq": self.mutate_seq(seq, iupac=True)}
             msa_dict[seq_name]["aligned_mseq"] = msa_dict[seq_name]["aligned_seq"]
-            msa_dict[seq_name]["alignN"] = sum([bool(x == "N") for x in msa_dict[seq_name]["aligned_seq"]])
-            msa_dict[seq_name]["alignM"] = sum(
-                [bool(x in ["R", "Y", "S", "M", "K"]) for x in msa_dict[seq_name]["aligned_seq"]]
+            msa_dict[seq_name]["alignN"] = sum(
+                [bool(x == "N") for x in msa_dict[seq_name]["aligned_seq"]]
             )
-            msa_dict[seq_name]["alignN_or_M"] = msa_dict[seq_name]["alignN"] + msa_dict[seq_name]["alignM"]
+            msa_dict[seq_name]["alignM"] = sum(
+                [
+                    bool(x in ["R", "Y", "S", "M", "K"])
+                    for x in msa_dict[seq_name]["aligned_seq"]
+                ]
+            )
+            msa_dict[seq_name]["alignN_or_M"] = (
+                msa_dict[seq_name]["alignN"] + msa_dict[seq_name]["alignM"]
+            )
             msa_dict[seq_name]["allN"] = np.random.binomial(4.4e6, 1e-3)
             msa_dict[seq_name]["allM"] = np.random.binomial(4.4e6, 1e-4)
-            msa_dict[seq_name]["allN_or_M"] = msa_dict[seq_name]["allN"] + msa_dict[seq_name]["allM"]
+            msa_dict[seq_name]["allN_or_M"] = (
+                msa_dict[seq_name]["allN"] + msa_dict[seq_name]["allM"]
+            )
             msa_dict[seq_name]["Surname"] = f.last_name()
             msa_dict[seq_name]["Forename"] = f.first_name()
             msa_dict[seq_name]["Patient_id"] = random.randint(1, 1e9)
@@ -90,9 +116,16 @@ class SimulateSequenceData:
 
 
 class DepictMSA:
-    """ depicts a multi sequence alignment """
+    """depicts a multi sequence alignment"""
 
-    def __init__(self, msar_df, iupac=None, positions_analysed=None, identify_sequence_by=None, max_elements_in_plot=300000):
+    def __init__(
+        self,
+        msar_df,
+        iupac=None,
+        positions_analysed=None,
+        identify_sequence_by=None,
+        max_elements_in_plot=300000,
+    ):
         """loads an MSA result object's dataframe.
 
         parameters:
@@ -127,7 +160,11 @@ class DepictMSA:
             # check if any identify_sequence_by fields which are not in the column headers.
             missing_columns = set(identify_sequence_by) - set(self.df.columns.tolist())
             if len(missing_columns) > 0:
-                raise ValueError("asked to identify sequences by missing fields {0}".format(missing_columns))
+                raise ValueError(
+                    "asked to identify sequences by missing fields {0}".format(
+                        missing_columns
+                    )
+                )
             # construct a new index
             new_identifiers = []
 
@@ -141,7 +178,9 @@ class DepictMSA:
             self.df["msa_id"] = new_identifiers
 
         # ensure sequences are upper case
-        self.df["aligned_mseq"] = [x.upper() for x in self.df["aligned_mseq"].tolist()]  # ensure uppercase
+        self.df["aligned_mseq"] = [
+            x.upper() for x in self.df["aligned_mseq"].tolist()
+        ]  # ensure uppercase
 
         # store number of sequences and alignment width
         self.nSeqs = len(self.df.index)
@@ -182,7 +221,26 @@ class DepictMSA:
         # reflect whether all iupac characters are expected.
         valid_characters = {
             False: set(["A", "C", "G", "T", "M", "N", "-"]),
-            True: set(["A", "C", "G", "T", "M", "N", "-", "R", "Y", "S", "W", "K", "B", "D", "H", "V"]),
+            True: set(
+                [
+                    "A",
+                    "C",
+                    "G",
+                    "T",
+                    "M",
+                    "N",
+                    "-",
+                    "R",
+                    "Y",
+                    "S",
+                    "W",
+                    "K",
+                    "B",
+                    "D",
+                    "H",
+                    "V",
+                ]
+            ),
         }
         if self.iupac is None:
             if (
@@ -196,7 +254,11 @@ class DepictMSA:
         if self.iupac:
             illegal_characters = self.composition.keys() - valid_characters[True]
             if len(illegal_characters) > 0:  # illegal characters
-                raise ValueError("Illegal characters present in sequences {0}".format(illegal_characters))
+                raise ValueError(
+                    "Illegal characters present in sequences {0}".format(
+                        illegal_characters
+                    )
+                )
 
         # define what the iupac code mean https://www.bioinformatics.org/sms/iupac.html
         base2base = {
@@ -222,13 +284,23 @@ class DepictMSA:
             # M reflects any kind of mixture
             base2base["M"] = "M"
 
-        clrs = {"A": "green", "T": "red", "G": "black", "C": "lightblue", "-": "white", "N": "white", "M": "yellow"}
+        clrs = {
+            "A": "green",
+            "T": "red",
+            "G": "black",
+            "C": "lightblue",
+            "-": "white",
+            "N": "white",
+            "M": "yellow",
+        }
         line_colour_map = {True: "purple", False: "white"}
         # build a data frame describing the rectangles which will be drawn for each type of sequence
         ix = 0
         rectangle_map = {}
         for nucl in valid_characters[self.iupac]:
-            n_mapped_nucleotides = len(base2base[nucl])  # how many nucleotides comprise the mixture, if any
+            n_mapped_nucleotides = len(
+                base2base[nucl]
+            )  # how many nucleotides comprise the mixture, if any
             for i, mapped_to in enumerate(base2base[nucl]):
                 ix += 1
                 rectangle_map[ix] = {
@@ -242,8 +314,12 @@ class DepictMSA:
                     "line_colour": line_colour_map[len(base2base[nucl]) > 1],
                 }
                 if len(base2base[nucl]) > 1:
-                    rectangle_map[ix]["limited_fill_colour"] = "yellow"  # all mixed positions yellow
-                rectangle_map[ix]["fill_colour"] = rectangle_map[ix]["limited_fill_colour"]  # all mixed positions yellow
+                    rectangle_map[ix][
+                        "limited_fill_colour"
+                    ] = "yellow"  # all mixed positions yellow
+                rectangle_map[ix]["fill_colour"] = rectangle_map[ix][
+                    "limited_fill_colour"
+                ]  # all mixed positions yellow
 
         self.rectangles = pd.DataFrame.from_dict(rectangle_map, orient="index")
 
@@ -265,10 +341,17 @@ class DepictMSA:
                     pa_is_integer = False  # nothing to display
             except ValueError:  # not an integer; some other code used
                 pa_is_integer = False
-            if pa_is_integer:  # numeric positions analysed are supplied and there's >=1 of them
+            if (
+                pa_is_integer
+            ):  # numeric positions analysed are supplied and there's >=1 of them
                 max_pa = max(pa)
                 for i, pos in enumerate(pa):
-                    qq_dict[i] = {"order": i, "order_prop": i / self.align_width, "pos": pos, "pos_prop": pos / max_pa}
+                    qq_dict[i] = {
+                        "order": i,
+                        "order_prop": i / self.align_width,
+                        "pos": pos,
+                        "pos_prop": pos / max_pa,
+                    }
                 self.qq = pd.DataFrame.from_dict(qq_dict, orient="index")
             else:
                 self.qq = None
@@ -276,7 +359,7 @@ class DepictMSA:
             self.qq = None
 
     def render_msa(self, cluster_name=None):
-        """ depict msa """
+        """depict msa"""
         # prepare view
         if cluster_name is None:
             cluster_name = ""
@@ -297,7 +380,9 @@ class DepictMSA:
         columns = []
         for item in target_columns:
             columns.append(TableColumn(field=item, title=item))
-        data_table = DataTable(source=comp_source, columns=columns, width=1200, height=500)
+        data_table = DataTable(
+            source=comp_source, columns=columns, width=1200, height=500
+        )
         pC = Panel(child=data_table, title="Composition of variant bases")
 
         # table of base counts and and -logp values
@@ -323,7 +408,9 @@ class DepictMSA:
         for item in target_columns:
             if item in self.df.columns:
                 columns.append(TableColumn(field=item, title=item))
-        data_table = DataTable(source=grid_source, columns=columns, width=1200, height=500)
+        data_table = DataTable(
+            source=grid_source, columns=columns, width=1200, height=500
+        )
         p0 = Panel(child=data_table, title="Summary")
 
         # grid - provided it is not too large
@@ -339,7 +426,9 @@ class DepictMSA:
 
             # create a one-base per row data frame laying out the positions of each character in the msa
             x = np.arange(0, self.align_width)
-            y = self.df["y_order"]  # np.arange(0,self.nSeqs)      #self.df.index.tolist()
+            y = self.df[
+                "y_order"
+            ]  # np.arange(0,self.nSeqs)      #self.df.index.tolist()
             xx, yy = np.meshgrid(x, y)
             gx = xx.ravel()
             gy = yy.flatten()
@@ -348,13 +437,19 @@ class DepictMSA:
 
             # create a dataframe and link to colours
             perBase = pd.DataFrame.from_dict({"x": gx, "y": gy, "nucl": nucl})
-            to_depict = perBase.merge(self.rectangles, how="left", left_on="nucl", right_on="nucl")
+            to_depict = perBase.merge(
+                self.rectangles, how="left", left_on="nucl", right_on="nucl"
+            )
 
             no_color_assigned = to_depict[to_depict["full_fill_colour"].isnull()]
 
             # sanity check: everything should be mapped to a colour.
             if len(no_color_assigned.index) > 0:
-                raise KeyError("Not all cells were mapped to a colour; {0}".format(no_color_assigned))
+                raise KeyError(
+                    "Not all cells were mapped to a colour; {0}".format(
+                        no_color_assigned
+                    )
+                )
 
             # apply offsets as the centre, not the LH corner, of the rectangle is required
             to_depict["base_y"] = to_depict["y"] + to_depict["base_y"]
@@ -380,7 +475,11 @@ class DepictMSA:
             x_ticks = [x + 0.5 for x in range(self.align_width)]
             default_x_labels = [x for x in range(self.align_width)]
             if self.positions_analysed is not None:
-                x_tick_relabelling = dict(zip(x_ticks, [str(x) for x in sorted(list(self.positions_analysed))]))
+                x_tick_relabelling = dict(
+                    zip(
+                        x_ticks, [str(x) for x in sorted(list(self.positions_analysed))]
+                    )
+                )
             else:
                 x_tick_relabelling = dict(zip(x_ticks, default_x_labels))
 
@@ -423,7 +522,12 @@ class DepictMSA:
 
             # lines to divide up sequences
             for division in y_ticks:
-                divide_sequence = Span(location=division - 0.5, dimension="width", line_color="white", line_width=0.5)
+                divide_sequence = Span(
+                    location=division - 0.5,
+                    dimension="width",
+                    line_color="white",
+                    line_width=0.5,
+                )
                 p.add_layout(divide_sequence)
 
             p.add_glyph(source, rects)
@@ -452,7 +556,9 @@ class DepictMSA:
                source.change.emit();
                """,
             )
-            button1 = Button(label="Show mixed bases' components", button_type="success")
+            button1 = Button(
+                label="Show mixed bases' components", button_type="success"
+            )
             button2 = Button(label="Show mixed bases in yellow", button_type="success")
 
             button1.js_on_event(ButtonClick, callback1)
@@ -474,7 +580,14 @@ class DepictMSA:
             range_tool.overlay.fill_color = "navy"
             range_tool.overlay.fill_alpha = 0.2
 
-            select.circle("centre_x", "centre_y", size=1, fill_color="fill_colour", line_color=None, source=source)
+            select.circle(
+                "centre_x",
+                "centre_y",
+                size=1,
+                fill_color="fill_colour",
+                line_color=None,
+                source=source,
+            )
             select.ygrid.grid_line_color = None
             select.add_tools(range_tool)
             select.toolbar.active_multi = range_tool
@@ -497,7 +610,10 @@ class DepictMSA:
             else:
                 qq_plot = Div(text="Positions of variant bases were not supplied.")
 
-            p2 = Panel(child=grid([qq_plot, select, [button1, button2], p]), title="Interactive MSA")
+            p2 = Panel(
+                child=grid([qq_plot, select, [button1, button2], p]),
+                title="Interactive MSA",
+            )
             # add text stating name of cluster and alignment width
         g = grid([info, Tabs(tabs=[p2, p0, pC, p1])])
         html = file_html(g, CDN, "Multisequence alignment")

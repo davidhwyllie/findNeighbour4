@@ -30,10 +30,10 @@ from bokeh.plotting import figure
 
 
 class MakeHumanReadable:
-    """ converts server monitoring codes into human readable formats """
+    """converts server monitoring codes into human readable formats"""
 
     def __init__(self):
-        """ creats a new converter """
+        """creats a new converter"""
         self.tag2readable = {
             "content|activity|guid": "sequence identifier",
             "server|mstat|": "fn4 memory",
@@ -57,7 +57,7 @@ class MakeHumanReadable:
         }
 
     def convert(self, column_header):
-        """ generates human readable columns for plotting """
+        """generates human readable columns for plotting"""
         result = column_header
         for item in self.tag2readable.keys():
             if item in column_header:
@@ -70,7 +70,7 @@ class DepictServerStatus:
     in mongodb"""
 
     def _set_server_info(self):
-        """ sets server summary  information"""
+        """sets server summary  information"""
         data = [
             ["Server URL", self.server_url],
             ["Server Port", self.server_port],
@@ -80,20 +80,31 @@ class DepictServerStatus:
         if "recent_server" in self.monitoring_data.keys():
             if len(self.monitoring_data["recent_server"].index) > 0:
                 for item in self.monitoring_data["recent_server"].index:
-                    for column_name in self.monitoring_data["recent_server"].columns.values.tolist():
+                    for column_name in self.monitoring_data[
+                        "recent_server"
+                    ].columns.values.tolist():
                         if column_name.startswith("server|"):
                             data.append(
-                                [self.mhr.convert(column_name), self.monitoring_data["recent_server"].loc[item, column_name]]
+                                [
+                                    self.mhr.convert(column_name),
+                                    self.monitoring_data["recent_server"].loc[
+                                        item, column_name
+                                    ],
+                                ]
                             )
                         if column_name == "t":
                             data.append(
                                 [
                                     "Note: this data is based on the most recent server status report, which was at",
-                                    self.monitoring_data["recent_server"].loc[item, column_name].isoformat(),
+                                    self.monitoring_data["recent_server"]
+                                    .loc[item, column_name]
+                                    .isoformat(),
                                 ]
                             )
                     break
-        self.monitoring_data["server_info"] = pd.DataFrame(columns=["Description", "Value"], data=data)
+        self.monitoring_data["server_info"] = pd.DataFrame(
+            columns=["Description", "Value"], data=data
+        )
         self._create_cds("server_info")
 
     def __init__(
@@ -142,7 +153,9 @@ class DepictServerStatus:
         if self.logfiles is None:
             return "No Log file was specified. "
         if not os.path.exists(self.logfiles[process]):
-            return "No log file exists.  The specified {0} log file was {1}".format(process, self.logfiles[process])
+            return "No log file exists.  The specified {0} log file was {1}".format(
+                process, self.logfiles[process]
+            )
         # https://stackoverflow.com/questions/2301789/read-a-file-in-reverse-order-using-python/26747854
         try:
             with open(self.logfiles[process], "rt"):
@@ -187,23 +200,34 @@ class DepictServerStatus:
         # generate x axis and labels for tooltips
         self.monitoring_data[data_tag]["order"] = -self.monitoring_data[data_tag].index
         self.monitoring_data[data_tag]["t"] = [
-            dateutil.parser.parse(x) for x in self.monitoring_data[data_tag]["context|time|time_now"].tolist()
+            dateutil.parser.parse(x)
+            for x in self.monitoring_data[data_tag]["context|time|time_now"].tolist()
         ]
-        self.monitoring_data[data_tag]["_id"] = list(range(len(self.monitoring_data[data_tag].index)))
+        self.monitoring_data[data_tag]["_id"] = list(
+            range(len(self.monitoring_data[data_tag].index))
+        )
         # sort by t
 
-        self.monitoring_data[data_tag].sort_values("t", 0, ascending=False, inplace=True)
-        self.monitoring_data[data_tag]["label_t"] = self.monitoring_data[data_tag]["context|time|time_now"].tolist()
-        self.monitoring_data[data_tag]["label_event"] = self.monitoring_data[data_tag]["context|info|message"].tolist()
+        self.monitoring_data[data_tag].sort_values(
+            "t", 0, ascending=False, inplace=True
+        )
+        self.monitoring_data[data_tag]["label_t"] = self.monitoring_data[data_tag][
+            "context|time|time_now"
+        ].tolist()
+        self.monitoring_data[data_tag]["label_event"] = self.monitoring_data[data_tag][
+            "context|info|message"
+        ].tolist()
         try:
-            self.monitoring_data[data_tag]["guid"] = self.monitoring_data[data_tag]["content|activity|guid"].tolist()
+            self.monitoring_data[data_tag]["guid"] = self.monitoring_data[data_tag][
+                "content|activity|guid"
+            ].tolist()
         except KeyError:
             self.monitoring_data[data_tag]["guid"] = None
         # create a column data source
         self._create_cds(data_tag)
 
     def _create_cds(self, data_tag):
-        """ creates interval data & columnar data source for the data set with data_tag"""
+        """creates interval data & columnar data source for the data set with data_tag"""
         if data_tag not in self.monitoring_data.keys():
             # no data
             self.source[data_tag] = ColumnDataSource()
@@ -228,7 +252,8 @@ class DepictServerStatus:
 
                         try:
                             interval = (
-                                self.monitoring_data[data_tag].loc[previous, "t"] - self.monitoring_data[data_tag].loc[ix, "t"]
+                                self.monitoring_data[data_tag].loc[previous, "t"]
+                                - self.monitoring_data[data_tag].loc[ix, "t"]
                             ).total_seconds()
                         except TypeError:
                             interval = None
@@ -243,7 +268,13 @@ class DepictServerStatus:
         self.source_columns[data_tag] = columns
         self.source[data_tag] = ColumnDataSource(data=self.monitoring_data[data_tag])
 
-    def subset_data(self, from_data_tag, to_data_tag, column_name="context|info|message", cell_values=["About to insert"]):
+    def subset_data(
+        self,
+        from_data_tag,
+        to_data_tag,
+        column_name="context|info|message",
+        cell_values=["About to insert"],
+    ):
         """subsets data, selecting only rows containing cell_value in column_name
 
         input:
@@ -274,7 +305,9 @@ class DepictServerStatus:
 
         for ix in self.monitoring_data[data_tag].index:
             try:
-                guids.add(self.monitoring_data[data_tag].loc[ix, "content|activity|guid"])
+                guids.add(
+                    self.monitoring_data[data_tag].loc[ix, "content|activity|guid"]
+                )
                 if len(guids) >= n:
                     return guids
             except KeyError:
@@ -283,15 +316,19 @@ class DepictServerStatus:
         return guids
 
     def show_underlying_data(self, data_tag="all", tab_title="No title"):
-        """ returns a bokeh data table containing the source data described in self.monitoring_data[data_tag] """
+        """returns a bokeh data table containing the source data described in self.monitoring_data[data_tag]"""
 
         data_table = DataTable(
-            source=self.source[data_tag], columns=self.source_columns[data_tag], width=1200, height=800, editable=False
+            source=self.source[data_tag],
+            columns=self.source_columns[data_tag],
+            width=1200,
+            height=800,
+            editable=False,
         )
         return Panel(child=data_table, title=tab_title)
 
     def server_info_tab(self, tab_title="Synopsis"):
-        """ returns a bokeh data table containing the source data described in self.monitoring_data[data_tag] """
+        """returns a bokeh data table containing the source data described in self.monitoring_data[data_tag]"""
         data_table = DataTable(
             source=self.source["server_info"],
             columns=self.source_columns["server_info"],
@@ -336,10 +373,23 @@ class DepictServerStatus:
 
         self.server_info_tab()
         # specify the tools used to plot and a container for plots
-        tools = ["box_select", "hover", "wheel_zoom", "box_zoom", "pan", "save", "reset"]
+        tools = [
+            "box_select",
+            "hover",
+            "wheel_zoom",
+            "box_zoom",
+            "pan",
+            "save",
+            "reset",
+        ]
         single_plots = {"order": {}}
         multi_plots = []
-        TOOLTIPS = [("t", "@label_t"), ("event", "@label_event"), ("sampleId", "@guid"), ("interval/secs", "@interval")]
+        TOOLTIPS = [
+            ("t", "@label_t"),
+            ("event", "@label_event"),
+            ("sampleId", "@guid"),
+            ("interval/secs", "@interval"),
+        ]
 
         ## select columns to output
         # if we are not supplied any metrics to output, we output them all
@@ -359,7 +409,9 @@ class DepictServerStatus:
         nnan = []
         for ix in self.monitoring_data[data_tag].index:
             try:
-                if not isinstance(self.monitoring_data[data_tag].loc[ix, item], np.datetime64):
+                if not isinstance(
+                    self.monitoring_data[data_tag].loc[ix, item], np.datetime64
+                ):
                     nnan.append(ix)
             except TypeError:
                 pass
@@ -377,7 +429,12 @@ class DepictServerStatus:
         single_plots["order"][item].xaxis.axis_label = ""
         single_plots["order"][item].yaxis.axis_label = "Time"
         single_plots["order"][item].circle(
-            x="order", y=item, size=2, hover_color="red", source=self.source[data_tag], view=view
+            x="order",
+            y=item,
+            size=2,
+            hover_color="red",
+            source=self.source[data_tag],
+            view=view,
         )
         multi_plots.append([single_plots["order"][item]])
 
@@ -385,7 +442,9 @@ class DepictServerStatus:
         # for each column, identify numerical rows
         last_plot = None
         for item in report_columns:  # for the metrics we're supposed to start with
-            if item in self.monitoring_data[data_tag].columns.tolist():  # it's a valid column
+            if (
+                item in self.monitoring_data[data_tag].columns.tolist()
+            ):  # it's a valid column
                 nnan = []
                 for ix in self.monitoring_data[data_tag].index:
                     try:
@@ -393,17 +452,28 @@ class DepictServerStatus:
                             nnan.append(ix)
                     except TypeError:
                         pass
-                view = CDSView(source=self.source[data_tag], filters=[IndexFilter(nnan)])
+                view = CDSView(
+                    source=self.source[data_tag], filters=[IndexFilter(nnan)]
+                )
 
                 if len(nnan) > 0:
                     # plot by event
                     single_plots["order"][item] = figure(
-                        plot_height=150, title=self.mhr.convert(item), plot_width=1000, tools=tools, tooltips=TOOLTIPS
+                        plot_height=150,
+                        title=self.mhr.convert(item),
+                        plot_width=1000,
+                        tools=tools,
+                        tooltips=TOOLTIPS,
                     )
                     single_plots["order"][item].xaxis.axis_label = ""
                     single_plots["order"][item].yaxis.axis_label = ""
                     single_plots["order"][item].circle(
-                        x="order", y=item, size=2, hover_color="red", source=self.source[data_tag], view=view
+                        x="order",
+                        y=item,
+                        size=2,
+                        hover_color="red",
+                        source=self.source[data_tag],
+                        view=view,
                     )
 
                     # line is not supported, see https://github.com/bokeh/bokeh/issues/9388
@@ -448,7 +518,10 @@ class DepictServerStatus:
         self.read_json(recent_result, data_tag="recent_all")
         self.read_json(db_result, data_tag="recent_db")
 
-        if len(self.monitoring_data["pre_insert"].index) == 0 or len(self.monitoring_data["recent_all"].index) == 0:
+        if (
+            len(self.monitoring_data["pre_insert"].index) == 0
+            or len(self.monitoring_data["recent_all"].index) == 0
+        ):
             doc["Report"] = Div(text="No data is available to plot")
             return doc
 
@@ -494,22 +567,47 @@ class DepictServerStatus:
             cell_values=[x for x in recent_guids],
         )
 
-        tab_rserver = self.depict(data_tag="recent_server", tab_title="Last {0}: Seqs".format(n), metrics="server|pcstat")
-        tab_rmemory = self.depict(data_tag="recent_server", tab_title="Last {0}: RAM".format(n), metrics="server|mstat")
+        tab_rserver = self.depict(
+            data_tag="recent_server",
+            tab_title="Last {0}: Seqs".format(n),
+            metrics="server|pcstat",
+        )
+        tab_rmemory = self.depict(
+            data_tag="recent_server",
+            tab_title="Last {0}: RAM".format(n),
+            metrics="server|mstat",
+        )
 
         # get details of database monitor
-        tab_dbmon = self.depict(data_tag="recent_db", tab_title="Neighbours (all)", metrics="dstats|guid2neighbour")
+        tab_dbmon = self.depict(
+            data_tag="recent_db",
+            tab_title="Neighbours (all)",
+            metrics="dstats|guid2neighbour",
+        )
 
         self._set_server_info()
         s1 = self.server_info_tab()
 
         # logging
         n_latest_lines = 100
-        tab_list = [s1, tab_rserver, tab_rmemory, tab_server, tab_memory, tab_dbmon, tab_g2n, tab_g2m, tab_sm]
+        tab_list = [
+            s1,
+            tab_rserver,
+            tab_rmemory,
+            tab_server,
+            tab_memory,
+            tab_dbmon,
+            tab_g2n,
+            tab_g2m,
+            tab_sm,
+        ]
         for process in self.logfiles.keys():
             res = self.logfile_tail(process, n_latest_lines)
             div = Div(
-                text="[last {0} lines of log file are shown]<br/>".format(n_latest_lines) + res.replace("\n", "<br />"),
+                text="[last {0} lines of log file are shown]<br/>".format(
+                    n_latest_lines
+                )
+                + res.replace("\n", "<br />"),
                 render_as_text=False,
                 width=1000,
                 height=800,

@@ -40,7 +40,14 @@ class preComparer:
 
     """
 
-    def __init__(self, selection_cutoff, over_selection_cutoff_ignore_factor, uncertain_base, catWalk_parameters={}, **kwargs):
+    def __init__(
+        self,
+        selection_cutoff,
+        over_selection_cutoff_ignore_factor,
+        uncertain_base,
+        catWalk_parameters={},
+        **kwargs
+    ):
 
         """instantiates the preComparer, an object which manages in-memory reference compressed sequences.  It does not manage persistence, nor does it automatically load sequences, but it does provide methods by which external applications can load data into it.
 
@@ -89,8 +96,14 @@ class preComparer:
             python3 -m unittest preComparer
         """
 
-        logging.info("preComparer startup with CatWalk parameters of :{0}".format(catWalk_parameters))
-        self.set_operating_parameters(selection_cutoff, over_selection_cutoff_ignore_factor, uncertain_base)
+        logging.info(
+            "preComparer startup with CatWalk parameters of :{0}".format(
+                catWalk_parameters
+            )
+        )
+        self.set_operating_parameters(
+            selection_cutoff, over_selection_cutoff_ignore_factor, uncertain_base
+        )
         self.uncertain_base = uncertain_base
 
         # initialise data structures
@@ -99,10 +112,16 @@ class preComparer:
 
         # if catWalk specified, startup the catWalk server
         if len(catWalk_parameters) > 0:  # we use catWalk
-            catWalk_parameters["max_distance"] = self.over_selection_cutoff_ignore_factor * selection_cutoff
+            catWalk_parameters["max_distance"] = (
+                self.over_selection_cutoff_ignore_factor * selection_cutoff
+            )
             self.catWalk = CatWalk(**catWalk_parameters)
             self.catWalk_enabled = True
-            logging.info("CatWalk server started, operating with uncertain bases representing {0}".format(self.uncertain_base))
+            logging.info(
+                "CatWalk server started, operating with uncertain bases representing {0}".format(
+                    self.uncertain_base
+                )
+            )
         self.catWalk_parameters = catWalk_parameters
 
         if self.catWalk is None:  # no catwalk
@@ -114,22 +133,35 @@ class preComparer:
             self.catWalk_enabled = False
         self.distances_are_exact = self.uncertain_base == "N_or_M"
 
-    def set_operating_parameters(self, selection_cutoff, over_selection_cutoff_ignore_factor, uncertain_base):
-        """ sets the parameters used by the algorithm """
+    def set_operating_parameters(
+        self, selection_cutoff, over_selection_cutoff_ignore_factor, uncertain_base
+    ):
+        """sets the parameters used by the algorithm"""
         self.selection_cutoff = selection_cutoff
         self.over_selection_cutoff_ignore_factor = over_selection_cutoff_ignore_factor
         self.uncertain_base = uncertain_base
 
-    def check_operating_parameters(self, selection_cutoff, over_selection_cutoff_ignore_factor, uncertain_base, **kwargs):
-        """ returns true if the existing operating parameters are those passed, otherwise returns false """
+    def check_operating_parameters(
+        self,
+        selection_cutoff,
+        over_selection_cutoff_ignore_factor,
+        uncertain_base,
+        **kwargs
+    ):
+        """returns true if the existing operating parameters are those passed, otherwise returns false"""
 
-        if (self.selection_cutoff == selection_cutoff and self.over_selection_cutoff_ignore_factor == over_selection_cutoff_ignore_factor and self.uncertain_base == uncertain_base):
+        if (
+            self.selection_cutoff == selection_cutoff
+            and self.over_selection_cutoff_ignore_factor
+            == over_selection_cutoff_ignore_factor
+            and self.uncertain_base == uncertain_base
+        ):
             return True
         else:
             return False
 
     def _refresh(self):
-        """ initialise in ramn stores """
+        """initialise in ramn stores"""
         self.seqProfile = (
             {}
         )  # if catWalk is not used, then the reference compressed sequence (missing Ns, depending on self.uncertain_base) are stored in here
@@ -166,18 +198,22 @@ class preComparer:
             invalid: 0 if valid, 1 if invalid
         """
 
-        # check if the guid exists.  Does not allow overwriting
+        # check obj is valid
+        if obj is None:
+            raise ValueError("refcompressed sequence object is None..  This is not allowed.  Associated guid: {0}".format(guid))
+            
+        # check if the guid exists.  Does not allow overwriting / double entries
         if guid in self.seqProfile.keys():
-            return self.seqProfile[guid]["invalid"]
-            # raise KeyError("Duplicate guid supplied; already exists in preComparer: {0}".format(guid))
+            try:
+                return self.seqProfile[guid]["invalid"]
+            except KeyError:
+                raise KeyError("seqProfile stored as {0} lacks an 'invalid' key.  Keys are {1}".format(guid, self.seqProfile[guid].keys()))  
+
+        if 'invalid' not in obj.keys():     # assign it a valid status if we're not told it's invalid
+            obj['invalid'] = 0
 
         # check it is not invalid
-        isinvalid = False
-        try:
-            isinvalid = obj["invalid"] == 1
-        except KeyError:
-            # no invalid tag
-            obj["invalid"] = 0
+        isinvalid = obj["invalid"] == 1
 
         # construct an object to be stored either directly in the self.seqProfile or in catWalk
 
@@ -192,7 +228,7 @@ class preComparer:
         for key in set(["A", "C", "G", "T"]) - set(obj.keys()):  # what is missing
             obj[key] = set()  # add empty set if no key exists.
 
-        # create a smaller object to store.
+        # create a smaller object to store in memory.
         smaller_obj = {}
         for item in ["A", "C", "G", "T"]:
             smaller_obj[item] = copy.deepcopy(obj[item])
@@ -213,9 +249,11 @@ class preComparer:
         elif self.uncertain_base == "N_or_M":
             obj["U"] = obj["N"].union(obj["Ms"])
         else:
-            raise KeyError("Invalid uncertain_base: got {0}".format(self.uncertain_base))
+            raise KeyError(
+                "Invalid uncertain_base: got {0}".format(self.uncertain_base)
+            )
 
-        # add the uncertain bases to the smaller object for storage
+        # add the uncertain bases to the smaller object for storage in ram/catwalk
         smaller_obj["U"] = copy.deepcopy(obj["U"])
         key_mapping = {
             "A": "A",
@@ -228,16 +266,22 @@ class preComparer:
             if not isinvalid:  # we only store valid sequences in catWalk
                 to_catwalk = {}
                 for key in smaller_obj.keys():
-                    to_catwalk[key_mapping[key]] = list(smaller_obj[key])  # make a dictionary for catwalk
+                    to_catwalk[key_mapping[key]] = list(
+                        smaller_obj[key]
+                    )  # make a dictionary for catwalk
 
                 self.catWalk.add_sample_from_refcomp(guid, to_catwalk)  # add it
 
-            self.seqProfile[guid] = {"invalid": obj["invalid"]}  # that's all we store in python if catWalk is in use
+            self.seqProfile[guid] = {
+                "invalid": obj["invalid"]
+            }  # that's all we store in python if catWalk is in use
 
         else:  # cache in python dictionary
             smaller_obj["invalid"] = obj["invalid"]
             smaller_obj["U"] = copy.deepcopy(obj["U"])
-            self.seqProfile[guid] = smaller_obj  # store in python dictionary for comparison
+            self.seqProfile[
+                guid
+            ] = smaller_obj  # store in python dictionary for comparison
 
         # set composition
         for key in set(obj.keys()).intersection(["A", "C", "G", "T", "M", "N", "U"]):
@@ -264,11 +308,11 @@ class preComparer:
             pass
 
     def guids(self):
-        """ returns the sample identifiers in ram in the preComparer"""
+        """returns the sample identifiers in ram in the preComparer"""
         return set(self.seqProfile.keys())
 
     def _classify(self, key1, key2, dist):
-        """ returns a dictionary classifying our reponse to the observed dEstim between key1 and key2"""
+        """returns a dictionary classifying our reponse to the observed dEstim between key1 and key2"""
         res = {
             "guid1_invalid": self.seqProfile[key1]["invalid"],
             "guid2_invalid": self.seqProfile[key2]["invalid"],
@@ -292,7 +336,9 @@ class preComparer:
             res["reported_category"] = "No retest - invalid"
             res["no_retest"] = True
 
-        elif dist > self.over_selection_cutoff_ignore_factor * self.selection_cutoff:  # very large
+        elif (
+            dist > self.over_selection_cutoff_ignore_factor * self.selection_cutoff
+        ):  # very large
             res["reported_category"] = "No retest - High estimated distance"
             res["no_retest"] = True
 
@@ -309,7 +355,9 @@ class preComparer:
 
         # if guids are not specified, we do all vs all
         if guids is None:
-            guids = set(self.seqProfile.keys())  # guids are all guids which have been successfully inserted.
+            guids = set(
+                self.seqProfile.keys()
+            )  # guids are all guids which have been successfully inserted.
 
         if (
             guid not in self.seqProfile.keys()
@@ -326,9 +374,13 @@ class preComparer:
         neighbours = []
         if self.catWalk_enabled:
 
-            sample_neighbours = self.catWalk.neighbours(guid, self.catWalk_parameters["max_distance"])
+            sample_neighbours = self.catWalk.neighbours(
+                guid, self.catWalk_parameters["max_distance"]
+            )
             for (neighbour, dist) in sample_neighbours:
-                if neighbour in guids:  # in theory catwalk can contain specimens which we don't know about
+                if (
+                    neighbour in guids
+                ):  # in theory catwalk can contain specimens which we don't know about
                     res = {"guid1": guid, "guid2": neighbour, "dist": dist}
                     res.update(self._classify(guid, neighbour, dist))
 
@@ -345,7 +397,7 @@ class preComparer:
         return neighbours
 
     def summarise_stored_items(self):
-        """ counts how many sequences exist of various types """
+        """counts how many sequences exist of various types"""
         retVal = {}
         retVal["server|pcstat|nSeqs"] = len(self.seqProfile.keys())
 
@@ -362,14 +414,14 @@ class preComparer:
         return retVal
 
     def iscachedinram(self, guid):
-        """ returns true or false depending whether we have a local copy of the refCompressed representation of a sequence (name=guid) in the seqComparer """
+        """returns true or false depending whether we have a local copy of the refCompressed representation of a sequence (name=guid) in the seqComparer"""
         if guid in self.seqProfile.keys():
             return True
         else:
             return False
 
     def guidscachedinram(self):
-        """ returns all guids with sequence profiles currently in this machine """
+        """returns all guids with sequence profiles currently in this machine"""
         retVal = set()
         for item in self.seqProfile.keys():
             retVal.add(item)

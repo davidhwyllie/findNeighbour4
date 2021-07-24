@@ -21,11 +21,12 @@ import datetime
 import uuid
 import time
 from findn.guidLookup import guidSearcher, guidDbSearcher
-from findn.mongoStore import fn3persistence
+from findn.persistence import Persistence
 from findn.NucleicAcid import NucleicAcid
 
 ## persistence unit tests
 UNITTEST_MONGOCONN = "mongodb://localhost"
+UNITTEST_RDBMSCONN = "sqlite://"
 
 
 class test_gm_1(unittest.TestCase):
@@ -124,7 +125,10 @@ class Test_Base1t(unittest.TestCase):
     """initialise FN persistence and adds data, 0.1 secs apart.  Used for testing queries examining order of recovery of samples."""
 
     def setUp(self):
-        self.t = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
+
+        pm = Persistence()
+
+        self.t = pm.get_storage_object(connString=UNITTEST_MONGOCONN, debug=2)
 
         dna = NucleicAcid()
 
@@ -205,6 +209,104 @@ class test_gdm_3(Test_Base1t):
 
 
 class test_gdm_4(Test_Base1t):
+    def runTest(self):
+        """Tests add method in guidDbSearcher, which should return a NotImplementedError"""
+        gs = guidDbSearcher(self.t)
+        with self.assertRaises(NotImplementedError):
+            gs.add("b1")
+
+
+# class for testing guidDbsearcher using rdbms
+class Test_Base1tr(unittest.TestCase):
+    """initialise FN persistence and adds data, 0.1 secs apart.  Used for testing queries examining order of recovery of samples."""
+
+    def setUp(self):
+
+        pm = Persistence()
+
+        self.t = pm.get_storage_object(connString=UNITTEST_RDBMSCONN, debug=2)
+
+        dna = NucleicAcid()
+
+        # add some sequences
+        seqs = {"b1": "ACGT", "b2": "NACT", "b3": "TTTT", "a1": "CCCC", "c1": "TTTT"}
+        for guid in seqs.keys():
+            time.sleep(0.1)
+            seq = seqs[guid]
+            dna.examine(seq)
+            self.t.refcompressedseq_store(guid, {"seq": seq, "invalid": 0})
+            self.t.guid_annotate(
+                guid=guid, nameSpace="DNAQuality", annotDict=dna.composition
+            )
+        self.seqs = seqs
+
+
+class test_gdm_1r(Test_Base1t):
+    def runTest(self):
+
+        gs = guidDbSearcher(self.t)
+        self.assertEqual(gs.guids, ["a1", "b1", "b2", "b3", "c1"])
+
+
+class test_gdm_2r(Test_Base1tr):
+    def runTest(self):
+
+        gs = guidDbSearcher(self.t)
+
+        retVal = gs.search("b")
+        self.assertEqual(retVal, ["b1", "b2", "b3"])
+        retVal = gs.search("b", max_returned=30)
+        self.assertEqual(retVal, ["b1", "b2", "b3"])
+        retVal = gs.search("b", max_returned=1)
+
+        self.assertEqual(retVal, ["b1"])
+        retVal = gs.search("b", max_returned=1, return_subset=True)
+        self.assertEqual(len(retVal), 1)
+        retVal = gs.search("b", max_returned=1, return_subset=False)
+        self.assertEqual(len(retVal), 0)
+
+        retVal = gs.search("b", max_returned=2, return_subset=True)
+        self.assertEqual(len(retVal), 2)
+        retVal = gs.search("b", max_returned=2, return_subset=False)
+        self.assertEqual(len(retVal), 0)
+        retVal = gs.search("z")
+        self.assertEqual(retVal, [])
+
+
+class test_gdm_3r(Test_Base1tr):
+    def runTest(self):
+
+        gs = guidDbSearcher(self.t, recheck_interval_seconds=1)
+
+        retVal = gs.search("b")
+        self.assertEqual(retVal, ["b1", "b2", "b3"])
+
+        dna = NucleicAcid()
+
+        # add more
+        # add some sequences
+        seqs = {"b4": "ACGT", "b5": "NACT", "b6": "TTTT", "c1": "TTTT"}
+        for guid in seqs.keys():
+            time.sleep(0.1)
+            seq = seqs[guid]
+            dna.examine(seq)
+            self.t.refcompressedseq_store(guid, {"seq": seq, "invalid": 0})
+            self.t.guid_annotate(
+                guid=guid, nameSpace="DNAQuality", annotDict=dna.composition
+            )
+
+        # has not searched recently - won't find the new ones
+        retVal = gs.search("b")
+        self.assertEqual(retVal, ["b1", "b2", "b3"])
+
+        time.sleep(1)
+
+        # should now find the new ones
+        retVal = gs.search("b")
+        self.assertEqual(retVal, ["b1", "b2", "b3", "b4", "b5", "b6"])
+
+
+class test_gdm_4r(Test_Base1tr):
     def runTest(self):
         """Tests add method in guidDbSearcher, which should return a NotImplementedError"""
         gs = guidDbSearcher(self.t)

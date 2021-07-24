@@ -2,17 +2,24 @@
 import unittest
 import time
 import json
-import pymongo
-import pandas as pd
+import pymongo  # type: ignore
+import os
+import pandas as pd  # type: ignore
 import pickle
 from findn.NucleicAcid import NucleicAcid
 
 from findn.mongoStore import fn3persistence
 
 ## persistence unit tests
-UNITTEST_MONGOCONN = "mongodb://localhost"
+UNITTEST_MONGOCONN: str = "mongodb://localhost"
+
+# skip these tests if the NO_MONGO_TESTS variable exists
+mongo_test = unittest.skipIf(
+    os.environ.get("NO_MONGO_TESTS", False), "no mongo tests performed"
+)
 
 
+@mongo_test
 class Test_Server_Monitoring_0(unittest.TestCase):
     """adds server monitoring info"""
 
@@ -26,6 +33,7 @@ class Test_Server_Monitoring_0(unittest.TestCase):
         self.assertTrue(isinstance(res, list))
 
 
+@mongo_test
 class Test_Server_Monitoring_1(unittest.TestCase):
     """tests recovery of database monitoring info"""
 
@@ -48,6 +56,7 @@ class Test_Server_Monitoring_1(unittest.TestCase):
         json.dumps(res2)  # should succeed
 
 
+@mongo_test
 class Test_Server_Monitoring_2(unittest.TestCase):
     """adds server monitoring info"""
 
@@ -77,9 +86,10 @@ class Test_Server_Monitoring_2(unittest.TestCase):
             res = p.recent_server_monitoring(-1)
 
         with self.assertRaises(TypeError):
-            res = p.recent_server_monitoring("thing")
+            res = p.recent_server_monitoring("thing")  # type: ignore
 
 
+@mongo_test
 class Test_Server_Monitoring_3(unittest.TestCase):
     """checks whether server_monitoring_min_interval_msec control works"""
 
@@ -87,9 +97,11 @@ class Test_Server_Monitoring_3(unittest.TestCase):
         p = fn3persistence(
             connString=UNITTEST_MONGOCONN,
             debug=2,
-
             server_monitoring_min_interval_msec=1000,
-        )       # no logging for within 1 secs of another event
+        )  # no logging for within 1 secs of another event
+
+        res = p.recent_server_monitoring(100)
+        self.assertEqual(len(res), 0)
 
         retVal = p.server_monitoring_store(message="one")  # should insert
         self.assertEqual(retVal, True)
@@ -103,7 +115,7 @@ class Test_Server_Monitoring_3(unittest.TestCase):
         self.assertEqual(len(res), 1)
         self.assertTrue(isinstance(res, list))
 
-        time.sleep(2)  # seconds
+        time.sleep(3)  # seconds
         retVal = p.server_monitoring_store(message="three")  # should insert
         self.assertEqual(retVal, True)
         res = p.recent_server_monitoring(100)
@@ -111,6 +123,7 @@ class Test_Server_Monitoring_3(unittest.TestCase):
         self.assertTrue(isinstance(res, list))
 
 
+@mongo_test
 class Test_Server_Monitoring_4(unittest.TestCase):
     """checks whether delete_server_monitoring_entries"""
 
@@ -138,6 +151,7 @@ class Test_Server_Monitoring_4(unittest.TestCase):
         self.assertTrue(isinstance(res, list))
 
 
+@mongo_test
 class Test_SeqMeta_singleton(unittest.TestCase):
     """tests guid2neighboursOf"""
 
@@ -162,6 +176,7 @@ class Test_SeqMeta_singleton(unittest.TestCase):
         self.assertEqual(len(singletons.index), 5)
 
 
+@mongo_test
 class Test_SeqMeta_guid2neighbour_8(unittest.TestCase):
     """tests guid2neighboursOf"""
 
@@ -190,6 +205,7 @@ class Test_SeqMeta_guid2neighbour_8(unittest.TestCase):
         self.assertEqual(5, len(res4["neighbours"]))
 
 
+@mongo_test
 class Test_SeqMeta_guid2neighbour_7(unittest.TestCase):
     """tests guid2neighboursOf"""
 
@@ -214,6 +230,7 @@ class Test_SeqMeta_guid2neighbour_7(unittest.TestCase):
         self.assertEqual(5, len(res2["neighbours"]))
 
 
+@mongo_test
 class Test_SeqMeta_guid2neighbour_5(unittest.TestCase):
     """tests repack"""
 
@@ -271,6 +288,7 @@ class Test_SeqMeta_guid2neighbour_5(unittest.TestCase):
         self.assertEqual(res, 1)
 
 
+@mongo_test
 class Test_SeqMeta_guid2neighbour_4a(unittest.TestCase):
     """tests creation of new guid2neighbour entries"""
 
@@ -291,6 +309,7 @@ class Test_SeqMeta_guid2neighbour_4a(unittest.TestCase):
         self.assertEqual(res, 1)
 
 
+@mongo_test
 class Test_SeqMeta_guid2neighbour_4b(unittest.TestCase):
     """tests creation of new guid2neighbour entries"""
 
@@ -316,6 +335,7 @@ class Test_SeqMeta_guid2neighbour_4b(unittest.TestCase):
         self.assertEqual(res, 1)
 
 
+@mongo_test
 class Test_SeqMeta_guid2neighbour_4c(unittest.TestCase):
     """tests creation of new guid2neighbour entries"""
 
@@ -348,6 +368,7 @@ class Test_SeqMeta_guid2neighbour_4c(unittest.TestCase):
         self.assertEqual(res, 2)
 
 
+@mongo_test
 class Test_SeqMeta_guid2neighbour_4d(unittest.TestCase):
     """tests creation of new guid2neighbour entries"""
 
@@ -383,6 +404,7 @@ class Test_SeqMeta_guid2neighbour_4d(unittest.TestCase):
         self.assertEqual(res, 2)
 
 
+@mongo_test
 class Test_SeqMeta_guid2neighbour_4e(unittest.TestCase):
     """tests creation of new guid2neighbour entries"""
 
@@ -421,6 +443,7 @@ class Test_SeqMeta_guid2neighbour_4e(unittest.TestCase):
         self.assertEqual(res, 2)
 
 
+@mongo_test
 class Test_SeqMeta_guid2neighbour_4f(unittest.TestCase):
     """tests creation of new guid2neighbour entries"""
 
@@ -462,6 +485,7 @@ class Test_SeqMeta_guid2neighbour_4f(unittest.TestCase):
         self.assertEqual(res, 3)
 
 
+@mongo_test
 class Test_SeqMeta_guid2neighbour_3(unittest.TestCase):
     """tests creation of a new guid2neighbour entry"""
 
@@ -477,6 +501,7 @@ class Test_SeqMeta_guid2neighbour_3(unittest.TestCase):
         self.assertEqual(set(b["rstat"]), set(["s"]))  # singleton
 
 
+@mongo_test
 class Test_SeqMeta_audit_storage_2(unittest.TestCase):
     """tests audit of the situation where there are no links"""
 
@@ -500,6 +525,7 @@ class Test_SeqMeta_audit_storage_2(unittest.TestCase):
         )
 
 
+@mongo_test
 class Test_SeqMeta_guid2neighbour_2(unittest.TestCase):
     """tests creation of a new guid2neighbour entry"""
 
@@ -510,6 +536,7 @@ class Test_SeqMeta_guid2neighbour_2(unittest.TestCase):
         self.assertEqual(res, 0)
 
 
+@mongo_test
 class Test_SeqMeta_version(unittest.TestCase):
     """tests version of library.  only tested with > v3.0"""
 
@@ -517,8 +544,9 @@ class Test_SeqMeta_version(unittest.TestCase):
         self.assertTrue(pymongo.__version__ >= "3.0")
 
 
+@mongo_test
 class Test_SeqMeta_file_store1(unittest.TestCase):
-    """tests storage of pickle files in database"""
+    """tests storage of sequence objects database"""
 
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
@@ -531,6 +559,7 @@ class Test_SeqMeta_file_store1(unittest.TestCase):
         self.assertEqual(obj1, obj2)
 
 
+@mongo_test
 class Test_SeqMeta_file_store2(unittest.TestCase):
     """tests storage of pickle files in database"""
 
@@ -547,6 +576,7 @@ class Test_SeqMeta_file_store2(unittest.TestCase):
             p.refcompressedseq_store(guid, obj1)
 
 
+@mongo_test
 class Test_SeqMeta_file_store3(unittest.TestCase):
     """tests storage of pickle files in database"""
 
@@ -565,6 +595,7 @@ class Test_SeqMeta_file_store3(unittest.TestCase):
         self.assertEqual(res2 - res1, set(["guid1", "guid2"]))
 
 
+@mongo_test
 class Test_SeqMeta_guid_annotate_1(unittest.TestCase):
     """tests insert of new data item"""
 
@@ -575,11 +606,12 @@ class Test_SeqMeta_guid_annotate_1(unittest.TestCase):
         guid = 1
         namespace = "ns"
         payload = {"one": 1, "two": 2}
-        res = p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
+        p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
         res = p.db.guid2meta.find_one({"_id": 1})
         self.assertEqual(res["sequence_meta"]["ns"], payload)
 
 
+@mongo_test
 class Test_SeqMeta_guid_annotate_2(unittest.TestCase):
     """tests addition to existing data item"""
 
@@ -591,18 +623,19 @@ class Test_SeqMeta_guid_annotate_2(unittest.TestCase):
         # add the dictionary 'payload' to the namespace 'ns'
         namespace = "ns"
         payload = {"one": 1, "two": 2}
-        res = p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
+        p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
         res = p.db.guid2meta.find_one({"_id": 1})
         self.assertEqual(res["sequence_meta"]["ns"], payload)
 
         # add the dictionary 'payload' to the namespace 'ns'
         namespace = "ns"
         payload = {"three": 3}
-        res = p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
+        p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
         res = p.db.guid2meta.find_one({"_id": 1})
         self.assertEqual(res["sequence_meta"]["ns"], {"one": 1, "two": 2, "three": 3})
 
 
+@mongo_test
 class Test_SeqMeta_guid_annotate_3(unittest.TestCase):
     """tests addition to existing data item"""
 
@@ -614,35 +647,19 @@ class Test_SeqMeta_guid_annotate_3(unittest.TestCase):
         # add the dictionary 'payload' to the namespace 'ns'
         namespace = "ns"
         payload = {"one": 1, "two": 2}
-        res = p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
+        p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
         res = p.db.guid2meta.find_one({"_id": 1})
         self.assertEqual(res["sequence_meta"]["ns"], payload)
 
         # add the dictionary 'payload' to the namespace 'ns'
         namespace = "ns"
         payload = {"two": 3}
-        res = p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
+        p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
         res = p.db.guid2meta.find_one({"_id": 1})
         self.assertEqual(res["sequence_meta"]["ns"], {"one": 1, "two": 3})
 
 
-class Test_SeqMeta_guid_exists_1(unittest.TestCase):
-    """tests insert of new data item and existence check"""
-
-    def runTest(self):
-        p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
-
-        # test there is no 'test' item; insert, and confirm insert
-        guid = 1
-        namespace = "ns"
-        payload = {"one": 1, "two": 2}
-        res = p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
-        res = p.guid_exists(guid)
-        self.assertEqual(res, True)
-        res = p.guid_exists(-1)
-        self.assertEqual(res, False)
-
-
+@mongo_test
 class Test_SeqMeta_guid_valid_1(unittest.TestCase):
     """tests insert of new data item and validity check"""
 
@@ -652,15 +669,15 @@ class Test_SeqMeta_guid_valid_1(unittest.TestCase):
         guid = "valid"
         namespace = "DNAQuality"
         payload = {"invalid": 0}
-        res = p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
+        p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
         guid = "invalid"
         namespace = "DNAQuality"
         payload = {"invalid": 1}
-        res = p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
+        p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
         guid = "missing"
         namespace = "DNAQuality"
         payload = {"N": 1}
-        res = p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
+        p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
 
         res = p.guid_valid("valid")
         self.assertEqual(res, 0)
@@ -672,6 +689,7 @@ class Test_SeqMeta_guid_valid_1(unittest.TestCase):
         self.assertEqual(res, -1)
 
 
+@mongo_test
 class Test_SeqMeta_guid_valid_2(unittest.TestCase):
     """tests insert of new data item and validity check"""
 
@@ -681,20 +699,20 @@ class Test_SeqMeta_guid_valid_2(unittest.TestCase):
         guid = "valid1"
         namespace = "DNAQuality"
         payload = {"invalid": 0}
-        res = p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
+        p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
         guid = "valid2"
         namespace = "DNAQuality"
         payload = {"invalid": 0}
-        res = p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
+        p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
 
         guid = "invalid"
         namespace = "DNAQuality"
         payload = {"invalid": 1}
-        res = p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
+        p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
         guid = "missing"
         namespace = "DNAQuality"
         payload = {"N": 1}
-        res = p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
+        p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload)
 
         res = p.guids_valid()
         self.assertEqual(res, set(["valid1", "valid2"]))
@@ -702,6 +720,7 @@ class Test_SeqMeta_guid_valid_2(unittest.TestCase):
         self.assertEqual(res, set(["invalid"]))
 
 
+@mongo_test
 class Test_SeqMeta_guid_annotate_5(unittest.TestCase):
     """tests update of existing data item with same namespace"""
 
@@ -712,15 +731,16 @@ class Test_SeqMeta_guid_annotate_5(unittest.TestCase):
         guid = 1
         namespace = "ns"
         payload1 = {"one": 1, "two": 2}
-        res = p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload1)
+        p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload1)
         res = p.db.guid2meta.find_one({"_id": 1})
         self.assertEqual(res["sequence_meta"]["ns"], payload1)
         payload2 = {"one": 1, "two": 2}
-        res = p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload2)
+        p.guid_annotate(guid=guid, nameSpace=namespace, annotDict=payload2)
         res = p.db.guid2meta.find_one({"_id": 1})
         self.assertEqual(res["sequence_meta"]["ns"], payload2)
 
 
+@mongo_test
 class Test_SeqMeta_guid_annotate_6(unittest.TestCase):
     """tests update of existing data item with different namespace"""
 
@@ -731,18 +751,19 @@ class Test_SeqMeta_guid_annotate_6(unittest.TestCase):
         guid = 1
         payload1 = {"one": 1, "two": 2}
 
-        res = p.guid_annotate(guid=guid, nameSpace="ns1", annotDict=payload1)
+        p.guid_annotate(guid=guid, nameSpace="ns1", annotDict=payload1)
         res = p.db.guid2meta.find_one({"_id": 1})
         self.assertEqual(res["sequence_meta"]["ns1"], payload1)
 
         payload2 = {"one": 1, "two": 2}
-        res = p.guid_annotate(guid=guid, nameSpace="ns2", annotDict=payload2)
+        p.guid_annotate(guid=guid, nameSpace="ns2", annotDict=payload2)
         res = p.db.guid2meta.find_one({"_id": 1})
 
         payloads = {"ns1": payload1, "ns2": payload2}
         self.assertEqual(res["sequence_meta"], payloads)
 
 
+@mongo_test
 class Test_SeqMeta_init(unittest.TestCase):
     """tests database creation"""
 
@@ -770,6 +791,7 @@ class Test_SeqMeta_init(unittest.TestCase):
         self.assertEqual(res, {"_id": "preComparer", "item": 3})
 
 
+@mongo_test
 class Test_SeqMeta_guids(unittest.TestCase):
     """tests recovery of sequence guids"""
 
@@ -784,6 +806,7 @@ class Test_SeqMeta_guids(unittest.TestCase):
         self.assertEqual(res, set([1, 2]))
 
 
+@mongo_test
 class Test_SeqMeta_Base(unittest.TestCase):
     """sets up a connection for unit testing"""
 
@@ -792,6 +815,7 @@ class Test_SeqMeta_Base(unittest.TestCase):
         self.assertTrue(self.t.first_run() is True)
 
 
+@mongo_test
 class Test_SeqMeta_guid_quality_check_1(Test_SeqMeta_Base):
     def runTest(self):
         """tests return of sequences and their qualities"""
@@ -822,6 +846,7 @@ class Test_SeqMeta_guid_quality_check_1(Test_SeqMeta_Base):
         self.assertEqual(r4, None)
 
 
+@mongo_test
 class Test_SeqMeta_guid2quality1(Test_SeqMeta_Base):
     def runTest(self):
         """tests return of sequences and their qualities"""
@@ -853,11 +878,13 @@ class Test_SeqMeta_guid2quality1(Test_SeqMeta_Base):
 
         resDict = self.t.guid2quality(None)  # restrict to nothing - return all
         self.assertTrue(resDict is not None)
+        assert resDict is not None  # for typing purposes
         self.assertEqual(resDict["g1"], 0.80)
         self.assertEqual(resDict["g2"], 0.60)
         self.assertEqual(resDict["g3"], 0.40)
 
 
+@mongo_test
 class Test_SeqMeta_guid2quality2(Test_SeqMeta_Base):
     def runTest(self):
         """tests return of sequences and their qualities"""
@@ -888,11 +915,13 @@ class Test_SeqMeta_guid2quality2(Test_SeqMeta_Base):
 
         resDict = self.t.guid2quality(["g1", "g2", "g3"])
         self.assertTrue(resDict is not None)
+        assert resDict is not None  # for typing purposes
         self.assertEqual(resDict["g1"], 0.80)
         self.assertEqual(resDict["g2"], 0.60)
         self.assertEqual(resDict["g3"], 0.40)
 
 
+@mongo_test
 class Test_SeqMeta_Base1(unittest.TestCase):
     """initialise FN persistence and adds data"""
 
@@ -909,8 +938,9 @@ class Test_SeqMeta_Base1(unittest.TestCase):
             self.t.guid_annotate(
                 guid=guid, nameSpace="DNAQuality", annotDict=dna.composition
             )
-            
-            
+
+
+@mongo_test
 class Test_SeqMeta_Base1t(unittest.TestCase):
     """initialise FN persistence and adds data, 0.1 secs apart.
     Used for testing queries examining order of recovery of samples."""
@@ -932,20 +962,26 @@ class Test_SeqMeta_Base1t(unittest.TestCase):
         self.seqs = seqs
 
 
+@mongo_test
 class Test_SeqMeta_guid2ExaminationDateTime(Test_SeqMeta_Base1):
     """recovering guids and examination times;"""
 
     def runTest(self):
         res = self.t.guid2ExaminationDateTime()
+        self.assertIsNotNone(res)
+        assert res is not None  # for typing purposes
         expected = 4
         self.assertEqual(len(res.keys()), expected)
-      
 
+
+@mongo_test
 class Test_SeqMeta_guid2ExaminationDateTime_order(Test_SeqMeta_Base1t):
     """tests guid2ExaminationDateTime"""
 
     def runTest(self):
         res = self.t.guid2ExaminationDateTime()
+        self.assertIsNotNone(res)
+        assert res is not None  # for typing purposes
         expected = 4
         self.assertEqual(len(res.keys()), expected)
 
@@ -957,11 +993,14 @@ class Test_SeqMeta_guid2ExaminationDateTime_order(Test_SeqMeta_Base1t):
             previous_addition_time = res[guid]
 
 
+@mongo_test
 class Test_SeqMeta_guid_examination_time(Test_SeqMeta_Base1t):
     """tests guid_examination_time()"""
 
     def runTest(self):
         res = self.t.guid2ExaminationDateTime()
+        self.assertIsNotNone(res)
+        assert res is not None  # for typing purposes
         expected = 4
         self.assertEqual(len(res.keys()), expected)
 
@@ -977,28 +1016,34 @@ class Test_SeqMeta_guid_examination_time(Test_SeqMeta_Base1t):
         self.assertIsNone(this_examination_time)
 
 
+@mongo_test
 class Test_SeqMeta_guid_considered_after(Test_SeqMeta_Base1t):
     """recovering guids and examination times;"""
 
     def runTest(self):
         res = self.t.guid2ExaminationDateTime()
+        self.assertIsNotNone(res)
+        assert res is not None  # for typing purposes
         expected = 4
         self.assertEqual(len(res.keys()), expected)
 
         # check that the sample were added in order, with increasing examination times.
         for i, guid in enumerate(sorted(self.seqs.keys())):  # the order added
             this_examination_time = self.t.guid_examination_time(guid)
-            res = self.t.guids_considered_after(this_examination_time)
+            self.assertIsNotNone(this_examination_time)
+            assert this_examination_time is not None  # for typing purposes
+            res2 = self.t.guids_considered_after(this_examination_time)
             self.assertEqual(
-                len(res), 3 - i
+                len(res2), 3 - i
             )  # with guid1, we expect three; with guid2, we expect 2; etc
 
-            res = self.t.guids_considered_after_guid(guid)
+            res2 = self.t.guids_considered_after_guid(guid)
             self.assertEqual(
-                len(res), 3 - i
+                len(res2), 3 - i
             )  # with guid1, we expect three; with guid2, we expect 2; etc
 
 
+@mongo_test
 class Test_SeqMeta_propACTG_filteredSequenceGuids(Test_SeqMeta_Base1):
     """recovered guids filtered by the propACTG criterion"""
 
@@ -1010,24 +1055,33 @@ class Test_SeqMeta_propACTG_filteredSequenceGuids(Test_SeqMeta_Base1):
         self.assertEqual(n, expected)
 
 
+@mongo_test
 class Test_SeqMeta_allAnnotations(Test_SeqMeta_Base1):
     """tests recovery of all annoations"""
 
     def runTest(self):
         df = self.t.guid_annotations()
+        self.assertIsNotNone(df)
+        assert df is not None  # for typing purposes
         self.assertEqual(len(df.keys()), 4)
 
 
+@mongo_test
 class Test_SeqMeta_oneAnnotation(Test_SeqMeta_Base1):
     """tests recovery of one annotations"""
 
     def runTest(self):
         df = self.t.guid_annotation("guid3")
+        self.assertIsNotNone(df)
+        assert df is not None  # for typing purposes
         self.assertEqual(len(df.keys()), 1)
         df = self.t.guid_annotation("missing")
+        self.assertIsNotNone(df)
+        assert df is not None  # for typing purposes
         self.assertEqual(len(df.keys()), 0)
 
 
+@mongo_test
 class Test_Clusters(unittest.TestCase):
     """tests saving and recovery of dictionaries to Clusters"""
 
@@ -1067,8 +1121,8 @@ class Test_Clusters(unittest.TestCase):
         self.assertNotEqual(clv, p.cluster_latest_version("cl1"))
         self.assertIsNotNone(p.cluster_read_update("cl1", clv))
 
-        payload4 = p.cluster_read("cl1")
-        self.assertEqual(payload4, payload3)
+        payload5 = p.cluster_read("cl1")
+        self.assertEqual(payload5, payload3)
 
         p.cluster_delete_legacy_by_key("cl1")
 
@@ -1082,6 +1136,7 @@ class Test_Clusters(unittest.TestCase):
         self.assertEqual(1, len(p.cluster_versions("cl2")))
 
 
+@mongo_test
 class Test_Tree(unittest.TestCase):
     """tests saving and recovery of dictionaries to Tree"""
 
@@ -1106,6 +1161,7 @@ class Test_Tree(unittest.TestCase):
         self.assertEqual(1, len(p.tree_stored_ids()))
 
 
+@mongo_test
 class Test_MSA(unittest.TestCase):
     """tests saving and recovery of dictionaries to MSA"""
 
@@ -1130,6 +1186,7 @@ class Test_MSA(unittest.TestCase):
         self.assertEqual(1, len(p.msa_stored_ids()))
 
 
+@mongo_test
 class Test_Monitor(unittest.TestCase):
     """tests saving and recovery of strings to monitor"""
 
@@ -1143,6 +1200,7 @@ class Test_Monitor(unittest.TestCase):
         self.assertIsNone(payload3)
 
 
+@mongo_test
 class test_Raise_error(unittest.TestCase):
     """tests raise_error"""
 
@@ -1153,6 +1211,7 @@ class test_Raise_error(unittest.TestCase):
             p.raise_error("token")
 
 
+@mongo_test
 class Test_summarise_stored_items(unittest.TestCase):
     """adds server monitoring info"""
 
@@ -1162,6 +1221,7 @@ class Test_summarise_stored_items(unittest.TestCase):
         self.assertTrue(res is not None)
 
 
+@mongo_test
 class Test_rotate_log(unittest.TestCase):
     """adds server monitoring info"""
 

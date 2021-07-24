@@ -21,7 +21,7 @@ import os
 import json
 import pandas as pd
 import logging
-
+import warnings
 import numpy as np
 import datetime
 import time
@@ -68,7 +68,7 @@ class PCADBManagerError(Exception):
 class BulkLoadTest(db_pc):
     """used for testing bulk uploads as part of unit testing"""
 
-    __tablename__ = "test"
+    __tablename__ = "test_pca_bulkload"
     blt_int_id = Column(Integer, Identity(start=1), primary_key=True)
     bulk1 = Column(Integer)
     bulk2 = Column(Integer)
@@ -1036,7 +1036,7 @@ class PCADatabaseManager:
         # Build.__table__.create(self.engine)
         remaining = len(self._table_names())
         if remaining > 0:
-            raise PCADBManagerError(
+            warnings.warn(
                 "Failed to remove all tables in the database.  The following remain: {0}".format(
                     self._table_names()
                 )

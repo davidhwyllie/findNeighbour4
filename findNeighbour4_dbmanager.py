@@ -34,7 +34,6 @@ import os
 import logging
 import logging.handlers
 import warnings
-import pymongo
 import pathlib
 import sentry_sdk
 from sentry_sdk import capture_exception
@@ -46,8 +45,8 @@ import argparse
 # config
 from findn.common_utils import ConfigManager
 
-# reference based compression, storage and clustering modules
-from findn.mongoStore import fn3persistence
+# storage  modules
+from findn.persistence import Persistence
 
 # startup
 if __name__ == "__main__":
@@ -196,19 +195,14 @@ python findNeighbour4_server.py ../config/myconfig_file.json
         print("Using connection string to mongodb from configuration file.")
 
     ########################  START Operations ###################################
-    logger.info("Connect to database")
-    try:
-        PERSIST = fn3persistence(
-            dbname=CONFIG["SERVERNAME"],
-            connString=CONFIG["FNPERSISTENCE_CONNSTRING"],
-            debug=CONFIG["DEBUGMODE"],
-            server_monitoring_min_interval_msec=0,
-        )
-    except Exception as e:
-        logger.exception("Error raised on creating persistence object")
-        if e.__module__ == "pymongo.errors":
-            logger.info("Error raised pertains to pyMongo connectivity")
-            raise
+    logger.info("Connecting to backend data store")
+    pm = Persistence()
+    PERSIST = pm.get_storage_object(dbname=CONFIG["SERVERNAME"], connString=CONFIG["FNPERSISTENCE_CONNSTRING"], debug=CONFIG['DEBUGMODE'], server_monitoring_min_interval_msec=0, verbose=True)
+
+    if PERSIST.storage_technology == 'rdbms':
+        logger.info("Terminating, as dbmanager is not required when working with rdbms.")
+        pm.closedown()
+        exit()
 
     date_last_log_rotated = datetime.datetime.now() - datetime.timedelta(hours=25)  # force log rotation on startup
 
@@ -218,7 +212,7 @@ python findNeighbour4_server.py ../config/myconfig_file.json
             logger.info("Rotated mongodb log; deleting old server monitor entries")
             try:
                 PERSIST.rotate_log()
-            except pymongo.errors.OperationFailure as e:
+            except Exception as e:
                 capture_exception(e)
                 logger.warning("Failed to rotate log")  # can occur if multiple threads try to do it simultenously
 
@@ -251,6 +245,8 @@ python findNeighbour4_server.py ../config/myconfig_file.json
                     db_summary = PERSIST.summarise_stored_items()
                     PERSIST.server_monitoring_store(what="dbManager", message="Repacking", guid="-", content=db_summary)
         if debugmode == 1:
+            logger.info("Exiting, as in debug mode.")
+            PERSIST.closedown()
             exit()
 
         if nModified == 0:

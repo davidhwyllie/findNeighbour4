@@ -33,8 +33,8 @@ import json
 # config
 from findn.common_utils import ConfigManager
 
-# data
-from findn.mongoStore import fn3persistence
+# storage  modules
+from findn.persistence import Persistence
 from pca.pcadb import PCADatabaseManager
 
 if __name__ == "__main__":
@@ -115,6 +115,7 @@ Checks for new sequences are conducted once per minute.
     # configure logging object
     logger.setLevel(loglevel)
     logfile = os.path.join(logdir, "dumpneighbours_{0}".format(os.path.basename(CONFIG["LOGFILE"])))
+
     print("Logging to {0} with rotation".format(logfile))
     file_handler = logging.handlers.RotatingFileHandler(logfile, mode="a", maxBytes=1e7, backupCount=7)
     formatter = logging.Formatter("%(asctime)s | %(pathname)s:%(lineno)d | %(funcName)s | %(levelname)s | %(message)s ")
@@ -129,21 +130,14 @@ Checks for new sequences are conducted once per minute.
     ##################################################################################################
     # open PERSIST 
     logger.info("Connecting to backend data store")
-    try:
-        PERSIST = fn3persistence(
-            dbname=CONFIG["SERVERNAME"], connString=CONFIG["FNPERSISTENCE_CONNSTRING"], debug=0
-        )  # if in debug mode wipes all data.  This is not what is wanted here, even if we are using unittesting database
-
-    except Exception:
-        logger.exception("Error raised on creating persistence object")
-        raise
+    pm = Persistence()
+    PERSIST = pm.get_storage_object(dbname=CONFIG["SERVERNAME"], connString=CONFIG["FNPERSISTENCE_CONNSTRING"], debug=0, verbose=True)
 
     logging.info("Loading all samples & annotations.")
     sample_annotations = PERSIST.guid2items(None, None)
     all_samples = list(sample_annotations.keys())
     print("There are {0} samples.".format(len(all_samples)))
     
-    #
     ########################### create output directory if it does not exist ##########
     if args.outputdir is not None:
         outputdir = args.outputdir

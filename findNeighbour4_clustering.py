@@ -38,7 +38,7 @@ import logging
 import logging.handlers
 
 # startup
-from findn.mongoStore import fn3persistence
+from findn.persistence import Persistence
 from findn.msa import MSAStore
 from findn.hybridComparer import hybridComparer
 from findn.common_utils import ConfigManager
@@ -85,6 +85,11 @@ Checks for new sequences are conducted once per minute.
         help="label clusters based on existing membership, as in the two column excel file referred to.  The program will stop after the initial run if this option is used, and will need to be restarted without this option to function normally",
         action="store",
     )
+    parser.add_argument(
+        "--run_once",
+        help="run once only.  The program will stop after the initial run if this option is used, and will need to be restarted without this option to function normally",
+        action="store_true",
+    )
     args = parser.parse_args()
 
     # an example config file is default_test_config.json
@@ -101,7 +106,6 @@ Checks for new sequences are conducted once per minute.
         warnings.warn(
             "No config file name supplied ; using a configuration ('default_test_config.json') suitable only for testing, not for production. "
         )
-
     cfm = ConfigManager(config_file)
     CONFIG = cfm.read_config(
         not_debug_mode=True
@@ -173,14 +177,8 @@ Checks for new sequences are conducted once per minute.
     # construct the required global variables
 
     logger.info("Connecting to backend data store")
-    try:
-        PERSIST = fn3persistence(
-            dbname=CONFIG["SERVERNAME"], connString=CONFIG["FNPERSISTENCE_CONNSTRING"], debug=0
-        )  # if in debug mode wipes all data.  This is not what is wanted here, even if we are using unittesting database
-
-    except Exception:
-        logger.exception("Error raised on creating persistence object")
-        raise
+    pm = Persistence()
+    PERSIST = pm.get_storage_object(dbname=CONFIG["SERVERNAME"], connString=CONFIG["FNPERSISTENCE_CONNSTRING"], debug=0, verbose=True)
 
     if args.rebuild_clusters_debug:
         logger.warning("Wiping existing clustering data as --rebuild_clusters_debug is set")
@@ -245,7 +243,7 @@ Checks for new sequences are conducted once per minute.
                 )
             )
 
-    # now iterate - on a loop
+    # now iterate - on an endless loop
     while True:
         whitelist = set()
         nbuilt = 0
@@ -314,9 +312,9 @@ Checks for new sequences are conducted once per minute.
             ms.unpersist(whitelist=whitelist)
             logger.info("Cleanup complete.  Stored data on {0} MSAs; Built {1} new clusters".format(len(whitelist), nbuilt))
 
-        if debugmode:
+        if debugmode | relabel | args.run_once:
+            PERSIST.closedown()
             exit(0)
-        if relabel:
-            exit(0)
+        
         logger.info("Waiting 60 seconds")
         time.sleep(60)

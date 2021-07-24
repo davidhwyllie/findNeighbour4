@@ -1,6 +1,8 @@
 Integration testing
 -------------------
 
+TODO: provide more examples including SARS-CoV-2 genomes
+
 Detecting mixtures
 --------------------
 Generates a series of phylogenies and sequences; simulates mixtures between members of this phylogeny.

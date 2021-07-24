@@ -2,7 +2,7 @@
 .coverage
 coverage.xml
 htmlcov/
-
+__pycache__
 .pytest_cache
 external_software/
 unittest_tmp/*

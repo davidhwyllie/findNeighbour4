@@ -29,25 +29,34 @@ class NucleicAcid:
     Returns the cleaned (uppercased) string in self.nucleicAcidString"""
 
     def __init__(self):
-        """ constructor """
+        """constructor"""
         logging.getLogger()
         self._reset()
 
     def _reset(self):
-        """ sets properties to their default state """
+        """sets properties to their default state"""
         self.isValid = None
-        self.composition = {"examinationDate": datetime.datetime.now(), "MD5": None, "length": 0}
+        self.composition = {
+            "examinationDate": datetime.datetime.now(),
+            "MD5": None,
+            "length": 0,
+        }
         self.nchars = 0
         self.nucleicAcidString = None
 
     def examine(self, nucleicAcidString):
-        """ evaluates the string passed """
+        """evaluates the string passed"""
         self._reset()
         if not isinstance(nucleicAcidString, str):
             self.isValid = False
-            raise TypeError("nucleicAcidString must be of type str, but it is %s " % type(nucleicAcidString))
+            raise TypeError(
+                "nucleicAcidString must be of type str, but it is %s "
+                % type(nucleicAcidString)
+            )
 
-        self.nucleicAcidString = bytes(nucleicAcidString.upper().encode(encoding="utf-8"))  # string not unicode; uppercase
+        self.nucleicAcidString = bytes(
+            nucleicAcidString.upper().encode(encoding="utf-8")
+        )  # string not unicode; uppercase
 
         # compute the md5
         self.composition["MD5"] = hashlib.md5(self.nucleicAcidString).hexdigest()
@@ -58,27 +67,49 @@ class NucleicAcid:
         # input is invalid if it has zero length
         if self.nchars == 0:
             self.isValid = False
-            raise ValueError("nucleicAcidString must be of type str, and of non-zero length")
+            raise ValueError(
+                "nucleicAcidString must be of type str, and of non-zero length"
+            )
 
         # define valid characters
         totalValid = 0
-        iupac_di = ["R", "r", "Y", "y", "S", "s", "W", "w", "K", "k", "M", "m"]  # dinucleotide codes
+        iupac_di = [
+            "R",
+            "r",
+            "Y",
+            "y",
+            "S",
+            "s",
+            "W",
+            "w",
+            "K",
+            "k",
+            "M",
+            "m",
+        ]  # dinucleotide codes
         iupac_tri = ["B", "D", "H", "V", "b", "d", "h", "v"]  # trinucleotide codes
         iupac = iupac_di + iupac_tri
         validChars = ["A", "C", "G", "T", "N", "-"] + iupac
         nMixed = 0
         for thisChar in validChars:
-            self.composition[thisChar] = self.nucleicAcidString.count(bytes(thisChar.encode(encoding="utf-8")))
+            self.composition[thisChar] = self.nucleicAcidString.count(
+                bytes(thisChar.encode(encoding="utf-8"))
+            )
             totalValid = totalValid + self.composition[thisChar]
             if thisChar in iupac:
                 nMixed = nMixed + self.composition[thisChar]
         self.composition["invalid"] = self.nchars - totalValid
         self.composition["length"] = self.nchars
         self.composition["ACTG"] = (
-            self.composition["A"] + self.composition["C"] + self.composition["G"] + self.composition["T"]
+            self.composition["A"]
+            + self.composition["C"]
+            + self.composition["G"]
+            + self.composition["T"]
         )
         self.composition["mixed"] = nMixed
-        self.composition["propACTG"] = float(self.composition["ACTG"]) / float(self.composition["length"])
+        self.composition["propACTG"] = float(self.composition["ACTG"]) / float(
+            self.composition["length"]
+        )
         if self.composition["invalid"] == 0:  # all characters are permitted
             self.isValid = True
         else:

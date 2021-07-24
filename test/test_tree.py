@@ -120,9 +120,7 @@ class Test_DepictTree_1(unittest.TestCase):
         metadata = pd.read_json(json_str)
 
         mt = DepictTree(treetxt, metadata)
-        mt.render(
-            "unittest_tmp/test.png", mode="c"
-        )  # svg output causes github actions to fail
+        mt.render("unittest_tmp/test.png")  # svg output causes github actions to fail
 
 
 class Test_DepictTree_2(unittest.TestCase):
