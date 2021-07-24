@@ -24,7 +24,7 @@ import os
 from Bio import SeqIO
 
 ## persistence unit tests
-UNITTEST_RDBMSCONN =  "sqlite://"       # "unittest_oracle"
+UNITTEST_RDBMSCONN = "sqlite://"  # "unittest_oracle"
 
 # skip these tests if the NORDBMSTESTS variable exists
 rdbms_test = unittest.skipIf(
