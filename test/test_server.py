@@ -80,7 +80,7 @@ def do_GET(relpath):
     except UnicodeEncodeError:
         # which is what happens if you try to display a gz file as text, which it isn't
         warnings.warn(
-            "Response cannot be coerced to unicode ? a gz file.  The response content had {0} bytes.".format(
+            "Response cannot be coerced to unicode; is this a gz file?  The response content had {0} bytes.".format(
                 len(response.text)
             )
         )
@@ -136,10 +136,6 @@ class test_reset(unittest.TestCase):
 
         relpath = "/api/v2/insert"
         res = do_POST(relpath, payload={"guid": guid_to_insert, "seq": seq})
-
-        self.assertTrue(isjson(content=res.content))
-        info = json.loads(res.content.decode("utf-8"))
-        self.assertEqual(info, "Guid {0} inserted.".format(guid_to_insert))
 
         relpath = "/api/v2/guids"
         res = do_GET(relpath)

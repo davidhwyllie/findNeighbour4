@@ -158,6 +158,7 @@ class fn3persistence:
             "tree.files",
         ]
         self.storage_technology = "mongodb"
+        self.using_sqlite = False
         self.max_neighbours_per_document = max_neighbours_per_document
         self.server_monitoring_min_interval_msec = server_monitoring_min_interval_msec
         self.previous_server_monitoring_data: Dict[str, Any] = {}

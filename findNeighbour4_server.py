@@ -97,6 +97,9 @@ from findn.depictStatus import MakeHumanReadable
 from Bio import SeqIO
 from urllib.parse import urljoin as urljoiner
 
+class SQLiteBackendErrror(Exception):
+    """ can't use SQLite in a multithreaded environment """
+    pass
 
 class findNeighbour4:
     """a server based application for maintaining a record of bacterial relatedness using SNP distances.
@@ -1817,6 +1820,14 @@ python findNeighbour4_server.py ../config/myconfig_file.json
         debug=CONFIG["DEBUGMODE"],
         verbose=True)
 
+    # check is it not sqlite.  We can't run sqlite in a multithreaded environment like flask.
+    # you need a proper database managing concurrent connections, such as mongo, or a standard rdbms
+    if PERSIST.using_sqlite:
+        raise SQLiteBackendErrror("""Can't use SQlite as a backend for findNeighbour4_server.  
+        A database handing sessions is required.  Some unit tests use SQLite; 
+        however, you can't run integration tests (test_server_rdbms.py) against sqlite.
+        To test the server, edit the config/default_test_config_rdbms.json file's "FNPERSISTENCE_CONNSTRING": connection string to
+        point to an suitable database.  For more details of how to do this, see installation instructions on github.""")
     # instantiate server class
     print("Loading sequences into server, please wait ...")
     try:

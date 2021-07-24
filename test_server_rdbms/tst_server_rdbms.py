@@ -137,7 +137,6 @@ class test_reset(unittest.TestCase):
         relpath = "/api/v2/insert"
         res = do_POST(relpath, payload={"guid": guid_to_insert, "seq": seq})
 
-        self.assertTrue(isjson(content=res.content))
         info = json.loads(res.content.decode("utf-8"))
         self.assertEqual(info, "Guid {0} inserted.".format(guid_to_insert))
 

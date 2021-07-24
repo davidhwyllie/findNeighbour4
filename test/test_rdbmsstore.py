@@ -33,10 +33,14 @@ class Test_Database(unittest.TestCase):
 
     def setUp(self):
         self.engines = {}
+
+        # add additional connection strings to unit test on different databases
         self.engines["Sqlite"] = "sqlite://"  # in memory sqlite
+        # self.engines["mysql"] = "mysql+pymysql://root:root@localhost:3306/test_db"  # NOTE: accessing a database test_db, with user root and password root; known issues, see above.
 
         conn_detail_file = None
 
+        # special arrangements for Oracle testing
         # try to read the environment variable 'DB_CONNECTION_CONFIG_FILE'
         try:
             conn_detail_file = os.environ["DB_CONNECTION_CONFIG_FILE"]
@@ -158,12 +162,13 @@ class Test_oracle_bulk_upload_2(Test_Database):
 
             upload_df = pd.DataFrame.from_records(upload_data)
             pdm._bulk_load(upload_df, "fn4_bulk_load_test", max_batch=10)
+            tls = pdm.Session()
 
-            (final_rows,) = pdm.session.query(func.count(BulkLoadTest.blt_int_id)).one()
+            (final_rows,) = tls.query(func.count(BulkLoadTest.blt_int_id)).one()
             self.assertEqual(initial_rows, final_rows)
 
             with self.assertRaises(ValueError):
-                pdm._bulk_load(upload_df, "nonexistant_table_name", max_batch=10)
+                pdm._bulk_load(upload_df, "nonexistent_table_name", max_batch=10)
 
             with self.assertRaises(TypeError):
                 pdm._bulk_load(None, "fn4_bulk_load_test", max_batch=10)
@@ -343,6 +348,7 @@ class Test_SeqMeta_singleton(Test_Database):
 
 
 @rdbms_test
+@unittest.skip(reason="benchmark, rather than unit test")
 class Test_SeqMeta_guid2neighbour_8(Test_Database):
     """tests adding links at scale"""
 
@@ -414,9 +420,9 @@ class Test_SeqMeta_guid_exists_1(Test_Database):
 
             res = pdm.guid_exists(guid)
             self.assertEqual(res, True)
-
+            tls = pdm.Session()
             seq1 = (
-                pdm.session.query(RefCompressedSeq)
+                tls.query(RefCompressedSeq)
                 .filter(RefCompressedSeq.sequence_id == "sequence1")
                 .one()
             )
@@ -426,8 +432,9 @@ class Test_SeqMeta_guid_exists_1(Test_Database):
             self.assertIsInstance(seq1.examination_date, datetime.datetime)
 
             pdm.guid_annotate(guid, "DNAQuality", na.composition)
+
             seq1 = (
-                pdm.session.query(RefCompressedSeq)
+                tls.query(RefCompressedSeq)
                 .filter(RefCompressedSeq.sequence_id == "sequence1")
                 .one()
             )
@@ -456,7 +463,7 @@ class Test_SeqMeta_guid_exists_1(Test_Database):
             self.assertEqual(res, True)
 
             seq2 = (
-                pdm.session.query(RefCompressedSeq)
+                tls.query(RefCompressedSeq)
                 .filter(RefCompressedSeq.sequence_id == "sequence2")
                 .one()
             )
@@ -498,6 +505,7 @@ class Test_SeqMeta_init(Test_Database):
 
             pdm.config_store("config", {"item": 1})
             self.assertTrue(pdm.first_run() is False)
+
             res = pdm.config_read("config")
             self.assertEqual(res, {"_id": "config", "item": 1})
 
@@ -510,6 +518,13 @@ class Test_SeqMeta_init(Test_Database):
             pdm.config_store("preComparer", {"item": 3})
             res = pdm.config_read("config")
             self.assertEqual(res, {"_id": "config", "item": 1})
+            res = pdm.config_read("preComparer")
+            self.assertEqual(res, {"_id": "preComparer", "item": 3})
+
+            testdata = "A" * 50000000  # 50MB
+            pdm.config_store("massive", {"item": testdata})
+            res = pdm.config_read("massive")
+            self.assertEqual(res, {"_id": "massive", "item": testdata})
             res = pdm.config_read("preComparer")
             self.assertEqual(res, {"_id": "preComparer", "item": 3})
 
@@ -621,10 +636,10 @@ class Test_SeqMeta_Base1(Test_Database):
                 pdm.guid_annotate(
                     guid=guid, nameSpace="DNAQuality", annotDict=dna.composition
                 )
-
+            tls = pdm.Session()
             res = set()
             n = 0
-            for (x,) in pdm.session.query(RefCompressedSeq.sequence_id).all():
+            for (x,) in tls.query(RefCompressedSeq.sequence_id).all():
                 res.add(x)
                 n += 1
             self.assertTrue(x, set(seqs.keys()))
@@ -634,7 +649,7 @@ class Test_SeqMeta_Base1(Test_Database):
             )  # try to add the last item again; nothing should happen
             n2 = 0
             res = set()
-            for (x,) in pdm.session.query(RefCompressedSeq.sequence_id).all():
+            for (x,) in tls.query(RefCompressedSeq.sequence_id).all():
                 res.add(x)
                 n2 += 1
             self.assertTrue(x, set(seqs.keys()))
@@ -647,8 +662,13 @@ class Test_SeqMeta_Base1(Test_Database):
 
 @rdbms_test
 class Test_SeqMeta_Base1t(Test_Database):
-    """initialise FN persistence and adds data, 0.1 secs apart.
-    Used for testing queries examining order of recovery of samples."""
+    """initialise FN persistence and adds data, 2 secs apart.
+    Used for testing queries examining order of recovery of samples.
+
+    For sqlite & Oracle, time is recorded to microsecond level
+    At present, in mysql, it's only recorded to second level.
+    This could probably be fixed with appropriate effort, see
+    https://stackoverflow.com/questions/29711102/sqlalchemy-mysql-millisecond-or-microsecond-precision"""
 
     def pdms(self):
         dna = NucleicAcid()
@@ -656,7 +676,7 @@ class Test_SeqMeta_Base1t(Test_Database):
 
         for pdm in super().pdms():
             for guid, seq in self.seqs.items():
-                time.sleep(0.1)
+                time.sleep(2)
                 dna.examine(seq)
                 pdm.refcompressedseq_store(
                     guid, self.seqobj
@@ -665,7 +685,8 @@ class Test_SeqMeta_Base1t(Test_Database):
                     guid=guid, nameSpace="DNAQuality", annotDict=dna.composition
                 )
             res = set()
-            for (x,) in pdm.session.query(RefCompressedSeq.sequence_id).all():
+            tls = pdm.Session()
+            for (x,) in tls.query(RefCompressedSeq.sequence_id).all():
                 res.add(x)
             self.assertTrue(x, set(self.seqs.keys()))
             yield pdm
@@ -1023,6 +1044,15 @@ class Test_connect(Test_Database):
     def runTest(self):
         for pdm in self.pdms():
             pdm.connect()
+
+
+@rdbms_test
+class Test_closedown(Test_Database):
+    """tests close down of the database connections"""
+
+    def runTest(self):
+        for pdm in self.pdms():
+            pdm.closedown()
 
 
 @rdbms_test
