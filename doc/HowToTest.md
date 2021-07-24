@@ -18,16 +18,21 @@ Dependencies
 * Python >= 3.8.  
 You may need to install pip3 with: ```sudo apt-get install python3-pip```
 
-Note, Ubuntu 18 users, there is a [known issue](https://github.com/pypa/pipenv/issues/2122) and you may need to unisntall pip first, e.g.  
-```sudo python3 -m pip uninstall pip && sudo apt install python3-pip --reinstall```
-
-
 Database backend
 ----------------
+You can either use 
+* Mongo 4.4
+* A relational database; only Oracle ADW has been tested to date.
 
+### Mongo
 * Mongo 4.4 (note: tested at very large scale only on this version; 4.02 and 4.2 also appear to work at small scale)
 [These instructions](mongoinstall.md) describe installation of mongodb.
 This server has been tested both with a local mongodb database and with a free cloud instance of mongodb, Mongo Atlas.
+* For details of how to set up an Oracle Autonomous datawarehouse, please see Oracle's cloud documentation.
+
+### Oracle ADW
+* You need to install [dependencies]((https://cx-oracle.readthedocs.io/en/latest/user_guide/initialization.html)) of the python Oracle_cx (database connection) module. 
+* You need to set LD_LIBRARY_PATH in the python virtual environment, see below. 
 
 Clone git repository
 -----------------------
@@ -50,7 +55,8 @@ pipenv install . -e --skip-lock    # put fn4 packages in virtualenv (essential)
 
 Catwalk
 --------
-Catwalk is an external component which can be used by findneighbour4.  Doing so makes the system much faster.
+Catwalk is an external component which can be used by findneighbour4.  
+Using this is strongly recommended, but the server will run without it, albeit slower and with higher memory responses.
 Example:
 
 ```
@@ -67,21 +73,59 @@ echo CW_BINARY_FILEPATH=\"`pwd`/cw_server\" > ../../.env
 .env file
 ---------
 
-In the root of your directory, you will need to create a .env file.  This sets environment variables required for the code to run.  Because you are using a virtual environment, it has it's own environment variables.
+In the root of your directory, you will need to create a .env file.  This sets environment variables required for the code to run.   
+Because you are using a virtual environment, it has it's own environment variables.
 
 Here is an example:
 ```
 FN_SENTRY_URL="https://********************.ingest.sentry.io/*****"
 CW_BINARY_FILEPATH="/home/phe.gov.uk/david.wyllie/catwalk/cw_server"
 IQTREE="/home/phe.gov.uk/david.wyllie/software/iqtree-2.1.2-Linux/bin/iqtree2"
+FASTTREE_DIR="/data/software/fasttree"
+LD_LIBRARY_PATH="/data/software/instantclient_21_1"
+PCA_CONNECTION_CONFIG_FILE='/data/credentials/dbconfig.json'
+DB_CONNECTION_CONFIG_FILE='/data/credentials/dbconfig.json'
 ```
 
-All are optional, but the CW_BINARY_FILEPATH is required if (as is strongly recommended) you are using the catwalk comparison engine as part of findNeighbour4.
-FN_SENTRY_URL is an optional url for the sentry.io (error logging) service.  If present and Sentry.io (small free or paid service) configured, error logging will be collated there.    This is very useful for collating  & debugging server side errors.   If considering this, be aware that if identifiable data is in the server, errors trapped may be sent to the Sentry.io service.  
+### Required keys
+Two of these keys are required.  These are the following, and point to database credentials used for Oracle or other secure database connections.  These keys are required even if you're not keeping credentials in a file.  It's find for the credentials file referred to not to exist, but the environment variables have to be set.
 
-IQTREE is an optional path to the IQTREE executable, a tree drawing software.  For details, see http://www.iqtree.org/
+If you do want to use secure database connectivity, see TODO SECTION
+
+```
+PCA_CONNECTION_CONFIG_FILE='/data/credentials/dbconfig.json'
+DB_CONNECTION_CONFIG_FILE='/data/credentials/dbconfig.json'
+```
+
+### Oracle toolset location
+```
+LD_LIBRARY_PATH="/data/software/instantclient_21_1"
+```
+If you are using an Oracle database, you need to set LD_LIBRARY_PATH to point to where you've installed your Oracle connection software.  This has to be set in the .env file, not globally.  This is [required](https://cx-oracle.readthedocs.io/en/latest/user_guide/initialization.html) for Oracle_cx drivers.
 
 
+### Catwalk executable location
+, but the CW_BINARY_FILEPATH is required if (as is strongly recommended) you are using the catwalk comparison engine as part of findNeighbour4.
+```
+CW_BINARY_FILEPATH="/home/phe.gov.uk/david.wyllie/catwalk/cw_server"
+```
+
+### Sentry.io connection details
+```
+FN_SENTRY_URL="https://********************.ingest.sentry.io/*****"
+```
+FN_SENTRY_URL is an optional url for the [sentry.io](sentry.io) error logging service.  If present and Sentry.io (small free or paid service) configured, error logging will be collated there.    This is very useful for collating  & debugging server side errors.   If considering this, be aware that if identifiable data is in the server, errors trapped may be sent to the Sentry.io service. 
+
+### optional phylogenetics tools
+```
+IQTREE="/home/phe.gov.uk/david.wyllie/software/iqtree-2.1.2-Linux/bin/iqtree2"
+FASTTREE_DIR="/data/software/fasttree"
+```
+These are the locations of the iqtree and fasttree executable, which are used for tree reconstruction by some utility/experimental scripts in the server.  They are not required for server functioning.
+
+
+Virtual environment
+===================
 To run with a virtual environment, preface command with ```pipenv run ..```
 e.g.
 ```pipenv run python3 findNeighbour4_server.py```.
