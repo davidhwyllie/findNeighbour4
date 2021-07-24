@@ -22,7 +22,6 @@ from findn.rdbmsstore import (
 # skip these tests if the NORDBMSTESTS variable exists
 rdbms_test = unittest.skipIf(os.environ.get("NO_RDBMS_TESTS", False), "No rdbms tests")
 
-
 @rdbms_test
 class Test_Database(unittest.TestCase):
     """establishes database connection strings for cross-database testing.
@@ -46,9 +45,8 @@ class Test_Database(unittest.TestCase):
             conn_detail_file = os.environ["DB_CONNECTION_CONFIG_FILE"]
         except KeyError:
             # doesn't exist; we just run with sqlite, which is the default if engine is None.
-            print(
-                "No environment variable DB_CONNECTION_CONFIG_FILE found.  Testing with sqlite only."
-            )
+            pass
+
         if conn_detail_file is None:
             print(
                 "No environment variable DB_CONNECTION_CONFIG_FILE found.  Testing with sqlite only."
@@ -65,7 +63,7 @@ class Test_Database(unittest.TestCase):
                 conn_detail = json.load(f)
                 for key in conn_detail.keys():
                     if key.startswith("unittest_ora"):
-                        self.engines[key] = key
+                        self.engines[key] = key     # add it for testing
                         pass
 
         # define a sequence object for testing

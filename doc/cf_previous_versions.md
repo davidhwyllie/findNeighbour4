@@ -1,5 +1,8 @@
 
-# Comparison with findNeighbour2
+Comparisons with previous versions 
+==================================================
+
+## Comparison with findNeighbour2
 findNeighbour4 is a development of [findNeighbour2](https://github.com/davidhwyllie/findNeighbour2).
 findNeighbour4's RESTful API is backwards compatible with that of findNeighbour2, but offers increased functionality.  
 There are the following other differences:
@@ -13,10 +16,10 @@ There are the following other differences:
 * Internally, it has been refactored into four components, managing the web server, in-memory storage, on-disc storage, and clustering.
 * It is only accessible via a RESTful endpoint.  The xmlrpc API included with findNeighbour2 has been removed.
 
-# Comparison with findNeighbour3
+## Comparison with findNeighbour3
 The server has been much more heavily tested, and is much faster (>100x faster inserts) and uses about 5% of the RAM.  This is achieved using using a compiled component, [CatWalk](https://gitea.mmmoxford.uk/dvolk/catwalk.git), to store and compare sequences, developed by Denis Volk.
 
 
-# Contributors
+## Contributors
 It was produced as part of the [Modernising Medical Microbiology](http://modmedmicro.nsms.ox.ac.uk/) initiative, together with [Public Health England](https://www.gov.uk/government/organisations/public-health-england).
 

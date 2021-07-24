@@ -462,13 +462,16 @@ class fn3persistence_r:
         if connection_config is None:
             self.logger.info("Connection config is None: using in-memory sqlite.")
             self.engine_name = "sqlite://"
+
         elif "://" in connection_config:
+            # it's not None, and we assume what we are provided is an sqlalchemy database connection string
             self.logger.info(
                 "Connection config provided; using {0}".format(connection_config)
             )
             self.engine_name = connection_config
         else:
-            # DB_CONNECTION_CONFIG_FILE should contain credentials
+            # we have been passed a token.  this should be a key to a dictionary, stored in 
+            # DB_CONNECTION_CONFIG_FILE which contains credentials
             conn_detail_file = None
             try:
                 conn_detail_file = os.environ["DB_CONNECTION_CONFIG_FILE"]

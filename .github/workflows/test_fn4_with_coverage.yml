@@ -68,11 +68,6 @@ jobs:
         # back to original directory
         cd ../..
 
-    - name: Add pointers to absent Oracle database credentials
-      run: |
-        echo "PCA_CONNECTION_CONFIG_FILE='/data/credentials/dbconfig.json'" >> .env
-        echo "DB_CONNECTION_CONFIG_FILE='/data/credentials/dbconfig.json'" >> .env
-
     - name: Test with pytest
       run: |
         nohup pipenv run python3 findNeighbour4_server.py &

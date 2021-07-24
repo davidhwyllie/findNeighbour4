@@ -46,8 +46,6 @@ cx-Oracle = "*"
 statsmodels = "*"
 patsy = "*"
 pyqt5 = "*"
-pymysql = "*"
-mysqlclient = "*"
 
 [requires]
-python_version = "3.8"
+python_version = ">=3.8"
