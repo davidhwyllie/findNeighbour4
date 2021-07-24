@@ -1,8 +1,8 @@
 import unittest
 import os
+import pandas as pd
 from collections import Counter
 import shutil
-import pickle
 from tree.tree_utils import IQTree, ManipulateTree, DepictTree
 
 iqtree_requiring_test = unittest.skipIf(
@@ -115,8 +115,9 @@ class Test_DepictTree_1(unittest.TestCase):
 
         with open("testdata/ete3/test18.nwk", "rt") as f:
             treetxt = f.read()
-        with open("testdata/ete3/test18.pickle", "rb") as f:
-            metadata = pickle.load(f)
+        with open("testdata/ete3/test18.json", "rt") as f:
+            json_str = f.read()
+        metadata = pd.read_json(json_str)
 
         mt = DepictTree(treetxt, metadata)
         mt.render("unittest_tmp/test.png")  # svg output causes github actions to fail
