@@ -2,6 +2,7 @@ Testing
 =============================================
 instructions on how to install dependencies are [here](HowToTest.md)
 
+
 To run with a virtual environment, which is strongly recommended, preface command with   
 ```pipenv run ..```  
 e.g.  
@@ -49,7 +50,7 @@ nohup pipenv run python3 findNeighbour4_server.py configfile.json &
 ```  
 
 **Important**  
-* If {configfile.json} is omitted, then it will use a default config file, config/default_test_config.json.  This is suitable for unit testing, and other kinds of one-off tests. It expects a mongodb running on localhost on the default port.
+* If configfile.json is omitted, then it will use a default config file, config/default_test_config.json.  This is suitable for unit testing, and other kinds of one-off tests. It expects a mongodb running on localhost on the default port.
 It is **unsuitable for production**, because:  
 1 it runs the flask webserver in debug mode, which is insecure   
 2 all data is wiped on server restart because it is running in debug mode
