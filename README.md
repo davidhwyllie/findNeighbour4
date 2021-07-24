@@ -1,4 +1,4 @@
-[![Test findNeighbour4](https://github.com/davidhwyllie/findNeighbour4/actions/workflows/test_fn4.yml/badge.svg?branch=master)](https://github.com/davidhwyllie/findNeighbour4/actions/workflows/test_fn4.yml)
+[![Test findNeighbour4](https://github.com/davidhwyllie/findNeighbour4/actions/workflows/test_fn4_with_coverage.yml/badge.svg?branch=master)](https://github.com/davidhwyllie/findNeighbour4/actions/workflows/test_fn4_with_coverage.yml)
 
 # Abstract
 findNeighbour4 is a server application for investigating bacterial relatedness using reference-mapped data.
