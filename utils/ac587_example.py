@@ -32,7 +32,7 @@ if __name__ == "__main__":
         for record in SeqIO.parse(f, "fasta"):
             refSeq = str(record.seq)
     excludePositions = set()
-    with open("../reference/TB-exclude-adaptive.txt", "rt") as f:
+    with open("reference/TB-exclude-adaptive.txt", "rt") as f:
         rows = f.readlines()
         for row in rows:
             excludePositions.add(int(row))

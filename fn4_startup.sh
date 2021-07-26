@@ -95,9 +95,9 @@ echo "Starting dbmanager instance 8"
 nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset ef $1 > $MANLOG &
 sleep 5
 
-echo "Starting monitor"
-nohup pipenv run python3 findNeighbour4_monitor.py $1 > $MONLOG &
-sleep 5
+echo "Starting monitor [disabled until issue #71 is resolved]"
+#nohup pipenv run python3 findNeighbour4_monitor.py $1 > $MONLOG &
+#sleep 5
 echo "Starting clustering"
 nohup pipenv run python3 findNeighbour4_clustering.py $1 > $CLUSTLOG &
 sleep 5

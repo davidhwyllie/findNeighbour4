@@ -148,8 +148,8 @@ An example CONFIG is below:
 {
 "DESCRIPTION":"PHE fn4 covid test server",
 "IP":"127.0.0.1",
-"INPUTREF":"../reference/nc_045512.fasta",
-"EXCLUDEFILE":"../reference/covid-exclude.txt",
+"INPUTREF":"reference/nc_045512.fasta",
+"EXCLUDEFILE":"reference/covid-exclude.txt",
 "DEBUGMODE":0,
 "SERVERNAME":"PHE_covid_5",
 "FNPERSISTENCE_CONNSTRING":"mongodb://localhost",
@@ -163,7 +163,7 @@ An example CONFIG is below:
 "PRECOMPARER_PARAMETERS":{"selection_cutoff":5,"uncertain_base":"N_or_M",
 "over_selection_cutoff_ignore_factor":1,
 "catWalk_parameters":{"cw_binary_filepath":"","reference_name":"covid5snp",
-"reference_filepath":"../reference/nc_045512.fasta","mask_filepath":"../reference/covid-exclude.txt", "bind_port":5024, "bind_host":"localhost"}},
+"reference_filepath":"reference/nc_045512.fasta","mask_filepath":"reference/covid-exclude.txt", "bind_port":5024, "bind_host":"localhost"}},
 
 "CLUSTERING":{"SNV12_ignore":{"snv_threshold":12,"mixed_sample_management":"ignore","mixture_criterion":"p_value1","cutoff":0.001},
               "SNV12_include":{"snv_threshold":12,"mixed_sample_management":"include","mixture_criterion":"p_value1","cutoff":0.001}
