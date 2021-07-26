@@ -1,8 +1,8 @@
 {
 "DESCRIPTION":"A test server operating in on localhost for testing storage of large matrices.  There is very little RAM use, only matrix storage",
 "IP":"127.0.0.1",
-"INPUTREF":"../reference/TB-ref.fasta",
-"EXCLUDEFILE":"../reference/TB-exclude-adaptive.txt",
+"INPUTREF":"reference/TB-ref.fasta",
+"EXCLUDEFILE":"reference/TB-exclude-adaptive.txt",
 "DEBUGMODE":0,
 "SERVERNAME":"fn3_large_matrix",      
 "FNPERSISTENCE_CONNSTRING":"mongodb://localhost",

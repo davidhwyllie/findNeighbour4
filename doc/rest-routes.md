@@ -12,7 +12,7 @@ Search/describe sequences in the server
 -----------------------------------------------------------------------
 [/api/v2/guids](/api/v2/guids)  list all guids (sequence identifiers) in the server   
 [/api/v2/valid_guids](/api/v2/valid_guids)  list all guids (sequence identifiers) corresponding to valid sequences in the server.  Validity is computed on insertion, depending on whether the number of Ns or Ms exceed a cutoff provided in the configuration file.   
-[/api/v2/invalid_guids](/api/v2/valid_guids)  list all guids (sequence identifiers) corresponding to invalid sequences in the server.  Validity is computed on insertion, depending on whether the number of Ns or Ms exceed a cutoff provided in the configuration file.
+[/api/v2/invalid_guids](/api/v2/invalid_guids)  list all guids (sequence identifiers) corresponding to invalid sequences in the server.  Validity is computed on insertion, depending on whether the number of Ns or Ms exceed a cutoff provided in the configuration file.
 
 **/api/v2/guids_beginning_with/*startstr* **  list all guids starting with *startstr*.  Very fast algorithm, suitable for on-keypress prediction of matching guids.  Only up to 30 results are returned.  If more than 30 records match, an empty list is returned.  
 **/api/v2/guids_with_quality_over/*cutoff* ** list all guids with quality (proportion of Ns in the sequence) over *cutoff*    

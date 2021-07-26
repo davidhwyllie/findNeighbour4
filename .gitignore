@@ -1,4 +1,5 @@
-*.komodoproject
+
+findNeighbour4.egg-info
 .coverage
 coverage.xml
 htmlcov/

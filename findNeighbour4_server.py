@@ -174,8 +174,8 @@ class findNeighbour4:
         {
         "DESCRIPTION":"A test server operating in ../unittest_tmp, only suitable for testing",
         "IP":"127.0.0.1",
-        "INPUTREF":"../reference/TB-ref.fasta",
-        "EXCLUDEFILE":"../reference/TB-exclude.txt",
+        "INPUTREF":"reference/TB-ref.fasta",
+        "EXCLUDEFILE":"reference/TB-exclude.txt",
         "DEBUGMODE":0,
         "SERVERNAME":"TBSNP",
         "FNPERSISTENCE_CONNSTRING":"mongodb://127.0.0.1",

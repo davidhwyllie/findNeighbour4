@@ -163,7 +163,7 @@ python fn4_load_multifasta.py --help
     # add the reference sequence as the root if not already present
     ref_guid = "--Wuhan-Reference--"
     ref_guid_present = fn4c.guid_exists(ref_guid)
-    for record in Bio.SeqIO.parse("../reference/nc_045512.fasta", "fasta"):
+    for record in Bio.SeqIO.parse("reference/nc_045512.fasta", "fasta"):
         refseq = str(record.seq).upper()
         reflen = len(refseq)
 
