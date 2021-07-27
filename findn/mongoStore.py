@@ -772,8 +772,10 @@ class fn3persistence:
         Issues an error FileExistsError
         if the guid already exists."""
         pickled_obj = pickle.dumps(obj, protocol=2)
-        if guid in self.rcs.list():
+        res = self.db.refcompressedseq.files.find_one({"_id": guid}, {"_id": 1})
+        if res is not None:  # it exists
             raise FileExistsError("Attempting to overwrite {0}".format(guid))
+
         id = self.rcs.put(pickled_obj, _id=guid, filename=guid)
 
         # do a functional test to verify write
@@ -800,12 +802,12 @@ class fn3persistence:
         """loads guids from refcompressedseq collection."""
 
         # altered syntax because the .load() syntax previously used loaded > 16MB data and failed with > 600k samples
-        res = self.db.refcompressedseq.files.find({}, {'_id': 1})
+        res = self.db.refcompressedseq.files.find({}, {"_id": 1})
         guids = list()
         for item in res:
-            guids.append(item['_id'])
+            guids.append(item["_id"])
         return set(guids)
-        
+
     # methods for guid2meta
     def guid_annotate(self, guid: str, nameSpace: str, annotDict: dict) -> None:
         """adds multiple annotations of guid from a dictionary;

@@ -34,7 +34,6 @@ pkill -f "findNeighbour4_dbmanager.py --recompress_subset ab $1"
 pkill -f "findNeighbour4_dbmanager.py --recompress_subset cd $1" 
 pkill -f "findNeighbour4_dbmanager.py --recompress_subset ef $1" 
 
-exit 0
 echo "Stopping server"
 pkill -f "findNeighbour4_server.py $1" 
 
