@@ -41,6 +41,12 @@ To store the relationship between samples, it can use either
 The server can be accessed via RESTful web services from any language.
 A python client (fnclient), which calls the REST endpoints and converts output into python objects, is also provided.
 
+# Caution
+To date, this application has only been tested with the flask internal web server.  Deployment with a WSGI software (uWSGI/gunicorn) would likely raise performance.
+This has not been tested.  A key requirement of the server is that only one sample can be inserted at a time, something enforced with a threading module semaphore.
+However, whether this would still work in a (say) gunicorn based environment has not been tested; another form of semaphore (e.g. database based) may be needed.
+This is an area for future development.
+
 # Memory usage
 This depends on the kind of sequences stored.  
 RAM requirements with 630,000 SARS-CoV-2 genomes were about 2GB.  
