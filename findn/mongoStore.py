@@ -948,7 +948,7 @@ class fn3persistence:
         if method == "approximate":
 
             try:
-                results = self.db.guid2neighbour.aggregate(approximate_pipeline)
+                results = self.db.guid2neighbour.aggregate(approximate_pipeline, allowDiskUse=True)
             except pymongo.errors.OperationFailure:
                 # occurs if there are very few samples left; a random sample of the required size (in this case 100k) cannot be generated
                 method = "exact"
@@ -958,7 +958,7 @@ class fn3persistence:
                 fallback = True
 
         if method == "exact":
-            results = self.db.guid2neighbour.aggregate(exact_pipeline)
+            results = self.db.guid2neighbour.aggregate(exact_pipeline, allowDiskUse=True)
 
         ret_list = []
         for item in results:
