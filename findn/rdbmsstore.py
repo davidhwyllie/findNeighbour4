@@ -1359,8 +1359,8 @@ class fn3persistence_r:
         tls = (
             self.Session()
         )  # thread local session ; will be reused if need be transparently
-        if row := tls.query(RefCompressedSeq).filter_by(sequence_id=guid).first():
-            return self.sjc.from_json(row.content)
+        if rcs := tls.query(RefCompressedSeq.content).filter_by(sequence_id=guid).first():
+            return self.sjc.from_json(rcs.content)
         else:
             return None
 
@@ -1369,7 +1369,7 @@ class fn3persistence_r:
         tls = (
             self.Session()
         )  # thread local session ; will be reused if need be transparently
-        return set(res.sequence_id for res in tls.query(RefCompressedSeq))
+        return set(res.sequence_id for res in tls.query(RefCompressedSeq.sequence_id))
 
     def guid_annotate(self, guid: str, nameSpace: str, annotDict: dict) -> None:
         """adds multiple annotations of guid from a dictionary;
@@ -1448,7 +1448,7 @@ class fn3persistence_r:
         )  # thread local session ; will be reused if need be transparently
         return set(
             res.sequence_id
-            for res in tls.query(RefCompressedSeq).filter_by(invalid=validity)
+            for res in tls.query(RefCompressedSeq.sequence_id).filter_by(invalid=validity)
         )
 
     def singletons(
@@ -1481,7 +1481,7 @@ class fn3persistence_r:
             self.Session()
         )  # thread local session ; will be reused if need be transparently
         return (
-            tls.query(RefCompressedSeq).filter_by(sequence_id=guid).first() is not None
+            tls.query(RefCompressedSeq.sequence_id).filter_by(sequence_id=guid).first() is not None
         )
 
     def guid_valid(self, guid: str) -> int:
@@ -1498,7 +1498,7 @@ class fn3persistence_r:
         tls = (
             self.Session()
         )  # thread local session ; will be reused if need be transparently
-        if res := tls.query(RefCompressedSeq).filter_by(sequence_id=guid).first():
+        if res := tls.query(RefCompressedSeq.invalid).filter_by(sequence_id=guid).first():
             if res.invalid == 0:
                 return 0
             elif res.invalid == 1:
@@ -1523,7 +1523,7 @@ class fn3persistence_r:
         tls = (
             self.Session()
         )  # thread local session ; will be reused if need be transparently
-        if res := tls.query(RefCompressedSeq).filter_by(sequence_id=guid).first():
+        if res := tls.query(RefCompressedSeq.examination_date).filter_by(sequence_id=guid).first():
             return res.examination_date
         else:
             return None
@@ -1567,14 +1567,14 @@ class fn3persistence_r:
             return res.prop_actg >= cutoff
 
     def _guid2seq(self, guidList: Optional[List[str]]) -> Iterable[RefCompressedSeq]:
-        """returns the RefCompressedSeq for each guid in guidList
+        """returns the annotations, sequence_id and prop_actg from each RefCompressedSeq for each guid in guidList
         If guidList is None, all items are returned.
         """
         tls = (
             self.Session()
         )  # thread local session ; will be reused if need be transparently
-        if guidList is None:
-            return tls.query(RefCompressedSeq)
+        if guidList is None:        # rreturn everything
+            return tls.query(RefCompressedSeq.sequence_id, RefCompressedSeq.annotations, RefCompressedSeq.prop_actg, RefCompressedSeq.examination_date)
         else:
             return tls.query(RefCompressedSeq).filter(
                 RefCompressedSeq.sequence_id.in_(guidList)
@@ -1615,7 +1615,7 @@ class fn3persistence_r:
         tls = (
             self.Session()
         )  # thread local session ; will be reused if need be transparently
-        query = tls.query(RefCompressedSeq).filter(RefCompressedSeq.prop_actg >= cutoff)
+        query = tls.query(RefCompressedSeq.sequence_id, RefCompressedSeq.prop_actg).filter(RefCompressedSeq.prop_actg >= cutoff)
 
         return {res.sequence_id: res.prop_actg for res in query}
 
