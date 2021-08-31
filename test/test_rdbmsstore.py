@@ -1100,7 +1100,10 @@ class Test_refcompressedseq_store(Test_Database):
         for pdm in self.pdms():
             payload = self.seqobj
             pdm.refcompressedseq_store("guid", payload)
-            self.assertEqual(pdm.refcompressedsequence_read("guid"), payload)
+
+            readback = pdm.refcompressedsequence_read("guid")
+            self.assertEqual(readback, payload)
+
             self.assertEqual(pdm.guids(), {"guid"})
 
             payload = self.seqobj
