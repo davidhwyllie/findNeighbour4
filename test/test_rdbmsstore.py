@@ -17,8 +17,8 @@ from findn.rdbmsstore import (
     BulkLoadTest,
     RDBMSError,
     RefCompressedSeq,
+    Config
 )
-
 # skip these tests if the NORDBMSTESTS variable exists
 rdbms_test = unittest.skipIf(os.environ.get("NO_RDBMS_TESTS", False), "No rdbms tests")
 
@@ -176,6 +176,27 @@ class Test_oracle_bulk_upload_2(Test_Database):
                 pdm._bulk_load(empty_df, "fn4_bulk_load_test", max_batch=10)
 
 
+@rdbms_test
+class Test_Thread_Local_Session(Test_Database):
+    """ tests generation of a connection """
+
+    def runTest(self):
+        for pdm in self.pdms():
+            tls = pdm.thread_local_session()
+            # try it
+            tls.query(Config).one_or_none()
+            # should succeed
+
+            tls = pdm.thread_local_session(simulate_failure = 'once')
+            # try it
+            tls.query(Config).one_or_none()
+            # should succeed, because a functional session will be generated even if the first one 'failed'
+            # try it; should fail
+
+            with self.assertRaises(RDBMSError):
+                pdm.thread_local_session(simulate_failure = 'always')
+
+           
 @rdbms_test
 class Test_Server_Monitoring_0(Test_Database):
     """adds server monitoring info"""

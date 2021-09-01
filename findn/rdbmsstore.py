@@ -36,8 +36,9 @@ import psutil
 import logging
 import numpy as np
 import warnings
+import cx_Oracle
+from sentry_sdk import capture_message, capture_exception
 import progressbar
-
 from sqlalchemy import (
     Integer,
     Column,
@@ -71,7 +72,6 @@ from typing import (
     TypedDict,
     Union,
 )
-import cx_Oracle
 
 Guid2NeighboursFormat1 = List[Union[str, int]]
 Guid2NeighboursFormat3 = Union[str]
@@ -320,7 +320,6 @@ class NPEncoder(json.JSONEncoder):
         else:
             return super(NPEncoder, self).default(obj)
 
-
 class fn3persistence_r:
     """System for persisting results from  large numbers of sequences stored in FindNeighbour 3+.
     Uses a generic rdbms, with optimisations for Oracle databases when using the cx_oracle package.
@@ -540,11 +539,27 @@ class fn3persistence_r:
         # now we can start
         self.Base = db_pc
         self.logger.info("DatabaseManager: Connecting to database")
-        self.engine = create_engine(self.engine_name)
         self.is_oracle = "oracle+cx" in self.engine_name
         self.is_sqlite = "sqlite://" in self.engine_name
         self.show_bar = True  # maybe define a method to switch this off
 
+        # create engine
+        self.engine = create_engine(self.engine_name)   # sqlalchemy generic pool manager
+        
+        # oracle pool manager code 
+        # use cx_Oracle pool manager
+        #u, p, dsn = self.oracle_connstring_parts(self.engine_name)
+        #self.oracle_pool = cx_Oracle.SessionPool(
+        #    user = u,
+        #    password = p,
+        #    dsn = dsn,
+        #   min = 4, 
+        #    max = 4,
+        #    encoding="UTF-8", 
+        #    nencoding="UTF-8"
+        #)
+        #self.engine = create_engine("oracle://", creator = self.oracle_pool.acquire, poolclass = NullPool)
+        
         self.logger.info(
             "DatabaseManager: Database connection made; there are {0} tables.  Oracle database = {1}".format(
                 len(self._table_names()), self.is_oracle
@@ -579,7 +594,6 @@ class fn3persistence_r:
     def closedown(self):
         """closes the session(s) & disposes of any engine.
         Is required for unit testing"""
-
         try:
             self.engine.dispose()
         except Exception:
@@ -590,8 +604,55 @@ class fn3persistence_r:
         self.show_bar = False
 
     def _table_names(self):
-        """returns table names in the schema"""
+        """returns table names in the schema.  
+        If the schema's contents have not been created, returns an empty list"""
         return inspect(self.engine).get_table_names()
+
+    def thread_local_session(self, n_retries = 3, simulate_failure = 'no', log_errors = True):
+        """ generates, or selects a thread local session from a session factory or pool. 
+
+        For context, see https://docs.sqlalchemy.org/en/13/orm/contextual.html
+
+        Checks that the session recovered from the session pool is still valid, since they can time out.
+        If it is timed out, tries another.  Will retry up to n_retries times. 
+        
+        Parameters:
+        n_retries:  the number of attempts which will be made to generate a functional connection.
+        simulate_failure: simulates the failure of a connection (closes the connection before returning it) - used only for unittesting.  Valid values:
+                'no' : normal operation
+                'once': fail once
+                'always': fail every time, even on repeated attempts to connect
+        log_errors: logs any errors to sentry & error log (recommended) """
+        
+        tries = n_retries
+        while tries > 0:
+            tries = tries -1       
+            tls = self.Session()
+
+            # simulate failure if required to do so
+            if (simulate_failure == 'once' and tries -1 == n_retries) or (simulate_failure == 'always'):
+                tls = None  # not a session object.  Attempts to use it as such will fail.
+
+            # test whether it is working
+            try:
+                tls.query(Config).filter_by(config_key="config").first()        # try to connect
+
+                # if execution continues here, the session works         
+                return tls
+
+            except Exception as e:
+                logging.info("Failed to connect on trial {0}/{1}".format(n_retries - tries, n_retries))
+                if log_errors:
+                    capture_exception(e)
+                    logging.error(e)
+                try:
+                    tls.remove()
+                except Exception as e:
+                    capture_message("Failed to remove session")
+                    logging.info("Failed to remove session")
+                    logging.error(e)
+
+        raise RDBMSError("Could not connect to database.  Tried {0} times with different sessions".format(n_retries))
 
     def _drop_existing_tables(self):
         """empties, but does not drop, any existing tables"""
@@ -619,6 +680,16 @@ class fn3persistence_r:
             )
 
         return
+
+    def oracle_connstring_parts(self, connstring):
+        """ splits an oracle connection string into username, password and DSN"""
+        if connstring.startswith("oracle+cx_oracle://"):
+            e1 = self.engine_name.replace("oracle+cx_oracle://", "")
+            up, dns = e1.split("@")
+            u, p = up.split(":")
+            return u, p, dns
+        else:
+            return None
 
     def _bulk_load(self, upload_df, target_table, max_batch=100000):
         """bulk uploads pandas dataframes.
@@ -682,9 +753,8 @@ class fn3persistence_r:
         if self.is_oracle:
             # ************* commit via cx_Oracle bulk upload syntax ****************
             # parse the engine_name into dsn, database & password
-            e1 = self.engine_name.replace("oracle+cx_oracle://", "")
-            up, dsn = e1.split("@")
-            u, p = up.split(":")
+
+            u, p, dsn = self.oracle_connstring_parts(self.engine_name)
 
             # get into the right format for loading: note: holds all data in ram
             loadvar = list(upload_df.itertuples(index=False, name=None))
@@ -762,14 +832,13 @@ class fn3persistence_r:
 
     def delete_server_monitoring_entries(self, before_seconds: int) -> None:
         """deletes server monitoring entries more than before_seconds ago"""
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         earliest_allowed = datetime.now() - timedelta(seconds=before_seconds)
         tls.query(ServerMonitoring).filter(
             ServerMonitoring.upload_date < earliest_allowed
         ).delete()
         tls.commit()
+        # finished
 
     def summarise_stored_items(self) -> Dict[str, Any]:
         """counts how many sequences exist of various types"""
@@ -792,9 +861,7 @@ class fn3persistence_r:
     def _delete_existing_data(self) -> None:
         """deletes existing data from the databases"""
 
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
 
         tls.query(Config).delete()
         tls.query(Edge).delete()
@@ -806,21 +873,18 @@ class fn3persistence_r:
         tls.query(MSA).delete()
         tls.query(TreeStorage).delete()
         tls.commit()
+        # finished
 
     def _delete_existing_clustering_data(self) -> None:
         """deletes any clustering data from the databases"""
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         tls.query(Cluster).delete()
         tls.query(MSA).delete()
         tls.query(TreeStorage).delete()
 
     def first_run(self) -> bool:
         """if there is no config entry, it is a first-run situation"""
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         row = tls.query(Config).filter_by(config_key="config").first()
         return row is None
 
@@ -846,9 +910,7 @@ class fn3persistence_r:
             raise TypeError(
                 "Can only store dictionary objects, not {0}".format(type(object))
             )
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         if row := tls.query(Config).filter_by(config_key=key).first():
             row.config_value = json.dumps(object, cls=NPEncoder).encode("utf-8")
         else:
@@ -858,13 +920,12 @@ class fn3persistence_r:
             )
             tls.add(row)
         tls.commit()
+        # finished
 
     def config_read(self, key: str) -> Any:
         """loads object from config.
         It is assumed object is a dictionary"""
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         row = tls.query(Config).filter_by(config_key=key).first()
         if row is None:
             return None
@@ -930,9 +991,7 @@ class fn3persistence_r:
                 else:
                     return None
 
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         return [
             d
             for res in tls.query(ServerMonitoring)
@@ -955,9 +1014,7 @@ class fn3persistence_r:
             raise TypeError(
                 "Can only store dictionary objects, not {0}".format(type(content))
             )
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         now = dict(content)
         if what is not None:
             now["content|activity|whatprocess"] = what
@@ -996,6 +1053,7 @@ class fn3persistence_r:
             self.previous_server_monitoring_time = current_time
             self.previous_server_monitoring_data = now
             tls.commit()
+            # finished
             return True
         else:
             return False
@@ -1007,20 +1065,17 @@ class fn3persistence_r:
 
         if not isinstance(html, str):
             raise TypeError("Can only store string objects, not {0}".format(type(html)))
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         tls.query(Monitor).filter_by(mo_id=monitoring_id).delete()
 
         row = Monitor(mo_id=monitoring_id, content=html.encode("utf-8"))
         tls.add(row)
         tls.commit()
+        # finished
 
     def monitor_read(self, monitoring_id: str) -> Optional[str]:
         """loads stored string (e.g. html object) from the monitor collection."""
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         if res := tls.query(Monitor).filter_by(mo_id=monitoring_id).first():
             return self._to_string(res.content)
         else:
@@ -1029,9 +1084,7 @@ class fn3persistence_r:
     # methods for multisequence alignments
     def msa_store(self, msa_token: str, msa: dict) -> Optional[str]:
         """stores the msa object msa under token msa_token."""
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         if not isinstance(msa, dict):
             raise TypeError(
                 "Can only store dictionary objects, not {0}".format(type(msa))
@@ -1051,9 +1104,7 @@ class fn3persistence_r:
     def msa_read(self, msa_token: str) -> Optional[dict]:
         """loads object from msa collection.
         It is assumed object is a dictionary"""
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         if res := tls.query(MSA).filter_by(msa_id=msa_token).first():
             return json.loads(res.content)
         else:
@@ -1061,26 +1112,22 @@ class fn3persistence_r:
 
     def msa_delete(self, msa_token: str) -> None:
         """deletes the msa with token msa_token"""
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         tls.query(MSA).filter_by(msa_id=msa_token).delete()
         tls.commit()
+        # finished
 
     def msa_stored_ids(self) -> List[str]:
         """returns a list of msa tokens of all objects stored"""
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         return [res.msa_id for res in tls.query(MSA)]
 
     def msa_delete_unless_whitelisted(self, whitelist: Iterable[str]) -> None:
         """deletes the msa unless the id is in whitelist"""
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         tls.query(MSA).filter(MSA.msa_id.not_in(whitelist)).delete()
         tls.commit()
+        # finished
 
     # methods for trees
 
@@ -1094,9 +1141,7 @@ class fn3persistence_r:
                 "Can only store dictionary objects, not {0}".format(type(tree))
             )
 
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
 
         if tls.query(TreeStorage).filter_by(ts_id=tree_token).one_or_none() is None:
             row = TreeStorage(
@@ -1110,9 +1155,7 @@ class fn3persistence_r:
     def tree_read(self, tree_token: str) -> Optional[dict]:
         """loads object from tree collection.
         It is assumed object is a dictionary"""
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         if res := tls.query(TreeStorage).filter_by(ts_id=tree_token).first():
             return json.loads(res.content)
         else:
@@ -1120,26 +1163,21 @@ class fn3persistence_r:
 
     def tree_delete(self, tree_token: str) -> None:
         """deletes the tree with token tree_token"""
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         tls.query(TreeStorage).filter_by(ts_id=tree_token).delete()
         tls.commit()
 
     def tree_stored_ids(self) -> List[str]:
         """returns a list of tree tokens of all objects stored"""
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         return [res.ts_id for res in tls.query(TreeStorage)]
 
     def tree_delete_unless_whitelisted(self, whitelist: Iterable[str]) -> None:
         """deletes the tree unless the id is in whitelist"""
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         tls.query(TreeStorage).filter(TreeStorage.ts_id.not_in(whitelist)).delete()
         tls.commit()
+        # finished
 
     # methods for clusters
     def cluster_store(self, clustering_key: str, obj: dict) -> int:
@@ -1154,9 +1192,7 @@ class fn3persistence_r:
         Note: does not replace previous version, but stores a new one.
         Note: to delete legacy versions, call cluster_delete_legacy().
         """
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         if not isinstance(obj, dict):
             raise TypeError(f"Can only store dictionary objects, not {type(obj)}")
 
@@ -1168,6 +1204,7 @@ class fn3persistence_r:
         )
         tls.add(cluster)
         tls.commit()
+        # finished
         return cluster.cl_int_id
 
     def cluster_read(self, clustering_key: str) -> Optional[dict]:
@@ -1180,9 +1217,7 @@ class fn3persistence_r:
         Returns:
         the clustering information, in the form of a dictionary if it exists, or None if it does not
         """
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         if (
             res := tls.query(Cluster)
             .filter_by(cluster_build_id=clustering_key)
@@ -1208,9 +1243,7 @@ class fn3persistence_r:
         Returns:
         the clustering information, in the form of a dictionary if it exists, or None if it does not
         """
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         if (
             res := tls.query(Cluster)
             .filter_by(cluster_build_id=clustering_key)
@@ -1230,9 +1263,7 @@ class fn3persistence_r:
         Returns:
         cl_int_id, the primary key to the cluster table"""
 
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         if (
             res := tls.query(func.max(Cluster.cl_int_id))
             .filter(Cluster.cluster_build_id == clustering_key)
@@ -1246,9 +1277,7 @@ class fn3persistence_r:
     def cluster_keys(self, clustering_name: Optional[str] = None) -> List[str]:
         """lists  clustering keys beginning with clustering_name.  If clustering_name is none, all clustering keys are returned."""
 
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         if clustering_name:
             return list(
                 sorted(
@@ -1267,9 +1296,7 @@ class fn3persistence_r:
         """lists ids and storage dates corresponding to versions of clustering identifed by clustering_key.
         the newest version is first.
         """
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         return list(
             tls.query(Cluster)
             .filter_by(cluster_build_id=clustering_key)
@@ -1278,17 +1305,14 @@ class fn3persistence_r:
 
     def cluster_delete_all(self, clustering_key: str) -> None:
         """delete all clustering objects, including the latest version, stored under clustering_key"""
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         tls.query(Cluster).filter(Cluster.cluster_build_id == clustering_key).delete()
         tls.commit()
+        # finished
 
     def cluster_delete_legacy_by_key(self, clustering_key: str) -> None:
         """delete all clustering objects, except latest version, stored with key clustering_key"""
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         cl_int_ids = set()
         for (cl_int_id,) in tls.query(Cluster.cl_int_id).filter_by(
             cluster_build_id=clustering_key
@@ -1302,6 +1326,7 @@ class fn3persistence_r:
                 if not this_cl_int_id == latest_cl_int_id:
                     tls.query(Cluster).filter_by(cl_int_id=this_cl_int_id).delete()
         tls.commit()
+        # finished
 
     def cluster_delete_legacy(self, clustering_name: str) -> None:
         """delete all clustering objects, except latest version, stored with  clustering_name"""
@@ -1321,9 +1346,7 @@ class fn3persistence_r:
         }
 
         If the guid already exists in the database, ignores the request silently."""
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         if not isinstance(obj, dict):
             raise TypeError(
                 "Can only store dictionary objects, not {0}".format(type(obj))
@@ -1352,13 +1375,12 @@ class fn3persistence_r:
                 )
             )
         tls.commit()
+        # finished
 
     def refcompressedsequence_read(self, guid: str) -> Any:
         """loads object from refcompressedseq collection.
         It is assumed object stored is a dictionary"""
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         if rcs := tls.query(RefCompressedSeq.content).filter_by(sequence_id=guid).first():
             return self.sjc.from_json(rcs.content)
         else:
@@ -1366,18 +1388,14 @@ class fn3persistence_r:
 
     def refcompressedsequence_guids(self) -> Set[str]:
         """loads guids from refcompressedseq collection."""
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         return set(res.sequence_id for res in tls.query(RefCompressedSeq.sequence_id))
 
     def guid_annotate(self, guid: str, nameSpace: str, annotDict: dict) -> None:
         """adds multiple annotations of guid from a dictionary;
         all annotations go into a namespace.
         updates the annotation if it exists"""
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         if not isinstance(annotDict, dict):
             raise TypeError(
                 "Can only store dictionary objects, not {0}".format(type(annotDict))
@@ -1412,6 +1430,7 @@ class fn3persistence_r:
         rcs.annotations = json.dumps(annotations).encode("utf-8")
 
         tls.commit()
+        # finished
 
     def guids(self) -> Set[str]:
         """returns all registered guids"""
@@ -1420,9 +1439,7 @@ class fn3persistence_r:
     def guids_considered_after(self, addition_datetime: datetime) -> Set[str]:
         """returns all registered guid added after addition_datetime
         addition_datetime: a date of datetime class."""
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         if not isinstance(addition_datetime, datetime):
             raise TypeError(
                 "addition_datetime must be a datetime value.  It is {0}.  Value = {1}".format(
@@ -1443,9 +1460,7 @@ class fn3persistence_r:
         1 = guid is invalid
 
         """
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         return set(
             res.sequence_id
             for res in tls.query(RefCompressedSeq.sequence_id).filter_by(invalid=validity)
@@ -1477,9 +1492,7 @@ class fn3persistence_r:
 
     def guid_exists(self, guid: str) -> bool:
         """checks the presence of a single guid"""
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         return (
             tls.query(RefCompressedSeq.sequence_id).filter_by(sequence_id=guid).first() is not None
         )
@@ -1495,9 +1508,7 @@ class fn3persistence_r:
         0    The guid exists and the sequence is valid
         1    The guid exists and the sequence is invalid
         """
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         if res := tls.query(RefCompressedSeq.invalid).filter_by(sequence_id=guid).first():
             if res.invalid == 0:
                 return 0
@@ -1520,9 +1531,7 @@ class fn3persistence_r:
         The examination datetime value for this guid OR
         None if the guid does not exist
         """
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         if res := tls.query(RefCompressedSeq.examination_date).filter_by(sequence_id=guid).first():
             return res.examination_date
         else:
@@ -1545,9 +1554,7 @@ class fn3persistence_r:
         If the guid does exist and has quality< cutoff, returns False.
         Otherwise, returns True.
         """
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         # test input
         if not type(cutoff) in [float, int]:
             raise TypeError(
@@ -1570,9 +1577,7 @@ class fn3persistence_r:
         """returns the annotations, sequence_id and prop_actg from each RefCompressedSeq for each guid in guidList
         If guidList is None, all items are returned.
         """
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         if guidList is None:        # rreturn everything
             return tls.query(RefCompressedSeq.sequence_id, RefCompressedSeq.annotations, RefCompressedSeq.prop_actg, RefCompressedSeq.examination_date)
         else:
@@ -1612,9 +1617,7 @@ class fn3persistence_r:
 
         This query is potentially very inefficient- best avoided
         """
-        tls = (
-            self.Session()
-        )  # thread local session ; will be reused if need be transparently
+        tls = self.thread_local_session()
         query = tls.query(RefCompressedSeq.sequence_id, RefCompressedSeq.prop_actg).filter(RefCompressedSeq.prop_actg >= cutoff)
 
         return {res.sequence_id: res.prop_actg for res in query}
