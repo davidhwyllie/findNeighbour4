@@ -48,6 +48,9 @@ echo "NOHUP_LOGGING is $NOHUP_LOGGING (1= enabled)"
 # checksum the config file
 MD5CHECKSUM=`md5sum $1 | cut -d' ' -f1`
 
+# launch script file
+LAUNCHSCRIPT=fn4server_launch_$MD5CHECKSUM.sh
+
 # get the output directory from the config file
 LOGDIR=`python3 get_log_dir_from_config_file.py $1`
 
@@ -67,8 +70,13 @@ if [ $NOHUP_LOGGING -eq 0 ]; then
 	CLUSTLOG="/dev/null"
 fi
 
-echo "Starting server"
-nohup pipenv run python3 findNeighbour4_server.py $1 > $SRVLOG &
+echo "Starting server with 4 worker processes (remove --n_workers 8 from start script to autopick)"
+pipenv run python3 configure.py $1 --n_workers 8 > $LAUNCHSCRIPT
+chmod +x $LAUNCHSCRIPT
+
+echo "running $LAUNCHSCRIPT"
+nohup ./$LAUNCHSCRIPT $1 > $SRVLOG &
+
 sleep 5
 echo "Starting dbmanager instance 1"
 nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset 01 $1 > $MANLOG &
@@ -112,5 +120,6 @@ echo $CLUSTLOG
 if [ $NOHUP_LOGGING -eq 0 ]; then
 	echo "Either use the parameter NO_NOHUP_LOGGING  (recommended) or (2) arrange log rotation of the nohup output using the linux logrotate command, see: https://support.rackspace.com/how-to/understanding-logrotate-utility/"
 fi
-	 
+
+rm $LAUNCHSCRIPT    # temporary file	 
 exit 0

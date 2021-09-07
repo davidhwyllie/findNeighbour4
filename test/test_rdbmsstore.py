@@ -1186,3 +1186,28 @@ class Test_guid2items(Test_Database):
                 pdm.guid2item(None, "ns2", "datum"), {"guid1": 2, "guid2": 3}
             )
             self.assertEqual(pdm.guid2item(["guid1"], "ns1", "datum"), {"guid1": 1})
+
+@rdbms_test
+class Test_lock(Test_Database):
+    """tests locking.  
+    
+    Note: does not test concurrent operations"""
+
+    def runTest(self):
+
+        for pdm in self.pdms():
+
+            self.assertTrue(pdm.unlock(1, force= True))
+            self.assertEqual(0, pdm.lock_status(1).lock_status)
+            self.assertTrue(pdm.unlock(0, force= True))
+            self.assertEqual(0, pdm.lock_status(0).lock_status)
+
+            self.assertTrue(pdm.lock(1))        # lock open; should succeed
+            self.assertEqual(1, pdm.lock_status(1).lock_status)
+            self.assertTrue(pdm.lock(0))        # lock open; should succeed          
+            self.assertFalse(pdm.lock(1))        # lock closed; should fail         
+            self.assertEqual(1, pdm.lock_status(1).lock_status)
+            
+            self.assertTrue(pdm.unlock(1))        # lock closed should succeed
+            self.assertEqual(0, pdm.lock_status(1).lock_status)
+            

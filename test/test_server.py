@@ -127,7 +127,7 @@ class test_reset(unittest.TestCase):
         res = do_GET(relpath)
         n_pre = len(json.loads(str(res.text)))  # get all the guids
 
-        guid_to_insert = "guid_{0}".format(n_pre + 1)
+        guid_to_insert = "guid_r_{0}".format(n_pre + 1)
 
         inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, "rt") as f:
@@ -259,10 +259,10 @@ class test_cl2network(unittest.TestCase):
             seq = originalseq
             if i % 2 == 0:
                 is_mixed = True
-                guid_to_insert = "mixed_{0}".format(n_pre + i)
+                guid_to_insert = "mixed_cl2_{0}".format(n_pre + i)
             else:
                 is_mixed = False
-                guid_to_insert = "nomix_{0}".format(n_pre + i)
+                guid_to_insert = "nomix_cl2_{0}".format(n_pre + i)
             # make i mutations at position 500,000
 
             offset = 500000
@@ -812,7 +812,7 @@ class test_get_all_guids_examination_time_1(unittest.TestCase):
         res = do_GET(relpath)
         n_pre = len(json.loads(str(res.text)))  # get all the guids
 
-        guid_to_insert = "guid_{0}".format(n_pre + 1)
+        guid_to_insert = "guid_gaget_{0}".format(n_pre + 1)
 
         inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, "rt") as f:
@@ -926,7 +926,7 @@ class test_clusters_sample(unittest.TestCase):
         res = do_GET(relpath)
         n_pre = len(json.loads(str(res.text)))  # get all the guids
 
-        guid_to_insert = "guid_{0}".format(n_pre + 1)
+        guid_to_insert = "guid_cls_{0}".format(n_pre + 1)
 
         inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, "rt") as f:
@@ -1063,7 +1063,7 @@ class test_what_tested(unittest.TestCase):
         res = do_GET(relpath)
         n_pre = len(json.loads(str(res.text)))  # get all the guids
 
-        guid_to_insert = "guid_{0}".format(n_pre + 1)
+        guid_to_insert = "guid_wt_{0}".format(n_pre + 1)
 
         inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, "rt") as f:
@@ -1121,7 +1121,7 @@ class test_g2c(unittest.TestCase):
 
             n_pre = len(json.loads(str(res.text)))  # get all the guids
             res = do_GET(relpath)
-            guid_to_insert = "guid_{0}".format(n_pre + 1)
+            guid_to_insert = "guid_g2c_{0}".format(n_pre + 1)
 
             inputfile = "COMPASS_reference/R39/R00000039.fasta"
             with open(inputfile, "rt") as f:
@@ -1172,7 +1172,7 @@ class test_clusters2cnt(unittest.TestCase):
         res = do_GET(relpath)
         n_pre = len(json.loads(str(res.text)))  # get all the guids
 
-        guid_to_insert = "guid_{0}".format(n_pre + 1)
+        guid_to_insert = "guid_c2cnt2_{0}".format(n_pre + 1)
 
         inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, "rt") as f:
@@ -1282,7 +1282,7 @@ class test_g2ca(unittest.TestCase):
         res = do_GET(relpath)
         n_pre = len(json.loads(str(res.text)))  # get all the guids
 
-        guid_to_insert = "guid_{0}".format(n_pre + 1)
+        guid_to_insert = "guid_g2ca_{0}".format(n_pre + 1)
 
         inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, "rt") as f:
@@ -1404,7 +1404,7 @@ class test_insert_1(unittest.TestCase):
         res = do_GET(relpath)
         n_pre = len(json.loads(str(res.text)))  # get all the guids
 
-        guid_to_insert = "guid_{0}".format(n_pre + 1)
+        guid_to_insert = "guid_i1_{0}".format(n_pre + 1)
 
         inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, "rt") as f:
@@ -1454,7 +1454,7 @@ class test_insert_10(unittest.TestCase):
                 originalseq = list(str(record.seq))
 
         for i in range(1, 10):
-            guid_to_insert = "guid_{0}".format(n_pre + i)
+            guid_to_insert = "guid_i10_{0}".format(n_pre + i)
 
             seq = originalseq
             # make i mutations at position 500,000
@@ -1510,7 +1510,7 @@ class test_insert_10a(unittest.TestCase):
                 originalseq = list(str(record.seq))
 
         for i in range(1, 10):
-            guid_to_insert = "guid_{0}".format(n_pre + i)
+            guid_to_insert = "guid_10a_{0}".format(n_pre + i)
 
             seq = originalseq
             # make i mutations at position 500,000
@@ -1571,10 +1571,10 @@ class test_insert_60(unittest.TestCase):
             seq = originalseq
             if i % 5 == 0:
                 is_mixed = True
-                guid_to_insert = "mixed_{0}".format(n_pre + i)
+                guid_to_insert = "mixed_60_{0}".format(n_pre + i)
             else:
                 is_mixed = False
-                guid_to_insert = "nomix_{0}".format(n_pre + i)
+                guid_to_insert = "nomix_60_{0}".format(n_pre + i)
             # make i mutations at position 500,000
 
             offset = 500000
@@ -1995,8 +1995,8 @@ class test_sequence_5(unittest.TestCase):
             for record in SeqIO.parse(f, "fasta"):
                 seq2 = str(record.seq)
 
-        guid_to_insert1 = "guid_{0}".format(n_pre + 1)
-        guid_to_insert2 = "guid_{0}".format(n_pre + 2)
+        guid_to_insert1 = "guid_5_{0}".format(n_pre + 1)
+        guid_to_insert2 = "guid_5_{0}".format(n_pre + 2)
 
         seq1 = "R" * 4411532
         # print("Adding TB reference sequence of {0} bytes with {1} Rs".format(len(seq1), seq1.count('R')))

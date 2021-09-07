@@ -19,16 +19,20 @@ echo "Terminating $pid"
 kill -9 $pid
 done
 
-
 # startup the server
 echo "Starting test findNeighbour servers to run tests with; waiting 15 seconds to ensure it has started  .."
-nohup pipenv run python3 findNeighbour4_server.py config/default_test_config.json &
-nohup pipenv run python3 findNeighbour4_server.py config/default_test_config_rdbms.json &
+echo "starting mongodb server with gunicorn and 4 workers"
+rm test_startup.sh -f
+pipenv run python3 configure.py config/default_test_config.json --prepare --n_workers 4 > test_startup.sh
+chmod +x test_startup.sh
+./test_startup.sh
+
+#echo "starting rdbms server with werkzeug"
+#nohup pipenv run python3 findNeighbour4_server.py config/default_test_config_rdbms.json &
 sleep 15 # wait for them to start
 
 pipenv run pytest test
 #pipenv run python3 -m unittest test/test_server_rdbms.py
-
 
 # shut down any running test servers
 echo "Terminating any running findneighbour4 processes"
@@ -45,3 +49,7 @@ for pid in $(pgrep -f CatWalk-PORT-599); do
 echo "$pid"
 kill -9 $pid
 done
+
+# remove test script
+rm test_startup.sh
+

@@ -17,6 +17,7 @@ by the Free Software Foundation.  See <https://opensource.org/licenses/MIT>, and
 import bson  # type: ignore
 import datetime
 import json
+import uuid
 import pandas as pd  # type: ignore
 import logging
 import pymongo  # type: ignore
@@ -144,6 +145,7 @@ class fn3persistence:
             "msa.files",
             "tree.chunks",
             "tree.files",
+            "fnlock",
         ]
         self.expected_clustering_collections = [
             "clusters.chunks",
@@ -312,7 +314,7 @@ class fn3persistence:
             return False
 
     def __del__(self) -> None:
-        """closes any session"""
+        """closes any existing session"""
         self.closedown()
 
     def closedown(self) -> None:
@@ -948,7 +950,9 @@ class fn3persistence:
         if method == "approximate":
 
             try:
-                results = self.db.guid2neighbour.aggregate(approximate_pipeline, allowDiskUse=True)
+                results = self.db.guid2neighbour.aggregate(
+                    approximate_pipeline, allowDiskUse=True
+                )
             except pymongo.errors.OperationFailure:
                 # occurs if there are very few samples left; a random sample of the required size (in this case 100k) cannot be generated
                 method = "exact"
@@ -958,7 +962,9 @@ class fn3persistence:
                 fallback = True
 
         if method == "exact":
-            results = self.db.guid2neighbour.aggregate(exact_pipeline, allowDiskUse=True)
+            results = self.db.guid2neighbour.aggregate(
+                exact_pipeline, allowDiskUse=True
+            )
 
         ret_list = []
         for item in results:
@@ -1690,3 +1696,106 @@ class fn3persistence:
 
         # recover the guids
         return {"guid": guid, "neighbours": retVal}
+
+    def _set_lock_status(self, lock_int_id, lock_status):
+        """locks or unlocks resources identified by lock_int_id, allowing cross- process sequential processing (e.g. insertion)
+
+        To lock, set lock_status =1 ; to unlock, set lock_status =0
+        To return the relevant row, set lock_status to None
+
+        See the acquire_lock() method for more details
+
+        returns:
+        True if update succeeded, false if it did not
+
+        Technical notes:
+        https://www.mongodb.com/blog/post/how-to-select--for-update-inside-mongodb-transactions
+
+        """
+        # make sure there is an entry for this lock
+        lock_row = self.db.fnlock.find_one({"_id": lock_int_id})
+
+        # if the row doesn't exist, we add it, with the lock not set.
+        if lock_row is None:
+            lock_row = dict(
+                _id=lock_int_id,
+                lock_status=0,
+                lock_set_date=datetime.datetime.now(),
+                uuid=uuid.uuid4().hex,
+            )
+            self.db.fnlock.insert_one(lock_row)
+
+        # analyse the record for this row
+        with self.client.start_session(causal_consistency=True):
+            self.db.fnlock.update_one(
+                {"_id": lock_int_id}, {"$set": {"uuid": uuid.uuid4().hex}}
+            )  # this places a lock on the result, becuase it has been modified.  Attempts to write by other transactions will yield errors.
+            lock_row = self.db.fnlock.find_one({"_id": lock_int_id})
+            if lock_status is None:
+                retval = lock_row
+
+            if lock_row["lock_status"] == 0 and lock_status == 0:
+                # it's already unlocked
+                retval = True
+
+            elif lock_row["lock_status"] == 1 and lock_status == 1:
+                # it's already locked and we're asked to acquire a lock.  We can't.
+                retval = False
+
+            elif lock_row["lock_status"] == 0 and lock_status == 1:
+                # it's already unlocked, we can lock
+                lock_row["lock_status"] = 1
+                lock_row["lock_set_date"] = datetime.datetime.now()
+                lock_row["uuid"] = uuid.uuid4().hex
+                self.db.fnlock.replace_one({"_id": lock_int_id}, lock_row)
+                retval = True
+
+            elif lock_row["lock_status"] == 1 and lock_status == 0:
+                lock_row["lock_status"] = 0
+                lock_row["lock_set_date"] = datetime.datetime.now()
+                lock_row["uuid"] = uuid.uuid4().hex
+                self.db.fnlock.replace_one({"_id": lock_int_id}, lock_row)
+                retval = True
+
+            return retval
+
+    def lock_status(self, lock_int_id):
+        """determine whether a database-based lock is open (0) or closed (1).
+
+        Parameters:
+        lock_int_id: an integer identifier to the lock of interest
+
+        Returns:
+        0 if the lock is open
+        1 if it is locked"""
+
+        return self._set_lock_status(lock_int_id, None)
+
+    def lock(self, lock_int_id):
+        """obtains a database-based lock.
+
+        Parameters:
+        lock_int_id: an integer identifier to the lock of interest
+
+        Returns:
+        True if the lock is acquired
+        False if it is not"""
+
+        return self._set_lock_status(lock_int_id, 1)
+
+    def unlock(self, lock_int_id, force=False):
+        """obtains a database-based lock.
+
+        Parameters:
+        lock_int_id: an integer identifier to the lock of interest
+        force: if True, will unlock irrespective of current status, returning True
+
+        Returns:
+        True if the lock is acquired
+        False if it is not"""
+
+        res = self._set_lock_status(lock_int_id, 0)
+        if force:
+            return True
+        else:
+            return res
