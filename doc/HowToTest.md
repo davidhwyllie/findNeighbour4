@@ -26,24 +26,30 @@ You can either use
 * A relational database; only Oracle ADW has been tested to date.
 
 ### Mongo
-* Mongo 4.4 (note: tested at very large scale only on this version; 4.02 and 4.2 also appear to work at small scale)
+* Mongo 4.4 (note: tested at very large scale only on this version)
 [These instructions](mongoinstall.md) describe installation of mongodb.
 This server has been tested both with a local mongodb database and with a free cloud instance of mongodb, Mongo Atlas.
-* For details of how to set up an Oracle Autonomous datawarehouse, please see Oracle's cloud documentation.
 
 ### Oracle ADW
-In brief
+* For details of how to set up an Oracle Autonomous datawarehouse, please see Oracle's cloud documentation.
+In addition
 * You need to install [dependencies]((https://cx-oracle.readthedocs.io/en/latest/user_guide/initialization.html)) of the python Oracle_cx (database connection) module. 
 * You need to set LD_LIBRARY_PATH in the python virtual environment, see below.
 See [details](configuring_oracle_connections.md)  
 
-In addition, later
+Later
 * You need to configure a user for the database correctly
 * You need to provide credentials in a configuration file used by FindNeighbour4.
 Read on, and also [here](configuring_oracle_connections.md) how to do these steps.  
 
+Running multiple findneighbour4 servers on the same machine
+-----------------------------------------------------------
+You can run multiple findneighbour4 servers on the same physical or virtual machine.  To do so, you need to arrange the following:
+* Each server should be started from its own virtual environment.  Do not use try to use a common virtual environment for all your servers; each findneighbour4 instance writes instance-specific information to a .env file, and there can only be one such in each virtual environment.
+* Ensure that the ports (both for the server and catwalk) differ between instances.  You cannot run two findneighbour servers on the same port.  This is configured in a config/ file (see below)
+
 Clone git repository
------------------------
+---------------------
 Optionally, set a proxy: inform git of the proxy's location, depending whether there is one:
 ```
 git config --global http.proxy http://[ip of proxy]
@@ -64,14 +70,17 @@ A pipenv Pipfile is provided which specifies dependencies.  See also [here](depe
 ```
 cd /mydir/fn4       # or whatever you've installed into
 pipenv install --skip-lock         # can lock but is slow
-pipenv install --skip-lock -e .    # put fn4 packages in virtualenv (essential)
+pipenv install --skip-lock -e .    # put fn4 packages in virtualenv 
 ```
 
 Catwalk
 --------
-Catwalk is an external component which can be used by findneighbour4.  
-Using this is strongly recommended, but the server will run without it, albeit slower and with higher memory requirements.
-Example:
+Catwalk is an external component which can be used by findneighbour4.  Using this is strongly recommended, but the server will run without it, but with much degraded performance.  Doing so is only really appropriate for small scale testing.
+* it will run much slower
+* it will have higher memory requirements
+* servers without catwalk cannot be used with gunicorn  
+
+Installation Example:
 
 ```
 mkdir external_software       # or wherever you want catwalk to go

@@ -49,7 +49,7 @@ echo "NOHUP_LOGGING is $NOHUP_LOGGING (1= enabled)"
 MD5CHECKSUM=`md5sum $1 | cut -d' ' -f1`
 
 # launch script file
-LAUNCHSCRIPT=fn4server_launch_$MD5CHECKSUM.sh
+LAUNCHSCRIPT="fn4server_launch_${MD5CHECKSUM}.sh"
 
 # get the output directory from the config file
 LOGDIR=`python3 get_log_dir_from_config_file.py $1`
@@ -70,7 +70,7 @@ if [ $NOHUP_LOGGING -eq 0 ]; then
 	CLUSTLOG="/dev/null"
 fi
 
-echo "Starting server with 4 worker processes (remove --n_workers 8 from start script to autopick)"
+echo "Starting server with 8 worker processes (remove --n_workers 8 from start script to autopick)"
 pipenv run python3 configure.py $1 --n_workers 8 > $LAUNCHSCRIPT
 chmod +x $LAUNCHSCRIPT
 
@@ -106,6 +106,7 @@ sleep 5
 echo "Starting monitor [disabled until issue #71 is resolved]"
 #nohup pipenv run python3 findNeighbour4_monitor.py $1 > $MONLOG &
 #sleep 5
+
 echo "Starting clustering"
 nohup pipenv run python3 findNeighbour4_clustering.py $1 > $CLUSTLOG &
 sleep 5

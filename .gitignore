@@ -23,4 +23,5 @@ flake8*
 Pipfile.lock
 fn4server_launch*.sh
 start_script.sh
+test_startup.sh
 

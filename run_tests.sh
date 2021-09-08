@@ -21,14 +21,13 @@ done
 
 # startup the server
 echo "Starting test findNeighbour servers to run tests with; waiting 15 seconds to ensure it has started  .."
-echo "starting mongodb server with gunicorn and 4 workers"
+echo "starting mongodb server with gunicorn and 1 workers.  Note you cannot run these unittests with > 1 workers"
+echo "because each worker initialises the database on creation, which causes worker initiation to fail."
 rm test_startup.sh -f
-pipenv run python3 configure.py config/default_test_config.json --prepare --n_workers 4 > test_startup.sh
+pipenv run python3 configure.py config/default_test_config.json --prepare --n_workers 1 > test_startup.sh
 chmod +x test_startup.sh
 ./test_startup.sh
-
-#echo "starting rdbms server with werkzeug"
-#nohup pipenv run python3 findNeighbour4_server.py config/default_test_config_rdbms.json &
+rm test_startup.sh 
 sleep 15 # wait for them to start
 
 pipenv run pytest test
@@ -40,16 +39,22 @@ for pid in $(pgrep -f config/default_test_config.json); do
 echo "Terminating $pid"
 kill -9 $pid
 done
-for pid in $(pgrep -f config/default_test_config_rdbms.json); do 
-echo "Terminating $pid"
-kill -9 $pid
-done
 echo "Terminating any running test catwalk  processes"
 for pid in $(pgrep -f CatWalk-PORT-599); do 
 echo "$pid"
 kill -9 $pid
 done
 
-# remove test script
-rm test_startup.sh
 
+# code to test on Oracle server, if access configured
+#rm test_startup.sh -f
+#pipenv run python3 configure.py config/default_test_config.json --prepare --n_workers 1 > test_startup.sh
+#chmod +x test_startup.sh
+#./test_startup.sh
+#rm test_startup.sh 
+#sleep 15
+#pipenv run pytest test/test_server.py
+#for pid in $(pgrep -f config/default_test_config_rdbms.json); do 
+#echo "Terminating $pid"
+#kill -9 $pid
+#done

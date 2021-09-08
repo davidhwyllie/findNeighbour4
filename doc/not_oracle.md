@@ -40,7 +40,7 @@ class Test_Database(unittest.TestCase):
         # NOTE: accessing a database test_db, with user root and password root; known issues, see above.
 ```
 
-Thus, if you uncomment the line
+Thus, if you uncomment the line, which is provided as an example (we have not fully tested mysql with findneighbour4, and cannot guarantee it will work)
 
 ```
 # self.engines["mysql"] = "mysql+pymysql://root:root@localhost:3306/test_db"
@@ -51,7 +51,7 @@ The code will run all unit tests against a mysql on localhost, authenticating by
 ``` 
 pipenv install MySQL-python --skip-lock
 ```
-but no other changes shold be needed.  
+but no other changes shold be needed to start testing.  
 
 Please let us know if you have success with other databases.
 

@@ -312,7 +312,7 @@ class findNeighbour4:
         self._load_in_memory_data()
 
     def _load_in_memory_data(self):
-        """ loads in memory data into the hybridComparer object from database storage """
+        """ loads in memory data into the hybridComparer object (which may include catwalk) from database storage """
 
         # set up clustering
         # clustering is performed by findNeighbour4_cluster, and results are stored in the database backend
@@ -358,10 +358,10 @@ class findNeighbour4:
                 bar.update(nLoaded)
 
                 if nLoaded % 100 == 0:
-                    self.server_monitoring_store(message="Server restarting; loaded {0} from database ..".format(nLoaded))
+                    self.server_monitoring_store(message="Populating hybridcomparer; loaded {0} from database ..".format(nLoaded))
 
             bar.finish()
-            logging.info("findNeighbour4 has finished loaded {0} sequences from database".format(len(guids)))
+            logging.info("findNeighbour4 has finished loaded {0} sequences from database into a hybridcomparer".format(len(guids)))
 
         self.server_monitoring_store(message="Load from database complete.")
 
@@ -679,7 +679,7 @@ class findNeighbour4:
         return self.PERSIST.guid_annotation(guid)
 
     def sequence(self, guid):
-        """ gets masked sequence for the guid, in format sequence|fasta """
+        """ gets masked sequence for the guid, in fasta format"""
         if not self.hc.iscachedinram(guid):
             return None
         try:
@@ -751,7 +751,6 @@ def create_app(config_file = None):
         To test the server, edit the config/default_test_config_rdbms.json file's "FNPERSISTENCE_CONNSTRING": connection string to
         point to an suitable database.  For more details of how to do this, see installation instructions on github.""")
     # instantiate server class
-    print("Loading sequences into server, please wait ...")
     try:
         fn = findNeighbour4(CONFIG, PERSIST)
     except Exception as e:
@@ -1082,7 +1081,7 @@ def create_app(config_file = None):
         interactive
         """
 
-        # validate input
+        # validate input; update clustering
         try:
             fn.clustering[clustering_algorithm].refresh()
         except KeyError:
@@ -1536,13 +1535,7 @@ def create_app(config_file = None):
             # no clustering algorithm of this type
             abort(404, "no clustering algorithm {0} (failed update)".format(clustering_algorithm))
 
-        try:
-
-            res = fn.clustering[clustering_algorithm].uncertain_base_type
-        except KeyError:
-            # no clustering algorithm of this type
-            abort(404, "no clustering algorithm {0} (failed base recovery)".format(clustering_algorithm))
-
+        res = fn.clustering[clustering_algorithm].uncertain_base_type
         return make_response(tojson({"what_tested": res, "clustering_algorithm": clustering_algorithm}))
 
     @app.route("/api/v2/clustering/<string:clustering_algorithm>/change_id", methods=["GET"])
@@ -1569,12 +1562,9 @@ def create_app(config_file = None):
         g2e = fn.get_all_guids_examination_time()
 
         # recover all cluster membership
-        fn.clustering[clustering_algorithm].refresh()
-        cl2guids = fn.clustering[clustering_algorithm].cluster2guid
 
         try:
             fn.clustering[clustering_algorithm].refresh()
-
         except KeyError:
             app.logger.info("No algorithm {0}".format(clustering_algorithm))
             abort(404, "no clustering algorithm {0}".format(clustering_algorithm))
@@ -1582,6 +1572,7 @@ def create_app(config_file = None):
             app.logger.info("Never ran {0}".format(clustering_algorithm))
             abort(421, "never ran clustering algorithm {0}".format(clustering_algorithm))
 
+        cl2guids = fn.clustering[clustering_algorithm].cluster2guid
         c2g = fn.clustering[clustering_algorithm].clusters2guidmeta(after_change_id=change_id)
         res = []
 
@@ -1589,18 +1580,6 @@ def create_app(config_file = None):
 
             item["examinationTime"] = g2e[item["guid"]]
             item["clusterSize"] = len(cl2guids[item["cluster_id"]])
-
-            # this is too low for large scale querying
-            # recover all the neighbours, irrespective of SNP distance
-            # neighbours = fn.neighbours_within_filter(item['guid'], 1e7, CONFIG['MAXN_PROP_DEFAULT'], 4)
-            # dists = []
-            # for neighbour in neighbours:
-            #    dists.append(neighbour['snv'])
-            # min_snp = '-'
-            # nneighbours = len(dists)
-            # if nneighbours > 0:
-            #   min_snp = min(dists)
-            # item['closestNeighbourSNVs'] = min_snp
 
             res.append(item)
 
