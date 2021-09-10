@@ -48,6 +48,12 @@ patsy = "*"
 pyqt5 = "*"
 gunicorn = "*"
 sqlalchemy = "*"
+aiohttp = "*"
+asyncio = "*"
 
 [requires]
 python_version = "3.8"
+
+[packages.e1839a8]
+path = "."
+editable = true

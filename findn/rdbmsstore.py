@@ -906,6 +906,7 @@ class fn3persistence_r:
         tls.query(Cluster).delete()
         tls.query(MSA).delete()
         tls.query(TreeStorage).delete()
+        tls.query(FNLock).delete()
         tls.commit()
         # finished
 
