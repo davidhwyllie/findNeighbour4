@@ -1,3 +1,0 @@
-[tool.setuptools_scm]
-write_to = "version.py"
-
