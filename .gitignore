@@ -26,3 +26,4 @@ start_script.sh
 test_startup.sh
 version.py
 .eggs
+findNeighbour4.egg-info/
