@@ -17,7 +17,11 @@
 #MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #GNU Affero General Public License for more details.
 
-#
+# set version
+echo "Setting software version from git repo."
+python3 setup.py --version
+
+# start server
 if [ $# -gt 0 ]; then
     echo "findNeighbour4 startup script; using config file $1"
 else

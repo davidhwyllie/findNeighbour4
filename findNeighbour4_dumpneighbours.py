@@ -22,6 +22,7 @@ import logging
 import logging.handlers
 import pandas as pd
 import sentry_sdk
+from version import version
 import argparse
 import progressbar
 import json
@@ -121,7 +122,7 @@ Checks for new sequences are conducted once per minute.
     # launch sentry if API key provided
     if "SENTRY_URL" in CONFIG.keys():
         logger.info("Launching communication with Sentry bug-tracking service")
-        sentry_sdk.init(CONFIG["SENTRY_URL"])
+        sentry_sdk.init(CONFIG["SENTRY_URL"], release=version)
 
     ##################################################################################################
     # open PERSIST 

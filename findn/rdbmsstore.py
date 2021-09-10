@@ -39,6 +39,7 @@ import warnings
 import uuid
 import cx_Oracle
 from sentry_sdk import capture_message, capture_exception
+
 import progressbar
 from sqlalchemy import (
     Integer,

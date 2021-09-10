@@ -40,6 +40,7 @@ import time
 from collections import Counter
 from fn4client import fn4Client
 import sentry_sdk
+from version import version
 
 ## define functions and classes
 class DatabaseMonitorInoperativeError(Exception):
@@ -148,7 +149,7 @@ python fn4_load_multifasta.py --help
     # launch comms with Sentry
     if os.environ.get("FN_SENTRY_URL") is not None:
         logger.info("Launching communication with Sentry bug-tracking service")
-        sentry_sdk.init(os.environ.get("FN_SENTRY_URL"))
+        sentry_sdk.init(os.environ.get("FN_SENTRY_URL"), release=version)
         logger.info("Sentry comms established")
     else:
         logger.info("No error monitoring via sentry.  Set environment variable FN_SENTRY_URL to do so.")

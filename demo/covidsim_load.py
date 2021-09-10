@@ -37,28 +37,31 @@ import logging.handlers
 import argparse
 import warnings
 import pandas as pd
+import sentry_sdk
 from collections import Counter
 import uuid
-import sentry_sdk
-from findn.mongoStore import fn3persistence
 from findn.common_utils import ConfigManager
-from pca.pca import VariantMatrix, PCARunner
 from fn4client import fn4Client
-
 import aiohttp
 import asyncio
 
 http_results = {}
+
+
 async def fetch(session, url):
     async with session.get(url) as response:
         return await response.text()
+
 
 async def main(urls):
     async with aiohttp.ClientSession() as session:
         for url in urls:
             http_response = await fetch(session, url)
             token = uuid.uuid4().hex
-            http_results[token] = dict(url = url, response= http_response, response_time = datetime.datetime.now())
+            http_results[token] = dict(
+                url=url, response=http_response, response_time=datetime.datetime.now()
+            )
+
 
 ## define functions and classes
 class DatabaseMonitorInoperativeError(Exception):
@@ -197,7 +200,9 @@ if __name__ == "__main__":
         print("After resetting, there remain {0} samples".format(len(existing_guids)))
 
         if len(existing_guids) > 0:
-            warnings.warn("More than 0 guids remain on startup: {0}".format(len(existing_guids)))
+            warnings.warn(
+                "More than 0 guids remain on startup: {0}".format(len(existing_guids))
+            )
 
         # add the reference sequence as the root if not already present
         ref_guid = "--Reference--"
@@ -247,7 +252,7 @@ if __name__ == "__main__":
                 **counter,
                 "is_variant": is_variant,
             }
-            if not sample_id in existing_guids:
+            if sample_id not in existing_guids:
                 records.append(res)
 
         logger.info(
@@ -283,11 +288,11 @@ if __name__ == "__main__":
     start_time = datetime.datetime.now()
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main(urls))
-    res = pd.DataFrame.from_dict(http_results, orient='index')
-    res['start_time'] = start_time
-    res['delta'] = res['response_time'] - res['start_time']
-    res['msec'] = [1000 * x.total_seconds() for x in res['delta']]
+    res = pd.DataFrame.from_dict(http_results, orient="index")
+    res["start_time"] = start_time
+    res["delta"] = res["response_time"] - res["start_time"]
+    res["msec"] = [1000 * x.total_seconds() for x in res["delta"]]
     print(res)
-    print(res['msec'].to_list())
+    print(res["msec"].to_list())
     # finished
     logging.info("Finished, terminating program.")

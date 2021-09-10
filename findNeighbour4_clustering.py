@@ -28,6 +28,7 @@ import sentry_sdk
 import argparse
 import progressbar
 import time
+from version import version
 
 # logging
 import logging
@@ -143,7 +144,7 @@ Checks for new sequences are conducted once per minute.
     # launch sentry if API key provided
     if "SENTRY_URL" in CONFIG.keys():
         logger.info("Launching communication with Sentry bug-tracking service")
-        sentry_sdk.init(CONFIG["SENTRY_URL"])
+        sentry_sdk.init(CONFIG["SENTRY_URL"], release=version)
 
     ########################### read file containing labels, if it exists ##########
     relabel = False

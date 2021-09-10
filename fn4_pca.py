@@ -46,6 +46,7 @@ import warnings
 import datetime
 from pathlib import Path
 import sentry_sdk
+from version import version
 import argparse
 import shutil
 import progressbar
@@ -267,7 +268,7 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
 
     if "SENTRY_URL" in CONFIG.keys():
         logger.info("Launching logger")
-        sentry_sdk.init(CONFIG["SENTRY_URL"])
+        sentry_sdk.init(CONFIG["SENTRY_URL"], release=version)
 
     # prepare to connection
     logging.info("Connecting to backend data store")

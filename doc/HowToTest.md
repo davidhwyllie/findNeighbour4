@@ -61,6 +61,12 @@ git clone https://github.com/davidhwyllie/findNeighbour4.git
 ```
 
 After this, please follow the below steps.
+Set version
+------------
+```
+python3 setup.py --version
+```
+
 
 Virtual environments and dependencies
 -------------------------------------
@@ -70,7 +76,8 @@ A pipenv Pipfile is provided which specifies dependencies.  See also [here](depe
 ```
 cd /mydir/fn4       # or whatever you've installed into
 pipenv install --skip-lock         # can lock but is slow
-pipenv install --skip-lock -e .    # put fn4 packages in virtualenv 
+pipenv install --skip-lock -e .    # put fn4 packages in virtualenv; this is essential for effective imports
+
 ```
 
 Catwalk

@@ -44,6 +44,7 @@ import pandas as pd
 from collections import Counter
 from fn4client import fn4Client
 import sentry_sdk
+from version import version
 from findn.mongoStore import fn3persistence
 from findn.common_utils import ConfigManager
 from pca.pca import VariantMatrix, PCARunner
@@ -169,7 +170,7 @@ if __name__ == "__main__":
     # launch comms with Sentry
     if os.environ.get("FN_SENTRY_URL") is not None:
         logger.info("Launching communication with Sentry bug-tracking service")
-        sentry_sdk.init(os.environ.get("FN_SENTRY_URL"))
+        sentry_sdk.init(os.environ.get("FN_SENTRY_URL"), release=version)
         logger.info("Sentry comms established")
     else:
         logger.info(
