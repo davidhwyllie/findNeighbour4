@@ -574,7 +574,7 @@ class fn3persistence_r:
         #    user = u,
         #    password = p,
         #    dsn = dsn,
-        #   min = 4,
+        #    min = 4,
         #    max = 4,
         #    encoding="UTF-8",
         #    nencoding="UTF-8"
@@ -1374,14 +1374,14 @@ class fn3persistence_r:
 
         Parameters:
         guid:  the sequence identifer
-        obj:   a reference compressed sequence representation, as produced by seqComparer.compress().
+        obj:   a reference compressed sequence representation, as produced by py_seqComparer.compress().
         Here is an example:
 
         {
             'A':set([1,2,3]), 'C':set([6]), 'T':set([4]), 'G':set([5]), 'M':{11:'Y', 12:'k'}, 'invalid':0
         }
 
-        If the guid already exists in the database, ignores the request silently."""
+        If the guid already exists in the database, raises a FileExistsError, as is the case with the mongo client."""
         tls = self.thread_local_session()
         if not isinstance(obj, dict):
             raise TypeError(
@@ -1399,7 +1399,7 @@ class fn3persistence_r:
             .filter_by(sequence_id=guid)
             .one_or_none()
         )
-        if res is None:
+        if res is None:     # it doesn't exits
             tls.add(
                 RefCompressedSeq(
                     sequence_id=guid,
@@ -1410,7 +1410,10 @@ class fn3persistence_r:
                     annotations=json.dumps({}),
                 )
             )
-        tls.commit()
+            tls.commit()
+        else:  # it does exist
+            raise FileExistsError("Attempting to overwrite {0}".format(guid))
+
         # finished
 
     def refcompressedsequence_read(self, guid: str) -> Any:

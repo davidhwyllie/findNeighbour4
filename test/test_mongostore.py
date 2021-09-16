@@ -688,6 +688,11 @@ class Test_SeqMeta_guid_valid_1(unittest.TestCase):
         res = p.guid_valid("noguid")
         self.assertEqual(res, -1)
 
+        valid_guids = p.guids_valid()
+        self.assertEqual(valid_guids, set(['valid']))
+        invalid_guids = p.guids_invalid()
+        self.assertEqual(invalid_guids, set(['invalid']))
+
 
 @mongo_test
 class Test_SeqMeta_guid_valid_2(unittest.TestCase):

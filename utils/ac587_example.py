@@ -5,7 +5,7 @@ An example command doing this would be
 pipenv run python3 findNeighbour4_server.py demos/AC587/config/config_nocl.json
 
 The test loads the server with data from the AC587 test data
-and compares the SNP distances and links with those from a seqComparer
+and compares the SNP distances and links with those from a py_seqComparer
 instance.
 
 """
@@ -14,7 +14,7 @@ import os
 import glob
 import datetime
 from fn4client import fn4Client
-from seqComparer import seqComparer
+from py_seqComparer import py_seqComparer
 from preComparer import preComparer
 from Bio import SeqIO
 
@@ -26,7 +26,7 @@ if __name__ == "__main__":
     # instantiate findNeighbour client
     fn4c = fn4Client()  # expects operation on local host; pass baseurl if somewhere else.
 
-    # instantiate seqComparer
+    # instantiate py_seqComparer
     inputfile = "../COMPASS_reference/R39/R00000039.fasta"
     with open(inputfile, "rt") as f:
         for record in SeqIO.parse(f, "fasta"):
@@ -37,7 +37,7 @@ if __name__ == "__main__":
         for row in rows:
             excludePositions.add(int(row))
 
-    sc = seqComparer(
+    sc = py_seqComparer(
         reference=refSeq,
         snpCeiling=2e6,
         maxNs=130000,
@@ -60,7 +60,7 @@ if __name__ == "__main__":
     # reset server
     fn4c.reset()
 
-    # add fasta files to both server and seqComparer instance.
+    # add fasta files to both server and py_seqComparer instance.
     guids = set()
     for i, fastafile in enumerate(glob.glob(os.path.join(fastadir, "controls", "*.mfasta.gz"))):
         guid = os.path.basename(fastafile).replace(".mfasta.gz", "")

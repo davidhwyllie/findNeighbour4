@@ -30,7 +30,11 @@ from urllib.parse import urljoin as urljoiner
 
 RESTBASEURL = "http://127.0.0.1:5020"
 
-print("Running unit tests against a server expected to be operational on {0}".format(RESTBASEURL))
+print(
+    "Running unit tests against a server expected to be operational on {0}".format(
+        RESTBASEURL
+    )
+)
 ISDEBUG = True
 LISTEN_TO = "127.0.0.1"  # only local addresses
 
@@ -316,6 +320,10 @@ class test_msa_2(unittest.TestCase):
     """tests route /api/v2/multiple_alignment/guids, with additional samples."""
 
     def runTest(self):
+
+        relpath = "/api/v2/reset"
+        res = do_POST(relpath, payload={})
+
         relpath = "/api/v2/guids"
         res = do_GET(relpath)
         n_pre = len(json.loads(str(res.text)))  # get all the guids
@@ -669,6 +677,9 @@ class test_server_memory_usage_1(unittest.TestCase):
 
     def runTest(self):
 
+        relpath = "/api/v2/reset"
+        res = do_POST(relpath, payload={})
+
         # default: response should be json
         relpath = "/api/v2/server_memory_usage"
         res = do_GET(relpath)
@@ -693,6 +704,10 @@ class test_server_memory_usage_2(unittest.TestCase):
 
     def runTest(self):
         # default: response should be html
+
+        relpath = "/api/v2/reset"
+        res = do_POST(relpath, payload={})
+
         relpath = "/api/v2/server_memory_usage/1/html"
         res = do_GET(relpath)
         self.assertEqual(res.status_code, 200)
@@ -710,6 +725,9 @@ class test_server_database_usage(unittest.TestCase):
 
     def runTest(self):
 
+        relpath = "/api/v2/reset"
+        res = do_POST(relpath, payload={})
+
         relpath = "/api/v2/server_database_usage"
         res = do_GET(relpath)
         self.assertEqual(res.status_code, 200)
@@ -724,9 +742,11 @@ class test_snpceiling(unittest.TestCase):
     """tests route /api/v2/snpceiling"""
 
     def runTest(self):
-        res = "/api/v2/reset"
-        relpath = "/api/v2/snpceiling"
+
+        relpath = "/api/v2/reset"
         res = do_POST(relpath, payload={})
+
+        relpath = "/api/v2/snpceiling"
 
         res = do_GET(relpath)
         self.assertTrue(isjson(content=res.content))
@@ -739,6 +759,10 @@ class test_server_time(unittest.TestCase):
     """tests route /api/v2/server_time"""
 
     def runTest(self):
+
+        relpath = "/api/v2/reset"
+        res = do_POST(relpath, payload={})
+
         relpath = "/api/v2/server_time"
         res = do_GET(relpath)
         # print(res)
@@ -752,6 +776,9 @@ class test_server_name(unittest.TestCase):
     """tests route /api/v2/server_name"""
 
     def runTest(self):
+        relpath = "/api/v2/reset"
+        res = do_POST(relpath, payload={})
+
         relpath = "/api/v2/server_name"
         res = do_GET(relpath)
 

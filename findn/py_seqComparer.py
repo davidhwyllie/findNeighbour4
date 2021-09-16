@@ -16,11 +16,13 @@ import hashlib
 import json
 import numpy as np
 from scipy.stats import binom_test
+import datetime
 import pandas as pd
 from collections import Counter
+from findn.msa import MSAResult
 
 
-class seqComparer:
+class py_seqComparer:
     def __init__(
         self,
         reference,
@@ -53,7 +55,7 @@ class seqComparer:
         David Wyllie, Nov 2018
 
         - to run unit tests, do
-        python3 -m unittest seqComparer
+        python3 -m unittest py_seqComparer
         """
 
         # we support three kinds of sequences.
@@ -1017,41 +1019,20 @@ class seqComparer:
             retDict = {
                 "variant_positions": ordered_variant_positions,
                 "invalid_guids": invalid_guids,
-                "what_tested": [uncertain_base_type] * len(df.index),
-                "guid2sequence": guid2seq,
-                "guid2allN": guid2all["N"],
-                "guid2allM": guid2all["M"],
-                "guid2allN_or_M": guid2all["N_or_M"],
-                "guid2msa_seq": guid2msa_seq,
-                "guid2observed_proportion": guid2observed_p,
-                "guid2expected_p1": guid2expected_p1,
-                "guid2expected_p2": guid2expected_p2,
-                "guid2expected_p3": guid2expected_p3,
-                "guid2expected_p4": guid2expected_p4,
-                "guid2pvalue1": guid2pvalue1,
-                "guid2pvalue2": guid2pvalue2,
-                "guid2pvalue3": guid2pvalue3,
-                "guid2pvalue4": guid2pvalue4,
-                "guid2alignN": guid2align["N"],
-                "guid2alignM": guid2align["M"],
-                "guid2alignN_or_M": guid2align["N_or_M"],
+                "valid_guids": valid_guids,
+                "expected_p1": expected_p1,
+                "sample_size": sample_size,
+                "df_dict": df.to_dict(orient="index"),
+                "what_tested": uncertain_base_type,
+                "outgroup": "",
+                "creation_time": datetime.datetime.now().isoformat(),
+                "fconst": fconst_dict,
             }
+
+            return MSAResult(**retDict)
 
         else:
             return None
-
-        if output == "dict":
-            return retDict
-        elif output == "df":
-            return df
-        elif output == "df_dict":
-            return df.to_dict(orient="index")
-        else:
-            raise ValueError(
-                "Don't know how to format {0}.  Valid options are:'df','df_dict', 'dict'".format(
-                    output
-                )
-            )
 
     def raise_error(self, token):
         """raises a ZeroDivisionError, with token as the message.

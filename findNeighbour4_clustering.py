@@ -37,10 +37,15 @@ import logging.handlers
 # startup
 from findn.persistence import Persistence
 from findn.msa import MSAStore
-from findn.hybridComparer import hybridComparer
+from findn.cw_seqComparer import cw_seqComparer
+from findn.py_seqComparer import py_seqComparer
 from findn.common_utils import ConfigManager
 
-from snpclusters.ma_linkage import MixtureAwareLinkage, MixPOREMixtureChecker, MixtureAwareLinkageResult
+from snpclusters.ma_linkage import (
+    MixtureAwareLinkage,
+    MixPOREMixtureChecker,
+    MixtureAwareLinkageResult,
+)
 from snpclusters.clusternomenclature import ClusterNameAssigner, ClusterNomenclature
 
 
@@ -70,7 +75,12 @@ Checks for new sequences are conducted once per minute.
 """,
     )
     parser.add_argument(
-        "path_to_config_file", type=str, action="store", nargs="?", help="the path to the configuration file", default=""
+        "path_to_config_file",
+        type=str,
+        action="store",
+        nargs="?",
+        help="the path to the configuration file",
+        default="",
     )
     parser.add_argument(
         "--rebuild_clusters_debug",
@@ -125,10 +135,16 @@ Checks for new sequences are conducted once per minute.
 
     # configure logging object
     logger.setLevel(loglevel)
-    logfile = os.path.join(logdir, "clustering-{0}".format(os.path.basename(CONFIG["LOGFILE"])))
+    logfile = os.path.join(
+        logdir, "clustering-{0}".format(os.path.basename(CONFIG["LOGFILE"]))
+    )
     print("Logging to {0} with rotation".format(logfile))
-    file_handler = logging.handlers.RotatingFileHandler(logfile, mode="a", maxBytes=1e7, backupCount=7)
-    formatter = logging.Formatter("%(asctime)s | %(pathname)s:%(lineno)d | %(funcName)s | %(levelname)s | %(message)s ")
+    file_handler = logging.handlers.RotatingFileHandler(
+        logfile, mode="a", maxBytes=1e7, backupCount=7
+    )
+    formatter = logging.Formatter(
+        "%(asctime)s | %(pathname)s:%(lineno)d | %(funcName)s | %(levelname)s | %(message)s "
+    )
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
 
@@ -150,7 +166,11 @@ Checks for new sequences are conducted once per minute.
     relabel = False
     if args.label_clusters_using is not None:
         if os.path.exists(args.label_clusters_using):
-            print("File of cluster labels {0} exists; reading it".format(args.label_clusters_using))
+            print(
+                "File of cluster labels {0} exists; reading it".format(
+                    args.label_clusters_using
+                )
+            )
             label_df = pd.read_excel(args.label_clusters_using)
             relabel = True
             existing_labels = set()
@@ -162,7 +182,9 @@ Checks for new sequences are conducted once per minute.
             previous_guid2cluster_label = {}
             for ix in label_df.index:
                 existing_labels.add(label_df.at[ix, "label"])
-                previous_guid2cluster_label[label_df.at[ix, "guid"]] = [label_df.at[ix, "label"]]
+                previous_guid2cluster_label[label_df.at[ix, "guid"]] = [
+                    label_df.at[ix, "label"]
+                ]
             existing_labels = list(existing_labels)
             logging.info(
                 "Relabelling samples based on existing labels. In existing data, {0} guids have {1} labels".format(
@@ -175,21 +197,24 @@ Checks for new sequences are conducted once per minute.
 
     logger.info("Connecting to backend data store")
     pm = Persistence()
-    PERSIST = pm.get_storage_object(dbname=CONFIG["SERVERNAME"], connString=CONFIG["FNPERSISTENCE_CONNSTRING"], debug=0, verbose=True)
+    PERSIST = pm.get_storage_object(
+        dbname=CONFIG["SERVERNAME"],
+        connString=CONFIG["FNPERSISTENCE_CONNSTRING"],
+        debug=0,
+        verbose=True,
+    )
 
     if args.rebuild_clusters_debug:
-        logger.warning("Wiping existing clustering data as --rebuild_clusters_debug is set")
+        logger.warning(
+            "Wiping existing clustering data as --rebuild_clusters_debug is set"
+        )
         PERSIST._delete_existing_clustering_data()
         logger.warning("Wiped existing clustering data")
     else:
         logger.info("Working with existing data ... ")
 
-    ################################# clustering #############################################
-    # open PERSIST and hybridComparer object used by all samples
-    # this is only used for data access and msa.
-    # inserts are not allowed
-    logger.info("Building hybridComparer object")
-    hc = hybridComparer(
+    ##################### open a catwalk connection.  this is used to compute expected Ns ####
+    hc = cw_seqComparer(
         reference=CONFIG["reference"],
         maxNs=CONFIG["MAXN_STORAGE"],
         snpCeiling=CONFIG["SNPCEILING"],
@@ -199,6 +224,11 @@ Checks for new sequences are conducted once per minute.
         disable_insertion=True,
     )
 
+    ################################# clustering #############################################
+    # open PERSIST and cw_seqComparer object used by all samples
+    # this is only used for data access and msa.
+    # inserts are not allowed
+
     # get a clustering object's settings
     logger.info("Creating clustering objects ...")
     clusterers = {}
@@ -207,7 +237,9 @@ Checks for new sequences are conducted once per minute.
     for clustering_name in CONFIG["CLUSTERING"].keys():
         clustering_setting = CONFIG["CLUSTERING"][clustering_name]
 
-        mpmc = MixPOREMixtureChecker(hc, **clustering_setting)  # uses hybridComparer to load samples and compute msas
+        mpmc = MixPOREMixtureChecker(
+            hc, **clustering_setting
+        )  # uses cw_seqComparer to load samples and compute msas
 
         # check update adds remaining guids
         logger.info("Creating clustering object {0}".format(clustering_name))
@@ -230,13 +262,20 @@ Checks for new sequences are conducted once per minute.
                 logging.info("Using pre-supplied existing labels")
             # we are instructed to do cluster naming
             clusternomenclature[clustering_name] = ClusterNomenclature(
-                cluster_nomenclature_method=clusterers[clustering_name].parameters["cluster_nomenclature_method"],
+                cluster_nomenclature_method=clusterers[clustering_name].parameters[
+                    "cluster_nomenclature_method"
+                ],
                 existing_labels=existing_labels,
             )
-            clusternameassigner[clustering_name] = ClusterNameAssigner(clusternomenclature[clustering_name])
+            clusternameassigner[clustering_name] = ClusterNameAssigner(
+                clusternomenclature[clustering_name]
+            )
             logger.info(
                 "Created name assigner {0} with method {1}".format(
-                    clustering_name, clusterers[clustering_name].parameters["cluster_nomenclature_method"]
+                    clustering_name,
+                    clusterers[clustering_name].parameters[
+                        "cluster_nomenclature_method"
+                    ],
                 )
             )
 
@@ -253,11 +292,17 @@ Checks for new sequences are conducted once per minute.
             if "cluster_nomenclature_method" in clusterers[clustering_name].parameters:
                 # we are instructed to do cluster naming
                 cluster2guid = clusterers[clustering_name].cluster2names
-                if not relabel:  # then we use the existing labels as our source, otherwise we use the labels already computed
-                    previous_guid2cluster_label = clusterers[clustering_name].guid2cluster_labels()
+                if (
+                    not relabel
+                ):  # then we use the existing labels as our source, otherwise we use the labels already computed
+                    previous_guid2cluster_label = clusterers[
+                        clustering_name
+                    ].guid2cluster_labels()
                 else:
                     logging.info("Using pre-supplied guid to cluster lookup")
-                clusterid2clusterlabel = clusternameassigner[clustering_name].assign_new_clusternames(
+                clusterid2clusterlabel = clusternameassigner[
+                    clustering_name
+                ].assign_new_clusternames(
                     clusterid2guid=clusterers[clustering_name].cluster2names,
                     previous_guid2cluster_label=previous_guid2cluster_label,
                 )
@@ -271,19 +316,14 @@ Checks for new sequences are conducted once per minute.
             # read the result
             malr = MixtureAwareLinkageResult(PERSIST=PERSIST, name=clustering_name)
 
-            ms = MSAStore(PERSIST=PERSIST, in_ram_persistence_time=60)  # persist 60 seconds
-            # estimate expected:
-            estimated_unk = hc.estimate_expected_unk(
-                sample_size=100, unk_type=clusterers[clustering_name].parameters["uncertain_base_type"]
-            )
-            if estimated_unk is not None:
-                estimated_p1 = estimated_unk / (len(hc.reference) - len(hc.excluded))
-            else:
-                estimated_p1 = None
+            ms = MSAStore(
+                PERSIST=PERSIST, in_ram_persistence_time=60
+            )  # persist result for up to 60 seconds
+
             # recover existing msas
             stored_msa = ms.existing_tokens()
 
-            # build multisequence alighments
+            # build multisequence alighments for existing tokens.  These can be built on the fly, but precomputing thom speeds up GUI performance
             logger.info("Precomputing clusters for {0}".format(clustering_name))
             cluster_contents = malr.cluster2guid.values()
             bar = progressbar.ProgressBar(max_value=len(cluster_contents))
@@ -292,14 +332,38 @@ Checks for new sequences are conducted once per minute.
 
                 bar.update(i + 1)
                 # token identifies cluster contents, nature of analysis, and outgroup
-                token = ms.get_token(malr.parameters["uncertain_base_type"], False, guids)
+                token = ms.get_token(
+                    malr.parameters["uncertain_base_type"], False, guids
+                )
                 if len(guids) > 2:
                     whitelist.add(token)  # we need to retain this msa, if it exists
 
                     if token not in stored_msa:  # if we haven't already computed it
-                        msa_result = hc.multi_sequence_alignment(
-                            guids, expected_p1=estimated_p1, uncertain_base_type=malr.parameters["uncertain_base_type"]
+
+                        # estimate p1 if we have not done so already.
+                        hc.update_p1_estimate(
+                            sample_size=100,
+                            uncertain_base_type=malr.parameters["uncertain_base_type"],
                         )
+
+                        # construct a seqcomparer to do an msa
+                        sc = py_seqComparer(
+                            reference=CONFIG["reference"],
+                            maxNs=CONFIG["MAXN_STORAGE"],
+                            snpCeiling=CONFIG["SNPCEILING"],
+                            excludePositions=CONFIG["excludePositions"],
+                        )
+
+                        for guid in guids:
+                            seq = PERSIST.refcompressedsequence_read(guid)
+                            sc.persist(seq, guid)
+
+                        msa_result = sc.multi_sequence_alignment(
+                            guids,
+                            expected_p1=hc.estimated_p1,
+                            uncertain_base_type=malr.parameters["uncertain_base_type"],
+                        )
+
                         ms.persist(token, msa_result)
                         nbuilt += 1
 
@@ -307,11 +371,15 @@ Checks for new sequences are conducted once per minute.
 
             # cleanup anything we don't need, including old clustering versions and msas
             ms.unpersist(whitelist=whitelist)
-            logger.info("Cleanup complete.  Stored data on {0} MSAs; Built {1} new clusters".format(len(whitelist), nbuilt))
+            logger.info(
+                "Cleanup complete.  Stored data on {0} MSAs; Built {1} new clusters".format(
+                    len(whitelist), nbuilt
+                )
+            )
 
         if debugmode | relabel | args.run_once:
             PERSIST.closedown()
             exit(0)
-        
+
         logger.info("Waiting 60 seconds")
         time.sleep(60)

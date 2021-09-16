@@ -884,13 +884,16 @@ class fn3persistence:
         """
         if validity not in [0, 1]:
             raise ValueError("Validity must be 0 or 1, not {0}".format(validity))
+            
+        print("Searching for validity {0}".format(validity))
 
         retVal = [
             x["_id"]
             for x in self.db.guid2meta.find(
-                {"sequence_meta.DNAQuality.invalid": validity}, {"_id": 1}
+                {"sequence_meta.DNAQuality.invalid": validity}
             )
         ]
+
         return set(retVal)
 
     def singletons(
@@ -1003,7 +1006,7 @@ class fn3persistence:
     def guid_exists(self, guid: str) -> bool:
         """checks the presence of a single guid"""
 
-        res = self.db.guid2meta.find_one({"_id": guid}, {"sequence_meta": 1})
+        res = self.db.guid2meta.find_one({"_id": guid})
         if res is None:
             return False
         else:
@@ -1021,7 +1024,7 @@ class fn3persistence:
         1    The guid exists and the sequence is invalid
         -2    The guid exists, but there is no DNAQuality.valid key"""
 
-        res = self.db.guid2meta.find_one({"_id": guid}, {"sequence_meta": 1})
+        res = self.db.guid2meta.find_one({"_id": guid})
         if res is None:
             return -1
         else:

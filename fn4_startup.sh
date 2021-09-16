@@ -19,7 +19,10 @@
 
 # set version
 echo "Setting software version from git repo."
-python3 setup.py --version
+VERSION=`python3 setup.py --version`
+rm version.py -f
+touch version.py
+echo "version = '$VERSION'" > version.py
 
 # start server
 if [ $# -gt 0 ]; then

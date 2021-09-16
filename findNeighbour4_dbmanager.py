@@ -198,7 +198,7 @@ python findNeighbour4_server.py ../config/myconfig_file.json
 
     if PERSIST.storage_technology == 'rdbms':
         logger.info("Terminating, as dbmanager is not required when working with rdbms.")
-        pm.closedown()
+        PERSIST.closedown()
         exit()
 
     date_last_log_rotated = datetime.datetime.now() - datetime.timedelta(hours=25)  # force log rotation on startup

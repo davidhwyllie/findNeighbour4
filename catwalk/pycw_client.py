@@ -206,12 +206,24 @@ in either
     def add_sample_from_refcomp(self, name, refcomp):
         """
         Add a reference compressed (dict with ACGTN keys and list of positions as values) sample.
-
+        Note, if the sample already exists, it will not be added twice.
         The json dict must have all keys: ACGTN, even if they're empty
+
+        Returns: 
+        status code
+        201 = added successfully
+        200 = was already present
         """
 
-        # note particular of creating json, but catwalk accepts this (refcomp has to be in '')
-        payload = {"name": name, "refcomp": json.dumps(refcomp), "keep": True}
+        # note particular way of creating json, but catwalk accepts this (refcomp has to be in '')
+        # cannot json serialise sets; use lists instead
+        refcompressed = {}
+        for key in refcomp.keys():
+            if isinstance(refcomp[key], set):
+                refcompressed[key] = list(refcomp[key])
+            else:
+                refcompressed[key] = refcomp[key]
+        payload = {"name": name, "refcomp": json.dumps(refcompressed), "keep": True}
 
         r = requests.post("{0}/add_sample_from_refcomp".format(self.cw_url), json=payload)
         r.raise_for_status()
@@ -234,7 +246,7 @@ in either
         return [(sample_name, int(distance_str)) for (sample_name, distance_str) in j]
 
     def sample_names(self):
-        """get neighbours"""
+        """get a list of samples in catwalk"""
         r = requests.get("{0}/list_samples".format(self.cw_url))
         r.raise_for_status()
         return r.json()

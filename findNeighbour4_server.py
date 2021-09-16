@@ -35,7 +35,6 @@ This program is free software: you can redistribute it and/or modify
 it under the terms of the MIT License as published
 by the Free Software Foundation.  See <https://opensource.org/licenses/MIT>, and the LICENSE file.
 
- 
 
 """
 
@@ -58,7 +57,6 @@ import matplotlib
 import dateutil.parser
 import argparse
 import networkx as nx
-import progressbar
 import uuid
 
 from sentry_sdk import capture_message, capture_exception
@@ -76,11 +74,11 @@ from findn.common_utils import ConfigManager
 # reference based compression, storage and clustering modules
 from findn.NucleicAcid import NucleicAcid
 from findn.persistence import Persistence
-from findn.hybridComparer import hybridComparer
+from findn.cw_seqComparer import cw_seqComparer
+from findn.py_seqComparer import py_seqComparer
 from findn.guidLookup import guidDbSearcher  # fast lookup of first part of guids
 from snpclusters.ma_linkage import MixtureAwareLinkageResult
 from findn.msa import MSAStore
-from findn.preComparer import preComparer
 
 # network visualisation
 from findn.visualiseNetwork import snvNetwork
@@ -105,7 +103,7 @@ class findNeighbour4:
 
     The high level arrangement is that
     - This class interacts with  sequences, partly held in memory
-      [handled by the hybridComparer class]
+      [handled by the cw_seqComparer class]
     - cached data is accessed by an fn3persistence object
     - methods in findNeighbour4() return native python3 objects.
 
@@ -135,7 +133,7 @@ class findNeighbour4:
                             Enable /restart endpoint, which restarts empty server (for testing)      N       N        Y
 
             SERVERNAME:     the name of the server. used as the name of mongodb database which is bound to the server.
-            PRECOMPARER_PARAMETERS:     parameters passed to precomparer.  ** DOCS NEEDED ON THIS**.  It is important that these values are either set to 'fail always'  -route all precompared samples to the seqcomparer - or are the result of calibration.  preComparer_calibration will do the calibration process automatically.
+            PRECOMPARER_PARAMETERS:     parameters passed to precomparer.  ** DOCS NEEDED ON THIS**.  It is important that these values are either set to 'fail always'  -route all precompared samples to the py_seqComparer - or are the result of calibration.  preComparer_calibration will do the calibration process automatically.
             FNPERSISTENCE_CONNSTRING: a valid mongodb connection string. if shard keys are set, the 'guid' field is suitable key.
                             Note: if a FNPERSISTENCE_CONNSTRING environment variable is present, then the value of this will take precedence over any values in the config file.
                             This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuraton file.
@@ -163,8 +161,8 @@ class findNeighbour4:
                                 'ignore', one cluster {A,B,M} is returned
                                 'include', two clusters {A,M} and {B,M}
                                 'exclude', three clusters are returns {A},{B},{C}
-                            mixture_criterion: sensible values include 'p_value1','p_value2','p_value3' but other output from  seqComparer._msa() is also possible.
-                                 these p-values arise from three different tests for mixtures.  Please see seqComparer._msa() for details.
+                            mixture_criterion: sensible values include 'p_value1','p_value2','p_value3' but other output from  py_seqComparer._msa() is also possible.
+                                 these p-values arise from three different tests for mixtures.  Please see py_seqComparer._msa() for details.
                             cutoff: samples are regarded as mixed if the mixture_criterion is less than or equal to this value.
             SENTRY_URL:  optional.  If provided, will launch link Sentry to the flask application using the API key provided.  See https://sentry.io for a description of this service.
 
@@ -261,22 +259,23 @@ class findNeighbour4:
         # formatting utility
         self.mhr = MakeHumanReadable()
 
-        # load in-memory sequences
+        # load catwalk and in-ram searchable data assets
         self.gs = guidDbSearcher(PERSIST=PERSIST, recheck_interval_seconds = 60)
-        self._load_in_memory_data()
+        self.prepopulate_catwalk()
+        self.prepopulate_clustering()
 
         # log database state
         db_summary = self.PERSIST.summarise_stored_items()
         self.PERSIST.server_monitoring_store(what="dbManager", message="OnServerStartup", guid="-", content=db_summary)
 
-        # set up a read-only precomparer for use by pairwise comparisons.  There is no SNP ceiling
-        # preComparer_parameters will be read from disc
-        tmp_preComparer_parameters = CONFIG["PRECOMPARER_PARAMETERS"].copy()
-        tmp_preComparer_parameters["selection_cutoff"] = len(self.reference)
-        tmp_preComparer_parameters["catWalk_parameters"] = {}
-        tmp_preComparer_parameters["over_selection_cutoff_ignore_factor"] = 1
-        self.pc_tmp = preComparer(**tmp_preComparer_parameters)
-        
+        # set up an in-RAM only precomparer for use by pairwise comparisons.  There is no SNP ceiling
+        self.sc = py_seqComparer(
+            reference = self.reference,
+            excludePositions = self.excludePositions,
+            snpCeiling = 1e9,
+            maxNs = self.maxNs
+        )
+
     def pairwise_comparison(self, guid1, guid2):
         """compares two sequences which have already been stored
 
@@ -285,12 +284,12 @@ class findNeighbour4:
         guid2 the second sequence identifier
 
         Returns
-        exact distance.  no threshold is applied.  Returns None if either sequence does not exist."""
+        exact distance.  no threshold is applied.  Returns neNo if either sequence does not exist."""
 
         obj1 = self.PERSIST.refcompressedsequence_read(guid1)
         obj2 = self.PERSIST.refcompressedsequence_read(guid2)
 
-        # we generate new uuids to identify the sequence, as self.pc_tmp can be accessed by different threads
+        # we generate new uuids to identify the sequence, as self.sc can be accessed by different threads
         # by providing new uuids for each sequence, one thread can't delete the other's sequences
         uuid1 = str(uuid.uuid1())
         uuid2 = str(uuid.uuid1())
@@ -299,23 +298,32 @@ class findNeighbour4:
             return None  # no sequence
 
         # store object in the precomparer
-        self.pc_tmp.persist(obj1, uuid1)  # store in the preComparer
-        self.pc_tmp.persist(obj2, uuid2)  # store in the preComparer
-        res = self.pc_tmp.compare(uuid1, uuid2)
+        self.sc.persist(obj1, uuid1)  # store in the preComparer
+        self.sc.persist(obj2, uuid2)  # store in the preComparer
+        res = self.sc.compare(uuid1, uuid2)
 
-        self.pc_tmp.remove(uuid1)
-        self.pc_tmp.remove(uuid2)
+        self.sc.remove(uuid1)
+        self.sc.remove(uuid2)
         res.update({"guid1": guid1, "guid2": guid2})
         return res
 
     def prepopulate_catwalk(self):
-        """ synonym for _load_in_memory_data """
-        self._load_in_memory_data()
+        """ initialise cw_seqComparer, which interfaces with catwalk were necessary
+        
+        If self.debugMode == 2 (a unittesting setting)  the catwalk is emptied on startup """
+        self.hc = cw_seqComparer(
+            reference=self.reference,
+            maxNs=self.maxNs,
+            snpCeiling=self.snpCeiling,
+            excludePositions=self.excludePositions,
+            preComparer_parameters=self.preComparer_parameters,
+            PERSIST=self.PERSIST,
+            unittesting=(self.debugMode==2)
+        )
 
-    def _load_in_memory_data(self):
-        """ loads in memory data into the hybridComparer object (which may include catwalk) from database storage """
+    def prepopulate_clustering(self):
+        """ loads in memory data into the cw_seqComparer object (which may include catwalk) from database storage """
 
-        # set up clustering
         # clustering is performed by findNeighbour4_cluster, and results are stored in the database backend
         # the clustering object used here is just a reader for the clustering status.
         logging.info("findNeighbour4 is loading clustering data.")
@@ -327,45 +335,6 @@ class findNeighbour4:
             )
             logging.info("set up clustering access object {0}".format(clustering_name))
 
-        # initialise hybridComparer, which manages in-memory reference compressed data
-        # preComparer_parameters will be read from disc
-        self.hc = hybridComparer(
-            reference=self.reference,
-            maxNs=self.maxNs,
-            snpCeiling=self.snpCeiling,
-            excludePositions=self.excludePositions,
-            preComparer_parameters=self.preComparer_parameters,
-            PERSIST=self.PERSIST,
-        )
-
-        logging.info("In-RAM data store / catwalk set up.")
-
-        # determine how many guids there in the database
-        guids = self.PERSIST.refcompressedsequence_guids()
-
-        if len(guids) == 0:
-            self.server_monitoring_store(message="There is nothing to load")
-            logging.info("Nothing to load")
-        else:
-            self.server_monitoring_store(message="Starting load of sequences into memory/catwalk from database")
-            logging.info("Loading sequences from database")
-
-            nLoaded = 0
-            bar = progressbar.ProgressBar(max_value=len(guids))
-
-            for guid in guids:
-
-                self.hc.repopulate(guid=guid)
-                bar.update(nLoaded)
-
-                if nLoaded % 100 == 0:
-                    self.server_monitoring_store(message="Populating hybridcomparer; loaded {0} from database ..".format(nLoaded))
-
-            bar.finish()
-            logging.info("findNeighbour4 has finished loaded {0} sequences from database into a hybridcomparer".format(len(guids)))
-
-        self.server_monitoring_store(message="Load from database complete.")
-
     def reset(self):
         """ restarts the server, deleting any existing data """
         if not self.debugMode == 2:
@@ -374,7 +343,14 @@ class findNeighbour4:
         else:
             logging.info("Deleting existing data and restarting")
             self.PERSIST._delete_existing_data()
-            self._load_in_memory_data()
+            self.hc.restart_empty()     # restart catwalk empty
+            self.prepopulate_clustering()
+
+            # check it worked
+            residual_sample_ids = self.hc.guids()
+            if not len(residual_sample_ids) == 0:
+                raise ValueError("Catwalk restarted, but with residual samples in it.  Residual samples are {0}".format(self.hc.guids()))
+            logging.info("reset executed.  There are no samples in the catWalk application.")
 
     def server_monitoring_store(self, message="No message supplied", guid=None):
         """ reports server memory information to store """
@@ -866,7 +842,7 @@ def create_app(config_file = None):
         main - raise error in main code
         persist - raise in PERSIST object
         clustering - raise in clustering
-        seqcomparer - raise in seqcomparer.
+        py_seqComparer - raise in py_seqComparer.
         """
 
         if not fn.debugMode == 2:
@@ -883,12 +859,12 @@ def create_app(config_file = None):
             else:
                 clustering_name = clustering_names[0]
                 fn.clustering_settings[clustering_name].raise_error(token)
-        elif component == "seqcomparer":
+        elif component == "py_seqComparer":
             fn.hc.raise_error(token)
         elif component == "persist":
             fn.PERSIST.raise_error(token)
         else:
-            raise KeyError("Invalid component called.  Allowed: main;persist;clustering;seqcomparer.")
+            raise KeyError("Invalid component called.  Allowed: main;persist;clustering;py_seqComparer.")
 
     def construct_msa(guids, output_format, what):
 

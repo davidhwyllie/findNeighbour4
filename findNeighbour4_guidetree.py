@@ -40,7 +40,7 @@ from findn.common_utils import ConfigManager
 
 # startup
 from findn.persistence import Persistence
-from findn.hybridComparer import hybridComparer
+from findn.cw_seqComparer import cw_seqComparer
 
 # from tree.manipulate_tree import ManipulateTree
 
@@ -158,7 +158,7 @@ Checks for new sequences are conducted once per minute.
         sentry_sdk.init(CONFIG["SENTRY_URL"], release=version)
 
     ##################################################################################################
-    # open PERSIST and hybridComparer object used by all samples
+    # open PERSIST and cw_seqComparer object used by all samples
     # this is only used for data access and msa.
     # inserts are not allowed
 
@@ -167,11 +167,11 @@ Checks for new sequences are conducted once per minute.
     PERSIST = pm.get_storage_object(dbname=CONFIG["SERVERNAME"], connString=CONFIG["FNPERSISTENCE_CONNSTRING"], debug=0, verbose=True)
 
     ################################# object to do MSA if required #############################################
-    # open PERSIST and hybridComparer object used by all samples
+    # open PERSIST and cw_seqComparer object used by all samples
     # this is only used for data access and msa.
     # inserts are not allowed
-    logger.info("Building hybridComparer object")
-    hc = hybridComparer(
+    logger.info("Building cw_seqComparer object")
+    hc = cw_seqComparer(
         reference=CONFIG["reference"],
         maxNs=CONFIG["MAXN_STORAGE"],
         snpCeiling=CONFIG["SNPCEILING"],

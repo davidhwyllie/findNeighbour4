@@ -77,4 +77,4 @@ aligned sequences differs markedly by cluster.
 This test is computed if there are two or more samples in the cluster.
 
 ## Note
-This testing is performed by the *seqComparer._msa()* module.
+This testing is performed by the *py_seqComparer._msa()* module.

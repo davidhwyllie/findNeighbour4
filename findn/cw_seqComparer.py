@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""" compares bacterial sequences, using either catwalk (an external distance provider), python code achieving the same functions
+""" compares bacterial sequences using catwalk (an external distance provider)
 
 A component of the findNeighbour4 system for bacterial relatedness monitoring
 Copyright (C) 2021 David Wyllie david.wyllie@phe.gov.uk
@@ -9,9 +9,8 @@ This program is free software: you can redistribute it and/or modify
 it under the terms of the MIT License as published
 by the Free Software Foundation.  See <https://opensource.org/licenses/MIT>, and the LICENSE file.
 
- 
-
 """
+
 import datetime
 import hashlib
 import json
@@ -21,13 +20,15 @@ import numpy as np
 from scipy.stats import binom_test
 import pandas as pd
 import logging
-
+import progressbar
+import time
 from collections import Counter
 from findn.persistence import Persistence
 from findn.mongoStore import fn3persistence
 from findn.rdbmsstore import fn3persistence_r
-from findn.preComparer import preComparer  # catwalk enabled
 from findn.msa import MSAResult
+from catwalk.pycw_client import CatWalk
+
 
 # connection to mongodb on localhost; used for unittesting
 UNITTEST_MONGOCONN = "mongodb://localhost"
@@ -41,7 +42,14 @@ class NeighbourStorageFailureError(Exception):
         self.message = message
 
 
-class hybridComparer:
+class NoCWParametersProvidedError(Exception):
+    """no catwalk parameters provided"""
+
+    def __init__(self):
+        pass
+
+
+class cw_seqComparer:
     def __init__(
         self,
         reference,
@@ -55,11 +63,14 @@ class hybridComparer:
     ):
 
         """a module for determining relatedness between two sequences.
-         It is a hybrid in that
-         * it stores a subset of data in RAM and uses this to pre-screen sequences.  This is delivered by a preComparer class.
-         * it does not persist the entire data set with RAM, but accesses this using an fn3persistence object, connecting to the database found at mongo_connstring.
 
-         Otherwise, it tries to seek the same interface as seqComparer.
+         * it stores data in catwalk, a separate relatedness engine
+         * it does not persist the entire data set with RAM, but accesses this using an PERSISTENCE (database access) object
+
+        It exposes a similar interface to py_seqComparer.
+
+        Note that unlike py_seqComparer and earlier xComparer versions, this class is stateless (state is held in catwalk and in a database) and data is not held in RAM.
+        As s
 
          Parameters:
          ===========
@@ -71,30 +82,50 @@ class hybridComparer:
 
          excludePositions contains a zero indexed set of bases which should not be considered at all in the sequence comparisons.  Any bases which are always N should be added to this set.  Not doing so will substantially degrade the algorithm's performance.
 
-         preComparer_parameters: parameters passed to the preComparer.  Used to judge which sequences do not need further analysis.
-         Must include the following:
-         selection_cutoff: (int)
-         snp distances more than this are not of interest epidemiologically and are not reported
+         preComparer_parameters:
+            Must include the following:
+            selection_cutoff: (int)
+            snp distances more than this are not of interest epidemiologically and are not reported
 
-         uncertain_base (str): one of 'M', 'N', or 'N_or_M'
-         which bases to regard as uncertain in the computation.  Default to M.
-         if 'N_or_M', will store all us and Ns and will give the same result as the seqComparer module.
+            uncertain_base (str): one of 'M', 'N', or 'N_or_M'
+            which bases to regard as uncertain in MixPore (assessment of mixed bases) computations.  Default to M.
 
-         over_selection_cutoff_ignore_factor:
-         SNP distances more than over_selection_cutoff_ignore_factor * selection_cutoff do not need to be further analysed.  For example, if a SNP cutoff was 20, and over_selection_cutoff_ignore_factor is 5, we can safely consider with SNV distances > 100 (=20*5) as being unrelated.
+            over_selection_cutoff_ignore_factor:
+            [currently ignored]
 
-         catWalk_parameters:  parameters for catWalk function.  If empty {}, catWalk is not run.
-         PERSIST: either a mongo/rdbms connection string, or an instance of fn3persistence
+            catWalk_parameters:  parameters for catWalk function.  If empty {}, an error is raised.
+                To run catWalk, the following keys are needed:
+                    cw_binary_filepath : path to the catwalk binary.  If present, the CW_BINARY_FILEPATH environment variable will be used instead.  To set this, edit or create an .env file next to the Pipfile (if using a virtual environment)
+                    reference_filepath : path to the relevant fasta reference sequence
+                    reference_name: a human readable version of the reference's name
+                    mask_filepath : path to a mask file, which consists of zero indexed positions to exclude
+                    bind_host: the host the catwalk is running on
+                    bind_port: the port the catwalk is running on
+                    An example would look like:
+                                    catWalk_parameters ={'cw_binary_filepath':None,
+                                    'reference_name':"h37rv",
+                                    'reference_filepath':"reference/TB-ref.fasta",
+                                    'mask_filepath':"reference/TB-exclude-adaptive.txt",
+                                    'bind_host':"127.0.0.1",
+                                    'bind_port':5999}
 
-         unittesting: if True, will remove any stored data from the associated database [Careful!]
-        David Wyllie, September 2019
+                Catwalk also requires additional parameters,  These are supplied:
+                    max_distance : maximum distance to report.  Catwalk does not store distances, so high distances can be requested, albeit at the cost of slightly slower computation.  max_distance is set to selection_cutoff.
+
+         PERSIST: either a mongo/rdbms connection string, or an instance of a Persistence object
+
+         unittesting: if True, will remove any stored data from the associated database
+
+         disable_insertion:  catwalk is not used; can only access data already present in the database.
 
          - to run unit tests, do
-         python3 -m unittest hybridComparer
+         python3 -m unittest cw_seqComparer
         """
 
         # reference based compression relative to reference 'compressed_sequence' have keys as follows:
-
+        self.distances_are_exact = (
+            True  # this class does not deliver estimated distances
+        )
         self.compressed_sequence_keys = set(["invalid", "A", "C", "G", "T", "N", "M"])
 
         # snp distances more than this will not be reported
@@ -120,9 +151,6 @@ class hybridComparer:
         # define what is included
         self.included = set(range(len(self.reference))) - self.excluded
 
-        # initialise pairwise sequences for comparison.
-        self._refresh()
-
         # open a persist object
         if isinstance(PERSIST, str):
             pm = Persistence()
@@ -133,16 +161,13 @@ class hybridComparer:
         ):
             self.PERSIST = PERSIST  # passed a persistence object
         else:
-            raise ValueError(
-                "Expected a connection string or an fn3persistence object but got {0}; can't proceed".format(
+            raise TypeError(
+                "Expected a sqlalchemy connection string or an Persistence object but got {0}; can't proceed".format(
                     type(PERSIST)
                 )
             )
 
-        if unittesting:
-            self.PERSIST._delete_existing_data()
-
-        # attempt to load preComparer_parameters from the mongo / rdbms
+        # attempt to load preComparer_parameters (which are used to parameterise catwalk) from the mongo / rdbms
         stored_preComparer_parameters = self.PERSIST.config_read("preComparer")
         if stored_preComparer_parameters is not None:
             try:
@@ -150,6 +175,7 @@ class hybridComparer:
             except KeyError:
                 pass  # not present in rdbms
             preComparer_parameters = stored_preComparer_parameters
+
         else:
             # store them, if any are supplied
             if len(preComparer_parameters.keys()) > 0:
@@ -158,33 +184,82 @@ class hybridComparer:
         # store whether any insertion is necessary
         self.disable_insertion = disable_insertion
         if self.disable_insertion:
-            preComparer_parameters["catWalk_parameters"] = {}  # no catwalk
-            logging.info("HybridComparer is running in read-only mode")
+            logging.info("cw_seqComparer is running in read-only mode")
 
-        self.pc = preComparer(**preComparer_parameters)
+        # start catwalk
+        if "catWalk_parameters" not in preComparer_parameters.keys():
+            raise NoCWParametersProvidedError()
 
-    def repopulate_sample(self, n=100):
-        """saves a sample of reference compressed objects in the precomparer,
-        for the purpose of assessing sequence composition etc.
+        self.catWalk_parameters = preComparer_parameters["catWalk_parameters"]
+        self.uncertain_base = preComparer_parameters["uncertain_base"]
+        self.catWalk_parameters["max_distance"] = preComparer_parameters[
+            "selection_cutoff"
+        ]
+        if len(self.catWalk_parameters) == 0:
+            raise NoCWParametersProvidedError()
 
-        parameters:
-        n the number of samples to load
+        self.catWalk = CatWalk(**self.catWalk_parameters, unittesting=unittesting)
 
-        """
+        self.repopulate_all()  # reload samples
+        logging.info(
+            "CatWalk server started, operating with uncertain bases representing {0}".format(
+                self.uncertain_base
+            )
+        )
 
-        guids = self.PERSIST.guids() - self.pc.guids()
-        if n < len(guids):
-            guids = random.sample(guids, n)
-        for guid in guids:
-            obj = self.PERSIST.refcompressedsequence_read(guid)
-            
-            # store object in the precomparer
-            self.pc.persist(obj, guid)  # store in the preComparer
-        return
+        # estimates for msa
+        self.estimated_p1 = None
+        self.estimated_p1_sample_size = 0
+
+        if unittesting:
+            if (
+                not disable_insertion
+            ):  # if insertion (and deletion) is disabled, we can't restart
+                self.restart_empty()
+
+    def guids(self):
+        """returns samples in the catwalk object"""
+        return self.catWalk.sample_names()
+
+    def repopulate_all(self):
+        """repopulates catwalk with all samples from database
+        Note: will not add a sample twice"""
+
+        # eheck what needs to be done
+        guids = self.PERSIST.guids_valid()
+        already_added = self.catWalk.sample_names()
+        to_add = set(guids) - set(already_added)
+
+        bar = progressbar.ProgressBar(max_value=len(to_add))
+        logging.info(
+            "Repopulating catwalk.  Already present: {0}; remaining {1}".format(
+                len(already_added), len(to_add)
+            )
+        )
+        for i, guid in enumerate(to_add):
+            bar.update(i)
+            self.repopulate(guid)
+
+        bar.finish()
+        logging.info(
+            "Repopulation of catwalk complete; added in total {0}".format(len(to_add))
+        )
+
+    def restart_empty(self):
+        """restarts the catwalk server, with no data in it;
+        also deletes all data from the database store."""
+
+        self.PERSIST._delete_existing_data()
+        self.catWalk.stop()  # terminate the catwalk instance
+        time.sleep(1)
+        self.catWalk.start()  # restart empty
+        time.sleep(1)
+        self.repopulate_all()
 
     def repopulate(self, guid):
-        """saves a reference compressed object in the precomparer,
-        as loaded from the db using its reference guid.
+        """saves a reference compressed object into catwalk,
+        having loaded from the db using its reference guid.
+        Note: will not add a sample twice.
 
         parameters:
         guid: the identity (name) of the sequence
@@ -194,30 +269,12 @@ class hybridComparer:
         obj = self.PERSIST.refcompressedsequence_read(guid)
 
         # store object in the precomparer
-        self.pc.persist(obj, guid)  # store in the preComparer
+        self.catWalk.add_sample_from_refcomp(guid, obj)
         return
-
-    def update_precomparer_parameters(self):
-        """ensures precomparer settings are up to date.  Precomparer settings may be optimised by external processes, such as preComparer_calibrator.
-        [Note: in the current implementation, this doesn't happen; it should not be necessary to call this method during normal running]"""
-
-        stored_preComparer_parameters = self.PERSIST.config_read("preComparer")
-        if stored_preComparer_parameters is not None:  # if settings exist on disc
-            try:
-                del stored_preComparer_parameters["_id"]  # remove the db id if present
-            except KeyError:
-                pass  # not present in RDBMS
-            if len(stored_preComparer_parameters.keys()) > 0:
-                if (
-                    self.pc.check_operating_parameters(**stored_preComparer_parameters)
-                    is False
-                ):
-                    self.pc.set_operating_parameters(**stored_preComparer_parameters)
-        return ()
 
     def persist(self, obj, guid, annotations={}):
         """saves obj, a reference compressed object generated by .compress(),
-        in the fnpersistence.
+        in the PERSISTENCE store.
 
         also saves object in the preComparer, and ensures the preComparer's settings
         are in sync with those on in the db. this enables external software, such as that calibrating preComparer's performance, to update preComparer settings while  the server is operating.
@@ -226,6 +283,14 @@ class hybridComparer:
 
         parameters:
         obj: a reference compressed object generated by .compress()
+            {'A':set([1,2,3,4]} which would represent non-reference A at positions 1-4.
+            The following keys are possible:
+            A,C,G,T,N,M, invalid.
+            A,C,G,T,N keys map to sets representing the positions where the reference differs by the respective keys
+            M is a dictionary e.g. {1:'y',2:'R'} where the keys of the dictionary represent the positions where the base is mixed and the value is the IUPAC code for the mixture.
+            invalid is 0 of the sequence is valid (i.e. comparisons should be made) and 1 if it is not (no comparison are made with the sequence).
+            This format is that used and stored by findNeighbour4.
+
         guid: the identity (name) of the sequence
         annotations: a dictionary containing optional annotations, in the format
             {namespace:{key:value,...}
@@ -237,32 +302,106 @@ class hybridComparer:
         # check that insertion is allowed
         if self.disable_insertion:
             raise NotImplementedError(
-                "Persistence is not permitted via this hybridComparer"
+                "Persistence is not permitted via this cw_seqComparer"
             )
 
-        # check preComparer settings are up to date
-        # self.update_precomparer_parameters()           # no longer necessary
+        if (
+            "invalid" not in obj.keys()
+        ):  # assign it a valid status if we're not told it's invalid
+            obj["invalid"] = 0
 
-        # add sequence and its links to disc
+        # check it is not invalid
+        isinvalid = obj["invalid"] == 1
+
+        # construct an object to be stored in catWalk
+        # determine the object's composition, i.e. numbers of bases differing from reference.
+        # this is not required for SNV computation, but it is required for composition-based mixture testing (mixPORE etc).
+        # computing this here is very lightweight computationally
+        obj_composition = {"A": 0, "C": 0, "G": 0, "T": 0, "M": 0, "N": 0, "invalid": 0}
+        if isinvalid:
+            obj_composition["invalid"] = 1
+
+        # construct an object to store
+        for key in set(["A", "C", "G", "T"]) - set(obj.keys()):  # what is missing
+            obj[key] = set()  # add empty set if no key exists.
+
+        # create a smaller object to store in Catwalk; M and N are combined as Us
+        smaller_obj = {}
+        for item in ["A", "C", "G", "T"]:
+            smaller_obj[item] = copy.deepcopy(obj[item])
+
+        # store uncertain bases - either Us, Ns, or both
+        # if there are no M or N keys, add them
+        if "N" not in obj.keys():
+            obj["N"] = set()
+        if "M" not in obj.keys():
+            obj["Ms"] = set()
+        else:
+            obj["Ms"] = set(obj["M"].keys())  # make a set of the positions of us
+
+        if self.uncertain_base == "M":
+            obj["U"] = obj["Ms"]
+        elif self.uncertain_base == "N":
+            obj["U"] = obj["N"]
+        elif self.uncertain_base == "N_or_M":
+            obj["U"] = obj["N"].union(obj["Ms"])
+        else:
+            raise KeyError(
+                "Invalid uncertain_base: got {0}".format(self.uncertain_base)
+            )
+
+        del obj["Ms"]  # no longer needed
+
+        # add the uncertain bases to the smaller object for storage in catwalk
+        smaller_obj["U"] = copy.deepcopy(obj["U"])
+        key_mapping = {
+            "A": "A",
+            "C": "C",
+            "G": "G",
+            "T": "T",
+            "U": "N",
+        }  # catwalk uses N, not U, for unknown. map specifies this.
+
+        # add to database
         try:
-            self.PERSIST.refcompressedseq_store(guid, obj)  # store in the db
+            self.PERSIST.refcompressedseq_store(guid, obj)
         except FileExistsError:
-            return {
-                "guid": guid,
-                "result": "already present",
-            }  # exists - we don't need to re-add it.
+            return ["Sample {0} already exists".format(guid)]  # already present
 
-        pc_obj = copy.deepcopy(obj)
-        # store object in the precomparer
-        is_invalid = self.pc.persist(pc_obj, guid)  # store in the preComparer.
-        # in the current implementation, this either loads CatWalk or an in memory python relatedness data structure doing the same thing.
-        # If the object exists already, nothing will happen.  This does not write persistently to a db.
+        # add annotations
+        if "DNAQuality" in annotations.keys():
 
-        # add links
+            annotations["DNAQuality"]["invalid"] = int(isinvalid)
+        else:
+            annotations["DNAQuality"] = {"invalid": int(isinvalid)}
+
+        # add all annotations
+        if annotations is not None:
+            for nameSpace in annotations.keys():
+
+                self.PERSIST.guid_annotate(
+                    guid=guid, nameSpace=nameSpace, annotDict=annotations[nameSpace]
+                )
+
+        if not isinvalid:  # we only store valid sequences in catWalk
+            to_catwalk = {}
+            for key in smaller_obj.keys():
+                to_catwalk[key_mapping[key]] = list(
+                    smaller_obj[key]
+                )  # make a dictionary for catwalk
+
+            retVal = self.catWalk.add_sample_from_refcomp(guid, to_catwalk)  # add it
+        else:
+            return 1
+
+        if (
+            retVal == 200
+        ):  # the sample was already there; no need to add neighbours; 201 is returned if insert is successful
+            return obj["invalid"]
+
+        # add links if the sample is valid and newly inserted
         links = {}
-        loginfo = [
-            "inserted {0} into precomparer; is_invalid = {1}".format(guid, is_invalid)
-        ]
+        loginfo = ["inserted {0} into catwalk; isinvalid = {1}".format(guid, isinvalid)]
 
         mcompare_result = self.mcompare(guid)  # compare guid against all
 
@@ -280,157 +419,89 @@ class hybridComparer:
         # insert
         self.PERSIST.guid2neighbour_add_links(guid=guid, targetguids=links)
 
-        # make sure the invalid annotation is set correctly
-        if "DNAQuality" in annotations.keys():
-            annotations["DNAQuality"]["invalid"] = is_invalid
-        else:
-            annotations["DNAQuality"] = {"invalid": is_invalid}
-
-        # add all annotations
-        if annotations is not None:
-            for nameSpace in annotations.keys():
-                self.PERSIST.guid_annotate(
-                    guid=guid, nameSpace=nameSpace, annotDict=annotations[nameSpace]
-                )
-
-        # if we found neighbours, report mcompare timings to log
-        msg = "mcompare|"
-        for key in mcompare_result["timings"].keys():
-            msg = msg + " {0} {1}; ".format(key, mcompare_result["timings"][key])
-        loginfo.append(msg)
-
         return loginfo
 
     def load(self, guid):
-        """returns a reference compressed object into RAM.
-        Note: this function loads stored on disc/db relative to the reference.
+        """returns a reference compressed object into a variable
+        Note: this function loads a reference compressed json, stored relative to the reference.
         """
         return self.PERSIST.refcompressedsequence_read(guid)
 
-    def _refresh(self):
-        """empties any sequence data from ram in any precomparer object existing."""
-        if hasattr(self, "pc"):
-            self.pc.seqProfile = {}
-        self.seqProfile = {}
-
-    def mcompare(self, guid, guids=None):
+    def mcompare(self, guid):
         """performs comparison of one guid with
-        all guids, which are also stored samples.
+        all valid guids, which are also stored samples.
 
         input:
             guid: the guid to compare
-            guids: guids to compare with; if blank, compares with all.
         output:
             a dictionary, including as keys
-            'neighbours' : a list of neighbours and their distances
+            'invalid': 0 if valid, 1 if invalid.
+            'neighbours' : a list of neighbours and their distances.  If invalid, an empty list
             'timings': a dictionary including numbers analysed and timings for comparisons.
         """
 
         t1 = datetime.datetime.now()
 
-        # if guids are not specified, we do all vs all
-        if guids is None:
-            guids = set(self.pc.seqProfile.keys())
+        # check validity
+        # validity scores are
+        #  -1   The guid does not exist
+        #   0    The guid exists and the sequence is valid
+        #   1    The guid exists and the sequence is invalid
 
-        if guid not in self.pc.seqProfile.keys():
-            raise KeyError(
-                "Asked to compare {0}  but guid requested has not been stored in the preComparer.  call .persist() on the sample to be added before using mcompare.".format(
-                    guid
+        validity_score = self.PERSIST.guid_valid(guid)
+
+        if validity_score == -1:
+            raise KeyError("mcompare: Sample {0} does not exist".format(guid))
+
+        elif validity_score == 0:
+            # sample is mcompare using catwalk
+            cw_neighbours = self.catWalk.neighbours(guid, self.snpCeiling)
+            neighbours = []
+            for match, dist in cw_neighbours:
+                neighbours.append([guid, match, dist])
+            invalid = 0
+
+        elif validity_score == 1:
+            neighbours = []
+            invalid = 1
+        else:
+            raise ValueError(
+                "PERSIST.guid_valid({0}) returned an invalid score: 0,1,-1 expected got {1}".format(
+                    guid, validity_score
                 )
             )
 
-        # mcompare using preComparer
-        candidate_guids = set()
-
-        neighbours = []
-        exact_comparison = False
-        for match in self.pc.mcompare(guid, guids):
-
-            if (
-                self.pc.distances_are_exact
-            ):  # then the precomparer is computing an exact distance
-                exact_comparison = True
-                if match["dist"] <= self.snpCeiling:
-
-                    neighbours.append([match["guid1"], match["guid2"], match["dist"]])
-            else:  # the precomparer is computing an estimated distance, and more detailed comparison is needed.
-                if not match["no_retest"]:
-                    candidate_guids.add(match["guid2"])
-
         t2 = datetime.datetime.now()
-
-        if not exact_comparison:
-            # need to do second phase computation to determine neighbours
-            guids = list(set(guids))
-
-            # load guid
-            load_time = 0
-            seq1 = self.load(guid)
-            for key2 in candidate_guids:
-                if not guid == key2:
-                    l1 = datetime.datetime.now()
-                    seq2 = self.load(key2)
-                    l2 = datetime.datetime.now()
-                    i4 = l2 - l1
-                    load_time = load_time + i4.total_seconds()
-                    comparison = self.countDifferences(
-                        guid, key2, seq1, seq2, cutoff=self.snpCeiling
-                    )
-                    if (
-                        comparison is not None
-                    ):  # is is none if one of the samples is invalid
-
-                        (guid1, guid2, dist) = comparison
-                        if dist <= self.snpCeiling:
-                            neighbours.append([guid1, guid2, dist])
-
-        t3 = datetime.datetime.now()
         i1 = t2 - t1
-        i2 = t3 - t2
-        i3 = t3 - t1
-        n1 = len(self.pc.seqProfile.keys())
-        n2 = len(candidate_guids)
+        n1 = len(neighbours)
+
         if n1 > 0:
             rate1 = 1e3 * i1.total_seconds() / n1
         else:
             rate1 = 0
-        if n2 > 0:
-            rate2 = 1e3 * i2.total_seconds() / n2
-            rate3 = 1e3 * load_time / n2
-        else:
-            rate2 = 0
-            rate3 = 0
 
         timings = {
-            "preComparer_msec_per_comparison": rate1,
-            "seqComparer_msec_per_comparison": rate2,
-            "preCompared": n1,
-            "candidates": n2,
+            "py_preComparer_msec_per_comparison": rate1,
+            "candidates": n1,
             "matches": len(neighbours),
-            "total_sec": i3.total_seconds(),
-            "seqComparer_msec_per_sequence_loaded": rate3,
-            "catWalk_enabled": self.pc.catWalk_enabled,
-            "preComparer_distances_are_exact": self.pc.distances_are_exact,
         }
 
-        return {"neighbours": neighbours, "timings": timings}
+        return {"invalid": invalid, "neighbours": neighbours, "timings": timings}
 
     def summarise_stored_items(self):
-        """counts how many sequences exist of various types in the preComparer and seqComparer objects"""
+        """counts how many sequences exist in catwalk."""
+        retVal = {}
 
-        return self.pc.summarise_stored_items()
+        # call the catWalk server, and return the dictionary including status information in key-value format.
+        # the keys must be pipe delimited and should be for the format
+        # 'server|catWalk|{key}'.  The values must be scalars, not lists or sets.
+        # the dictionary thus manipulated should be added to retVal.
+        cw_status = self.catWalk.info()
+        for item in cw_status:
+            key = "server|catwalk|{0}".format(item)
+            retVal[key] = cw_status[item]
 
-    def iscachedinram(self, guid):
-        """returns true or false depending whether we have a  copy of the limited refCompressed representation of a sequence (name=guid) in RAM"""
-        return self.pc.iscachedinram(guid)
-
-    def guidscachedinram(self):
-        """returns all guids with full sequence profiles in RAM"""
-        return self.pc.guidscachedinram()
-
-    def _delta(self, x):
-        """returns the difference between two numbers in a tuple x"""
-        return x[1] - x[0]
+        return retVal
 
     def excluded_hash(self):
         """returns a string containing the number of nt excluded, and a hash of their positions.
@@ -520,68 +591,6 @@ class hybridComparer:
             diffDict["invalid"] = 0
         return diffDict
 
-    def _setStats(self, i1, i2):
-        """compares either:
-        * two sets (if i1 or i2 is a set)
-        OR
-        * the keys of the dictionaries i1 or i2 is a dictionary
-
-        returns
-        * the number of elements in i1
-        * the number of elements in i2
-        * the number of elements in the union of i1 and i2
-        * i1
-        * i2
-        * the union of set1 and set2
-
-        """
-        if isinstance(i1, set):
-            retVal1 = i1
-        elif isinstance(i1, dict):
-            retVal1 = set(i1.keys())
-        if isinstance(i2, set):
-            retVal2 = i2
-        elif isinstance(i2, dict):
-            retVal2 = set(i2.keys())
-
-        retVal = retVal2 | retVal1
-
-        return (len(retVal1), len(retVal2), len(retVal), retVal1, retVal2, retVal)
-
-    def countDifferences(self, key1, key2, seq1, seq2, cutoff=None):
-        """compares seq1 with seq2.
-
-        Ms (uncertain bases) are ignored in snp computations.
-
-
-        """
-        #  if cutoff is not specified, we use snpCeiling
-        if cutoff is None:
-            cutoff = self.snpCeiling
-
-        nDiff = 0
-        if seq1 is None or seq2 is None:
-            return None
-
-        if seq1["invalid"] == 1 or seq2["invalid"] == 1:
-            return None
-
-        # compute positions which differ;
-        differing_positions = set()
-        for nucleotide in ["C", "G", "A", "T"]:
-
-            # we do not consider differences relative to the reference if the other nucleotide is an N or M
-            nonN_seq1 = seq1[nucleotide] - (seq2["N"] | set(seq2["M"].keys()))
-            nonN_seq2 = seq2[nucleotide] - (seq1["N"] | set(seq1["M"].keys()))
-            differing_positions = differing_positions | (nonN_seq1 ^ nonN_seq2)
-
-        nDiff = len(differing_positions)
-
-        if nDiff <= cutoff:
-            return (key1, key2, nDiff)
-        else:
-            return (key1, key2, nDiff)
-
     def compressed_sequence_hash(self, compressed_sequence):
         """returns a string containing a hash of a compressed object.
         Used for identifying compressed objects, including consensus sequences.
@@ -601,12 +610,8 @@ class hybridComparer:
         md5 = h.hexdigest()
         return md5
 
-    def remove(self, guid):
-        """removes guid  from preComparer"""
-        self.pc.remove(guid)
-
     def estimate_expected_proportion(self, seqs):
-        """computes the median Ns for seqs, a list.
+        """computes the median Ns for seqs, a list of referencecompressed sequence objects.
         Returns None if
         * the length of the sequences in seqs are 0, or
         * there are <= 3 seqs
@@ -621,45 +626,74 @@ class hybridComparer:
         return np.median(Ns) / len(seqs[0])
 
     def estimate_expected_unk(
-        self, sample_size=30, exclude_guids=set(), unk_type="N", what="median"
+        self,
+        sample_size=30,
+        exclude_guids=set(),
+        unk_type="N",
+        what="median",
+        sites=None,
     ):
         """computes the median numbers of unk_type (N,M,or N_or_N) for sample_size guids, randomly selected from all guids except for exclude_guids.
 
-                Parameters
-                sample_size: how many items to sample when determining expected_unk.  If None, uses all samples
-                exclude_guids: an iterable of guids not to analyse
-                unk_type: one of 'N' 'M' 'N_or_M'
-        e
-                Return
-                either the median unk_type for the sample, or None if fewer than sample_size items are present.
+        Parameters
+        sample_size: how many items to sample when determining expected_unk.  If None, uses all samples
+        exclude_guids: an iterable of guids not to analyse
+        unk_type: one of 'N' 'M' 'N_or_M'
 
-                Note: this is a very fast method, if there are sequences in the preComparer.
+        If sites are None, whole sequence is analysed.  If sites is a list/set, only these positions are analysed
+
+        Return
+        either the median unk_type for the sample, or None if fewer than sample_size items are present.
+
         """
 
         if unk_type not in ["N", "M", "N_or_M"]:
-            raise KeyError("unk_type can be one of 'N' 'M' 'N_or_M'")
-        current_composition = copy.copy(
-            self.pc.composition
-        )  # can be changed by flask, so duplicate it
-        composition = pd.DataFrame.from_dict(
-            current_composition, orient="index"
-        )  # preComparer maintains a composition list
-        composition.drop(
-            exclude_guids, inplace=True
-        )  # remove the ones we want to exclude
+            raise KeyError(
+                "unk_type can be one of 'N' 'M' 'N_or_M', not {0}".format(unk_type)
+            )
 
-        if len(composition) == 0:
+        # step 0: find all valid guids
+        valid_guids = set(self.PERSIST.guids_valid())
+        guids = valid_guids - set(exclude_guids)
 
-            return None
+        guids = list(guids)
         if sample_size is not None:
-            guids = composition.index.tolist()
-            np.random.shuffle(guids)
-            not_these_guids = guids[
-                sample_size:
-            ]  # if there are more guids than sample_size, drop these
-            composition.drop(not_these_guids, inplace=True)
+            if sample_size > len(guids):
+                return None
 
-        composition["N_or_M"] = composition["N"] + composition["M"]
+        guids = random.sample(guids, sample_size)
+
+        if isinstance(sites, set):
+            sites = list(sites)
+
+        composition_dict = {}
+        for guid in guids:
+            rcs = self.load(guid)
+
+            # should not happen
+            if rcs is None:
+                raise KeyError("Tries to load {0} but got None ".format(guid))
+
+            seq = self.uncompress(rcs)
+            if sites is not None:
+                if len(sites) > 0:
+                    start_list = list(seq)
+                    seq = list(start_list[i] for i in sites)
+                    seq = "".join(seq)
+
+            composition_onesample = Counter(seq)
+            for unk_nt in ["N", "M"]:
+                if unk_nt not in composition_onesample.keys():
+                    composition_onesample[unk_nt] = 0
+            composition_onesample["N_or_M"] = (
+                composition_onesample["N"] + composition_onesample["M"]
+            )
+            composition_dict[guid] = composition_onesample
+
+        composition = pd.DataFrame.from_dict(composition_dict, orient="index")
+        if len(composition.index) == 0:
+            return None
+
         report_value = True
         if sample_size is not None:
             if len(composition.index) < sample_size:
@@ -679,7 +713,9 @@ class hybridComparer:
         else:
             return None
 
-    def estimate_expected_unk_sites(self, unk_type, sites=set(), sample_size=30):
+    def estimate_expected_unk_sites(
+        self, unk_type, sites, what="median", sample_size=30
+    ):
         """estimates the median unk_type for all guids,  at the positions in sites().
 
         Parameters
@@ -690,49 +726,47 @@ class hybridComparer:
         Returns
         either the estimated median unk_type for the sample, or None if fewer than sample_size items are present.
 
-        Note:
-        this is an exact method.  Computation is slower as samples are loaded from disc.  Typical load is about 10msec/seq, or 300msec per 30 sample.
         """
-
-        # get samples
-        if sample_size <= len(self.pc.seqProfile.keys()):
-            to_test = random.sample(self.pc.seqProfile.keys(), sample_size)
+        if len(sites) > 0:
+            return self.estimate_expected_unk(
+                unk_type=unk_type, what=what, sites=sites, sample_size=sample_size
+            )
         else:
-            return None
+            return self.estimate_expected_unk(
+                unk_type=unk_type, what=what, sites=None, sample_size=sample_size
+            )
 
-        observed = []
+    def update_p1_estimate(self, sample_size, uncertain_base_type):
+        """estimates p1 (see MSA for description) from existing data using a sample of size sample_size,
+        if it has not already been recorded
+        returns: Nothing
+        side effects: sets estimated_p1 and estimated_p1_sample_size"""
 
-        for guid in to_test:
+        # Estimate expected N or M as median(observed N or Ms),
+        # which is a valid thing to do if the proportion of mixed samples is low.
 
-            obj = self.PERSIST.refcompressedsequence_read(guid)
+        if (
+            self.estimated_p1 is not None
+            and self.estimated_p1_sample_size >= sample_size
+        ):
+            # already computed, no need to repeat.
+            return
 
-            if obj is None:
-                # that's an error, should never happen.
-                raise KeyError(
-                    "A guid {0} found in the preComparer, selected in to_test {1}, was not found in the PERSIST object (call returned None).  Internal software error.".format(
-                        guid, to_test
-                    )
-                )
+        expected_N1 = self.estimate_expected_unk(
+            sample_size=sample_size,
+            unk_type=uncertain_base_type,
+        )
+        if expected_N1 is None:
+            self.estimated_p1 = None
+        else:
+            self.estimated_p1 = expected_N1 / (len(self.reference) - len(self.excluded))
 
-            try:
-                N_sites = set(obj["N"]).intersection(sites)
-            except KeyError:
-                N_sites = set()
-            try:
-                M_sites = set(obj["M"].keys()).intersection(sites)
-            except KeyError:
-                M_sites = set()
+        self.estimated_p1_sample_size = sample_size
 
-            relevant = 0
-
-            if unk_type in ["M", "N_or_M"]:
-                relevant = relevant + len(M_sites)
-            if unk_type in ["N", "N_or_M"]:
-                relevant = relevant + len(N_sites)
-
-            observed.append(relevant)
-
-        return np.median(observed)
+    def raise_error(self, token):
+        """raises a ZeroDivisionError, with token as the message.
+        useful for unit tests of error logging"""
+        raise ZeroDivisionError(token)
 
     def multi_sequence_alignment(
         self,
@@ -753,7 +787,7 @@ class hybridComparer:
             if expected_p1 is supplied, then such sampling does not occur.
 
             uncertain_base_type: the kind of base which is to be analysed, either N,M, or N_or_M
-            outgroup: the outgroup sample, if any.  Not used in computations, but stored in the output
+            outgroup: the outgroup sample, if any.  Not used in computations, but stored in the output. ** NOT IMPLEMENTED AT PRESENT **
 
             Output:
             A MSAResult object.
@@ -815,52 +849,32 @@ class hybridComparer:
         """
 
         # -1 validate input
+
+        if sample_size is None:
+            sample_size = 100
+
         if expected_p1 is not None:
             if expected_p1 < 0 or expected_p1 > 1:
                 raise ValueError("Expected_p1 must lie between 0 and 1")
-        if sample_size is None:
-            sample_size = 30
-
-        # step 0: find all valid guids
-        valid_guids = []
-        invalid_guids = []
-
-        self.remove_all_temporary_seqs()  # remove all full seqProfiles from this object
-        for guid in guids:
-            seq = self.load(guid)
-            if seq is None:
-                raise KeyError("Sequence missing {0}".format(guid))
-
-            if seq["invalid"] == 0:
-                self.seqProfile[guid] = seq
-                valid_guids.append(guid)
-
-            else:
-
-                invalid_guids.append(guid)
-
-        # Estimate expected N or M as median(observed N or Ms),
-        # which is a valid thing to do if the proportion of mixed samples is low.
-        # this is a very fast method which won't materially slow down the msa
-        if expected_p1 is None:
-            expected_N1 = self.estimate_expected_unk(
-                sample_size=sample_size,
-                exclude_guids=invalid_guids,
-                unk_type=uncertain_base_type,
-            )
-            if expected_N1 is None:
-                expected_p1 = None
-            else:
-                expected_p1 = expected_N1 / len(self.reference)
         else:
-            expected_N1 = np.floor(expected_p1 * len(self.reference))
+            # estimate expected_p1
+            if (
+                self.estimated_p1_sample_size > sample_size
+            ):  # we have an estimate derived from a sufficient sample
+                expected_p1 = self.estimated_p1
+            else:
+                # we need to construct an estimate
+                self.update_p1_estimate(
+                    sample_size=sample_size, uncertain_base_type=uncertain_base_type
+                )
 
+        valid_guids = set(guids).intersection(set(self.catWalk.sample_names()))
         return self._msa(
-            valid_guids,
-            invalid_guids,
-            expected_p1,
-            sample_size,
-            uncertain_base_type,
+            valid_guids=valid_guids,
+            invalid_guids=[],
+            expected_p1=self.estimated_p1,
+            sample_size=self.estimated_p1_sample_size,
+            uncertain_base_type=uncertain_base_type,
             outgroup=outgroup,
         )
 
@@ -874,7 +888,7 @@ class hybridComparer:
         outgroup=None,
     ):
         """perform multisequence alignment and significance tests.
-        It assumes that the relevant sequences (valid_guids) are in-ram in this hybridComparer object as part of the seqProfile dictionary.
+        It assumes that the relevant sequences (valid_guids) are in-ram in this cw_seqComparer object as part of the seqProfile dictionary.
 
         Parameters:
         valid_guids:  the guids in valid_guids are those on which the msa is computed.
@@ -951,23 +965,21 @@ class hybridComparer:
         nrps = {}
         guid2all = {"N": {}, "M": {}, "N_or_M": {}}
         guid2align = {"N": {}, "M": {}, "N_or_M": {}}
+        seq_profile = {}
 
         for guid in valid_guids:
+            seq_profile[guid] = self.load(guid)
 
-            if self.seqProfile[guid]["invalid"] == 1:
-                raise TypeError(
-                    "Invalid sequence {0} passed in valid_guids".format(guid)
-                )
-
+        for guid in valid_guids:
             for unk_type in ["N", "M"]:
 
-                unks = len(self.seqProfile[guid][unk_type])
+                unks = len(seq_profile[guid][unk_type])
                 guid2all[unk_type][guid] = unks
 
             guid2all["N_or_M"][guid] = guid2all["N"][guid] + guid2all["M"][guid]
 
             for base in ["A", "C", "T", "G"]:
-                positions = self.seqProfile[guid][base]
+                positions = seq_profile[guid][base]
                 for position in positions:
                     if (
                         position not in nrps.keys()
@@ -985,12 +997,12 @@ class hybridComparer:
             for position in nrps.keys():
                 psn_accounted_for = 0
                 for base in ["A", "C", "T", "G"]:
-                    if position in self.seqProfile[guid][base]:
+                    if position in seq_profile[guid][base]:
                         psn_accounted_for = 1
                 if psn_accounted_for == 0:  # no record of non-ref seq here
                     if not (
-                        position in self.seqProfile[guid]["N"]
-                        or position in self.seqProfile[guid]["M"].keys()
+                        position in seq_profile[guid]["N"]
+                        or position in seq_profile[guid]["M"].keys()
                     ):  # not M or N so non-reference
                         # it is reference; this guid has no record of a variant base at this position, so it must be reference.
                         nrps[position].add(
@@ -1027,15 +1039,15 @@ class hybridComparer:
                 this_base_m = self.reference[position]
                 for base in ["A", "C", "T", "G", "N", "M"]:
                     if not base == "M":
-                        positions = self.seqProfile[guid][base]
+                        positions = seq_profile[guid][base]
                     else:
-                        positions = self.seqProfile[guid][base].keys()
+                        positions = seq_profile[guid][base].keys()
 
                     if position in positions:
                         this_base = base
                         this_base_m = base
                         if base == "M":
-                            this_base_m = self.seqProfile[guid]["M"][position]
+                            this_base_m = seq_profile[guid]["M"][position]
                 guid2seq[guid].append(this_base)  # include M for mix if present
                 guid2mseq[guid].append(this_base_m)  # include iupac code for mix
             guid2msa_seq[guid] = "".join(guid2seq[guid])
@@ -1239,12 +1251,3 @@ class hybridComparer:
 
         else:
             return None
-
-    def remove_all_temporary_seqs(self):
-        """empties any sequence data from ram in the .seqProfile dictionary; these are used for MSAs.  Does not affect the preComparer."""
-        self.seqProfile = {}
-
-    def raise_error(self, token):
-        """raises a ZeroDivisionError, with token as the message.
-        useful for unit tests of error logging"""
-        raise ZeroDivisionError(token)

@@ -154,8 +154,8 @@ CLUSTERING:		a dictionary of parameters used for clustering.  In the below examp
                     'ignore', one cluster {A,B,M} is returned
                     'include', two clusters {A,M} and {B,M}
                     'exclude', three clusters are returns {A},{B},{C}
-                mixture_criterion: sensible values include 'p_value1','p_value2','p_value3' but other output from  seqComparer._msa() is also possible.
-                     these p-values arise from three different tests for mixtures.  Please see seqComparer._msa() for details.
+                mixture_criterion: sensible values include 'p_value1','p_value2','p_value3' but other output from  py_seqComparer._msa() is also possible.
+                     these p-values arise from three different tests for mixtures.  Please see py_seqComparer._msa() for details.
                 cutoff: samples are regarded as mixed if the mixture_criterion is less than or equal to this value.
 ```
 	

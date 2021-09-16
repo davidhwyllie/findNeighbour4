@@ -123,9 +123,9 @@ class Test_Base1t(unittest.TestCase):
     def setUp(self):
 
         pm = Persistence()
-
+        
         self.t = pm.get_storage_object(connString=UNITTEST_MONGOCONN, debug=2)
-
+        self.t._delete_existing_data()
         dna = NucleicAcid()
 
         # add some sequences
@@ -281,7 +281,7 @@ class test_gdm_3r(Test_Base1tr):
 
         # add more
         # add some sequences
-        seqs = {"b4": "ACGT", "b5": "NACT", "b6": "TTTT", "c1": "TTTT"}
+        seqs = {"b4": "ACGT", "b5": "NACT", "b6": "TTTT"}
         for guid in seqs.keys():
             time.sleep(0.1)
             seq = seqs[guid]

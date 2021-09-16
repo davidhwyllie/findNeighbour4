@@ -450,6 +450,10 @@ class Test_SeqMeta_guid_exists_1(Test_Database):
             self.assertIsNone(seq1.prop_actg, None)
             self.assertIsInstance(seq1.examination_date, datetime.datetime)
 
+            # try to add it again.  Should raise a FileExists error
+            with self.assertRaises(FileExistsError):
+                pdm.refcompressedseq_store(guid, self.seqobj)
+
             pdm.guid_annotate(guid, "DNAQuality", na.composition)
 
             seq1 = (
@@ -663,9 +667,11 @@ class Test_SeqMeta_Base1(Test_Database):
                 n += 1
             self.assertTrue(x, set(seqs.keys()))
 
-            pdm.refcompressedseq_store(
-                guid, self.seqobj
-            )  # try to add the last item again; nothing should happen
+            with self.assertRaises(FileExistsError):
+                pdm.refcompressedseq_store(
+                    guid, self.seqobj
+                )  # try to add the last item again;
+                 
             n2 = 0
             res = set()
             for (x,) in tls.query(RefCompressedSeq.sequence_id).all():
