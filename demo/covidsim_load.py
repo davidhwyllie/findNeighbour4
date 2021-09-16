@@ -11,8 +11,7 @@ python covidsim.py --help
 
 # example usage
 # set up server if not already runing
-pipenv run python3 configure.py demos/covidsim/config_performancetest.json --prepare --n_workers 10
-nohup pipenv run gunicorn wsgi:app --workers 10 --bind 127.0.0.1:5039 --log-level info &
+./fn4_startup.sh demos/covidsim/config_performancetest.json
 
 # load data
 pipenv run python3 demo/covidsim.py demos/covidsim/config_performancetest.json /data/data/pca/sim/fasta  sim1.fasta 
@@ -194,14 +193,18 @@ if __name__ == "__main__":
 
     ## optionally raise an error if this list is too long
     for fastafile in fastafiles:
-        logger.info("Resetting")
-        fn4c.reset()
         existing_guids = fn4c.guids()
-        print("After resetting, there remain {0} samples".format(len(existing_guids)))
+        print(
+            "At startup, there are {0} samples loaded.  Note, fn4_startup.sh will prepopulate the catwalk component from the database.".format(
+                len(existing_guids)
+            )
+        )
 
         if len(existing_guids) > 0:
             warnings.warn(
-                "More than 0 guids remain on startup: {0}".format(len(existing_guids))
+                "Note: guids remain on startup: {0}.  This may be normal if you have run this script before.".format(
+                    len(existing_guids)
+                )
             )
 
         # add the reference sequence as the root if not already present
@@ -278,21 +281,25 @@ if __name__ == "__main__":
                     print("Insertion", n_added, ix, len(seq))
                     res = fn4c.insert(guid=sample_id, seq=seq)
 
-    # finished
+    # finished load
     logging.info("Load completed.")
+
+    # benchmarking snippet
     urls = []
     for i, guid in enumerate(fn4c.guids()):
-        urls.append("{0}/api/v2/{1}/exists".format(server_url, guid))
-        if i > 100:
-            break
+        # add urls; can choose what to use
+        # urls.append("{0}/api/v2/{1}/exists".format(server_url, guid)) # one database access
+        urls.append("{0}/api/v2/server_time".format(server_url))  # no database access
+        # urls.append("{0}/api/v2/--Reference--/{1}/exact_distance".format(server_url, guid))     # 2 database access needed + a computation
+
+    # fire them at the server using asyncio
     start_time = datetime.datetime.now()
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main(urls))
+
     res = pd.DataFrame.from_dict(http_results, orient="index")
     res["start_time"] = start_time
     res["delta"] = res["response_time"] - res["start_time"]
     res["msec"] = [1000 * x.total_seconds() for x in res["delta"]]
     print(res)
-    print(res["msec"].to_list())
-    # finished
     logging.info("Finished, terminating program.")

@@ -50,10 +50,10 @@ Returns a suitable command to run gunicorn
 Example usage: 
 ============== 
 # show command line options 
-pipenv run python configure.py --help  
+pipenv run python fn4_configure.py --help  
 
 # set path to config file in .env file
-pipenv run python configure.py /path/to/config_file.json --set  
+pipenv run python fn4_configure.py /path/to/config_file.json --set  
 
 """,
     )
@@ -91,9 +91,14 @@ pipenv run python configure.py /path/to/config_file.json --set
         help="prepopulate catwalk with data from database",
     )
     parser.add_argument(
-        "--prepare",
+        "--startup",
         action="store_true",
-        help="perform all necessary preparations to launching a gunicorn based server",
+        help="perform all necessary preparations to launching a gunicorn based server; write startup command to STDOUT",
+    )
+    parser.add_argument(
+        "--shutdown",
+        action="store_true",
+        help="write shutdown command to STDOUT",
     )
     parser.add_argument(
         "--n_workers",
@@ -124,17 +129,17 @@ pipenv run python configure.py /path/to/config_file.json --set
     logging.info(
         "Read .env file with the following keys: {0}".format(ev.env_vars.keys())
     )
-    if args.set or args.prepare:
+    if args.set or args.startup:
         logging.info("Setting FN4_SERVER_CONFIG_FILE to {0}".format(config_file))
         ev.set_env_var(
             "FN4_SERVER_CONFIG_FILE", "'{0}'".format(args.path_to_config_file)
         )
         ev.save_changes()
 
-    if args.drop_insert_semaphore or args.prepare:
+    if args.drop_insert_semaphore or args.startup:
         PERSIST.unlock(1, force=True)
 
-    if args.prepopulate_catwalk or args.prepare:
+    if args.prepopulate_catwalk or args.startup:
 
         fn4 = findNeighbour4(CONFIG, PERSIST)
         fn4.prepopulate_catwalk()
@@ -154,7 +159,26 @@ pipenv run python configure.py /path/to/config_file.json --set
     if "LISTEN_TO" in CONFIG.keys():
         LISTEN_TO = CONFIG["LISTEN_TO"]
 
-    cmd = "nohup pipenv run gunicorn wsgi:app --workers {0} --bind {1}:{2} --log-level info & ".format(
-        args.n_workers, LISTEN_TO, CONFIG["REST_PORT"]
-    )
-    print(cmd)
+    if args.startup:
+        startup_cmd = "nohup pipenv run gunicorn wsgi:app --bind {1}:{2} --log-level info  --workers {0} &".format(
+            args.n_workers, LISTEN_TO, CONFIG["REST_PORT"]
+        )
+        logging.info(
+            "Configure finished.  Startup command returned to STDOUT {0}".format(
+                startup_cmd
+            )
+        )
+        print(startup_cmd)
+
+    if args.shutdown:
+        shutdown_cmd = (
+            'pkill -f "gunicorn wsgi:app --bind {0}:{1} --log-level info"'.format(
+                LISTEN_TO, CONFIG["REST_PORT"]
+            )
+        )
+        logging.info(
+            "Configure finished.  Shutdown command returned to STDOUT {0}".format(
+                shutdown_cmd
+            )
+        )
+        print(shutdown_cmd)

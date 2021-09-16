@@ -54,6 +54,7 @@ class EnvWriter:
 
     def set_env_var(self, key, value):
         """set environment variable key to value value.  Note: if the value needs quoting when exported to file, do this e.g. ev.set_env_var("new_key", "'/path/to/file'")"""
+        logging.info("Reset environment variable {0} = {1}".format(key, value))
         self.env_vars[key] = value
 
     def del_env_var(self, key):
@@ -216,6 +217,7 @@ class ConfigManager:
 
         # load the result from database
         stored_config = self.PERSIST.config_read("config")
+
         stored_config["excludePositions"] = set(stored_config["excludePositions"])
         for (
             key

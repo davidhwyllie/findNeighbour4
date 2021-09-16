@@ -67,7 +67,7 @@ here is an example:
 rm test_startup.sh -f         # remove any startup script
 # prepare to run findNeighbour4 server with 10 workers.
 # do pipenv run python3 configure --help to see other options
-pipenv run python3 configure.py config/myconfig.json --prepare --n_workers 10 > test_startup.sh
+pipenv run python3 fn4_configure.py config/myconfig.json --prepare --n_workers 10 > test_startup.sh
 # prepare to run the shell script which has been written
 chmod +x test_startup.sh
 ./test_startup.sh

@@ -77,13 +77,20 @@ if [ $NOHUP_LOGGING -eq 0 ]; then
 	CLUSTLOG="/dev/null"
 fi
 
-echo "Starting server with 8 worker processes (remove --n_workers 8 from start script to autopick)"
-pipenv run python3 configure.py $1 --n_workers 8 > $LAUNCHSCRIPT
+echo "Server processes making their own log in the database. Nohup output is going to the following locations:"
+echo $MONLOG
+echo $MANLOG
+echo $SRVLOG
+echo $CLUSTLOG
+
+echo "Starting server with prespecified worker processes (remove --n_workers X from fn4_startup.sh to autopick number of workers)"
+pipenv run python3 fn4_configure.py $1 --startup --n_workers 8 > $LAUNCHSCRIPT
 chmod +x $LAUNCHSCRIPT
 
 echo "running $LAUNCHSCRIPT"
-nohup ./$LAUNCHSCRIPT $1 > $SRVLOG &
+./$LAUNCHSCRIPT $1 > $SRVLOG 
 
+exit 0      # debug
 sleep 5
 echo "Starting dbmanager instance 1"
 nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset 01 $1 > $MANLOG &

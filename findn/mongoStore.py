@@ -884,8 +884,6 @@ class fn3persistence:
         """
         if validity not in [0, 1]:
             raise ValueError("Validity must be 0 or 1, not {0}".format(validity))
-            
-        print("Searching for validity {0}".format(validity))
 
         retVal = [
             x["_id"]
