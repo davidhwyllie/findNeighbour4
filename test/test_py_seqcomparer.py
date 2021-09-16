@@ -623,6 +623,7 @@ class test_py_seqComparer_17(unittest.TestCase):
         seq2 = sc.compress("NNNN")
         self.assertEqual(sc.countDifferences(seq1, seq2), None)
 
+
 class test_py_seqComparer_cmp(unittest.TestCase):
     """tests the comparison of two sequences where both differ from the reference."""
 
@@ -633,13 +634,14 @@ class test_py_seqComparer_cmp(unittest.TestCase):
 
         seq1 = sc.compress("AAAA")
         seq2 = sc.compress("CCCC")
-        sc.persist(seq1, 's1')
-        sc.persist(seq2, 's2')
+        sc.persist(seq1, "s1")
+        sc.persist(seq2, "s2")
 
-        self.assertEqual(sc.compare('s1','s2'), 4)
+        self.assertEqual(sc.compare("s1", "s2"), 4)
 
         with self.assertRaises(KeyError):
-            sc.compare('s1','not_there')
+            sc.compare("s1", "not_there")
+
 
 class test_py_seqComparer_saveload3(unittest.TestCase):
     def runTest(self):
