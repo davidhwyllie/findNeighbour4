@@ -13,7 +13,6 @@ by the Free Software Foundation.  See <https://opensource.org/licenses/MIT>, and
 """
 
 import unittest
-import pandas as pd
 from Bio import SeqIO
 from findn.py_seqComparer import py_seqComparer
 
@@ -360,7 +359,6 @@ class test_py_seqComparer_45b(unittest.TestCase):
         res = sc.multi_sequence_alignment(guid_names)
         self.assertEqual(len(res.valid_guids), 7)
         self.assertEqual(res.variant_positions, [0, 1, 2, 3])
-
 
 
 class test_py_seqComparer_1(unittest.TestCase):
