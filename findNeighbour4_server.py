@@ -300,12 +300,12 @@ class findNeighbour4:
         # store object in the precomparer
         self.sc.persist(obj1, uuid1)  # store in the preComparer
         self.sc.persist(obj2, uuid2)  # store in the preComparer
-        res = self.sc.compare(uuid1, uuid2)
+        dist = self.sc.compare(uuid1, uuid2)
 
         self.sc.remove(uuid1)
         self.sc.remove(uuid2)
-        res.update({"guid1": guid1, "guid2": guid2})
-        return res
+        
+        return {"guid1": guid1, "guid2": guid2, 'dist': dist}
 
     def prepopulate_catwalk(self):
         """ initialise cw_seqComparer, which interfaces with catwalk were necessary
@@ -441,7 +441,7 @@ class findNeighbour4:
 
             if self.PERSIST.lock(1):            # true if an insert lock was acquired
                 try:
-                    loginfo = self.hc.persist(refcompressedsequence, guid, {"DNAQuality": self.objExaminer.composition})
+                    self.hc.persist(refcompressedsequence, guid, {"DNAQuality": self.objExaminer.composition})
 
                 except Exception as e:
                     logging.exception("Error raised on persisting {0}".format(guid))
@@ -459,8 +459,6 @@ class findNeighbour4:
                 abort(409, FN4InsertInProgressError)
 
             logging.info("Insert succeeded {0}".format(guid))
-            for info in loginfo:
-                logging.info(info)  # performance info
             self.server_monitoring_store(message="Stored compressed sequence", guid=guid)
 
             # log database sizes
@@ -656,7 +654,7 @@ class findNeighbour4:
 
     def sequence(self, guid):
         """ gets masked sequence for the guid, in fasta format"""
-        if not self.hc.iscachedinram(guid):
+        if not self.exist_sample(guid):
             return None
         try:
             seq = self.hc.uncompress_guid(guid)

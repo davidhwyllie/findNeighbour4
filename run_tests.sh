@@ -18,6 +18,10 @@ for pid in $(pgrep -f config/default_test_config_rdbms.json); do
 echo "Terminating $pid"
 kill -9 $pid
 done
+for pid in $(pgrep -f "gunicorn wsgi:app --workers 1 --bind 127.0.0.1:5020"); do 
+echo "Terminating $pid"
+kill -9 $pid
+done
 
 # startup the server
 echo "Starting test findNeighbour servers to run tests with; waiting 15 seconds to ensure it has started  .."

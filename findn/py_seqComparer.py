@@ -439,6 +439,16 @@ class py_seqComparer:
         else:
             return nDiff
 
+    def compare(self, key1, key2):
+        """ Provides an exact distance between two guids, guid1 and guid2
+        
+        Will raise KeyError if either guid does not exist. """
+       
+        return self.countDifferences(
+            self.seqProfile[key1], 
+            self.seqProfile[key2]
+        )
+
     def compressed_sequence_hash(self, compressed_sequence):
         """returns a string containing a hash of a compressed object.
         Used for identifying compressed objects, including consensus sequences.
