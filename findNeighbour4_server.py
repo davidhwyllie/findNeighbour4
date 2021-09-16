@@ -427,7 +427,7 @@ class findNeighbour4:
         # clean, and provide summary statistics for the sequence
         logging.info("Preparing to insert: {0}".format(guid))
 
-        if not self.hc.iscachedinram(guid):  # if the guid is not already there
+        if not self.exist_sample(guid):   # if the guid is not already there
             self.server_monitoring_store(message="About to insert", guid=guid)
             logging.info("Guid is not present: {0}".format(guid))
 
@@ -435,7 +435,7 @@ class findNeighbour4:
             self.objExaminer.examine(dna)  # examine the sequence
             cleaned_dna = self.objExaminer.nucleicAcidString.decode()
             refcompressedsequence = self.hc.compress(cleaned_dna)  # compress it and store it in RAM
-            self.server_monitoring_store(message="Compression complete", guid=guid)
+            
             # addition should be an atomic operation, in which all the component complete or do not complete.
             # we use a semaphore to do this.
 
@@ -449,8 +449,7 @@ class findNeighbour4:
                     capture_exception(e)  # log what happened in Sentry
                     # Rollback anything which could leave system in an inconsistent state
                     # remove the guid from RAM is the only step necessary
-                    self.hc.remove(guid)
-                    logging.warning("Guid {0}  removed from preComparer due to error {0}".format(guid))
+                    logging.warning("Guid {0}  failed to insert {0}".format(guid))
                     abort(
                         503, e
                     )  # the mongo server may be refusing connections, or busy.  This is observed occasionally in real-world use
