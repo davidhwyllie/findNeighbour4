@@ -3,25 +3,26 @@ Testing
 instructions on how to install dependencies are [here](HowToTest.md)
 
 
-To run with a virtual environment, which is strongly recommended, preface command with   
+To run with a virtual environment, which is strongly recommended, preface commands with   
 ```pipenv run ..```  
 e.g.  
-```pipenv run python3 findNeighbour4_server.py```.
+```pipenv run python3 myprogram.py```.
 
-## To start the server
+The startup scripts provided run the server within a virtual environment
+```
+./fn4_startup.sh {configfile}
+```
+
+## To start the server in a development environment
 
 The easiest way to start the server is go to the findNeighbour4 root folder and run the command:  
 ```./fn4_startup.sh {configfile}```  
 where {configfile} is the path to a configuration file. 
 This will launch the server, database monitor, server monitor, and clustering systems.  The latter three are recommended, but not essential.  Not all of these are required if you are using an RDBMS backend, but the unnecessary software will sense this and shut down.
 
-However, in a first run setting you can check it starts manually
+This starts the server using a single threaded gunicorn server.
 
-```pipenv run python3 findNeighbour4_server.py config/default_test_config.json```
-
-*Note: This application doesn't work with python2, so be sure to use python 3; also  this software won't work on Windows.*
-
-This will try to start the webserver with a default configuration which is useful for unit testing, in debug mode, using mongodb.    
+*Note: the default_test_config.json specifies a configuration which is useful for unit testing, runs in debug mode, and uses mongodb.*    
 
 **Important**: *Debug mode means, amongst other things, that all existing data in the fn3_unittesting database will be wiped on server restart.   This is good for testing, but not in most other situations.  You need to edit the config file (see below) for your needs.*
 
@@ -39,15 +40,11 @@ If the server fails to start, it's probably due to one of the following:
 
 * missing dependencies (which it will report).  Install them, then try again.  When it works, terminate the server, and kill any remaining process.  If you find dependencies we haven't documented, or encounter issues, please let us know.
 
-The more general form for starting the server is:
+The more general form for starting the server in development (single instance) mode is:
 ```
-nohup python3 findNeighbour4_server.py configfile.json &  
+./fn4_startup.sh configfile.json &  
 ```
-or, if using a virtual environment
 
-```
-nohup pipenv run python3 findNeighbour4_server.py configfile.json &  
-```  
 
 **Important**  
 * If configfile.json is omitted, then it will use a default config file, config/default_test_config.json.  This is suitable for unit testing, and other kinds of one-off tests. It expects a mongodb running on localhost on the default port.
@@ -57,24 +54,38 @@ It is **unsuitable for production**, because:
 3 it enables the /restart and /status endpoints, which respectively wipe the database and disclose confidential information about the server config, because it is running in debug mode.   
 A warning is emitted if the server is running with this default configuration.  
 
+## To start the server in a production environment
+
+To do so, you run a setup script which performs preparatory actions, including pre-populating Catwalk, and which generates a shell script to launch multiple server applications using gunicorn.  Note that the database backend specified in the config file cannot be running in 'debug' mode if you are using multiple workers.
+
+./fn4_startup.sh will do the entire process.  Note that by default, this will use 8 workers.  You can alter this behaviour by altering this line in fn4_startup.sh.
+If you remove --n_workers, it will launch 1 worker per compute core.
+```
+pipenv run python3 fn4_configure.py $1 --startup --n_workers 8 > $LAUNCHSCRIPT
+```
 
 ## Unit tests
-
 We do not recommend running unit tests on a production server with production findNeighbour server instances running.  Unit testing shuts down & starts up servers.  Side effects (shutting down other servers than the ones unit testing) is not expected, but it is better not to take the chance.
 
 Complete testing can be achieved with
 ```
-./run_test.sh
+./run_tests.sh
 ```
-*Note: this script starts test servers, which are required for some unittesting, and then runs pytest to run all available tests.  You may have to run chmod +x run_test.sh first.*
+*Note: this script starts test servers, which are required for some unittesting using gunicorn with one worker, and then runs pytest to run all available tests.  You may have to run chmod +x run_test.sh first. This action is also taken by the Github actions CI scripts.*
 
-If you wish to run unittests individually, you can do 
-```
-# you can test the internal classes used by findNeighbour4; all should pass if a mongodb server is operational on local host.  Here is an example:
+If you wish to run unittests individually, you can do so, using either unittest or pytest.
+Here is an example:
 
 ```
 pipenv run python3 -m unittest  test/test_seq2dict.py
 ```
+
+or 
+
+```
+pipenv run pytest  test/test_seq2dict.py
+```
+
 
 ## Demonstrations
 
@@ -136,8 +147,8 @@ CLUSTERING:		a dictionary of parameters used for clustering.  In the below examp
                     'ignore', one cluster {A,B,M} is returned
                     'include', two clusters {A,M} and {B,M}
                     'exclude', three clusters are returns {A},{B},{C}
-                mixture_criterion: sensible values include 'p_value1','p_value2','p_value3' but other output from  seqComparer._msa() is also possible.
-                     these p-values arise from three different tests for mixtures.  Please see seqComparer._msa() for details.
+                mixture_criterion: sensible values include 'p_value1','p_value2','p_value3' but other output from  py_seqComparer._msa() is also possible.
+                     these p-values arise from three different tests for mixtures.  Please see py_seqComparer._msa() for details.
                 cutoff: samples are regarded as mixed if the mixture_criterion is less than or equal to this value.
 ```
 	

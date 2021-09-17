@@ -46,6 +46,7 @@ import warnings
 import datetime
 from pathlib import Path
 import sentry_sdk
+from version import version
 import argparse
 import shutil
 import progressbar
@@ -54,7 +55,7 @@ import progressbar
 from findn.persistence import Persistence
 from findn import DEFAULT_CONFIG_FILE
 from findn.common_utils import ConfigManager
-from findn.hybridComparer import hybridComparer
+from findn.cw_seqComparer import cw_seqComparer
 from pca.pca import VariantMatrix, PCARunner
 from pca.pcadb import PCADatabaseManager
 from pca.fittrend import ModelCounts
@@ -267,7 +268,7 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
 
     if "SENTRY_URL" in CONFIG.keys():
         logger.info("Launching logger")
-        sentry_sdk.init(CONFIG["SENTRY_URL"])
+        sentry_sdk.init(CONFIG["SENTRY_URL"], release=version)
 
     # prepare to connection
     logging.info("Connecting to backend data store")
@@ -291,8 +292,8 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
         connection_config=args.connection_config, debug=args.remove_existing_data
     )
 
-    logging.info("Setting up a hybridComparer object for sequence data access")
-    hc = hybridComparer(
+    logging.info("Setting up a cw_seqComparer object for sequence data access")
+    hc = cw_seqComparer(
         reference=CONFIG["reference"],
         maxNs=CONFIG["MAXN_STORAGE"],
         snpCeiling=CONFIG["SNPCEILING"],

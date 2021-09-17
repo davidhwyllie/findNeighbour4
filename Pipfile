@@ -46,6 +46,10 @@ cx-Oracle = "*"
 statsmodels = "*"
 patsy = "*"
 pyqt5 = "*"
+gunicorn = "*"
+sqlalchemy = "*"
+aiohttp = "*"
+asyncio = "*"
 
 [requires]
 python_version = "3.8"

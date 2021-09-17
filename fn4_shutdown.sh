@@ -64,5 +64,21 @@ then
    ps -x | grep "bind_port $BIND_PORT"
    echo "--------------------"
 fi
+
+echo "Targeting any gunicorn based servers"
+
+# checksum the config file
+MD5CHECKSUM=`md5sum $1 | cut -d' ' -f1`
+
+# launch script file
+STOPSCRIPT="fn4server_stop_${MD5CHECKSUM}.sh"
+
+echo "Stopping server  worker processes"
+pipenv run python3 fn4_configure.py $1 --shutdown --n_workers 8 > $STOPSCRIPT
+chmod +x $STOPSCRIPT
+
+echo "running $STOPSCRIPT"
+./$STOPSCRIPT $1 
+
 echo "Shutdown completed"
 

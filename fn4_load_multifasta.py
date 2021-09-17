@@ -40,6 +40,7 @@ import time
 from collections import Counter
 from fn4client import fn4Client
 import sentry_sdk
+from version import version
 
 ## define functions and classes
 class DatabaseMonitorInoperativeError(Exception):
@@ -102,6 +103,12 @@ Example usage:
 ============== 
 # show command line options 
 python fn4_load_multifasta.py --help  
+
+# load a single file into a server running on localhost port 5035
+
+nohup pipenv run python3 fn4_load_multifasta.py http://localhost:5035 /data/data/inputfasta loadtest.fasta fn4_load_rdbms.log > rdbms.out &
+
+
 """
     )
     parser.add_argument(
@@ -116,6 +123,7 @@ python fn4_load_multifasta.py --help
         "fastadir", type=str, action="store", nargs="?", help="the directory in which fasta files will appear", default=""
     )
     parser.add_argument("fileglob", type=str, action="store", nargs="?", help="a pattern to glob for", default="")
+    parser.add_argument("logfile", type=str, action="store", nargs="?", help="logfile to write to", default="")
     args = parser.parse_args()
 
     ####################################    STARTUP ###############################
@@ -137,7 +145,7 @@ python fn4_load_multifasta.py --help
     logger = logging.Logger("fn4_load_multifasta")
     logger.setLevel(logging.INFO)
     timenow = datetime.datetime.now().isoformat()
-    logfile = os.path.join(logdir, "fn4_load_multifasta_v2.log")
+    logfile = os.path.join(logdir, args.logfile)
     file_handler = logging.handlers.RotatingFileHandler(logfile, mode="a", maxBytes=1e7, backupCount=7)
     formatter = logging.Formatter("%(asctime)s | %(pathname)s:%(lineno)d | %(funcName)s | %(levelname)s | %(message)s ")
     file_handler.setFormatter(formatter)
@@ -148,7 +156,7 @@ python fn4_load_multifasta.py --help
     # launch comms with Sentry
     if os.environ.get("FN_SENTRY_URL") is not None:
         logger.info("Launching communication with Sentry bug-tracking service")
-        sentry_sdk.init(os.environ.get("FN_SENTRY_URL"))
+        sentry_sdk.init(os.environ.get("FN_SENTRY_URL"), release=version)
         logger.info("Sentry comms established")
     else:
         logger.info("No error monitoring via sentry.  Set environment variable FN_SENTRY_URL to do so.")

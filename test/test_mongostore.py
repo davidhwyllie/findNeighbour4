@@ -688,6 +688,11 @@ class Test_SeqMeta_guid_valid_1(unittest.TestCase):
         res = p.guid_valid("noguid")
         self.assertEqual(res, -1)
 
+        valid_guids = p.guids_valid()
+        self.assertEqual(valid_guids, set(['valid']))
+        invalid_guids = p.guids_invalid()
+        self.assertEqual(invalid_guids, set(['invalid']))
+
 
 @mongo_test
 class Test_SeqMeta_guid_valid_2(unittest.TestCase):
@@ -1228,3 +1233,28 @@ class Test_rotate_log(unittest.TestCase):
     def runTest(self):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
         p.rotate_log()
+
+@mongo_test
+class Test_lock(unittest.TestCase):
+    """tests locking.  
+    
+    Note: does not test concurrent operations"""
+
+    def runTest(self):
+
+        pdm = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
+        
+        self.assertTrue(pdm.unlock(1, force= True))
+        self.assertEqual(0, pdm.lock_status(1)['lock_status'])
+        self.assertTrue(pdm.unlock(0, force= True))
+        self.assertEqual(0, pdm.lock_status(0)['lock_status'])
+
+        self.assertTrue(pdm.lock(1))        # lock open; should succeed
+        self.assertEqual(1, pdm.lock_status(1)['lock_status'])
+        self.assertTrue(pdm.lock(0))        # lock open; should succeed          
+        self.assertFalse(pdm.lock(1))        # lock closed; should fail         
+        self.assertEqual(1, pdm.lock_status(1)['lock_status'])
+        
+        self.assertTrue(pdm.unlock(1))        # lock closed should succeed
+        self.assertEqual(0, pdm.lock_status(1)['lock_status'])
+        

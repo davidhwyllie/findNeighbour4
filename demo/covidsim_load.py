@@ -2,14 +2,7 @@
 """ loads samples into a findNeighbour4 server
 from a multi-fasta file containing a simulated phylogeny.
 
-performs PCA serially.
-
-assumes a findNeighbour4 server is running
-you can start one with
-
 pipenv run python3 findNeighbour4_server.py demos/covidsim/config.json
-
-Paths expected are currently hard-coded
 
 Example usage: 
 ============== 
@@ -17,7 +10,11 @@ Example usage:
 python covidsim.py --help  
 
 # example usage
-pipenv run python3 demo/covidsim.py demos/covidsim/config.json /data/data/pca/sim/fasta  sim0.fasta --outputdir /data/data/pca/sim/sqlite --n_components 20
+# set up server if not already runing
+./fn4_startup.sh demos/covidsim/config_performancetest.json
+
+# load data
+pipenv run python3 demo/covidsim.py demos/covidsim/config_performancetest.json /data/data/pca/sim/fasta  sim1.fasta 
 
 A component of the findNeighbour4 system for bacterial relatedness monitoring
 Copyright (C) 2021 David Wyllie david.wyllie@phe.gov.uk
@@ -26,8 +23,6 @@ repo: https://github.com/davidhwyllie/findNeighbour4
 This program is free software: you can redistribute it and/or modify
 it under the terms of the MIT License as published
 by the Free Software Foundation.  See <https://opensource.org/licenses/MIT>, and the LICENSE file.
-
- 
 
 """
 
@@ -41,13 +36,31 @@ import logging.handlers
 import argparse
 import warnings
 import pandas as pd
-from collections import Counter
-from fn4client import fn4Client
 import sentry_sdk
-from version import version
-from findn.mongoStore import fn3persistence
+from collections import Counter
+import uuid
 from findn.common_utils import ConfigManager
-from pca.pca import VariantMatrix, PCARunner
+from fn4client import fn4Client
+import aiohttp
+import asyncio
+
+http_results = {}
+
+
+async def fetch(session, url):
+    async with session.get(url) as response:
+        return await response.text()
+
+
+async def main(urls):
+    async with aiohttp.ClientSession() as session:
+        for url in urls:
+            http_response = await fetch(session, url)
+            token = uuid.uuid4().hex
+            http_results[token] = dict(
+                url=url, response=http_response, response_time=datetime.datetime.now()
+            )
+
 
 ## define functions and classes
 class DatabaseMonitorInoperativeError(Exception):
@@ -72,9 +85,7 @@ if __name__ == "__main__":
                             python covidsim.py --help  
 
                             # load into server 
-                            pipenv run python3 demo/covidsim.py demos/covidsim/config.json /data/data/pca/sim/fasta  sim0.fasta --outputdir /data/data/pca/sim/sqlite --n_components 20
-
-
+                            pipenv run python3 demo/covidsim.py demos/covidsim/config.json /data/data/pca/sim/fasta  sim1.fasta 
                             """,
     )
 
@@ -84,7 +95,7 @@ if __name__ == "__main__":
         action="store",
         nargs="?",
         help="the path to the configuration file",
-        default=None,
+        default="",
     )
     parser.add_argument(
         "fastadir",
@@ -103,22 +114,6 @@ if __name__ == "__main__":
         default="",
     )
 
-    parser.add_argument(
-        "--outputdir",
-        type=str,
-        action="store",
-        nargs="?",
-        help="the directory in which the output will appear",
-        default="",
-    )
-    parser.add_argument(
-        "--n_components",
-        type=int,
-        action="store",
-        nargs="?",
-        help="the number of pcs to extract.  If this is smaller than the numbers of samples trained_on, instability is likely.  Default 20",
-        default=20,
-    )
     args = parser.parse_args()
 
     ####################################    STARTUP ###############################
@@ -170,24 +165,13 @@ if __name__ == "__main__":
     # launch comms with Sentry
     if os.environ.get("FN_SENTRY_URL") is not None:
         logger.info("Launching communication with Sentry bug-tracking service")
-        sentry_sdk.init(os.environ.get("FN_SENTRY_URL"), release=version)
+        sentry_sdk.init(os.environ.get("FN_SENTRY_URL"))
         logger.info("Sentry comms established")
     else:
         logger.info(
             "No error monitoring via sentry.  Set environment variable FN_SENTRY_URL to do so."
         )
 
-    print("Connecting to backend data store")
-    try:
-        PERSIST = fn3persistence(
-            dbname=CONFIG["SERVERNAME"],
-            connString=CONFIG["FNPERSISTENCE_CONNSTRING"],
-            debug=CONFIG["DEBUGMODE"],
-            server_monitoring_min_interval_msec=0,
-        )
-    except Exception:
-        print("Error raised on creating persistence object")
-        raise
     # instantiate client
     server_url = "http://localhost:{0}".format(CONFIG["REST_PORT"])
     fn4c = fn4Client(
@@ -209,14 +193,19 @@ if __name__ == "__main__":
 
     ## optionally raise an error if this list is too long
     for fastafile in fastafiles:
-        logger.info("Resetting")
-        fn4c.reset()
         existing_guids = fn4c.guids()
-        print("After resetting, there remain {0} samples".format(len(existing_guids)))
+        print(
+            "At startup, there are {0} samples loaded.  Note, fn4_startup.sh will prepopulate the catwalk component from the database.".format(
+                len(existing_guids)
+            )
+        )
 
         if len(existing_guids) > 0:
-            print("Error.  More than 0 guids remain: {0}".format(len(existing_guids)))
-            exit()
+            warnings.warn(
+                "Note: guids remain on startup: {0}.  This may be normal if you have run this script before.".format(
+                    len(existing_guids)
+                )
+            )
 
         # add the reference sequence as the root if not already present
         ref_guid = "--Reference--"
@@ -266,59 +255,51 @@ if __name__ == "__main__":
                 **counter,
                 "is_variant": is_variant,
             }
-            records.append(res)
+            if sample_id not in existing_guids:
+                records.append(res)
 
         logger.info(
-            "Complete read of simulated data into RAM.  There are {0} sequences.  Sorting ...".format(
+            "Complete read of simulated data not currently in server into RAM.  There are {0} sequences.  Sorting ...".format(
                 len(records)
             )
         )
 
         seq_df = pd.DataFrame.from_records(records)
-        seq_df.sort_values(by="sample_date", ascending=True, inplace=True)
-        print(seq_df)
+        if len(seq_df.index) > 0:
+            seq_df.sort_values(by="sample_date", ascending=True, inplace=True)
 
-        destfile = os.path.join(args.outputdir, fastastem + ".meta.txt")
-        with open(destfile, "wt") as f:
-            seq_df.to_csv(f, date_format="YYYY-MM-DD", index=False, sep="\t")
-        logging.info("Wrote metadata to {0}".format(destfile))
+            logging.info("Loading data into server")
 
-        logging.info("Loading data into server")
+            addition_dates = sorted(seq_df["sample_date"].unique())
+            n_added = 0
+            for addition_date in addition_dates:
+                print(addition_date)
+                for ix in seq_df.index[seq_df["sample_date"] == addition_date]:
+                    sample_id = seq_df.at[ix, "guid"]
+                    seq = seqdict[sample_id]
+                    n_added += 1
+                    print("Insertion", n_added, ix, len(seq))
+                    res = fn4c.insert(guid=sample_id, seq=seq)
 
-        addition_dates = sorted(seq_df["sample_date"].unique())
-        n_added = 0
-        for addition_date in addition_dates:
-            print(addition_date)
-            for ix in seq_df.index[seq_df["sample_date"] == addition_date]:
-                sample_id = seq_df.at[ix, "guid"]
-                seq = seqdict[sample_id]
-                n_added += 1
-                print("Insertion", n_added, ix, len(seq))
-                res = fn4c.insert(guid=sample_id, seq=seq)
+    # finished load
+    logging.info("Load completed.")
 
-            if n_added > 200:
-                # run pca
-                try:
-                    var_matrix = VariantMatrix(CONFIG, PERSIST)
-                except Exception:
-                    print("Error raised on instantiating Variant Matrix object")
-                    raise
+    # benchmarking snippet
+    urls = []
+    for i, guid in enumerate(fn4c.guids()):
+        # add urls; can choose what to use
+        # urls.append("{0}/api/v2/{1}/exists".format(server_url, guid)) # one database access
+        urls.append("{0}/api/v2/server_time".format(server_url))  # no database access
+        # urls.append("{0}/api/v2/--Reference--/{1}/exact_distance".format(server_url, guid))     # 2 database access needed + a computation
 
-                print("Building snp matrix")
-                try:
-                    var_matrix.build()
-                    # print("Running PCA on snp matrix")
-                    pca_runner = PCARunner(var_matrix)
-                    pca_runner.run(n_components=args.n_components, pca_parameters={})
-                    vm = pca_runner.cluster()
-                    vm.to_sqlite(
-                        outputdir=args.outputdir,
-                        analysis_name=fastastem + "_" + str(addition_date),
-                    )
-                except ValueError:
-                    warnings.warn(
-                        "Failed to run PCA - usually reflects inadequate amount of data"
-                    )
+    # fire them at the server using asyncio
+    start_time = datetime.datetime.now()
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main(urls))
 
-    # finished
+    res = pd.DataFrame.from_dict(http_results, orient="index")
+    res["start_time"] = start_time
+    res["delta"] = res["response_time"] - res["start_time"]
+    res["msec"] = [1000 * x.total_seconds() for x in res["delta"]]
+    print(res)
     logging.info("Finished, terminating program.")

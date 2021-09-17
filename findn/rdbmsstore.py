@@ -36,8 +36,10 @@ import psutil
 import logging
 import numpy as np
 import warnings
+import uuid
 import cx_Oracle
 from sentry_sdk import capture_message, capture_exception
+
 import progressbar
 from sqlalchemy import (
     Integer,
@@ -107,6 +109,24 @@ class BulkLoadTest(db_pc):
     blt_int_id = Column(Integer, Identity(start=1), primary_key=True)
     bulk1 = Column(Integer)
     bulk2 = Column(Integer)
+
+
+class FNLock(db_pc):
+    """used for storing details of one or more classes of lock"""
+
+    __tablename__ = "fn4lock"
+    lock_int_id = Column(
+        Integer,
+        primary_key=True,
+        comment="an integer reflecting the kind of lock studied",
+    )
+    lock_set_date = Column(
+        TIMESTAMP, index=True, comment="the date and time the lock was modified"
+    )
+    uuid = Column(String(32))
+    lock_status = Column(
+        Integer, comment="whether the lock is in place (1) or not in place (0)"
+    )
 
 
 class Config(db_pc):
@@ -320,6 +340,7 @@ class NPEncoder(json.JSONEncoder):
         else:
             return super(NPEncoder, self).default(obj)
 
+
 class fn3persistence_r:
     """System for persisting results from  large numbers of sequences stored in FindNeighbour 3+.
     Uses a generic rdbms, with optimisations for Oracle databases when using the cx_oracle package.
@@ -465,7 +486,7 @@ class fn3persistence_r:
             )
             self.engine_name = connection_config
         else:
-            # we have been passed a token.  this should be a key to a dictionary, stored in 
+            # we have been passed a token.  this should be a key to a dictionary, stored in
             # DB_CONNECTION_CONFIG_FILE which contains credentials
             conn_detail_file = None
             try:
@@ -544,22 +565,22 @@ class fn3persistence_r:
         self.show_bar = True  # maybe define a method to switch this off
 
         # create engine
-        self.engine = create_engine(self.engine_name)   # sqlalchemy generic pool manager
-        
-        # oracle pool manager code 
+        self.engine = create_engine(self.engine_name)  # sqlalchemy generic pool manager
+
+        # oracle pool manager code
         # use cx_Oracle pool manager
-        #u, p, dsn = self.oracle_connstring_parts(self.engine_name)
-        #self.oracle_pool = cx_Oracle.SessionPool(
+        # u, p, dsn = self.oracle_connstring_parts(self.engine_name)
+        # self.oracle_pool = cx_Oracle.SessionPool(
         #    user = u,
         #    password = p,
         #    dsn = dsn,
-        #   min = 4, 
+        #    min = 4,
         #    max = 4,
-        #    encoding="UTF-8", 
+        #    encoding="UTF-8",
         #    nencoding="UTF-8"
-        #)
-        #self.engine = create_engine("oracle://", creator = self.oracle_pool.acquire, poolclass = NullPool)
-        
+        # )
+        # self.engine = create_engine("oracle://", creator = self.oracle_pool.acquire, poolclass = NullPool)
+
         self.logger.info(
             "DatabaseManager: Database connection made; there are {0} tables.  Oracle database = {1}".format(
                 len(self._table_names()), self.is_oracle
@@ -604,44 +625,54 @@ class fn3persistence_r:
         self.show_bar = False
 
     def _table_names(self):
-        """returns table names in the schema.  
+        """returns table names in the schema.
         If the schema's contents have not been created, returns an empty list"""
         return inspect(self.engine).get_table_names()
 
-    def thread_local_session(self, n_retries = 3, simulate_failure = 'no', log_errors = True):
-        """ generates, or selects a thread local session from a session factory or pool. 
+    def thread_local_session(self, n_retries=3, simulate_failure="no", log_errors=True):
+        """generates, or selects a thread local session from a session factory or pool.
 
         For context, see https://docs.sqlalchemy.org/en/13/orm/contextual.html
 
         Checks that the session recovered from the session pool is still valid, since they can time out.
-        If it is timed out, tries another.  Will retry up to n_retries times. 
-        
+        If it is timed out, tries another.  Will retry up to n_retries times.
+
         Parameters:
         n_retries:  the number of attempts which will be made to generate a functional connection.
         simulate_failure: simulates the failure of a connection (closes the connection before returning it) - used only for unittesting.  Valid values:
                 'no' : normal operation
                 'once': fail once
                 'always': fail every time, even on repeated attempts to connect
-        log_errors: logs any errors to sentry & error log (recommended) """
-        
+        log_errors: logs any errors to sentry & error log (recommended)"""
+
         tries = n_retries
         while tries > 0:
-            tries = tries -1       
+            tries = tries - 1
             tls = self.Session()
 
             # simulate failure if required to do so
-            if (simulate_failure == 'once' and tries -1 == n_retries) or (simulate_failure == 'always'):
-                tls = None  # not a session object.  Attempts to use it as such will fail.
+            if (simulate_failure == "once" and tries - 1 == n_retries) or (
+                simulate_failure == "always"
+            ):
+                tls = (
+                    None  # not a session object.  Attempts to use it as such will fail.
+                )
 
             # test whether it is working
             try:
-                tls.query(Config).filter_by(config_key="config").first()        # try to connect
+                tls.query(Config).filter_by(
+                    config_key="config"
+                ).first()  # try to connect
 
-                # if execution continues here, the session works         
+                # if execution continues here, the session works
                 return tls
 
             except Exception as e:
-                logging.info("Failed to connect on trial {0}/{1}".format(n_retries - tries, n_retries))
+                logging.info(
+                    "Failed to connect on trial {0}/{1}".format(
+                        n_retries - tries, n_retries
+                    )
+                )
                 if log_errors:
                     capture_exception(e)
                     logging.error(e)
@@ -652,7 +683,11 @@ class fn3persistence_r:
                     logging.info("Failed to remove session")
                     logging.error(e)
 
-        raise RDBMSError("Could not connect to database.  Tried {0} times with different sessions".format(n_retries))
+        raise RDBMSError(
+            "Could not connect to database.  Tried {0} times with different sessions".format(
+                n_retries
+            )
+        )
 
     def _drop_existing_tables(self):
         """empties, but does not drop, any existing tables"""
@@ -682,7 +717,7 @@ class fn3persistence_r:
         return
 
     def oracle_connstring_parts(self, connstring):
-        """ splits an oracle connection string into username, password and DSN"""
+        """splits an oracle connection string into username, password and DSN"""
         if connstring.startswith("oracle+cx_oracle://"):
             e1 = self.engine_name.replace("oracle+cx_oracle://", "")
             up, dns = e1.split("@")
@@ -872,6 +907,7 @@ class fn3persistence_r:
         tls.query(Cluster).delete()
         tls.query(MSA).delete()
         tls.query(TreeStorage).delete()
+        tls.query(FNLock).delete()
         tls.commit()
         # finished
 
@@ -1338,14 +1374,14 @@ class fn3persistence_r:
 
         Parameters:
         guid:  the sequence identifer
-        obj:   a reference compressed sequence representation, as produced by seqComparer.compress().
+        obj:   a reference compressed sequence representation, as produced by py_seqComparer.compress().
         Here is an example:
 
         {
             'A':set([1,2,3]), 'C':set([6]), 'T':set([4]), 'G':set([5]), 'M':{11:'Y', 12:'k'}, 'invalid':0
         }
 
-        If the guid already exists in the database, ignores the request silently."""
+        If the guid already exists in the database, raises a FileExistsError, as is the case with the mongo client."""
         tls = self.thread_local_session()
         if not isinstance(obj, dict):
             raise TypeError(
@@ -1363,7 +1399,7 @@ class fn3persistence_r:
             .filter_by(sequence_id=guid)
             .one_or_none()
         )
-        if res is None:
+        if res is None:     # it doesn't exits
             tls.add(
                 RefCompressedSeq(
                     sequence_id=guid,
@@ -1374,14 +1410,21 @@ class fn3persistence_r:
                     annotations=json.dumps({}),
                 )
             )
-        tls.commit()
+            tls.commit()
+        else:  # it does exist
+            raise FileExistsError("Attempting to overwrite {0}".format(guid))
+
         # finished
 
     def refcompressedsequence_read(self, guid: str) -> Any:
         """loads object from refcompressedseq collection.
         It is assumed object stored is a dictionary"""
         tls = self.thread_local_session()
-        if rcs := tls.query(RefCompressedSeq.content).filter_by(sequence_id=guid).first():
+        if (
+            rcs := tls.query(RefCompressedSeq.content)
+            .filter_by(sequence_id=guid)
+            .first()
+        ):
             return self.sjc.from_json(rcs.content)
         else:
             return None
@@ -1463,7 +1506,9 @@ class fn3persistence_r:
         tls = self.thread_local_session()
         return set(
             res.sequence_id
-            for res in tls.query(RefCompressedSeq.sequence_id).filter_by(invalid=validity)
+            for res in tls.query(RefCompressedSeq.sequence_id).filter_by(
+                invalid=validity
+            )
         )
 
     def singletons(
@@ -1494,7 +1539,8 @@ class fn3persistence_r:
         """checks the presence of a single guid"""
         tls = self.thread_local_session()
         return (
-            tls.query(RefCompressedSeq.sequence_id).filter_by(sequence_id=guid).first() is not None
+            tls.query(RefCompressedSeq.sequence_id).filter_by(sequence_id=guid).first()
+            is not None
         )
 
     def guid_valid(self, guid: str) -> int:
@@ -1509,7 +1555,11 @@ class fn3persistence_r:
         1    The guid exists and the sequence is invalid
         """
         tls = self.thread_local_session()
-        if res := tls.query(RefCompressedSeq.invalid).filter_by(sequence_id=guid).first():
+        if (
+            res := tls.query(RefCompressedSeq.invalid)
+            .filter_by(sequence_id=guid)
+            .first()
+        ):
             if res.invalid == 0:
                 return 0
             elif res.invalid == 1:
@@ -1532,7 +1582,11 @@ class fn3persistence_r:
         None if the guid does not exist
         """
         tls = self.thread_local_session()
-        if res := tls.query(RefCompressedSeq.examination_date).filter_by(sequence_id=guid).first():
+        if (
+            res := tls.query(RefCompressedSeq.examination_date)
+            .filter_by(sequence_id=guid)
+            .first()
+        ):
             return res.examination_date
         else:
             return None
@@ -1578,8 +1632,13 @@ class fn3persistence_r:
         If guidList is None, all items are returned.
         """
         tls = self.thread_local_session()
-        if guidList is None:        # rreturn everything
-            return tls.query(RefCompressedSeq.sequence_id, RefCompressedSeq.annotations, RefCompressedSeq.prop_actg, RefCompressedSeq.examination_date)
+        if guidList is None:  # rreturn everything
+            return tls.query(
+                RefCompressedSeq.sequence_id,
+                RefCompressedSeq.annotations,
+                RefCompressedSeq.prop_actg,
+                RefCompressedSeq.examination_date,
+            )
         else:
             return tls.query(RefCompressedSeq).filter(
                 RefCompressedSeq.sequence_id.in_(guidList)
@@ -1618,7 +1677,9 @@ class fn3persistence_r:
         This query is potentially very inefficient- best avoided
         """
         tls = self.thread_local_session()
-        query = tls.query(RefCompressedSeq.sequence_id, RefCompressedSeq.prop_actg).filter(RefCompressedSeq.prop_actg >= cutoff)
+        query = tls.query(
+            RefCompressedSeq.sequence_id, RefCompressedSeq.prop_actg
+        ).filter(RefCompressedSeq.prop_actg >= cutoff)
 
         return {res.sequence_id: res.prop_actg for res in query}
 
@@ -1778,3 +1839,113 @@ class fn3persistence_r:
                 .filter(Edge.dist <= cutoff)
             ],
         }
+
+    def _set_lock_status(self, lock_int_id, lock_status):
+        """locks or unlocks resources identified by lock_int_id, allowing cross- process sequential processing (e.g. insertion)
+
+        To lock, set lock_status =1 ; to unlock, set lock_status =0
+        To return the relevant row, set lock_status to None
+
+        See the acquire_lock() method for more details
+
+        returns:
+        True if update succeeded, false if it did not
+
+        Technical notes:
+        https://docs.sqlalchemy.org/en/14/orm/session_transaction.html
+        https://www.amazon.com/Expert-Oracle-Database-Architecture-Thomas-dp-1430262982/dp/1430262982/ref=dp_ob_title_bk
+
+        """
+        # make sure there is an entry for this lock
+        tls = self.Session()
+
+        lock_row = (
+            tls.query(FNLock).filter(FNLock.lock_int_id == lock_int_id).one_or_none()
+        )
+
+        # if the row doesn't exist, we add it, with the lock not set.
+        if lock_row is None:
+            lock_row = FNLock(
+                lock_int_id=lock_int_id,
+                lock_status=0,
+                lock_set_date=datetime.now(),
+                uuid=uuid.uuid4().hex,
+            )
+            tls.add(lock_row)
+            tls.commit()
+
+        # analyse the record for this row
+        lock_row = (
+            tls.query(FNLock)
+            .filter(FNLock.lock_int_id == lock_int_id)
+            .with_for_update()
+            .one()
+        )
+        if lock_status is None:
+            retval = lock_row
+
+        if lock_row.lock_status == 0 and lock_status == 0:
+            # it's already unlocked
+            retval = True
+
+        elif lock_row.lock_status == 1 and lock_status == 1:
+            # it's already locked and we're asked to acquire a lock.  We can't.
+            retval = False
+
+        elif lock_row.lock_status == 0 and lock_status == 1:
+            # it's already unlocked, we can lock
+            lock_row.lock_status = 1
+            lock_row.lock_set_date = datetime.now()
+            lock_row.uuid = uuid.uuid4().hex
+            retval = True
+
+        elif lock_row.lock_status == 1 and lock_status == 0:
+            # it's already locked, we can unlock
+            lock_row.lock_status = 0
+            lock_row.lock_set_date = datetime.now()
+            lock_row.uuid = uuid.uuid4().hex
+            retval = True
+
+        tls.commit()
+        return retval
+
+    def lock_status(self, lock_int_id):
+        """determine whether a database-based lock is open (0) or closed (1).
+
+        Parameters:
+        lock_int_id: an integer identifier to the lock of interest
+
+        Returns:
+        0 if the lock is open
+        1 if it is locked"""
+
+        return self._set_lock_status(lock_int_id, None)
+
+    def lock(self, lock_int_id):
+        """obtains a database-based lock.
+
+        Parameters:
+        lock_int_id: an integer identifier to the lock of interest
+
+        Returns:
+        True if the lock is acquired
+        False if it is not"""
+
+        return self._set_lock_status(lock_int_id, 1)
+
+    def unlock(self, lock_int_id, force=False):
+        """obtains a database-based lock.
+
+        Parameters:
+        lock_int_id: an integer identifier to the lock of interest
+        force: if True, will unlock irrespective of current status, returning True
+
+        Returns:
+        True if the lock is acquired
+        False if it is not"""
+
+        res = self._set_lock_status(lock_int_id, 0)
+        if force:
+            return True
+        else:
+            return res

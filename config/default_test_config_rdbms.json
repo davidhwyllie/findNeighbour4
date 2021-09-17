@@ -11,7 +11,7 @@
 "LOGFILE":"/tmp/logfile_unittesting_rdbms.log",
 "LOGLEVEL":"DEBUG",	
 "SNPCEILING": 20,
-"REST_PORT":5021,
+"REST_PORT":5020,
 "PRECOMPARER_PARAMETERS":{"selection_cutoff":20,"uncertain_base":"N_or_M", 
 "over_selection_cutoff_ignore_factor":5, 
 "catWalk_parameters":{"cw_binary_filepath":"catwalk/cw_server","reference_name":"H37RV",

@@ -1,5 +1,5 @@
 
-findNeighbour4.egg-info
+*/PKG-INFO
 .coverage
 coverage.xml
 htmlcov/
@@ -21,3 +21,9 @@ findn/*.pyc
 *.snippet
 flake8*
 Pipfile.lock
+fn4server_launch*.sh
+start_script.sh
+test_startup.sh
+version.py
+.eggs
+findNeighbour4.egg-info/

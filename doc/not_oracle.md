@@ -1,8 +1,7 @@
 Testing RDBMS storage systems other than Oracle
 ===============================================
 
-In theory it should be possible to use RDBMS other than Oracle ADW with findNeighbour4, but this would need to be tested.
-
+It should be possible to use RDBMS other than Oracle ADW with findNeighbour4, but we have not tested this.  
 If you wish to do this, it is easy to do so.
 
 The script
@@ -11,7 +10,7 @@ test/testrdbmsstore.py
 ```
 
 contains unit tests of all interactions the server makes with the database.
-It can be invokes as follows
+It can be invoked as follows; it does not require that the server is running.
 ```
 pipenv run python3 -m unittest test/testrdbmsstore.py
 ```
@@ -40,7 +39,7 @@ class Test_Database(unittest.TestCase):
         # NOTE: accessing a database test_db, with user root and password root; known issues, see above.
 ```
 
-Thus, if you uncomment the line
+Thus, if you uncomment the line, which is provided as an example (we have not fully tested mysql with findneighbour4, and cannot guarantee it will work)
 
 ```
 # self.engines["mysql"] = "mysql+pymysql://root:root@localhost:3306/test_db"
@@ -51,7 +50,7 @@ The code will run all unit tests against a mysql on localhost, authenticating by
 ``` 
 pipenv install MySQL-python --skip-lock
 ```
-but no other changes shold be needed.  
+but no other changes shold be needed to start testing.  
 
 Please let us know if you have success with other databases.
 

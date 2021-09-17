@@ -450,6 +450,10 @@ class Test_SeqMeta_guid_exists_1(Test_Database):
             self.assertIsNone(seq1.prop_actg, None)
             self.assertIsInstance(seq1.examination_date, datetime.datetime)
 
+            # try to add it again.  Should raise a FileExists error
+            with self.assertRaises(FileExistsError):
+                pdm.refcompressedseq_store(guid, self.seqobj)
+
             pdm.guid_annotate(guid, "DNAQuality", na.composition)
 
             seq1 = (
@@ -663,9 +667,11 @@ class Test_SeqMeta_Base1(Test_Database):
                 n += 1
             self.assertTrue(x, set(seqs.keys()))
 
-            pdm.refcompressedseq_store(
-                guid, self.seqobj
-            )  # try to add the last item again; nothing should happen
+            with self.assertRaises(FileExistsError):
+                pdm.refcompressedseq_store(
+                    guid, self.seqobj
+                )  # try to add the last item again;
+                 
             n2 = 0
             res = set()
             for (x,) in tls.query(RefCompressedSeq.sequence_id).all():
@@ -1186,3 +1192,28 @@ class Test_guid2items(Test_Database):
                 pdm.guid2item(None, "ns2", "datum"), {"guid1": 2, "guid2": 3}
             )
             self.assertEqual(pdm.guid2item(["guid1"], "ns1", "datum"), {"guid1": 1})
+
+@rdbms_test
+class Test_lock(Test_Database):
+    """tests locking.  
+    
+    Note: does not test concurrent operations"""
+
+    def runTest(self):
+
+        for pdm in self.pdms():
+
+            self.assertTrue(pdm.unlock(1, force= True))
+            self.assertEqual(0, pdm.lock_status(1).lock_status)
+            self.assertTrue(pdm.unlock(0, force= True))
+            self.assertEqual(0, pdm.lock_status(0).lock_status)
+
+            self.assertTrue(pdm.lock(1))        # lock open; should succeed
+            self.assertEqual(1, pdm.lock_status(1).lock_status)
+            self.assertTrue(pdm.lock(0))        # lock open; should succeed          
+            self.assertFalse(pdm.lock(1))        # lock closed; should fail         
+            self.assertEqual(1, pdm.lock_status(1).lock_status)
+            
+            self.assertTrue(pdm.unlock(1))        # lock closed should succeed
+            self.assertEqual(0, pdm.lock_status(1).lock_status)
+            

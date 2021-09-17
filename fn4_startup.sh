@@ -17,7 +17,14 @@
 #MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #GNU Affero General Public License for more details.
 
-#
+# set version
+echo "Setting software version from git repo."
+VERSION=`python3 setup.py --version`
+rm version.py -f
+touch version.py
+echo "version = '$VERSION'" > version.py
+
+# start server
 if [ $# -gt 0 ]; then
     echo "findNeighbour4 startup script; using config file $1"
 else
@@ -48,6 +55,9 @@ echo "NOHUP_LOGGING is $NOHUP_LOGGING (1= enabled)"
 # checksum the config file
 MD5CHECKSUM=`md5sum $1 | cut -d' ' -f1`
 
+# launch script file
+LAUNCHSCRIPT="fn4server_launch_${MD5CHECKSUM}.sh"
+
 # get the output directory from the config file
 LOGDIR=`python3 get_log_dir_from_config_file.py $1`
 
@@ -67,8 +77,19 @@ if [ $NOHUP_LOGGING -eq 0 ]; then
 	CLUSTLOG="/dev/null"
 fi
 
-echo "Starting server"
-nohup pipenv run python3 findNeighbour4_server.py $1 > $SRVLOG &
+echo "Server processes making their own log in the database. Nohup output is going to the following locations:"
+echo $MONLOG
+echo $MANLOG
+echo $SRVLOG
+echo $CLUSTLOG
+
+echo "Starting server with prespecified worker processes (remove --n_workers X from fn4_startup.sh to autopick number of workers)"
+pipenv run python3 fn4_configure.py $1 --startup --n_workers 8 > $LAUNCHSCRIPT
+chmod +x $LAUNCHSCRIPT
+
+echo "running $LAUNCHSCRIPT"
+./$LAUNCHSCRIPT $1 > $SRVLOG 
+
 sleep 5
 echo "Starting dbmanager instance 1"
 nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset 01 $1 > $MANLOG &
@@ -98,6 +119,7 @@ sleep 5
 echo "Starting monitor [disabled until issue #71 is resolved]"
 #nohup pipenv run python3 findNeighbour4_monitor.py $1 > $MONLOG &
 #sleep 5
+
 echo "Starting clustering"
 nohup pipenv run python3 findNeighbour4_clustering.py $1 > $CLUSTLOG &
 sleep 5
@@ -112,5 +134,6 @@ echo $CLUSTLOG
 if [ $NOHUP_LOGGING -eq 0 ]; then
 	echo "Either use the parameter NO_NOHUP_LOGGING  (recommended) or (2) arrange log rotation of the nohup output using the linux logrotate command, see: https://support.rackspace.com/how-to/understanding-logrotate-utility/"
 fi
-	 
+
+rm $LAUNCHSCRIPT    # temporary file	 
 exit 0

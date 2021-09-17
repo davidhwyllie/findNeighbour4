@@ -15,13 +15,15 @@ by the Free Software Foundation.  See <https://opensource.org/licenses/MIT>, and
 import os
 import unittest
 import json
+import uuid
+import random
+import networkit as nk
 from findn.common_utils import ConfigManager
 from findn.persistence import Persistence
-from findn.hybridComparer import hybridComparer
+from findn.cw_seqComparer import cw_seqComparer
 from catwalk.pycw_client import CatWalk
 from snpclusters.ma_linkage import (
-    MockPersistence,
-    MixtureCheckerTest,
+    MixtureChecker,
     MixPOREMixtureChecker,
     MixtureAwareLinkageResult,
     MixtureAwareLinkage,
@@ -30,6 +32,111 @@ from snpclusters.ma_linkage import (
 # unittests
 UNITTEST_MONGOCONN: str = "mongodb://localhost"
 UNITTEST_RDBMSCONN: str = "sqlite://"
+
+class MixtureCheckerTest(MixtureChecker):
+    """ a class which implements a MixtureChecker which sets guids as mixed if they begin with a number """
+
+    def __init__(self):
+        """ does nothing """
+        self.info = "Test check"
+
+    def is_mixed(self, guid):
+        """ does not check for mixtures """
+        return {"mix_check_method": self.info, "is_mixed": guid[0] in ["0", "1", "2"]}
+
+
+class MockPersistence:
+    """simulates the fnPersistence class which provides access to findNeighbour stored data;
+    the objective is to allow testing of the Clustering class, which requires a Persistence object to be provided to allow it to access findNeighbour SNP distances.
+    therefore, only methods relevant to SNP distance provision are provided.
+    The MockPersistence class generates data resembling a collection of samples which are related, their SNP distances,
+    These methods are:
+    guids()    lists the names of sequences present
+    guid2neighbours  links between guids - returns type 1 output
+
+    it also supports an isMixed() method, which is used for simulating whether a sample is mixed or not.
+    """
+
+    def cluster_delete_legacy(self, name):
+        """ delete any legacy data in the mock persistence store """
+        pass
+        return
+
+    def __init__(self, n_guids: int):
+        """ starts up a MockPersistence object; generates a set of pairwise links compatible with n_guids being part of a set of similar sequences. """
+        self.latest_version = 0
+        self.latest_version_behaviour = "increment"
+
+        self.node2name = {}
+        self.name2node = {}
+        self.name2clusterid = {}
+        self.node2clusterid = {}
+        self._guid2neighbours = {}
+        self.store = {}
+        self.g = nk.generators.ClusteredRandomGraphGenerator(n_guids, int(n_guids / 2), 1, 0).generate()
+        for x in self.g.iterNodes():
+            new_guid = str(uuid.uuid4())
+            self.node2name[x] = new_guid
+            self.name2node[new_guid] = x
+            self._guid2neighbours[new_guid] = []
+
+        # determine connected components ('single linkage clusters')
+        cc = nk.components.ConnectedComponents(self.g)
+        cc.run()
+        for clusterid, component in enumerate(cc.getComponents()):
+            for node in component:
+                self.name2clusterid[self.node2name[node]] = clusterid
+                self.node2clusterid[node] = clusterid
+
+        # build a dictionary containing edges (SNV distances) in format 1
+        for (x, y) in self.g.iterEdges():
+            guid1 = self.node2name[x]
+            guid2 = self.node2name[y]
+            snv = random.sample(range(7), 1)[0]  # distances drawn randomly from 0-6
+            self._guid2neighbours[guid1].append([guid2, snv])
+            self._guid2neighbours[guid2].append([guid1, snv])
+
+    def cluster_latest_version(self, clustering_version):
+        """ returns fake version information; increments if latest_version_behaviour is 'increment' """
+        if self.latest_version_behaviour == "increment":
+            self.latest_version += 1
+        return self.latest_version
+
+    def guids(self):
+        """ returns all guids (sequence identifiers) in the network """
+        return set(self.name2node.keys())
+
+    def guids_valid(self):
+        """ returns all guids (sequence identifiers) in the network , which are assumed to be valid"""
+        return set(self.name2node.keys())
+
+    def guid2neighbours(self, guid: str, returned_format: int = 1) -> dict:
+        """returns neighbours of a guid in type 1 format [[guid1, snvdist1], [guid2, snvdist2], ...]
+
+        note: attempts to change the returned_format result in a NotImplementedError
+
+        Parameters:
+        guid: the identifier of the sequence whose neighbours are sought
+        returned_type: a placeholder, only a value of 1 is accepted
+        """
+        if not returned_format == 1:
+            raise NotImplementedError(
+                "the MockPersistence.guid2neighbours() method always returns type 1 output, but type {0} was requested".format(
+                    returned_format
+                )
+            )
+        return {"guid": guid, "neighbours": self._guid2neighbours[guid]}
+
+    def cluster_store(self, key, serialisation):
+        """ stores serialisation in a dictionary using key """
+        self.store[key] = serialisation
+        return None
+
+    def cluster_read(self, key):
+        try:
+            return self.store[key]
+        except KeyError:
+            return None
 
 
 class Test_MP(unittest.TestCase):
@@ -1127,7 +1234,7 @@ class test_MIXCHECK_1_rdbms(unittest.TestCase):
             cw.stop()
             self.assertFalse(cw.server_is_running())
 
-            hc = hybridComparer(
+            hc = cw_seqComparer(
                 reference=CONFIG["reference"],
                 maxNs=CONFIG["MAXN_STORAGE"],
                 snpCeiling=CONFIG["SNPCEILING"],
@@ -1266,7 +1373,7 @@ class test_MIXCHECK_1_mongo(unittest.TestCase):
             cw.stop()
             self.assertFalse(cw.server_is_running())
 
-            hc = hybridComparer(
+            hc = cw_seqComparer(
                 reference=CONFIG["reference"],
                 maxNs=CONFIG["MAXN_STORAGE"],
                 snpCeiling=CONFIG["SNPCEILING"],

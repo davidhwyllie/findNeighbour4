@@ -26,24 +26,30 @@ You can either use
 * A relational database; only Oracle ADW has been tested to date.
 
 ### Mongo
-* Mongo 4.4 (note: tested at very large scale only on this version; 4.02 and 4.2 also appear to work at small scale)
+* Mongo 4.4 (note: tested at very large scale only on this version)
 [These instructions](mongoinstall.md) describe installation of mongodb.
 This server has been tested both with a local mongodb database and with a free cloud instance of mongodb, Mongo Atlas.
-* For details of how to set up an Oracle Autonomous datawarehouse, please see Oracle's cloud documentation.
 
 ### Oracle ADW
-In brief
+* For details of how to set up an Oracle Autonomous datawarehouse, please see Oracle's cloud documentation.
+In addition
 * You need to install [dependencies]((https://cx-oracle.readthedocs.io/en/latest/user_guide/initialization.html)) of the python Oracle_cx (database connection) module. 
 * You need to set LD_LIBRARY_PATH in the python virtual environment, see below.
 See [details](configuring_oracle_connections.md)  
 
-In addition, later
+Later
 * You need to configure a user for the database correctly
 * You need to provide credentials in a configuration file used by FindNeighbour4.
 Read on, and also [here](configuring_oracle_connections.md) how to do these steps.  
 
+Running multiple findneighbour4 servers on the same machine
+-----------------------------------------------------------
+You can run multiple findneighbour4 servers on the same physical or virtual machine.  To do so, you need to arrange the following:
+* Each server should be started from its own virtual environment.  Do not use try to use a common virtual environment for all your servers; each findneighbour4 instance writes instance-specific information to a .env file, and there can only be one such in each virtual environment.
+* Ensure that the ports (both for the server and catwalk) differ between instances.  You cannot run two findneighbour servers on the same port.  This is configured in a config/ file (see below)
+
 Clone git repository
------------------------
+---------------------
 Optionally, set a proxy: inform git of the proxy's location, depending whether there is one:
 ```
 git config --global http.proxy http://[ip of proxy]
@@ -55,6 +61,15 @@ git clone https://github.com/davidhwyllie/findNeighbour4.git
 ```
 
 After this, please follow the below steps.
+Set version from git repository
+------------
+```
+VERSION=`python3 setup.py --version`
+rm version.py -f
+touch version.py
+echo "version = '$VERSION'" > version.py
+```
+
 
 Virtual environments and dependencies
 -------------------------------------
@@ -63,15 +78,15 @@ A pipenv Pipfile is provided which specifies dependencies.  See also [here](depe
 
 ```
 cd /mydir/fn4       # or whatever you've installed into
-pipenv install --skip-lock         # can lock but is slow
-pipenv install --skip-lock -e .    # put fn4 packages in virtualenv (essential)
+pipenv install --skip-lock -e .    # put fn4 packages in virtualenv; this is essential for effective imports
+
 ```
 
 Catwalk
 --------
-Catwalk is an external component which can be used by findneighbour4.  
-Using this is strongly recommended, but the server will run without it, albeit slower and with higher memory requirements.
-Example:
+Catwalk is an external component which is required by findneighbour4.  
+
+Installation Example:
 
 ```
 mkdir external_software       # or wherever you want catwalk to go
@@ -88,7 +103,7 @@ echo CW_BINARY_FILEPATH=\"`pwd`/cw_server\" > ../../.env
 ---------
 
 In the root of your directory, you will need to create a .env file.  This sets environment variables required for the code to run.   
-Because you are using a virtual environment, it has it's own environment variables.
+Because you are using a virtual environment, it has its own environment variables.
 
 Here is an example:
 ```
@@ -108,7 +123,7 @@ FN_SENTRY_URL="https://********************.ingest.sentry.io/*****"
 FN_SENTRY_URL is an optional url for the [sentry.io](sentry.io) error logging service.  If present and Sentry.io (small free or paid service) configured, error logging will be collated there.    This is very useful for collating  & debugging server side errors.   If considering this, be aware that if identifiable data is in the server, errors trapped may include such and may be sent to the Sentry.io service. 
 
 ### Catwalk executable location
-The CW_BINARY_FILEPATH is required if (as is strongly recommended) you are using the catwalk comparison engine as part of findNeighbour4.
+The CW_BINARY_FILEPATH is required
 ```
 CW_BINARY_FILEPATH="/home/phe.gov.uk/david.wyllie/catwalk/cw_server"
 ```
@@ -121,7 +136,6 @@ DB_CONNECTION_CONFIG_FILE='/data/credentials/dbconfig.json'
 ```
 These are as above, and point to database credentials used for Oracle or other secure database connections.  The credentials file referred must exist, or the server will not start up.
 More detail on this arrangement is [here](database_credentials.md).
-
 
 
 ### Oracle toolset location

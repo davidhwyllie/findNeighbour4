@@ -74,7 +74,7 @@ pipenv run python3 dump_edge_list.py ../demos/covid/covid_config_v3.json  --outp
     CONFIG = cfm.read_config()
 
     ##################################################################################################
-    # open PERSIST and hybridComparer object used by all samples
+    # open PERSIST and cw_seqComparer object used by all samples
     # this is only used for data access and msa.
     # inserts are not allowed
 

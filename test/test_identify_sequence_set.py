@@ -1,4 +1,4 @@
-""" tests hybridcomparer.py
+""" tests cw_seqComparer.py
 
 A component of the findNeighbour4 system for bacterial relatedness monitoring
 Copyright (C) 2021 David Wyllie david.wyllie@phe.gov.uk

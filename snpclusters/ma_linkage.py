@@ -12,8 +12,6 @@ by the Free Software Foundation.  See <https://opensource.org/licenses/MIT>, and
  
 """
 import networkit as nk
-import uuid
-import random
 import datetime
 import scipy.stats
 import statistics
@@ -23,138 +21,32 @@ import logging
 from findn.identify_sequence_set import IdentifySequenceSet
 
 
-class MockPersistence:
-    """simulates the fnPersistence class which provides access to findNeighbour stored data;
-    the objective is to allow testing of the Clustering class, which requires a Persistence object to be provided to allow it to access findNeighbour SNP distances.
-    therefore, only methods relevant to SNP distance provision are provided.
-    The MockPersistence class generates data resembling a collection of samples which are related, their SNP distances,
-    These methods are:
-    guids()    lists the names of sequences present
-    guid2neighbours  links between guids - returns type 1 output
-
-    it also supports an isMixed() method, which is used for simulating whether a sample is mixed or not.
-    """
-
-    def cluster_delete_legacy(self, name):
-        """ delete any legacy data in the mock persistence store """
-        pass
-        return
-
-    def __init__(self, n_guids: int):
-        """ starts up a MockPersistence object; generates a set of pairwise links compatible with n_guids being part of a set of similar sequences. """
-        self.latest_version = 0
-        self.latest_version_behaviour = "increment"
-
-        self.node2name = {}
-        self.name2node = {}
-        self.name2clusterid = {}
-        self.node2clusterid = {}
-        self._guid2neighbours = {}
-        self.store = {}
-        self.g = nk.generators.ClusteredRandomGraphGenerator(n_guids, int(n_guids / 2), 1, 0).generate()
-        for x in self.g.iterNodes():
-            new_guid = str(uuid.uuid4())
-            self.node2name[x] = new_guid
-            self.name2node[new_guid] = x
-            self._guid2neighbours[new_guid] = []
-
-        # determine connected components ('single linkage clusters')
-        cc = nk.components.ConnectedComponents(self.g)
-        cc.run()
-        for clusterid, component in enumerate(cc.getComponents()):
-            for node in component:
-                self.name2clusterid[self.node2name[node]] = clusterid
-                self.node2clusterid[node] = clusterid
-
-        # build a dictionary containing edges (SNV distances) in format 1
-        for (x, y) in self.g.iterEdges():
-            guid1 = self.node2name[x]
-            guid2 = self.node2name[y]
-            snv = random.sample(range(7), 1)[0]  # distances drawn randomly from 0-6
-            self._guid2neighbours[guid1].append([guid2, snv])
-            self._guid2neighbours[guid2].append([guid1, snv])
-
-    def cluster_latest_version(self, clustering_version):
-        """ returns fake version information; increments if latest_version_behaviour is 'increment' """
-        if self.latest_version_behaviour == "increment":
-            self.latest_version += 1
-        return self.latest_version
-
-    def guids(self):
-        """ returns all guids (sequence identifiers) in the network """
-        return set(self.name2node.keys())
-
-    def guids_valid(self):
-        """ returns all guids (sequence identifiers) in the network , which are assumed to be valid"""
-        return set(self.name2node.keys())
-
-    def guid2neighbours(self, guid: str, returned_format: int = 1) -> dict:
-        """returns neighbours of a guid in type 1 format [[guid1, snvdist1], [guid2, snvdist2], ...]
-
-        note: attempts to change the returned_format result in a NotImplementedError
-
-        Parameters:
-        guid: the identifier of the sequence whose neighbours are sought
-        returned_type: a placeholder, only a value of 1 is accepted
-        """
-        if not returned_format == 1:
-            raise NotImplementedError(
-                "the MockPersistence.guid2neighbours() method always returns type 1 output, but type {0} was requested".format(
-                    returned_format
-                )
-            )
-        return {"guid": guid, "neighbours": self._guid2neighbours[guid]}
-
-    def cluster_store(self, key, serialisation):
-        """ stores serialisation in a dictionary using key """
-        self.store[key] = serialisation
-        return None
-
-    def cluster_read(self, key):
-        try:
-            return self.store[key]
-        except KeyError:
-            return None
-
-
 class MixtureChecker:
-    """ abstract base class for mixture checkers.  do not use """
+    """abstract base class for mixture checkers.  do not use"""
 
     def __init__(self, **kwargs):
-        """ does nothing """
+        """does nothing"""
         self.info = "This is the arbitrary base class; do not use "
 
     def is_mixed(self, guid):
-        """ does not check for mixtures """
+        """does not check for mixtures"""
         return {"mix_check_method": self.info, "is_mixed": False}
 
 
 class NoMixtureChecker(MixtureChecker):
-    """ a class which implements a MixtureChecker which does not check for mixtures """
+    """a class which implements a MixtureChecker which does not check for mixtures"""
 
     def __init__(self):
-        """ does nothing """
+        """does nothing"""
         self.info = "No check"
 
 
-class MixtureCheckerTest(MixtureChecker):
-    """ a class which implements a MixtureChecker which sets guids as mixed if they begin with a number """
-
-    def __init__(self):
-        """ does nothing """
-        self.info = "Test check"
-
-    def is_mixed(self, guid):
-        """ does not check for mixtures """
-        return {"mix_check_method": self.info, "is_mixed": guid[0] in ["0", "1", "2"]}
-
-
 class MixPOREMixtureChecker(MixtureChecker):
-    """ a class which implements a MixtureChecker based on the mixPORE approach """
+    """a class which implements a MixtureChecker based on the mixPORE approach"""
 
     def __init__(
         self,
-        HYBRIDCOMPARER,
+        cw_seqComparer,
         snv_threshold,
         mixture_criterion,
         cutoff,
@@ -166,7 +58,7 @@ class MixPOREMixtureChecker(MixtureChecker):
         """sets up the MixtureChecker.
 
         Input:
-                a hybridComparer object, configured to analyse stored sequences in a findNeighbour4 persistence store.
+                a cw_seqComparer object, configured to analyse stored sequences in a findNeighbour4 persistence store.
                 snv_threshold - the clustering threshold; samples are joined if <= snv from each other.
 
                 'exclude':  the clusters do not include guids with 'is_mixed'=True properties.
@@ -178,7 +70,7 @@ class MixPOREMixtureChecker(MixtureChecker):
                 uncertain_base_type: dictates which bases are considered in computations about mixtures;
                              valid values are 'N' 'M' 'N_or_M'.
 
-                mixture_criterion: pvalue_n, where p = 1,2,3 or 4.  refers to the nature of the statistical test peformed; see  hybridComparer.msa() function for details.  pvalue_2 is recommended.
+                mixture_criterion: pvalue_n, where p = 1,2,3 or 4.  refers to the nature of the statistical test peformed; see  cw_seqComparer.msa() function for details.  pvalue_2 is recommended.
                 cutoff:  the p value at which the result is considered mixed.  not corrected for multiple comparisons.  one comparison is performed per sample analysed. consider 1e-8
                 snv_cutoff:  if >0, the result will not be considered mixed if align{what} < snv_cutoff.  For example, if less than 4 mixed bases in the alignment do not compromise clustering, snv_cutoff could be set to 4.
                 max_seqs_mixpore:  how many sequences the test sequence will be compared with to perform mixpore.  2 minimum.  recommended: 10
@@ -188,7 +80,7 @@ class MixPOREMixtureChecker(MixtureChecker):
                     and 'guids' to multiple such nodes.
         """
         self.info = "MixPORE"
-        self.hc = HYBRIDCOMPARER
+        self.hc = cw_seqComparer
         self.snv_threshold = snv_threshold
         self.mixture_criterion = mixture_criterion
         self.p_value_cutoff = cutoff
@@ -196,24 +88,16 @@ class MixPOREMixtureChecker(MixtureChecker):
         self.uncertain_base_type = uncertain_base_type
         self.max_seqs_mixpore = max_seqs_mixpore
         self.sequence_ms = {}
-        # we need to load enough samples into the hybridComparer to do reliable composition based computations.  The hybridcomparer doesn't contain all the sequences, and doesn't need to, but it does need to contain enough to compute composition data used by msa().  Important: the hybridComparer must have disable_insertion = True, to avoid possible conflicts with different catwalks.
+        # we need to load enough samples into the cw_seqComparer to do reliable composition based computations.  The cw_seqComparer doesn't contain all the sequences, and doesn't need to, but it does need to contain enough to compute composition data used by msa().  Important: the cw_seqComparer must have disable_insertion = True, to avoid possible conflicts with different catwalks.
 
         # if not self.hc.disable_insertion:
-        #    raise NotImplementedError("Cannot use a hybridComparer with insertion enabled ")
-
-        self.ensure_composition()
-
-    def ensure_composition(self):
-        """ loads enough enough samples into the hybridComparer to do reliable composition based computations.  The hybridcomparer attached to this object doesn't contain all the sequences, and doesn't need to, but it does need to contain enough to compute composition data used by msa(). """
-        n_current_sequences = len(self.hc.pc.guids())
-
-        if n_current_sequences < 100:  # the target
-            self.hc.repopulate_sample(100)  # will do up to 100
+        #    raise NotImplementedError("Cannot use a cw_seqComparer with insertion enabled ")
 
     def is_mixed(self, guid):
-        """ check for mixtures using mixpore method."""
-        self.ensure_composition()
-        neighbours = self.hc.PERSIST.guid2neighbours(guid, returned_format=1)["neighbours"]
+        """check for mixtures using mixpore method."""
+        neighbours = self.hc.PERSIST.guid2neighbours(guid, returned_format=1)[
+            "neighbours"
+        ]
         neighbours = sorted(neighbours, key=lambda x: int(x[1]))
         neighbours = [x for x in neighbours if x[1] <= self.snv_threshold]
 
@@ -224,7 +108,9 @@ class MixPOREMixtureChecker(MixtureChecker):
                 if not neighbour[0] in self.sequence_ms.keys():
                     nMixed = 0
                     try:
-                        nMixed = self.hc.PERSIST.guid_annotation(neighbour[0])[neighbour[0]]["DNAQuality:mixed"]
+                        nMixed = self.hc.PERSIST.guid_annotation(neighbour[0])[
+                            neighbour[0]
+                        ]["DNAQuality:mixed"]
                     except KeyError:
                         pass  # not recorded
                     self.sequence_ms[neighbour[0]] = nMixed
@@ -232,12 +118,16 @@ class MixPOREMixtureChecker(MixtureChecker):
             neighbours = sorted(guid2mix, key=lambda x: -int(x[1]))
 
         if len(neighbours) > 1:  # need 2 or more to apply mixpore
-            neighbours_analysed = neighbours[: self.max_seqs_mixpore]  # take up to specific number
+            neighbours_analysed = neighbours[
+                : self.max_seqs_mixpore
+            ]  # take up to specific number
             to_msa = neighbours_analysed.copy()
             to_msa.append([guid, 0])
 
             guids_to_msa = [x[0] for x in to_msa]
-            msa_result = self.hc.multi_sequence_alignment(guids_to_msa, uncertain_base_type=self.uncertain_base_type)
+            msa_result = self.hc.multi_sequence_alignment(
+                guids_to_msa, uncertain_base_type=self.uncertain_base_type
+            )
             res = msa_result.df.loc[guid].to_dict()
             del res["aligned_seq"]  # not useful, wastes ram
             del res["aligned_mseq"]  # not useful, wastes ram
@@ -253,7 +143,10 @@ class MixPOREMixtureChecker(MixtureChecker):
                         enough_bases_mixed = False
                 else:
                     enough_bases_mixed = False
-                if res[self.mixture_criterion] < self.p_value_cutoff and enough_bases_mixed:
+                if (
+                    res[self.mixture_criterion] < self.p_value_cutoff
+                    and enough_bases_mixed
+                ):
                     res.update({"is_mixed": True})
             res["enough_bases_mixed"] = enough_bases_mixed
 
@@ -329,7 +222,10 @@ class MixtureAwareLinkageResult:
 
         latest_version = self.PERSIST.cluster_latest_version(self.storage_key)
         if serialisation is None and self.PERSIST is not None:  # try to recover data
-            if self.loaded_version is not None and self.loaded_version == latest_version:  # no update needed
+            if (
+                self.loaded_version is not None
+                and self.loaded_version == latest_version
+            ):  # no update needed
                 return
 
             elif self.loaded_version is None or (
@@ -358,8 +254,16 @@ class MixtureAwareLinkageResult:
         return self.PERSIST.cluster_read(self.storage_key)
 
     def _deserialise_from_dict(self, serialisation):
-        """ recovers the clustering data from a serialisation dictionary """
-        expected_keys = set(["parameters", "clustering_time", "guid2clustermeta", "clusterid2clusterlabel", "name"])
+        """recovers the clustering data from a serialisation dictionary"""
+        expected_keys = set(
+            [
+                "parameters",
+                "clustering_time",
+                "guid2clustermeta",
+                "clusterid2clusterlabel",
+                "name",
+            ]
+        )
         if not set(serialisation.keys()) == expected_keys:
             raise KeyError(
                 "Expected keys are not present in serialisation output: {0} vs {1}".format(
@@ -370,13 +274,17 @@ class MixtureAwareLinkageResult:
         self.parameters = serialisation["parameters"]
         self.refresh_time = datetime.datetime.now().isoformat()
         self.guid2cluster = serialisation["guid2clustermeta"]
-        self._clusterid2clusterlabel = self._dictkey2int(serialisation["clusterid2clusterlabel"])
+        self._clusterid2clusterlabel = self._dictkey2int(
+            serialisation["clusterid2clusterlabel"]
+        )
         self.uncertain_base_type = self.parameters["uncertain_base_type"]
         self.snv_threshold = self.parameters["snv_threshold"]
         # compute change_id
 
         try:
-            self.change_id = max([x["add_change_id"] for x in self.guid2cluster.values()])
+            self.change_id = max(
+                [x["add_change_id"] for x in self.guid2cluster.values()]
+            )
         except ValueError:  # no data
             self.change_id = -1
 
@@ -391,7 +299,7 @@ class MixtureAwareLinkageResult:
         self.current_version_load_time = datetime.datetime.now()
 
     def _first_run(self):
-        """ sets up an empty clustering entry """
+        """sets up an empty clustering entry"""
         self.parameters = {"note": "No data found"}
         self.refresh_time = datetime.datetime.now().isoformat()
         self.guid2cluster = {}
@@ -407,19 +315,19 @@ class MixtureAwareLinkageResult:
         self.cluster2guid = {}
 
     def guids(self):
-        """ returns the clustered guids """
+        """returns the clustered guids"""
         return set(self.guid2cluster.keys())
 
     def clusters2guid(self):
-        """ returns a cluster2guid lookup """
+        """returns a cluster2guid lookup"""
         return self.cluster2guid
 
     def guid2clustermeta(self):
-        """" returns guid2 cluster lookup """
+        """ " returns guid2 cluster lookup"""
         return self.guid2cluster
 
     def guid2clusters(self, guid):
-        """ returns which clusters the guid belongs to """
+        """returns which clusters the guid belongs to"""
         try:
             cluster_ids = self.guid2cluster[guid]["cluster_id"]
         except KeyError:
@@ -456,21 +364,21 @@ class MixtureAwareLinkageResult:
             return mix
 
     def _dictkey2string(self, outputdict):
-        """ converts the keys of a dictionary from int to string """
+        """converts the keys of a dictionary from int to string"""
         retVal = {}
         for key in outputdict:
             retVal[str(key)] = outputdict[key]
         return retVal
 
     def _dictkey2int(self, outputdict):
-        """ converts the keys of a dictionary from  string to int """
+        """converts the keys of a dictionary from  string to int"""
         retVal = {}
         for key in outputdict:
             retVal[int(key)] = outputdict[key]
         return retVal
 
     def clusters2guidmeta(self, after_change_id=None):
-        """ returns a cluster -> guid mapping """
+        """returns a cluster -> guid mapping"""
 
         retVal = []
         for guid in sorted(self.guids()):
@@ -484,7 +392,9 @@ class MixtureAwareLinkageResult:
 
             for cluster_id in self.guid2cluster[guid]["cluster_id"]:
                 try:
-                    clusterlabel = self._clusterid2clusterlabel[cluster_id]["cluster_label"]
+                    clusterlabel = self._clusterid2clusterlabel[cluster_id][
+                        "cluster_label"
+                    ]
                 except KeyError:
                     clusterlabel = "-"
                 if (after_change_id is None) or (change_id > after_change_id):
@@ -553,7 +463,9 @@ class MixtureAwareLinkage:
                 None
         """
 
-        self.PERSIST = PERSIST  # store the persistence in the MixtureAwareLinkage object
+        self.PERSIST = (
+            PERSIST  # store the persistence in the MixtureAwareLinkage object
+        )
         self.MIXCHECK = MIXCHECK  # a mixture checker object
 
         if self.MIXCHECK is None:
@@ -574,7 +486,9 @@ class MixtureAwareLinkage:
         self.mixed_sample_management = mixed_sample_management
         self.parameters = parameters  #
         self.name = name
-        self._clusterid2clusterlabel = {}  # a dictionary of the type {1:{'cluster_label':'AA0041'}}
+        self._clusterid2clusterlabel = (
+            {}
+        )  # a dictionary of the type {1:{'cluster_label':'AA0041'}}
 
         start_afresh = False
         if serialisation is None:
@@ -588,7 +502,9 @@ class MixtureAwareLinkage:
             if start_afresh:
                 # create a new graph
                 self.snv_threshold = snv_threshold
-                self.g = nk.graph.Graph(weighted=False, directed=False, n=0)  # empty graph
+                self.g = nk.graph.Graph(
+                    weighted=False, directed=False, n=0
+                )  # empty graph
                 self.cc = nk.components.ConnectedComponents(self.g)
 
             else:
@@ -596,7 +512,9 @@ class MixtureAwareLinkage:
 
         else:
             self._deserialise_from_dict(serialisation)
-        self.dc = nk.centrality.DegreeCentrality(self.g, normalized=False, ignoreSelfLoops=True)
+        self.dc = nk.centrality.DegreeCentrality(
+            self.g, normalized=False, ignoreSelfLoops=True
+        )
 
     def name2meta(self):
         """returns the guid to metadata (including mixture and if appropriate clustering data) information as a pandas dataframe.
@@ -608,7 +526,10 @@ class MixtureAwareLinkage:
         if len(self.name2cluster) > 0:
             # there is clustering data
             res = res.merge(
-                pd.DataFrame.from_dict(self.name2cluster, orient="index"), left_index=True, right_index=True, how="left"
+                pd.DataFrame.from_dict(self.name2cluster, orient="index"),
+                left_index=True,
+                right_index=True,
+                how="left",
             )
 
         return res
@@ -634,13 +555,15 @@ class MixtureAwareLinkage:
                             retVal[guid] = set()
                         except KeyError:
                             pass
-                        retVal[guid].add(self._clusterid2clusterlabel[cl]["cluster_label"])
+                        retVal[guid].add(
+                            self._clusterid2clusterlabel[cl]["cluster_label"]
+                        )
             for guid in retVal:
                 retVal[guid] = list(retVal[guid])
         return retVal
 
     def existing_labels(self):
-        """ returns a list of the existing cluster labels """
+        """returns a list of the existing cluster labels"""
         existing_labels = set()
         for labels in self._clusterid2clusterlabel.values():
             existing_labels.add(labels["cluster_label"])
@@ -660,7 +583,10 @@ class MixtureAwareLinkage:
         if len(self.name2cluster) > 0:
             # there is clustering data
             res = res.merge(
-                pd.DataFrame.from_dict(self.name2cluster, orient="index"), left_index=True, right_index=True, how="left"
+                pd.DataFrame.from_dict(self.name2cluster, orient="index"),
+                left_index=True,
+                right_index=True,
+                how="left",
             )
 
         return res
@@ -697,20 +623,22 @@ class MixtureAwareLinkage:
             "_name2meta": self._name2meta,
             "mixed_sample_management": self.mixed_sample_management,
             "parameters": self.parameters,
-            "clusterid2clusterlabel": self._dictkey2string(self._clusterid2clusterlabel),
+            "clusterid2clusterlabel": self._dictkey2string(
+                self._clusterid2clusterlabel
+            ),
         }
 
         return retVal
 
     def _dictkey2string(self, outputdict):
-        """ converts the keys of a dictionary from int to string """
+        """converts the keys of a dictionary from int to string"""
         retVal = {}
         for key in outputdict:
             retVal[str(key)] = outputdict[key]
         return retVal
 
     def _dictkey2int(self, outputdict):
-        """ converts the keys of a dictionary from  string to int """
+        """converts the keys of a dictionary from  string to int"""
         retVal = {}
         for key in outputdict:
             retVal[int(key)] = outputdict[key]
@@ -761,7 +689,7 @@ class MixtureAwareLinkage:
         return self.PERSIST.cluster_read(storage_key)
 
     def to_dict(self):
-        """ serialises the object to a dictionary.  synonym of serialise() """
+        """serialises the object to a dictionary.  synonym of serialise()"""
         return self.serialise()
 
     def _deserialise_from_dict(self, sdict):
@@ -798,7 +726,11 @@ class MixtureAwareLinkage:
                 "clusterid2clusterlabel",
             ]
         ):
-            raise KeyError("Dictionary passed does not have the right keys: got {0}".format(sdict.keys()))
+            raise KeyError(
+                "Dictionary passed does not have the right keys: got {0}".format(
+                    sdict.keys()
+                )
+            )
 
         # create a new graph from serialisation
         self.snv_threshold = sdict["snv_threshold"]
@@ -807,11 +739,16 @@ class MixtureAwareLinkage:
         self.mixed_sample_management = sdict["mixed_sample_management"]
         self.parameters = sdict["parameters"]
         self.name = sdict["name"]
-        self._clusterid2clusterlabel = self._dictkey2int(sdict["clusterid2clusterlabel"])
+        self._clusterid2clusterlabel = self._dictkey2int(
+            sdict["clusterid2clusterlabel"]
+        )
 
         # make new graph
         old_node2name = dict(
-            zip([int(x) for x in sdict["_node2name"].keys()], sdict["_node2name"].values())
+            zip(
+                [int(x) for x in sdict["_node2name"].keys()],
+                sdict["_node2name"].values(),
+            )
         )  # keys are integers
         node_order = sorted([int(x) for x in old_node2name.keys()])  # order added
 
@@ -836,19 +773,25 @@ class MixtureAwareLinkage:
             guid = old_node2name[u]
             self._name2node[guid] = nu
             self._node2name[nu] = guid
-        self.cc = nk.components.ConnectedComponents(self.g)  # object for finding components
+        self.cc = nk.components.ConnectedComponents(
+            self.g
+        )  # object for finding components
 
         self.cluster()
         return
 
     def guids(self) -> set:
-        """ returns all guids (sequence identifiers) in the MixtureAwareLinkage object """
+        """returns all guids (sequence identifiers) in the MixtureAwareLinkage object"""
         return set(self._name2node.keys())
 
     def update(self) -> int:
-        """ adds any valid guids which are in PERSIST but not in the MixtureAwareLinkage object to the graph"""
+        """adds any valid guids which are in PERSIST but not in the MixtureAwareLinkage object to the graph"""
         valid_guids = self.PERSIST.guids_valid()
         guids_to_add = valid_guids - self.guids()
+        #print("***UPDATE***")
+        #print("***valid***", valid_guids)
+        #print("***self***", self.guids())
+        #print("***add***", guids_to_add)
         return self.add(guids_to_add)
 
     def add_sample(self, guid) -> int:
@@ -875,7 +818,7 @@ class MixtureAwareLinkage:
         returns:
         bool
         if unknown or untested, returns None"""
-
+        #print("*** MIXCHECK ON ** ", guid)
         try:
             return self._name2meta[guid]["is_mixed"]
         except KeyError:
@@ -907,11 +850,15 @@ class MixtureAwareLinkage:
         bar = progressbar.ProgressBar(max_value=len(guids_to_add))
         for i, guid in enumerate(guids_to_add):
             bar.update(i + 1)
-            neighbours = self.PERSIST.guid2neighbours(guid, returned_format=1)["neighbours"]
+            neighbours = self.PERSIST.guid2neighbours(guid, returned_format=1)[
+                "neighbours"
+            ]
 
             neighbours = sorted(neighbours, key=lambda x: int(x[1]))
             neighbours = [
-                x for x in neighbours if x[0] in existing_guids and x[1] <= self.snv_threshold
+                x
+                for x in neighbours
+                if x[0] in existing_guids and x[1] <= self.snv_threshold
             ]  # only consider links to existing guids
 
             self._name2meta[guid]["nneighbours"] = len(neighbours)
@@ -933,10 +880,14 @@ class MixtureAwareLinkage:
         # print("To evaluate, n=",len(to_evaluate))
         for i, guid in enumerate(to_evaluate):
             bar.update(i + 1)
-            neighbours = self.PERSIST.guid2neighbours(guid, returned_format=1)["neighbours"]
+            neighbours = self.PERSIST.guid2neighbours(guid, returned_format=1)[
+                "neighbours"
+            ]
             neighbours = sorted(neighbours, key=lambda x: int(x[1]))
             neighbours = [
-                x for x in neighbours if x[0] in existing_guids and x[1] <= self.snv_threshold
+                x
+                for x in neighbours
+                if x[0] in existing_guids and x[1] <= self.snv_threshold
             ]  # only consider links to existing guids
             self._name2meta[guid]["nneighbours"] = len(neighbours)
 
@@ -948,11 +899,15 @@ class MixtureAwareLinkage:
             if self._name2meta[guid]["is_mixed"] is True:  # already mixed
                 already_mixed.add(guid)
 
-        guids_potentially_requiring_evaluation = guids_potentially_requiring_evaluation - already_mixed
+        guids_potentially_requiring_evaluation = (
+            guids_potentially_requiring_evaluation - already_mixed
+        )
 
         # assess whether these are mixed
         logging.info("Checking mixture status")
-        bar = progressbar.ProgressBar(max_value=len(guids_potentially_requiring_evaluation))
+        bar = progressbar.ProgressBar(
+            max_value=len(guids_potentially_requiring_evaluation)
+        )
         # we unlink everything - when new samples are added, they can re-link known mixed samples
         for i, guid in enumerate(guids_potentially_requiring_evaluation):
             bar.update(i + 1)
@@ -993,7 +948,9 @@ class MixtureAwareLinkage:
         returns:
         change_id: an integer which increases as more samples are added.  useful for identifying samples added after a particular point"""
         retVal = self._add_nodes_and_links(guids_to_add, check_edges=True)
-        if set(guids_to_add) == self.guids():  # it's not longer simplified: all edges are present
+        if (
+            set(guids_to_add) == self.guids()
+        ):  # it's not longer simplified: all edges are present
             self.is_simplified = False
         return retVal
 
@@ -1010,7 +967,9 @@ class MixtureAwareLinkage:
         returns:
         change_id: an integer which increases as more samples are added.  useful for identifying samples added after a particular point  returns None if nothing added"""
 
-        remaining_guids_to_add = set(guids_to_add) - self.guids()  # don't try to readd anything which is already in the graph
+        remaining_guids_to_add = (
+            set(guids_to_add) - self.guids()
+        )  # don't try to readd anything which is already in the graph
         valid_guids = guids_to_add.union(
             self.guids()
         )  # we only add links to these : the new ones, and anything already there.
@@ -1039,15 +998,26 @@ class MixtureAwareLinkage:
             node_id_1 = self._name2node[guid_to_add]
             node_ids_added.add(node_id_1)
 
-            guid2neighbour_dict = self.PERSIST.guid2neighbours(guid_to_add, returned_format=1)
+            guid2neighbour_dict = self.PERSIST.guid2neighbours(
+                guid_to_add, returned_format=1
+            )
             guid2neighbours = guid2neighbour_dict["neighbours"]
 
             # only add links which are less or equal to than the cutoff value and which involve vertices (sequences) in the graph
-            guid2neighbours = self._filter_guid2neighbours_by_snpcutoff(guid2neighbours, self.snv_threshold)
-            guid2neighbours = self._filter_guid2neighbours_by_targets(guid2neighbours, valid_guids)
+            guid2neighbours = self._filter_guid2neighbours_by_snpcutoff(
+                guid2neighbours, self.snv_threshold
+            )
+            guid2neighbours = self._filter_guid2neighbours_by_targets(
+                guid2neighbours, valid_guids
+            )
             for item in guid2neighbours:
-                node_id_2 = self._name2node[item[0]]  # lookup the integer node id for the target of the edge
-                if not (self.g.hasEdge(node_id_1, node_id_2) or self.g.hasEdge(node_id_2, node_id_1)):
+                node_id_2 = self._name2node[
+                    item[0]
+                ]  # lookup the integer node id for the target of the edge
+                if not (
+                    self.g.hasEdge(node_id_1, node_id_2)
+                    or self.g.hasEdge(node_id_2, node_id_1)
+                ):
                     self.g.addEdge(node_id_1, node_id_2)
         bar.finish()
         if len(node_ids_added) == 0:
@@ -1058,7 +1028,13 @@ class MixtureAwareLinkage:
         )  # this is the changeid: an integer number which is guaranteed to increase as more samples are added
         for guid_to_add in remaining_guids_to_add:
             # record that is has not been mix checked
-            self._name2meta[guid_to_add].update({"mix_check_method": "No check", "is_mixed": None, "add_change_id": change_id})
+            self._name2meta[guid_to_add].update(
+                {
+                    "mix_check_method": "No check",
+                    "is_mixed": None,
+                    "add_change_id": change_id,
+                }
+            )
         return change_id
 
     def cluster(self) -> int:
@@ -1104,7 +1080,10 @@ class MixtureAwareLinkage:
             node_ids.add(change_id_this_cluster)  # largest change_id in this cluster
 
             for guid in guids:
-                self.name2cluster[guid] = {"latest_change_id": change_id_this_cluster, "cluster_id": [cluster_id]}
+                self.name2cluster[guid] = {
+                    "latest_change_id": change_id_this_cluster,
+                    "cluster_id": [cluster_id],
+                }
 
         # note the maximum node_id
         if len(node_ids) == 0:
@@ -1129,17 +1108,23 @@ class MixtureAwareLinkage:
                 # At the moment, each sample is in its own cluster
                 initial_cluster_membership = set(self.name2cluster[guid]["cluster_id"])
                 cluster_membership = set()
-                neighbours = self.PERSIST.guid2neighbours(guid, returned_format=1)["neighbours"]
+                neighbours = self.PERSIST.guid2neighbours(guid, returned_format=1)[
+                    "neighbours"
+                ]
                 neighbours = sorted(neighbours, key=lambda x: int(x[1]))
 
                 neighbours = [
                     x
                     for x in neighbours
-                    if x[0] in existing_guids and x[1] <= self.snv_threshold and not x[0] in mixed_samples
+                    if x[0] in existing_guids
+                    and x[1] <= self.snv_threshold
+                    and not x[0] in mixed_samples
                 ]  # only consider links to existing guids which are not known to be mixed
                 for target, snpdist in neighbours:
                     # if we are including the samples, we put them in any matching clusters
-                    cl_membership_this_target = self.name2cluster[target]["cluster_id"][0]
+                    cl_membership_this_target = self.name2cluster[target]["cluster_id"][
+                        0
+                    ]
                     cluster_membership.add(cl_membership_this_target)
 
                 # if we haven't assigned our mixed sample to any clusters, we assign it to its own
@@ -1219,12 +1204,16 @@ class MixtureAwareLinkage:
                 returned_list = [self._node2name[x] for x in item]
             else:
                 returned_list = item  # we return the node_ids
-            sha1_item = self.iss.make_identifier("connections", "-", False, returned_list)
+            sha1_item = self.iss.make_identifier(
+                "connections", "-", False, returned_list
+            )
 
             retVal[sha1_item] = returned_list
         return retVal
 
-    def _filter_guid2neighbours_by_snpcutoff(self, guid2neighbours: list, snpcutoff: int) -> list:
+    def _filter_guid2neighbours_by_snpcutoff(
+        self, guid2neighbours: list, snpcutoff: int
+    ) -> list:
         """removes any elements from the list guid2neighbours if they have distance>snpcutoff
 
         parameters:
@@ -1240,7 +1229,9 @@ class MixtureAwareLinkage:
                 retVal.append([guid, snpdist])
         return retVal
 
-    def _filter_guid2neighbours_by_targets(self, guid2neighbours: list, valid_targets: set) -> list:
+    def _filter_guid2neighbours_by_targets(
+        self, guid2neighbours: list, valid_targets: set
+    ) -> list:
         """removes any elements from the list guid2neighbours, which has format [[guid1,distance1], [guid2,distance2]..] as returned by PERSIST.guid2neighbours(), if guid is not in valid_targets
 
         parameters:
@@ -1269,7 +1260,9 @@ class MixtureAwareLinkage:
         """
 
         if isinstance(to_remove, str):
-            to_remove = set([to_remove])  # if a single guid is specified, then we put that in an iterable.
+            to_remove = set(
+                [to_remove]
+            )  # if a single guid is specified, then we put that in an iterable.
 
         # if the graph is simplified, then all the edges of all the components are restored.
         if self.is_simplified:
@@ -1319,7 +1312,9 @@ class MixtureAwareLinkage:
                 for element in cc_members:
                     node2min_element_in_cluster[element] = min_element
 
-        dd = nk.centrality.DegreeCentrality(self.g).run().scores()  # compute number of edges for each node
+        dd = (
+            nk.centrality.DegreeCentrality(self.g).run().scores()
+        )  # compute number of edges for each node
 
         # iterate over all nodes; identify edges which need updating
         to_remove = set()
@@ -1329,12 +1324,20 @@ class MixtureAwareLinkage:
                 # test whether the node is part of a cluster
                 if node_id in node2min_element_in_cluster:
                     # it is part of a cluster
-                    if not node_id == node2min_element_in_cluster[node_id]:  # it's not the first element
+                    if (
+                        not node_id == node2min_element_in_cluster[node_id]
+                    ):  # it's not the first element
                         # if the desired edge is the single edge present
-                        if degree == 1 and self.g.hasEdge(node_id, node2min_element_in_cluster[node_id]):
+                        if degree == 1 and self.g.hasEdge(
+                            node_id, node2min_element_in_cluster[node_id]
+                        ):
                             pass
                         else:
-                            to_add.add(frozenset([node2min_element_in_cluster[node_id], node_id]))
+                            to_add.add(
+                                frozenset(
+                                    [node2min_element_in_cluster[node_id], node_id]
+                                )
+                            )
                             for neighbour in self.g.iterNeighbors(node_id):
                                 to_remove.add(frozenset([node_id, neighbour]))
 
@@ -1367,7 +1370,9 @@ class MixtureAwareLinkage:
             "name": self.name,
             "parameters": self.parameters,
             "clustering_time": datetime.datetime.now().isoformat(),
-            "clusterid2clusterlabel": self._dictkey2string(self._clusterid2clusterlabel),
+            "clusterid2clusterlabel": self._dictkey2string(
+                self._clusterid2clusterlabel
+            ),
             "guid2clustermeta": self.guid2clustermeta().to_dict(orient="index"),
         }
 
@@ -1389,14 +1394,22 @@ class MixtureAwareLinkage:
 
         # check: we have been supplied a dictionary of the right format.
         if not isinstance(cl2label, dict):
-            raise ValueError("Must supply a dictionary, not a {0}".format(type(cl2label)))
+            raise ValueError(
+                "Must supply a dictionary, not a {0}".format(type(cl2label))
+            )
 
         for cluster_id in cl2label.keys():
             label_dict = cl2label[cluster_id]
             if not isinstance(label_dict, dict):
-                raise ValueError("Must supply a dictionary, not a {0} as the value of cl2label".format(type(cl2label)))
+                raise ValueError(
+                    "Must supply a dictionary, not a {0} as the value of cl2label".format(
+                        type(cl2label)
+                    )
+                )
             if "cluster_label" not in label_dict.keys():
-                raise KeyError("cluster_label must be a key; got {0}".format(label_dict))
+                raise KeyError(
+                    "cluster_label must be a key; got {0}".format(label_dict)
+                )
 
         # checks: 1:1 mapping of cluster_id to cluster_labels;
         cluster_labels = set([x["cluster_label"] for x in cl2label.values()])
@@ -1412,7 +1425,11 @@ class MixtureAwareLinkage:
         # check: all clusters exist
         non_referenced_cluster_ids = cluster_ids - set(self.cluster2names.keys())
         if not non_referenced_cluster_ids == set([]):  # all clusterids exist
-            raise KeyError("Not all clusterids exist; missing ones are :{0}".format(non_referenced_cluster_ids))
+            raise KeyError(
+                "Not all clusterids exist; missing ones are :{0}".format(
+                    non_referenced_cluster_ids
+                )
+            )
 
         # apply the labels
         # print("applying label",cl2label)

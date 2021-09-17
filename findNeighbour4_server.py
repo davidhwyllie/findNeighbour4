@@ -35,7 +35,6 @@ This program is free software: you can redistribute it and/or modify
 it under the terms of the MIT License as published
 by the Free Software Foundation.  See <https://opensource.org/licenses/MIT>, and the LICENSE file.
 
- 
 
 """
 
@@ -47,19 +46,17 @@ import logging
 import logging.handlers
 import warnings
 import datetime
-import threading
-import gc
 import io
 import pandas as pd
 from pathlib import Path
 import markdown
 import codecs
 import sentry_sdk
+
 import matplotlib
 import dateutil.parser
 import argparse
 import networkx as nx
-import progressbar
 import uuid
 
 from sentry_sdk import capture_message, capture_exception
@@ -77,11 +74,11 @@ from findn.common_utils import ConfigManager
 # reference based compression, storage and clustering modules
 from findn.NucleicAcid import NucleicAcid
 from findn.persistence import Persistence
-from findn.hybridComparer import hybridComparer
+from findn.cw_seqComparer import cw_seqComparer
+from findn.py_seqComparer import py_seqComparer
 from findn.guidLookup import guidDbSearcher  # fast lookup of first part of guids
 from snpclusters.ma_linkage import MixtureAwareLinkageResult
 from findn.msa import MSAStore
-from findn.preComparer import preComparer
 
 # network visualisation
 from findn.visualiseNetwork import snvNetwork
@@ -97,12 +94,16 @@ class SQLiteBackendErrror(Exception):
     """ can't use SQLite in a multithreaded environment """
     pass
 
+class FN4InsertInProgressError(Exception):
+    """ can't insert two sequences at the same time; only synchronous inserts are allowed"""
+    pass
+
 class findNeighbour4:
-    """a server based application for maintaining a record of bacterial relatedness using SNP distances.
+    """logic for maintaining a record of bacterial relatedness using SNP distances.
 
     The high level arrangement is that
     - This class interacts with  sequences, partly held in memory
-      [handled by the hybridComparer class]
+      [handled by the cw_seqComparer class]
     - cached data is accessed by an fn3persistence object
     - methods in findNeighbour4() return native python3 objects.
 
@@ -132,7 +133,7 @@ class findNeighbour4:
                             Enable /restart endpoint, which restarts empty server (for testing)      N       N        Y
 
             SERVERNAME:     the name of the server. used as the name of mongodb database which is bound to the server.
-            PRECOMPARER_PARAMETERS:     parameters passed to precomparer.  ** DOCS NEEDED ON THIS**.  It is important that these values are either set to 'fail always'  -route all precompared samples to the seqcomparer - or are the result of calibration.  preComparer_calibration will do the calibration process automatically.
+            PRECOMPARER_PARAMETERS:     parameters passed to precomparer.  ** DOCS NEEDED ON THIS**.  It is important that these values are either set to 'fail always'  -route all precompared samples to the py_seqComparer - or are the result of calibration.  preComparer_calibration will do the calibration process automatically.
             FNPERSISTENCE_CONNSTRING: a valid mongodb connection string. if shard keys are set, the 'guid' field is suitable key.
                             Note: if a FNPERSISTENCE_CONNSTRING environment variable is present, then the value of this will take precedence over any values in the config file.
                             This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuraton file.
@@ -160,8 +161,8 @@ class findNeighbour4:
                                 'ignore', one cluster {A,B,M} is returned
                                 'include', two clusters {A,M} and {B,M}
                                 'exclude', three clusters are returns {A},{B},{C}
-                            mixture_criterion: sensible values include 'p_value1','p_value2','p_value3' but other output from  seqComparer._msa() is also possible.
-                                 these p-values arise from three different tests for mixtures.  Please see seqComparer._msa() for details.
+                            mixture_criterion: sensible values include 'p_value1','p_value2','p_value3' but other output from  py_seqComparer._msa() is also possible.
+                                 these p-values arise from three different tests for mixtures.  Please see py_seqComparer._msa() for details.
                             cutoff: samples are regarded as mixed if the mixture_criterion is less than or equal to this value.
             SENTRY_URL:  optional.  If provided, will launch link Sentry to the flask application using the API key provided.  See https://sentry.io for a description of this service.
 
@@ -252,30 +253,28 @@ class findNeighbour4:
         self.clustering_settings = CONFIG["CLUSTERING"]
 
         ## start setup
-        self.write_semaphore = threading.BoundedSemaphore(1)  # used to permit only one process to INSERT at a time.
-
         # initialise nucleic acid analysis object
         self.objExaminer = NucleicAcid()
 
         # formatting utility
         self.mhr = MakeHumanReadable()
 
-        # load in-memory sequences
+        # load catwalk and in-ram searchable data assets
         self.gs = guidDbSearcher(PERSIST=PERSIST, recheck_interval_seconds = 60)
-        self._load_in_memory_data()
+        self.prepopulate_catwalk()
+        self.prepopulate_clustering()
 
         # log database state
         db_summary = self.PERSIST.summarise_stored_items()
         self.PERSIST.server_monitoring_store(what="dbManager", message="OnServerStartup", guid="-", content=db_summary)
 
-        # set up a read-only precomparer for use by pairwise comparisons.  There is no SNP ceiling
-        # preComparer_parameters will be read from disc
-        tmp_preComparer_parameters = CONFIG["PRECOMPARER_PARAMETERS"].copy()
-        tmp_preComparer_parameters["selection_cutoff"] = len(self.reference)
-        tmp_preComparer_parameters["catWalk_parameters"] = {}
-        tmp_preComparer_parameters["over_selection_cutoff_ignore_factor"] = 1
-        self.pc_tmp = preComparer(**tmp_preComparer_parameters)
-        print("findNeighbour4 is ready.")
+        # set up an in-RAM only precomparer for use by pairwise comparisons.  There is no SNP ceiling
+        self.sc = py_seqComparer(
+            reference = self.reference,
+            excludePositions = self.excludePositions,
+            snpCeiling = 1e9,
+            maxNs = self.maxNs
+        )
 
     def pairwise_comparison(self, guid1, guid2):
         """compares two sequences which have already been stored
@@ -285,12 +284,12 @@ class findNeighbour4:
         guid2 the second sequence identifier
 
         Returns
-        exact distance.  no threshold is applied.  Returns None if either sequence does not exist."""
+        exact distance.  no threshold is applied.  Returns neNo if either sequence does not exist."""
 
         obj1 = self.PERSIST.refcompressedsequence_read(guid1)
         obj2 = self.PERSIST.refcompressedsequence_read(guid2)
 
-        # we generate new uuids to identify the sequence, as self.pc_tmp can be accessed by different threads
+        # we generate new uuids to identify the sequence, as self.sc can be accessed by different threads
         # by providing new uuids for each sequence, one thread can't delete the other's sequences
         uuid1 = str(uuid.uuid1())
         uuid2 = str(uuid.uuid1())
@@ -299,81 +298,59 @@ class findNeighbour4:
             return None  # no sequence
 
         # store object in the precomparer
-        self.pc_tmp.persist(obj1, uuid1)  # store in the preComparer
-        self.pc_tmp.persist(obj2, uuid2)  # store in the preComparer
-        res = self.pc_tmp.compare(uuid1, uuid2)
+        self.sc.persist(obj1, uuid1)  # store in the preComparer
+        self.sc.persist(obj2, uuid2)  # store in the preComparer
+        dist = self.sc.compare(uuid1, uuid2)
 
-        self.pc_tmp.remove(uuid1)
-        self.pc_tmp.remove(uuid2)
-        res.update({"guid1": guid1, "guid2": guid2})
-        return res
+        self.sc.remove(uuid1)
+        self.sc.remove(uuid2)
+        
+        return {"guid1": guid1, "guid2": guid2, 'dist': dist}
 
-    def _load_in_memory_data(self):
-        """ loads in memory data into the hybridComparer object from database storage """
-
-        # set up clustering
-        # clustering is performed by findNeighbour4_cluster, and results are stored in the mongodb
-        # the clustering object used here is just a reader for the clustering status.
-        app.logger.info("findNeighbour4 is loading clustering data.")
-
-        self.clustering = {}  # a dictionary of clustering objects, one per SNV cutoff/mixture management setting
-        for clustering_name in self.clustering_settings.keys():
-            self.clustering[clustering_name] = MixtureAwareLinkageResult(
-                PERSIST=self.PERSIST, name=clustering_name, serialisation=None
-            )
-            app.logger.info("set up clustering access object {0}".format(clustering_name))
-
-        # initialise hybridComparer, which manages in-memory reference compressed data
-        # preComparer_parameters will be read from disc
-        self.hc = hybridComparer(
+    def prepopulate_catwalk(self):
+        """ initialise cw_seqComparer, which interfaces with catwalk were necessary
+        
+        If self.debugMode == 2 (a unittesting setting)  the catwalk is emptied on startup """
+        self.hc = cw_seqComparer(
             reference=self.reference,
             maxNs=self.maxNs,
             snpCeiling=self.snpCeiling,
             excludePositions=self.excludePositions,
             preComparer_parameters=self.preComparer_parameters,
             PERSIST=self.PERSIST,
+            unittesting=(self.debugMode==2)
         )
 
-        app.logger.info("In-RAM data store set up.")
+    def prepopulate_clustering(self):
+        """ loads in memory data into the cw_seqComparer object (which may include catwalk) from database storage """
 
-        # determine how many guids there in the database
-        guids = self.PERSIST.refcompressedsequence_guids()
+        # clustering is performed by findNeighbour4_cluster, and results are stored in the database backend
+        # the clustering object used here is just a reader for the clustering status.
+        logging.info("findNeighbour4 is loading clustering data.")
 
-        if len(guids) == 0:
-            self.server_monitoring_store(message="There is nothing to load")
-            app.logger.info("Nothing to load")
-        else:
-            self.server_monitoring_store(message="Starting load of sequences into memory from database")
-            app.logger.info("Loading sequences from database")
-
-            nLoaded = 0
-            bar = progressbar.ProgressBar(max_value=len(guids))
-
-            for guid in guids:
-
-                self.hc.repopulate(guid=guid)
-                bar.update(nLoaded)
-
-                if nLoaded % 100 == 0:
-                    self.server_monitoring_store(message="Server restarting; loaded {0} from database ..".format(nLoaded))
-
-            bar.finish()
-            app.logger.info("findNeighbour4 has finished loaded {0} sequences from database".format(len(guids)))
-
-        self.server_monitoring_store(message="Garbage collection.")
-        app.logger.info("Garbage collecting")
-        gc.collect()  # free up ram
-        self.server_monitoring_store(message="Load from database complete.")
+        self.clustering = {}  # a dictionary of clustering objects, one per SNV cutoff/mixture management setting
+        for clustering_name in self.clustering_settings.keys():
+            self.clustering[clustering_name] = MixtureAwareLinkageResult(
+                PERSIST=self.PERSIST, name=clustering_name, serialisation=None
+            )
+            logging.info("set up clustering access object {0}".format(clustering_name))
 
     def reset(self):
         """ restarts the server, deleting any existing data """
         if not self.debugMode == 2:
-            app.logger.info("Call to reset ignored as debugMode is not 2")
+            logging.info("Call to reset ignored as debugMode is not 2")
             return  # no action taken by calls to this unless debugMode ==2
         else:
-            app.logger.info("Deleting existing data and restarting")
+            logging.info("Deleting existing data and restarting")
             self.PERSIST._delete_existing_data()
-            self._load_in_memory_data()
+            self.hc.restart_empty()     # restart catwalk empty
+            self.prepopulate_clustering()
+
+            # check it worked
+            residual_sample_ids = self.hc.guids()
+            if not len(residual_sample_ids) == 0:
+                raise ValueError("Catwalk restarted, but with residual samples in it.  Residual samples are {0}".format(self.hc.guids()))
+            logging.info("reset executed.  There are no samples in the catWalk application.")
 
     def server_monitoring_store(self, message="No message supplied", guid=None):
         """ reports server memory information to store """
@@ -392,7 +369,7 @@ class findNeighbour4:
         """actions taken on first-run only.
         Include caching results from config_file to database, unless they are in do_not_persist_keys"""
 
-        app.logger.info("First run situation: parsing inputs, storing to database. ")
+        logging.info("First run situation: parsing inputs, storing to database. ")
 
         # create a config dictionary
         config_settings = {}
@@ -419,7 +396,7 @@ class findNeighbour4:
             for row in rows:
                 excluded.add(int(row))
 
-        app.logger.info("Noted {0} positions to exclude.".format(len(excluded)))
+        logging.info("Noted {0} positions to exclude.".format(len(excluded)))
         config_settings["excludePositions"] = list(sorted(excluded))
 
         # load reference
@@ -440,7 +417,7 @@ class findNeighbour4:
 
         self.server_monitoring_store(message="First run complete.")
 
-        app.logger.info("First run actions complete.")
+        logging.info("First run actions complete.")
 
     def insert(self, guid, dna):
         """insert DNA called guid into the server,
@@ -448,42 +425,40 @@ class findNeighbour4:
         """
 
         # clean, and provide summary statistics for the sequence
-        app.logger.info("Preparing to insert: {0}".format(guid))
+        logging.info("Preparing to insert: {0}".format(guid))
 
-        if not self.hc.iscachedinram(guid):  # if the guid is not already there
+        if not self.exist_sample(guid):   # if the guid is not already there
             self.server_monitoring_store(message="About to insert", guid=guid)
-            app.logger.info("Guid is not present: {0}".format(guid))
+            logging.info("Guid is not present: {0}".format(guid))
 
             # insert sequence into the sequence store.
             self.objExaminer.examine(dna)  # examine the sequence
             cleaned_dna = self.objExaminer.nucleicAcidString.decode()
             refcompressedsequence = self.hc.compress(cleaned_dna)  # compress it and store it in RAM
-            self.server_monitoring_store(message="Compression complete", guid=guid)
+            
             # addition should be an atomic operation, in which all the component complete or do not complete.
             # we use a semaphore to do this.
 
-            self.write_semaphore.acquire()
-            try:
-                loginfo = self.hc.persist(refcompressedsequence, guid, {"DNAQuality": self.objExaminer.composition})
+            if self.PERSIST.lock(1):            # true if an insert lock was acquired
+                try:
+                    self.hc.persist(refcompressedsequence, guid, {"DNAQuality": self.objExaminer.composition})
 
-            except Exception as e:
-                self.write_semaphore.release()  # release the write semaphore
-                app.logger.exception("Error raised on persisting {0}".format(guid))
-                app.logger.exception(e)
-                capture_exception(e)  # log what happened in Sentry
-                # Rollback anything which could leave system in an inconsistent state
-                # remove the guid from RAM is the only step necessary
-                self.hc.remove(guid)
-                app.logger.warning("Guid {0}  removed from preComparer due to error {0}".format(guid))
-                abort(
-                    503, e
-                )  # the mongo server may be refusing connections, or busy.  This is observed occasionally in real-world use
+                except Exception as e:
+                    logging.exception("Error raised on persisting {0}".format(guid))
+                    logging.exception(e)
+                    capture_exception(e)  # log what happened in Sentry
+                    # Rollback anything which could leave system in an inconsistent state
+                    # remove the guid from RAM is the only step necessary
+                    logging.warning("Guid {0}  failed to insert {0}".format(guid))
+                    abort(
+                        503, e
+                    )  # the mongo server may be refusing connections, or busy.  This is observed occasionally in real-world use
+                self.PERSIST.unlock(1)      # release the lock if it was acquired
+            else:
+                # lock acquisition failed, indicative of another process inserting at present
+                abort(409, FN4InsertInProgressError)
 
-            self.write_semaphore.release()  # release the write semaphore.  This is never reached in the flask setting if abort() is executed
-
-            app.logger.info("Insert succeeded {0}".format(guid))
-            for info in loginfo:
-                app.logger.info(info)  # performance info
+            logging.info("Insert succeeded {0}".format(guid))
             self.server_monitoring_store(message="Stored compressed sequence", guid=guid)
 
             # log database sizes
@@ -492,7 +467,7 @@ class findNeighbour4:
 
             return "Guid {0} inserted.".format(guid)
         else:
-            app.logger.info("Already present, no insert needed: {0}".format(guid))
+            logging.info("Already present, no insert needed: {0}".format(guid))
 
             return "Guid {0} is already present".format(guid)
 
@@ -678,8 +653,8 @@ class findNeighbour4:
         return self.PERSIST.guid_annotation(guid)
 
     def sequence(self, guid):
-        """ gets masked sequence for the guid, in format sequence|fasta """
-        if not self.hc.iscachedinram(guid):
+        """ gets masked sequence for the guid, in fasta format"""
+        if not self.exist_sample(guid):
             return None
         try:
             seq = self.hc.uncompress_guid(guid)
@@ -687,18 +662,94 @@ class findNeighbour4:
         except ValueError:
             return {"guid": guid, "invalid": 1, "comment": "No sequence is available, as invalid sequences are not stored"}
 
+def create_app(config_file = None):
+    """ creates a findNeighbour4 flask application
+    if config_file is passed, this should point to a configuration file.
+    if environment variable FLASK_APP_CONFIG_FILE is set, the value of this used as the path to a config file.
+    if config_file is None and FLASK_APP_CONFIG_FILE is not set, the default (testing) config is used    
+    """
 
-# startup
-if __name__ == "__main__":
+    ## construct flask application
+    if os.environ.get("FN4_SERVER_CONFIG_FILE") is not None:
+        config_file = os.environ.get("FN4_SERVER_CONFIG_FILE")
+ 
+    if config_file is None:
+        config_file = DEFAULT_CONFIG_FILE
+        warnings.warn(
+            "No config file name supplied ; using a configuration ('default_test_config.json') suitable only for testing, not for production. "
+        )
 
+    cfm = ConfigManager(config_file)
+    CONFIG = cfm.read_config()
+
+    ########################### SET UP LOGGING #####################################
+    # create a log file if it does not exist.
+    logdir = os.path.dirname(CONFIG["LOGFILE"])
+    Path(os.path.dirname(CONFIG["LOGFILE"])).mkdir(parents=True, exist_ok=True)
+
+    # set up logger
+    loglevel = logging.INFO
+    if "LOGLEVEL" in CONFIG.keys():
+        if CONFIG["LOGLEVEL"] == "WARN":
+            loglevel = logging.WARN
+        elif CONFIG["LOGLEVEL"] == "DEBUG":
+            loglevel = logging.DEBUG
+
+    # configure logging object
+    logfile = os.path.join(logdir, "server-{0}".format(os.path.basename(CONFIG["LOGFILE"])))
+    file_handler = logging.handlers.RotatingFileHandler(logfile, mode="a", maxBytes=1e7, backupCount=7)
+    formatter = logging.Formatter("%(asctime)s | %(pathname)s:%(lineno)d | %(funcName)s | %(levelname)s | %(message)s ")
+    file_handler.setFormatter(formatter)
+
+    ########################### prepare to launch server ###############################################################
+    RESTBASEURL = "http://{0}:{1}".format(CONFIG["IP"], CONFIG["REST_PORT"])
+
+    #########################  CONFIGURE HELPER APPLICATIONS ######################
+    # plotting engine
+    #  prevent https://stackoverflow.com/questions/27147300/how-to-clean-images-in-python-django
+    matplotlib.use("agg")  
+
+    pm = Persistence()
+    PERSIST = pm.get_storage_object(
+        dbname=CONFIG["SERVERNAME"],
+        connString=CONFIG["FNPERSISTENCE_CONNSTRING"],
+        debug=CONFIG["DEBUGMODE"],
+        verbose=True)
+
+    # check is it not sqlite.  We can't run sqlite in a multithreaded environment like flask.
+    # you need a proper database managing concurrent connections, such as mongo, or a standard rdbms
+    if PERSIST.using_sqlite:
+        raise SQLiteBackendErrror("""Can't use SQlite as a backend for findNeighbour4_server.  
+        A database handing sessions is required.  Some unit tests use SQLite; 
+        however, you can't run integration tests (test_server_rdbms.py) against sqlite.
+        To test the server, edit the config/default_test_config_rdbms.json file's "FNPERSISTENCE_CONNSTRING": connection string to
+        point to an suitable database.  For more details of how to do this, see installation instructions on github.""")
+    # instantiate server class
+    try:
+        fn = findNeighbour4(CONFIG, PERSIST)
+    except Exception as e:
+        logging.exception("Error raised on instantiating findNeighbour4 object")
+        logging.exception(e)
+        raise
+
+    ########################  START THE SERVER ###################################
+    
     # default parameters for unit testing only; will be overwritten if config file provided.
     RESTBASEURL = "http://127.0.0.1:5020"
-    ISDEBUG = True
-    LISTEN_TO = "127.0.0.1"  # only local addresses
 
     # initialise Flask
     app = Flask(__name__)
     CORS(app)  # allow CORS
+
+    app.logger.setLevel(loglevel)
+    app.logger.addHandler(file_handler)
+    # launch sentry if API key provided
+    if "SENTRY_URL" in CONFIG.keys():
+        app.logger.info("Launching communication with Sentry bug-tracking service")
+        sentry_sdk.init(CONFIG["SENTRY_URL"], integrations=[FlaskIntegration()])
+
+    if CONFIG["DEBUGMODE"] > 0:
+        app.config["PROPAGATE_EXCEPTIONS"] = True
 
     def isjson(content):
         """ returns true if content parses as json, otherwise false. used by unit testing. """
@@ -737,24 +788,11 @@ if __name__ == "__main__":
         Used for unit testing."""
 
         url = urljoiner(RESTBASEURL, relpath)
-        # print("GETing from: {0}".format(url))
 
         session = requests.Session()
         session.trust_env = False
 
-        # print out diagnostics
-        # print("About to GET from url {0}".format(url))
         response = session.get(url=url, timeout=None)
-
-        # print("Result:")
-        # print("code: {0}".format(response.status_code))
-        # print("reason: {0}".format(response.reason))
-        # try:
-        #    print("text: {0}".format(response.text[:100]))
-        # except UnicodeEncodeError:
-        #    # which is what happens if you try to display a gz file as text, which it isn't
-        #    print("Response cannot be coerced to unicode ? a gz file.  The response content had {0} bytes.".format(len(response.text)))
-        #    print("headers: {0}".format(response.headers))
 
         session.close()
         return response
@@ -766,16 +804,9 @@ if __name__ == "__main__":
 
         url = urljoiner(RESTBASEURL, relpath)
 
-        # print out diagnostics
-        # print("POSTING to url {0}".format(url))
         if not isinstance(payload, dict):
             raise TypeError("not a dict {0}".format(payload))
         response = requests.post(url=url, data=payload)
-
-        # print("Result:")
-        # print("code: {0}".format(response.status_code))
-        # print("reason: {0}".format(response.reason))
-        # print("content: {0}".format(response.content))
 
         return response
 
@@ -808,7 +839,7 @@ if __name__ == "__main__":
         main - raise error in main code
         persist - raise in PERSIST object
         clustering - raise in clustering
-        seqcomparer - raise in seqcomparer.
+        py_seqComparer - raise in py_seqComparer.
         """
 
         if not fn.debugMode == 2:
@@ -825,12 +856,12 @@ if __name__ == "__main__":
             else:
                 clustering_name = clustering_names[0]
                 fn.clustering_settings[clustering_name].raise_error(token)
-        elif component == "seqcomparer":
+        elif component == "py_seqComparer":
             fn.hc.raise_error(token)
         elif component == "persist":
             fn.PERSIST.raise_error(token)
         else:
-            raise KeyError("Invalid component called.  Allowed: main;persist;clustering;seqcomparer.")
+            raise KeyError("Invalid component called.  Allowed: main;persist;clustering;py_seqComparer.")
 
     def construct_msa(guids, output_format, what):
 
@@ -1024,7 +1055,7 @@ if __name__ == "__main__":
         interactive
         """
 
-        # validate input
+        # validate input; update clustering
         try:
             fn.clustering[clustering_algorithm].refresh()
         except KeyError:
@@ -1478,13 +1509,7 @@ if __name__ == "__main__":
             # no clustering algorithm of this type
             abort(404, "no clustering algorithm {0} (failed update)".format(clustering_algorithm))
 
-        try:
-
-            res = fn.clustering[clustering_algorithm].uncertain_base_type
-        except KeyError:
-            # no clustering algorithm of this type
-            abort(404, "no clustering algorithm {0} (failed base recovery)".format(clustering_algorithm))
-
+        res = fn.clustering[clustering_algorithm].uncertain_base_type
         return make_response(tojson({"what_tested": res, "clustering_algorithm": clustering_algorithm}))
 
     @app.route("/api/v2/clustering/<string:clustering_algorithm>/change_id", methods=["GET"])
@@ -1511,12 +1536,9 @@ if __name__ == "__main__":
         g2e = fn.get_all_guids_examination_time()
 
         # recover all cluster membership
-        fn.clustering[clustering_algorithm].refresh()
-        cl2guids = fn.clustering[clustering_algorithm].cluster2guid
 
         try:
             fn.clustering[clustering_algorithm].refresh()
-
         except KeyError:
             app.logger.info("No algorithm {0}".format(clustering_algorithm))
             abort(404, "no clustering algorithm {0}".format(clustering_algorithm))
@@ -1524,6 +1546,7 @@ if __name__ == "__main__":
             app.logger.info("Never ran {0}".format(clustering_algorithm))
             abort(421, "never ran clustering algorithm {0}".format(clustering_algorithm))
 
+        cl2guids = fn.clustering[clustering_algorithm].cluster2guid
         c2g = fn.clustering[clustering_algorithm].clusters2guidmeta(after_change_id=change_id)
         res = []
 
@@ -1531,18 +1554,6 @@ if __name__ == "__main__":
 
             item["examinationTime"] = g2e[item["guid"]]
             item["clusterSize"] = len(cl2guids[item["cluster_id"]])
-
-            # this is too low for large scale querying
-            # recover all the neighbours, irrespective of SNP distance
-            # neighbours = fn.neighbours_within_filter(item['guid'], 1e7, CONFIG['MAXN_PROP_DEFAULT'], 4)
-            # dists = []
-            # for neighbour in neighbours:
-            #    dists.append(neighbour['snv'])
-            # min_snp = '-'
-            # nneighbours = len(dists)
-            # if nneighbours > 0:
-            #   min_snp = min(dists)
-            # item['closestNeighbourSNVs'] = min_snp
 
             res.append(item)
 
@@ -1714,11 +1725,17 @@ if __name__ == "__main__":
 
         return make_response(tojson(result))
 
+    logging.info("Returning fn4 application to WSGI process")
+    return app
+
+
+if __name__ == '__main__':
     # command line usage.  Pass the location of a config file as a single argument.
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawTextHelpFormatter,
-        description="""Runs findNeighbour4_server, a service for bacterial relatedness monitoring.
+        description="""Runs findNeighbour4_server using a development (werkzeug) server.
                                      
+For instructions on how to run with gunicorn (suitable for production see TODO)
 
 Example usage: 
 ============== 
@@ -1730,14 +1747,6 @@ python findNeighbour4_server.py
 
 # run using settings in myconfig_file.json.  Memory will be recompressed after loading. 
 python findNeighbour4_server.py ../config/myconfig_file.json     
-
-# run using settings in myconfig_file.json; 
-# recompress RAM every 20000 samples loaded 
-# (only needed if RAM is in short supply and data close to limit) 
-# enabling this option will slow up loading 
-
-python findNeighbour4_server.py ../config/myconfig_file.json  
-                        --on_startup_recompress-memory_every 20000 
 
 """,
     )
@@ -1755,8 +1764,6 @@ python findNeighbour4_server.py ../config/myconfig_file.json
     args = parser.parse_args()
 
     ############################ LOAD CONFIG ######################################
-    print("findNeighbour4 server .. reading configuration file.")
-
     config_file = args.path_to_config_file
     if config_file is None:
         config_file = DEFAULT_CONFIG_FILE
@@ -1767,80 +1774,17 @@ python findNeighbour4_server.py ../config/myconfig_file.json
     cfm = ConfigManager(config_file)
     CONFIG = cfm.read_config()
 
-    ########################### SET UP LOGGING #####################################
-    # create a log file if it does not exist.
-    print("Starting logging")
-    logdir = os.path.dirname(CONFIG["LOGFILE"])
-    Path(os.path.dirname(CONFIG["LOGFILE"])).mkdir(parents=True, exist_ok=True)
-
-    # set up logger
-    loglevel = logging.INFO
-    if "LOGLEVEL" in CONFIG.keys():
-        if CONFIG["LOGLEVEL"] == "WARN":
-            loglevel = logging.WARN
-        elif CONFIG["LOGLEVEL"] == "DEBUG":
-            loglevel = logging.DEBUG
-
-    # configure logging object
-    app.logger.setLevel(loglevel)
-    logfile = os.path.join(logdir, "server-{0}".format(os.path.basename(CONFIG["LOGFILE"])))
-    print("Logging to {0} with rotation".format(logfile))
-    file_handler = logging.handlers.RotatingFileHandler(logfile, mode="a", maxBytes=1e7, backupCount=7)
-    formatter = logging.Formatter("%(asctime)s | %(pathname)s:%(lineno)d | %(funcName)s | %(levelname)s | %(message)s ")
-    file_handler.setFormatter(formatter)
-    app.logger.addHandler(file_handler)
-
-    # launch sentry if API key provided
-    if "SENTRY_URL" in CONFIG.keys():
-        app.logger.info("Launching communication with Sentry bug-tracking service")
-        sentry_sdk.init(CONFIG["SENTRY_URL"], integrations=[FlaskIntegration()])
-
-    ########################### prepare to launch server ###############################################################
-    # construct the required global variables
-    LISTEN_TO = "127.0.0.1"
-    if "LISTEN_TO" in CONFIG.keys():
-        LISTEN_TO = CONFIG["LISTEN_TO"]
-
-    RESTBASEURL = "http://{0}:{1}".format(CONFIG["IP"], CONFIG["REST_PORT"])
-
-    #########################  CONFIGURE HELPER APPLICATIONS ######################
-    # plotting engine
-    #  prevent https://stackoverflow.com/questions/27147300/how-to-clean-images-in-python-django
-    matplotlib.use("agg")  
-
-    print("Connecting to backend data store")
-    pm = Persistence()
-    PERSIST = pm.get_storage_object(
-        dbname=CONFIG["SERVERNAME"],
-        connString=CONFIG["FNPERSISTENCE_CONNSTRING"],
-        debug=CONFIG["DEBUGMODE"],
-        verbose=True)
-
-    # check is it not sqlite.  We can't run sqlite in a multithreaded environment like flask.
-    # you need a proper database managing concurrent connections, such as mongo, or a standard rdbms
-    if PERSIST.using_sqlite:
-        raise SQLiteBackendErrror("""Can't use SQlite as a backend for findNeighbour4_server.  
-        A database handing sessions is required.  Some unit tests use SQLite; 
-        however, you can't run integration tests (test_server_rdbms.py) against sqlite.
-        To test the server, edit the config/default_test_config_rdbms.json file's "FNPERSISTENCE_CONNSTRING": connection string to
-        point to an suitable database.  For more details of how to do this, see installation instructions on github.""")
-    # instantiate server class
-    print("Loading sequences into server, please wait ...")
-    try:
-        fn = findNeighbour4(CONFIG, PERSIST)
-    except Exception:
-        app.logger.exception("Error raised on instantiating findNeighbour4 object")
-        raise
-
-    ########################  START THE SERVER ###################################
+    app = create_app(config_file)
     if CONFIG["DEBUGMODE"] > 0:
         flask_debug = True
         app.config["PROPAGATE_EXCEPTIONS"] = True
     else:
         flask_debug = False
 
-    app.logger.info(
-        "Launching server listening to IP {0}, debug = {1}, port = {2}".format(LISTEN_TO, flask_debug, CONFIG["REST_PORT"])
-    )
+    # construct the required global variables
+    LISTEN_TO = "127.0.0.1"         # localhost by default
+    if "LISTEN_TO" in CONFIG.keys():
+        LISTEN_TO = CONFIG["LISTEN_TO"]
+
     app.run(host=LISTEN_TO, debug=flask_debug, port=CONFIG["REST_PORT"])
     

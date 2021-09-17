@@ -28,7 +28,7 @@ class SeqDictConverter:
             }
 
     contains a class to store the a dictionary of properties,
-    as produced by the seqComparer.compress() method,
+    as produced by the py_seqComparer.compress() method,
     as json.
 
     This is required because of
@@ -53,7 +53,7 @@ class SeqDictConverter:
         outputdict = {}
 
         for key in obj.keys():
-            if key in self.bases:
+            if isinstance(obj[key], set):
                 outputdict[key] = list(obj[key])
             else:
                 outputdict[key] = obj[key]

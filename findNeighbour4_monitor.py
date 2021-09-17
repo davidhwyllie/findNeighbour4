@@ -21,6 +21,7 @@ import logging.handlers
 import warnings
 import pathlib
 import sentry_sdk
+from version import version
 import time
 from bokeh.embed import file_html
 from bokeh.resources import CDN
@@ -90,7 +91,7 @@ if __name__ == "__main__":
     # launch sentry if API key provided
     if "SENTRY_URL" in CONFIG.keys():
         logger.info("Launching sentry client")
-        sentry_sdk.init(CONFIG["SENTRY_URL"])
+        sentry_sdk.init(CONFIG["SENTRY_URL"], release=version)
 
     # #######################  START Operations ###################################
     logger.info("Preparing to produce visualisations")

@@ -33,6 +33,7 @@ import warnings
 import pathlib
 import sentry_sdk
 from sentry_sdk import capture_exception
+from version import version
 import time
 import datetime
 import hashlib
@@ -169,7 +170,7 @@ python findNeighbour4_server.py ../config/myconfig_file.json
 
     if "SENTRY_URL" in CONFIG.keys():
         logger.info("Launching logger")
-        sentry_sdk.init(CONFIG["SENTRY_URL"])
+        sentry_sdk.init(CONFIG["SENTRY_URL"], release=version)
 
     # determine whether a FN_SENTRY_URL environmentvariable is present,
     # if so, the value of this will take precedence over any values in the config file.
@@ -197,7 +198,7 @@ python findNeighbour4_server.py ../config/myconfig_file.json
 
     if PERSIST.storage_technology == 'rdbms':
         logger.info("Terminating, as dbmanager is not required when working with rdbms.")
-        pm.closedown()
+        PERSIST.closedown()
         exit()
 
     date_last_log_rotated = datetime.datetime.now() - datetime.timedelta(hours=25)  # force log rotation on startup

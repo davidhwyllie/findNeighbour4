@@ -35,7 +35,7 @@ class MakeHumanReadable:
             "server|mstat|": "fn4 memory",
             "server|catwalk|": "catwalk comparison engine ",
             "server|pcstat|n": "in-memory sequences (preComparer) ",
-            "server|scstat|n": "in-memory sequences (seqComparer) ",
+            "server|scstat|n": "in-memory sequences (py_seqComparer) ",
             "interval": "Interval between events (seconds) ",
             "dstats|guid2neighbour|": "db, guid2neighbour collection (stores similar sequence pairs), ",
             "dstats|guid2meta|": "db, guid2metadata collection (stores meta data about sequences), ",

@@ -24,9 +24,53 @@ PathLike = Union[str, Path]
 ConfigLike = Union[str, dict]
 
 
+class EnvWriter:
+    """a utility for reading .env files, and for adding and removing elements from them."""
+
+    def __init__(self, env_file=".env"):
+        """reads a .env file  and prepares to manipulate it"""
+        self.env_file = env_file
+        if not os.path.exists(self.env_file):
+            raise FileNotFoundError(".env file {0} was not found".format(self.env_file))
+
+        self.env_vars = {}
+        with open(env_file, "rt") as f:
+            for i, x in enumerate(f.readlines()):
+                x = x.strip()
+                if len(x) > 0:  # skip blank lines
+                    if "=" not in x:
+                        raise ValueError(
+                            "Line #{0}  ({1}, length={2}) does not contain '='".format(
+                                i, x, len(x)
+                            )
+                        )
+
+                    key, value = x.split("=")
+                    self.env_vars[key.strip()] = value.strip()
+
+    def number_of_env_vars(self):
+        """returns the number of environment variables read from file"""
+        return len(self.env_vars.keys())
+
+    def set_env_var(self, key, value):
+        """set environment variable key to value value.  Note: if the value needs quoting when exported to file, do this e.g. ev.set_env_var("new_key", "'/path/to/file'")"""
+        logging.info("Reset environment variable {0} = {1}".format(key, value))
+        self.env_vars[key] = value
+
+    def del_env_var(self, key):
+        """deletes environment variable key if present"""
+        if key in self.env_vars.keys():
+            del self.env_vars[key]
+
+    def save_changes(self):
+        with open(self.env_file, "wt") as f:
+            for key in self.env_vars.keys():
+                value = self.env_vars[key]
+                f.write("{0}={1}\n".format(key, value))
+
+
 class ConfigManager:
-    """
-     reads, and where approporiate modifies from environmental variables containing secret
+    """reads, and where approporiate modifies from environmental variables containing secret
     configuration parameters etc, a findNeighbour config dictionary
 
     Can read from file, or (where configuration is present) from database.
@@ -72,7 +116,7 @@ class ConfigManager:
     SENTRY_URL (optional)
     Note: if a FN_SENTRY URL environment variable is present, then the value of this will take precedence over any values in the config file.
     This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuraton file.
-    PERSIST is a storage object needs to be supplied.  
+    PERSIST is a storage object needs to be supplied.
     """
 
     def __init__(self, config_fpath):
@@ -151,7 +195,8 @@ class ConfigManager:
             dbname=self.CONFIG["SERVERNAME"],
             connString=self.CONFIG["FNPERSISTENCE_CONNSTRING"],
             debug=debug_status,
-            verbose=False)
+            verbose=False,
+        )
 
         do_not_persist_keys = set(
             [
@@ -172,6 +217,7 @@ class ConfigManager:
 
         # load the result from database
         stored_config = self.PERSIST.config_read("config")
+
         stored_config["excludePositions"] = set(stored_config["excludePositions"])
         for (
             key
@@ -187,6 +233,17 @@ class ConfigManager:
             self.CONFIG["SERVER_MONITORING_MIN_INTERVAL_MSEC"] = 0
 
         return self.CONFIG
+
+    def delete_existing_data(self):
+        """deletes all existing data from the database
+        Note: this routine is in place for unit testing purposes; it should not normally be called in other settings"""
+        pm = Persistence()
+        self.PERSIST = pm.get_storage_object(
+            dbname=self.CONFIG["SERVERNAME"],
+            connString=self.CONFIG["FNPERSISTENCE_CONNSTRING"],
+            debug=2,
+            verbose=False,
+        )
 
     def _first_run(self, do_not_persist_keys):
         """first run actions.  Stores CONFIG to database, minus any keys in do_not_persist_keys"""

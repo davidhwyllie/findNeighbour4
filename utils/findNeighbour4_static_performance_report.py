@@ -9,6 +9,7 @@ import warnings
 import pandas as pd
 import pathlib
 import sentry_sdk
+from version import version
 import json
 
 # fn3 storage module
@@ -83,7 +84,7 @@ if __name__ == "__main__":
     # launch sentry if API key provided
     if "SENTRY_URL" in CONFIG.keys():
         logger.info("Launching logger")
-        sentry_sdk.init(CONFIG["SENTRY_URL"])
+        sentry_sdk.init(CONFIG["SENTRY_URL"], release=version)
 
     # set min logging interval if not supplied
     if "SERVER_MONITORING_MIN_INTERVAL_MSEC" not in CONFIG.keys():

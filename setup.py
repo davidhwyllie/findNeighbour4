@@ -7,4 +7,6 @@ setup(
     long_description=Path("./README.md").read_text(),
     url="https://github.com/davidhwyllie/findNeighbour4",
     packages=find_packages(),
+    use_scm_version=True,
+    setup_requires=["setuptools_scm"],
 )

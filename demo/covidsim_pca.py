@@ -37,6 +37,7 @@ import glob
 import datetime
 import Bio
 import sentry_sdk
+from version import version
 import logging
 import logging.handlers
 import argparse
@@ -180,7 +181,7 @@ if __name__ == "__main__":
     # launch comms with Sentry
     if os.environ.get("FN_SENTRY_URL") is not None:
         logger.info("Launching communication with Sentry bug-tracking service")
-        sentry_sdk.init(os.environ.get("FN_SENTRY_URL"))
+        sentry_sdk.init(os.environ.get("FN_SENTRY_URL"), release=version)
         logger.info("Sentry comms established")
     else:
         logger.info(

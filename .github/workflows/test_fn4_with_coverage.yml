@@ -36,9 +36,6 @@ jobs:
         python -m pip install --upgrade pip
         pip install pipenv
 
-        # locking takes ages and has no benefit in the ci situation
-        pipenv install --skip-lock
-
     - name: Start MongoDB
       uses: supercharge/mongodb-github-action@1.3.0
       with:
@@ -47,7 +44,15 @@ jobs:
     - name: Install cloned findNeighbour4 package
       run: |
         # install the findNeighbour package
+
         pipenv install -e `pwd` --skip-lock
+
+    - name: Assign version
+      run: |
+        VERSION=`python3 setup.py --version`
+        rm version.py -f
+        touch version.py
+        echo "version = '$VERSION'" > version.py
 
     - name: Lint with flake8
       run: |
@@ -70,6 +75,7 @@ jobs:
 
     - name: Test with pytest
       run: |
+        python3 setup.py --version
         nohup pipenv run python3 findNeighbour4_server.py &
         sleep 15
         pipenv run pytest test --cov=./ --cov-report=xml

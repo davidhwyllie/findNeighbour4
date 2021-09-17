@@ -51,7 +51,13 @@ class MSAStore:
         return token in self.cache.keys()
 
     def persist(self, token, msa_result):
-        """stores a MSAResult object in mongo identified by token"""
+        """stores a MSAResult object, or a dictionary produced by multi_sequence_alignment, in storage identified by token"""
+
+        if not isinstance(msa_result, MSAResult):
+            raise TypeError(
+                "must pass a MSAResult object, not a {0}".format(type(msa_result))
+            )
+
         self.PERSIST.msa_store(token, msa_result.serialise())
         self.cache_in_ram(token, msa_result)
 
@@ -108,13 +114,13 @@ class MSAResult:
     ):
 
         """a representation of a multisequence alignment
-        The multisequence alignment is generates by SeqComparer.multi_sequence_alignment(), not by this class.
+        The multisequence alignment is generates by py_seqComparer.multi_sequence_alignment(), not by this class.
 
         Parameters:
                     'variant_positions': positions of variation in msa
                     'invalid_guids': invalid guids associated with, but not included in, msa
                     'valid_guids': guids in msa
-                    'expected_p1': expected_p1 (see ._msa in hybridComparer for discussion)
+                    'expected_p1': expected_p1 (see ._msa in cw_seqComparer for discussion)
                     'sample_size': sample size used to estimate p1
                     'df_dict': a dictionary serialising the pandas dataframe containing the msa
                     'what_tested': what (M/N/N_or_M) was tested
@@ -174,8 +180,8 @@ class MSAResult:
         """return the entire object in a serialisable format (dictionary)"""
         return {
             "variant_positions": self.variant_positions,
-            "invalid_guids": self.invalid_guids,
-            "valid_guids": self.valid_guids,
+            "invalid_guids": list(self.invalid_guids),
+            "valid_guids": list(self.valid_guids),
             "expected_p1": self.expected_p1,
             "sample_size": self.sample_size,
             "df_dict": self.df.to_dict(orient="index"),
