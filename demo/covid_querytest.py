@@ -26,16 +26,12 @@ by the Free Software Foundation.  See <https://opensource.org/licenses/MIT>, and
 
 # imports
 import os
-import glob
 import datetime
-import Bio
 import logging
 import logging.handlers
 import argparse
-import warnings
 import pandas as pd
 import sentry_sdk
-from collections import Counter
 import uuid
 from findn.common_utils import ConfigManager
 from fn4client import fn4Client
@@ -170,7 +166,6 @@ if __name__ == "__main__":
     existing_guids = set(fn4c.guids())
     logger.info("There are {0} samples in the server".format(len(existing_guids)))
 
-   
     # benchmarking snippet
     one_guid = min(existing_guids)
     urls = []
@@ -178,10 +173,16 @@ if __name__ == "__main__":
         # add urls; can choose what to use
         #urls.append("{0}/api/v2/{1}/exists".format(server_url, guid)) # one database access
         
-        urls.append("{0}/api/v2/server_time".format(server_url))  # no database access
-        #urls.append("{0}/api/v2/{1}/{2}/exact_distance".format(server_url, one_guid, guid))     # 2 database access needed + a 
+        #urls.append("{0}/api/v2/server_time".format(server_url))  # no database access
+        urls.append("{0}/api/v2/{1}/{2}/exact_distance".format(server_url, one_guid, guid))     # 2 database access needed + a 
         if i > 1000:
             break
+
+    # 8 workers
+    # 810,000 samples in database
+    # 1.6msec per server time for 1000 requests
+    # 2.3msce per exists call for 1000 requests
+    # 4.1msec per pairwise comparison for 1000 requests
 
     # fire them at the server using asyncio
     start_time = datetime.datetime.now()
