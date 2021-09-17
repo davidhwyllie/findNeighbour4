@@ -1,6 +1,5 @@
 #!/usr/bin/env python
-""" loads samples into a findNeighbour4 server
-from a multi-fasta file containing a simulated phylogeny.
+""" runs queries against a findneighbour server
 
 Example usage: 
 ============== 
@@ -12,7 +11,7 @@ python covid_querytest.py --help
 ./fn4_startup.sh demos/covidsim/config_performancetest.json
 
 # load data
-pipenv run python3 demo/covidsim.py demos/covidsim/config_performancetest.json /data/data/pca/sim/fasta  sim1.fasta 
+pipenv run python3 demo/fn4_benchmark.py demos/covidsim/config_performancetest.json /data/data/pca/sim/fasta  sim1.fasta 
 
 A component of the findNeighbour4 system for bacterial relatedness monitoring
 Copyright (C) 2021 David Wyllie david.wyllie@phe.gov.uk
@@ -40,9 +39,11 @@ import asyncio
 
 http_results = {}
 
+
 async def fetch(session, url):
     async with session.get(url) as response:
         return await response.text()
+
 
 async def main(urls):
     async with aiohttp.ClientSession() as session:
@@ -146,7 +147,6 @@ if __name__ == "__main__":
     logger.addHandler(file_handler)
     logger.info("Startup with arguments: {0}".format(args))
 
-    print("To see what is happening, do watch tail {0}".format(logfile))
     # launch comms with Sentry
     if os.environ.get("FN_SENTRY_URL") is not None:
         logger.info("Launching communication with Sentry bug-tracking service")
@@ -172,9 +172,12 @@ if __name__ == "__main__":
     for i, guid in enumerate(fn4c.guids()):
         # add urls; can choose what to use
         #urls.append("{0}/api/v2/{1}/exists".format(server_url, guid)) # one database access
-        
+        urls.append(
+            "{0}/api/v2/{1}/neighbours_within/4".format(server_url, guid)
+        )  # one database access
+
         #urls.append("{0}/api/v2/server_time".format(server_url))  # no database access
-        urls.append("{0}/api/v2/{1}/{2}/exact_distance".format(server_url, one_guid, guid))     # 2 database access needed + a 
+        # urls.append("{0}/api/v2/{1}/{2}/exact_distance".format(server_url, one_guid, guid))     # 2 database access needed + a
         if i > 1000:
             break
 
@@ -190,8 +193,11 @@ if __name__ == "__main__":
     loop.run_until_complete(main(urls))
 
     res = pd.DataFrame.from_dict(http_results, orient="index")
-    res["start_time"] = start_time
-    res["delta"] = res["response_time"] - res["start_time"]
-    res["msec"] = [1000 * x.total_seconds() for x in res["delta"]]
-    print(res)
+    if len(res.index)>0:
+        res["start_time"] = start_time
+        res["delta"] = res["response_time"] - res["start_time"]
+        res["msec"] = [1000 * x.total_seconds() for x in res["delta"]]
+        print(res)
+    else:
+        print("No results")
     logging.info("Finished, terminating program.")
