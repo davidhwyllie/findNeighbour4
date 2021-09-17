@@ -3,10 +3,15 @@ Testing
 instructions on how to install dependencies are [here](HowToTest.md)
 
 
-To run with a virtual environment, which is strongly recommended, preface command with   
+To run with a virtual environment, which is strongly recommended, preface commands with   
 ```pipenv run ..```  
 e.g.  
-```pipenv run python3 findNeighbour4_server.py```.
+```pipenv run python3 myprogram.py```.
+
+The startup scripts provided run the server within a virtual environment
+```
+./fn4_startup.sh {configfile}
+```
 
 ## To start the server in a development environment
 
@@ -15,11 +20,7 @@ The easiest way to start the server is go to the findNeighbour4 root folder and 
 where {configfile} is the path to a configuration file. 
 This will launch the server, database monitor, server monitor, and clustering systems.  The latter three are recommended, but not essential.  Not all of these are required if you are using an RDBMS backend, but the unnecessary software will sense this and shut down.
 
-However, in a first run setting you can check it starts manually
-
-```pipenv run python3 findNeighbour4_server.py config/default_test_config.json```
-
-*Note: This starts the server using a single threaded development web server built into flask.*  
+This starts the server using a single threaded gunicorn server.
 
 *Note: the default_test_config.json specifies a configuration which is useful for unit testing, runs in debug mode, and uses mongodb.*    
 
@@ -41,13 +42,8 @@ If the server fails to start, it's probably due to one of the following:
 
 The more general form for starting the server in development (single instance) mode is:
 ```
-nohup python3 findNeighbour4_server.py configfile.json &  
+./fn4_startup.sh configfile.json &  
 ```
-or, if using a virtual environment
-
-```
-nohup pipenv run python3 findNeighbour4_server.py configfile.json &  
-```  
 
 
 **Important**  
@@ -62,37 +58,34 @@ A warning is emitted if the server is running with this default configuration.
 
 To do so, you run a setup script which performs preparatory actions, including pre-populating Catwalk, and which generates a shell script to launch multiple server applications using gunicorn.  Note that the database backend specified in the config file cannot be running in 'debug' mode if you are using multiple workers.
 
-here is an example:
+./fn4_startup.sh will do the entire process.  Note that by default, this will use 8 workers.  You can alter this behaviour by altering this line in fn4_startup.sh.
+If you remove --n_workers, it will launch 1 worker per compute core.
 ```
-rm test_startup.sh -f         # remove any startup script
-# prepare to run findNeighbour4 server with 10 workers.
-# do pipenv run python3 configure --help to see other options
-pipenv run python3 fn4_configure.py config/myconfig.json --prepare --n_workers 10 > test_startup.sh
-# prepare to run the shell script which has been written
-chmod +x test_startup.sh
-./test_startup.sh
-rm test_startup.sh
-```  
-
-The easiest way to start the server is to use the 
-```.\fn4_startup.sh {configfile}``` script.  
-You can edit the script to specify the number of web workers to launch, or remove the --n_workers option, in which case it will run as many workers as there are cpu threads.  
+pipenv run python3 fn4_configure.py $1 --startup --n_workers 8 > $LAUNCHSCRIPT
+```
 
 ## Unit tests
 We do not recommend running unit tests on a production server with production findNeighbour server instances running.  Unit testing shuts down & starts up servers.  Side effects (shutting down other servers than the ones unit testing) is not expected, but it is better not to take the chance.
 
 Complete testing can be achieved with
 ```
-./run_test.sh
+./run_tests.sh
 ```
 *Note: this script starts test servers, which are required for some unittesting using gunicorn with one worker, and then runs pytest to run all available tests.  You may have to run chmod +x run_test.sh first. This action is also taken by the Github actions CI scripts.*
 
-If you wish to run unittests individually, you can do so.
+If you wish to run unittests individually, you can do so, using either unittest or pytest.
 Here is an example:
 
 ```
 pipenv run python3 -m unittest  test/test_seq2dict.py
 ```
+
+or 
+
+```
+pipenv run pytest  test/test_seq2dict.py
+```
+
 
 ## Demonstrations
 

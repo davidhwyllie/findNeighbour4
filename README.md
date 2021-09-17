@@ -10,15 +10,13 @@ It has the following features:
 * Allows incremental addition of new sequences to a collection via RESTful web services.  
 * Automatically masks a pre-defined set of nucleotides in the reference mapped data.  Such sites are ignored in pairwise sequence computations.
 * Maintains a sparse distance matrix of bacterial sequences using reference mapped sequence data.  Very large matrices can be efficiently and transparently stored.
-* Returns pairwise distance matrices.
 * Returns multiple sequence alignments.
 * [Detects mixtures of different sequences](https://www.biorxiv.org/content/10.1101/681502v1).
 * Optionally, automatically performs clustering to a range of SNV thresholds.
 * Can detect, and appropriately cluster sequences in the presence of, inter-sample mixtures. [experimental feature - manuscript in progress]
 * Allows queries identifying similar sequences, cluster members, and multisequence alignments with  millisecond response times.
 * Tracks memory usage, logging to database, during routine operation.
-* Allow attachment of arbitrary metadata to each sequence, but the front end for this is not implemented.
-
+*
 It is much faster and uses much less RAM than [previous findNeighbours versions](cf_previous_versions.md). This is achieved using using a compiled component, [CatWalk](https://gitea.mmmoxford.uk/dvolk/catwalk.git), to store and compare sequences, developed by Denis Volk.
 
 It was produced as part of the [Modernising Medical Microbiology](http://modmedmicro.nsms.ox.ac.uk/) initiative, together with [Public Health England](https://www.gov.uk/government/organisations/public-health-england).
@@ -39,17 +37,14 @@ To store the relationship between samples, it can use either
 
 # Access
 The server can be accessed via RESTful web services from any language.
-A python client (fnclient), which calls the REST endpoints and converts output into python objects, is also provided.
+A python client (fn4client), which calls the REST endpoints and converts output into python objects, is also provided.
 
-# Caution
-To date, this application has only been tested with the flask internal web server.  Deployment with a WSGI software (uWSGI/gunicorn) would likely raise performance.
-This has not been tested.  A key requirement of the server is that only one sample can be inserted at a time, something enforced with a threading module semaphore.
-However, whether this would still work in a (say) gunicorn based environment has not been tested; another form of semaphore (e.g. database based) may be needed.
-This is an area for future development.
+# Throughput
+The server runs multiple workers, using gunicorn.  The maximum query rate supported needs quantification for each individual stack; it is likely to dependent on database performance.
 
 # Memory usage
 This depends on the kind of sequences stored.  
-RAM requirements with 630,000 SARS-CoV-2 genomes were about 2GB.  
+RAM requirements with 810,000 SARS-CoV-2 genomes were about 2GB.  
 With ~ 50,000 *M. tuberculosis* genomes, about 10G RAM was used.
 
 # Disc usage

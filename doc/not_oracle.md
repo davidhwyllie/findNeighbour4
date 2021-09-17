@@ -1,8 +1,7 @@
 Testing RDBMS storage systems other than Oracle
 ===============================================
 
-In theory it should be possible to use RDBMS other than Oracle ADW with findNeighbour4, but this would need to be tested.
-
+It should be possible to use RDBMS other than Oracle ADW with findNeighbour4, but we have not tested this.  
 If you wish to do this, it is easy to do so.
 
 The script
@@ -11,7 +10,7 @@ test/testrdbmsstore.py
 ```
 
 contains unit tests of all interactions the server makes with the database.
-It can be invokes as follows
+It can be invoked as follows; it does not require that the server is running.
 ```
 pipenv run python3 -m unittest test/testrdbmsstore.py
 ```

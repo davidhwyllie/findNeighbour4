@@ -84,10 +84,7 @@ pipenv install --skip-lock -e .    # put fn4 packages in virtualenv; this is ess
 
 Catwalk
 --------
-Catwalk is an external component which can be used by findneighbour4.  Using this is strongly recommended, but the server will run without it, but with much degraded performance.  Doing so is only really appropriate for small scale testing.
-* it will run much slower
-* it will have higher memory requirements
-* servers without catwalk cannot be used with gunicorn  
+Catwalk is an external component which is required by findneighbour4.  
 
 Installation Example:
 
@@ -106,7 +103,7 @@ echo CW_BINARY_FILEPATH=\"`pwd`/cw_server\" > ../../.env
 ---------
 
 In the root of your directory, you will need to create a .env file.  This sets environment variables required for the code to run.   
-Because you are using a virtual environment, it has it's own environment variables.
+Because you are using a virtual environment, it has its own environment variables.
 
 Here is an example:
 ```
@@ -126,7 +123,7 @@ FN_SENTRY_URL="https://********************.ingest.sentry.io/*****"
 FN_SENTRY_URL is an optional url for the [sentry.io](sentry.io) error logging service.  If present and Sentry.io (small free or paid service) configured, error logging will be collated there.    This is very useful for collating  & debugging server side errors.   If considering this, be aware that if identifiable data is in the server, errors trapped may include such and may be sent to the Sentry.io service. 
 
 ### Catwalk executable location
-The CW_BINARY_FILEPATH is required if (as is strongly recommended) you are using the catwalk comparison engine as part of findNeighbour4.
+The CW_BINARY_FILEPATH is required
 ```
 CW_BINARY_FILEPATH="/home/phe.gov.uk/david.wyllie/catwalk/cw_server"
 ```
@@ -139,7 +136,6 @@ DB_CONNECTION_CONFIG_FILE='/data/credentials/dbconfig.json'
 ```
 These are as above, and point to database credentials used for Oracle or other secure database connections.  The credentials file referred must exist, or the server will not start up.
 More detail on this arrangement is [here](database_credentials.md).
-
 
 
 ### Oracle toolset location

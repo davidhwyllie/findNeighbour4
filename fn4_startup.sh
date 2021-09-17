@@ -90,7 +90,6 @@ chmod +x $LAUNCHSCRIPT
 echo "running $LAUNCHSCRIPT"
 ./$LAUNCHSCRIPT $1 > $SRVLOG 
 
-exit 0      # debug
 sleep 5
 echo "Starting dbmanager instance 1"
 nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset 01 $1 > $MANLOG &
