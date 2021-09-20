@@ -65,7 +65,9 @@ from sentry_sdk.integrations.flask import FlaskIntegration
 # flask
 from flask import Flask, make_response, jsonify
 from flask import request, abort, send_file
-from flask_cors import CORS  # cross-origin requests are not permitted except for one resource, for testing
+from flask_cors import (
+    CORS,
+)  # cross-origin requests are not permitted except for one resource, for testing
 
 # config
 from findn import BASE_PATH, DEFAULT_CONFIG_FILE
@@ -90,13 +92,18 @@ from findn.depictStatus import MakeHumanReadable
 from Bio import SeqIO
 from urllib.parse import urljoin as urljoiner
 
+
 class SQLiteBackendErrror(Exception):
-    """ can't use SQLite in a multithreaded environment """
+    """can't use SQLite in a multithreaded environment"""
+
     pass
 
+
 class FN4InsertInProgressError(Exception):
-    """ can't insert two sequences at the same time; only synchronous inserts are allowed"""
+    """can't insert two sequences at the same time; only synchronous inserts are allowed"""
+
     pass
+
 
 class findNeighbour4:
     """logic for maintaining a record of bacterial relatedness using SNP distances.
@@ -230,7 +237,7 @@ class findNeighbour4:
         Note: if a FN_SENTRY URL environment variable is present, then the value of this will take precedence over any values in the config file.
         This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuraton file.
         PERSIST is a storage object needs to be supplied.  The fn3Persistence class in mongoStore or rdbmsStore are suitable objects.
-     
+
         """
 
         # store the persistence object as part of this object
@@ -238,7 +245,9 @@ class findNeighbour4:
         self.CONFIG = CONFIG
 
         # set up an MSA store
-        self.ms = MSAStore(PERSIST=PERSIST, in_ram_persistence_time=300)  # max time to store msas in seconds
+        self.ms = MSAStore(
+            PERSIST=PERSIST, in_ram_persistence_time=300
+        )  # max time to store msas in seconds
 
         # does not test CONFIG.  Assumes it has been checked by read_config()
 
@@ -260,20 +269,22 @@ class findNeighbour4:
         self.mhr = MakeHumanReadable()
 
         # load catwalk and in-ram searchable data assets
-        self.gs = guidDbSearcher(PERSIST=PERSIST, recheck_interval_seconds = 60)
+        self.gs = guidDbSearcher(PERSIST=PERSIST, recheck_interval_seconds=60)
         self.prepopulate_catwalk()
         self.prepopulate_clustering()
 
         # log database state
         db_summary = self.PERSIST.summarise_stored_items()
-        self.PERSIST.server_monitoring_store(what="dbManager", message="OnServerStartup", guid="-", content=db_summary)
+        self.PERSIST.server_monitoring_store(
+            what="dbManager", message="OnServerStartup", guid="-", content=db_summary
+        )
 
         # set up an in-RAM only precomparer for use by pairwise comparisons.  There is no SNP ceiling
         self.sc = py_seqComparer(
-            reference = self.reference,
-            excludePositions = self.excludePositions,
-            snpCeiling = 1e9,
-            maxNs = self.maxNs
+            reference=self.reference,
+            excludePositions=self.excludePositions,
+            snpCeiling=1e9,
+            maxNs=self.maxNs,
         )
 
     def pairwise_comparison(self, guid1, guid2):
@@ -304,13 +315,13 @@ class findNeighbour4:
 
         self.sc.remove(uuid1)
         self.sc.remove(uuid2)
-        
-        return {"guid1": guid1, "guid2": guid2, 'dist': dist}
+
+        return {"guid1": guid1, "guid2": guid2, "dist": dist}
 
     def prepopulate_catwalk(self):
-        """ initialise cw_seqComparer, which interfaces with catwalk were necessary
-        
-        If self.debugMode == 2 (a unittesting setting)  the catwalk is emptied on startup """
+        """initialise cw_seqComparer, which interfaces with catwalk were necessary
+
+        If self.debugMode == 2 (a unittesting setting)  the catwalk is emptied on startup"""
         self.hc = cw_seqComparer(
             reference=self.reference,
             maxNs=self.maxNs,
@@ -318,17 +329,19 @@ class findNeighbour4:
             excludePositions=self.excludePositions,
             preComparer_parameters=self.preComparer_parameters,
             PERSIST=self.PERSIST,
-            unittesting=(self.debugMode==2)
+            unittesting=(self.debugMode == 2),
         )
 
     def prepopulate_clustering(self):
-        """ loads in memory data into the cw_seqComparer object (which may include catwalk) from database storage """
+        """loads in memory data into the cw_seqComparer object (which may include catwalk) from database storage"""
 
         # clustering is performed by findNeighbour4_cluster, and results are stored in the database backend
         # the clustering object used here is just a reader for the clustering status.
         logging.info("findNeighbour4 is loading clustering data.")
 
-        self.clustering = {}  # a dictionary of clustering objects, one per SNV cutoff/mixture management setting
+        self.clustering = (
+            {}
+        )  # a dictionary of clustering objects, one per SNV cutoff/mixture management setting
         for clustering_name in self.clustering_settings.keys():
             self.clustering[clustering_name] = MixtureAwareLinkageResult(
                 PERSIST=self.PERSIST, name=clustering_name, serialisation=None
@@ -336,24 +349,30 @@ class findNeighbour4:
             logging.info("set up clustering access object {0}".format(clustering_name))
 
     def reset(self):
-        """ restarts the server, deleting any existing data """
+        """restarts the server, deleting any existing data"""
         if not self.debugMode == 2:
             logging.info("Call to reset ignored as debugMode is not 2")
             return  # no action taken by calls to this unless debugMode ==2
         else:
             logging.info("Deleting existing data and restarting")
             self.PERSIST._delete_existing_data()
-            self.hc.restart_empty()     # restart catwalk empty
+            self.hc.restart_empty()  # restart catwalk empty
             self.prepopulate_clustering()
 
             # check it worked
             residual_sample_ids = self.hc.guids()
             if not len(residual_sample_ids) == 0:
-                raise ValueError("Catwalk restarted, but with residual samples in it.  Residual samples are {0}".format(self.hc.guids()))
-            logging.info("reset executed.  There are no samples in the catWalk application.")
+                raise ValueError(
+                    "Catwalk restarted, but with residual samples in it.  Residual samples are {0}".format(
+                        self.hc.guids()
+                    )
+                )
+            logging.info(
+                "reset executed.  There are no samples in the catWalk application."
+            )
 
     def server_monitoring_store(self, message="No message supplied", guid=None):
-        """ reports server memory information to store """
+        """reports server memory information to store"""
         try:
             hc_summary = self.hc.summarise_stored_items()
         except AttributeError:  # no hc object, occurs during startup
@@ -362,7 +381,10 @@ class findNeighbour4:
         db_summary = self.PERSIST.summarise_stored_items()
         mem_summary = self.PERSIST.memory_usage()
         self.PERSIST.server_monitoring_store(
-            message=message, what="server", guid=guid, content={**hc_summary, **db_summary, **mem_summary}
+            message=message,
+            what="server",
+            guid=guid,
+            content={**hc_summary, **db_summary, **mem_summary},
         )
 
     def first_run(self, do_not_persist_keys):
@@ -413,7 +435,9 @@ class findNeighbour4:
 
         # log database sizes
         db_summary = self.PERSIST.summarise_stored_items()
-        self.PERSIST.server_monitoring_store(what="dbManager", message="OnFirstRun", guid="-", content=db_summary)
+        self.PERSIST.server_monitoring_store(
+            what="dbManager", message="OnFirstRun", guid="-", content=db_summary
+        )
 
         self.server_monitoring_store(message="First run complete.")
 
@@ -422,54 +446,68 @@ class findNeighbour4:
     def insert(self, guid, dna):
         """insert DNA called guid into the server,
         persisting it in both RAM and on disc, and updating any clustering.
+
+        Returns a status code and an explanatory message
         """
 
         # clean, and provide summary statistics for the sequence
         logging.info("Preparing to insert: {0}".format(guid))
 
-        if not self.exist_sample(guid):   # if the guid is not already there
+        if not self.exist_sample(guid):  # if the guid is not already there
             self.server_monitoring_store(message="About to insert", guid=guid)
             logging.info("Guid is not present: {0}".format(guid))
 
             # insert sequence into the sequence store.
             self.objExaminer.examine(dna)  # examine the sequence
             cleaned_dna = self.objExaminer.nucleicAcidString.decode()
-            refcompressedsequence = self.hc.compress(cleaned_dna)  # compress it and store it in RAM
-            
+            refcompressedsequence = self.hc.compress(
+                cleaned_dna
+            )  # compress it and store it in RAM
+
             # addition should be an atomic operation, in which all the component complete or do not complete.
             # we use a semaphore to do this.
 
-            if self.PERSIST.lock(1):            # true if an insert lock was acquired
+            if self.PERSIST.lock(1):  # true if an insert lock was acquired
                 try:
-                    self.hc.persist(refcompressedsequence, guid, {"DNAQuality": self.objExaminer.composition})
+                    self.hc.persist(
+                        refcompressedsequence,
+                        guid,
+                        {"DNAQuality": self.objExaminer.composition},
+                    )
+                    logging.info("Insert succeeded {0}".format(guid))
+                    return_status_code, return_text = 200, "Guid {0} inserted.".format(
+                        guid
+                    )
 
                 except Exception as e:
-                    logging.exception("Error raised on persisting {0}".format(guid))
+                    # the rdbms server may be refusing connections, or busy.  This is observed occasionally in real-world use
+                    error_message = "Error raised on persisting {0}".format(guid)
+                    logging.exception(error_message)
                     logging.exception(e)
                     capture_exception(e)  # log what happened in Sentry
-                    # Rollback anything which could leave system in an inconsistent state
-                    # remove the guid from RAM is the only step necessary
-                    logging.warning("Guid {0}  failed to insert {0}".format(guid))
-                    abort(
-                        503, e
-                    )  # the mongo server may be refusing connections, or busy.  This is observed occasionally in real-world use
-                self.PERSIST.unlock(1)      # release the lock if it was acquired
+                    return_status_code, return_text = 503, error_message
+
+                finally:
+                    self.PERSIST.unlock(1)  # release the lock if it was acquired
+
             else:
                 # lock acquisition failed, indicative of another process inserting at present
-                abort(409, FN4InsertInProgressError)
+                info_msg = """A lock is in place preventing insertion.  This may arise because
+                (i) a separate process is inserting data; 
+                in this case, retry later or 
+                (ii) if you are only inserting with one load script synchronously, it may reflect the lock being held because of an error or crash TBD. 
+                You can reset the lock as follows:  fn4_configure <path to config file> --drop_insert_semaphore"""
+                logging.warning("An insert lock prevented insertion {0}".format(guid))
+                capture_message(info_msg)
+                return_status_code, return_text = 409, info_msg
 
-            logging.info("Insert succeeded {0}".format(guid))
-            self.server_monitoring_store(message="Stored compressed sequence", guid=guid)
-
-            # log database sizes
-            db_summary = self.PERSIST.summarise_stored_items()
-            self.PERSIST.server_monitoring_store(what="dbManager", message="OnInsert", guid=guid, content=db_summary)
-
-            return "Guid {0} inserted.".format(guid)
         else:
             logging.info("Already present, no insert needed: {0}".format(guid))
+            return_status_code, return_text = 201, "Guid {0} is already present".format(
+                guid
+            )
 
-            return "Guid {0} is already present".format(guid)
+        return return_status_code, return_text
 
     def exist_sample(self, guid):
         """determine whether the sample exists in the system.
@@ -506,12 +544,18 @@ class findNeighbour4:
         return self.PERSIST.guid_valid(guid)
 
     def server_time(self):
-        """ returns the current server time """
-        return {"server_name": self.CONFIG["SERVERNAME"], "server_time": datetime.datetime.now().isoformat()}
+        """returns the current server time"""
+        return {
+            "server_name": self.CONFIG["SERVERNAME"],
+            "server_time": datetime.datetime.now().isoformat(),
+        }
 
     def server_name(self):
-        """ returns information about the server """
-        return {"server_name": self.CONFIG["SERVERNAME"], "server_description": self.CONFIG["DESCRIPTION"]}
+        """returns information about the server"""
+        return {
+            "server_name": self.CONFIG["SERVERNAME"],
+            "server_description": self.CONFIG["DESCRIPTION"],
+        }
 
     def server_config(self):
         """returns the config file with which the server was launched
@@ -523,18 +567,23 @@ class findNeighbour4:
 
         if self.debugMode == 2:
             retVal = self.CONFIG.copy()
-            retVal["excludePositions"] = list(retVal["excludePositions"])  # can't serialise a set
+            retVal["excludePositions"] = list(
+                retVal["excludePositions"]
+            )  # can't serialise a set
             return retVal
 
         else:
             return None
 
     def server_nucleotides_excluded(self):
-        """ returns the nucleotides excluded by the server """
-        return {"exclusion_id": self.hc.excluded_hash(), "excluded_nt": list(self.hc.excluded)}
+        """returns the nucleotides excluded by the server"""
+        return {
+            "exclusion_id": self.hc.excluded_hash(),
+            "excluded_nt": list(self.hc.excluded),
+        }
 
     def server_memory_usage(self, max_reported=None):
-        """ reports recent server memory activity """
+        """reports recent server memory activity"""
 
         # record the current status
         self.server_monitoring_store(message="Server memory usage requested", guid=None)
@@ -543,7 +592,7 @@ class findNeighbour4:
         return self.PERSIST.recent_server_monitoring(max_reported=max_reported)
 
     def server_database_usage(self, max_reported=None):
-        """ reports recent server memory activity """
+        """reports recent server memory activity"""
 
         # record the current status
         if max_reported is None:
@@ -565,7 +614,9 @@ class findNeighbour4:
         # check the query is of good quality
         inScore = self.PERSIST.guid_quality_check(guid, float(cutoff))
         if inScore is None:
-            raise KeyError("{0} not found".format(guid))  # that's an error, raise KeyError
+            raise KeyError(
+                "{0} not found".format(guid)
+            )  # that's an error, raise KeyError
         elif inScore is False:
             return []  # bad sequence; just to report no links
 
@@ -573,7 +624,9 @@ class findNeighbour4:
         idList = list()
 
         # gets the similar sequences from the database;
-        retVal = self.PERSIST.guid2neighbours(guid=guid, cutoff=snpDistance, returned_format=returned_format)
+        retVal = self.PERSIST.guid2neighbours(
+            guid=guid, cutoff=snpDistance, returned_format=returned_format
+        )
         # run a quality check on the things our sample is like.
 
         # extract the quality guids, independent of the format requested.
@@ -592,7 +645,9 @@ class findNeighbour4:
             elif isinstance(sa, dict):
                 idList.append(sa["guid"])
             else:
-                raise TypeError("Unknown format returned {0} {1}".format(type(sa), sampleList))
+                raise TypeError(
+                    "Unknown format returned {0} {1}".format(type(sa), sampleList)
+                )
 
         guid2qual = self.PERSIST.guid2quality(idList)
 
@@ -653,26 +708,36 @@ class findNeighbour4:
         return self.PERSIST.guid_annotation(guid)
 
     def sequence(self, guid):
-        """ gets masked sequence for the guid, in fasta format"""
+        """gets masked sequence for the guid, in fasta format"""
         if not self.exist_sample(guid):
             return None
         try:
             seq = self.hc.uncompress_guid(guid)
-            return {"guid": guid, "invalid": 0, "comment": "Masked sequence, as stored", "masked_dna": seq}
+            return {
+                "guid": guid,
+                "invalid": 0,
+                "comment": "Masked sequence, as stored",
+                "masked_dna": seq,
+            }
         except ValueError:
-            return {"guid": guid, "invalid": 1, "comment": "No sequence is available, as invalid sequences are not stored"}
+            return {
+                "guid": guid,
+                "invalid": 1,
+                "comment": "No sequence is available, as invalid sequences are not stored",
+            }
 
-def create_app(config_file = None):
-    """ creates a findNeighbour4 flask application
+
+def create_app(config_file=None):
+    """creates a findNeighbour4 flask application
     if config_file is passed, this should point to a configuration file.
     if environment variable FLASK_APP_CONFIG_FILE is set, the value of this used as the path to a config file.
-    if config_file is None and FLASK_APP_CONFIG_FILE is not set, the default (testing) config is used    
+    if config_file is None and FLASK_APP_CONFIG_FILE is not set, the default (testing) config is used
     """
 
     ## construct flask application
     if os.environ.get("FN4_SERVER_CONFIG_FILE") is not None:
         config_file = os.environ.get("FN4_SERVER_CONFIG_FILE")
- 
+
     if config_file is None:
         config_file = DEFAULT_CONFIG_FILE
         warnings.warn(
@@ -696,9 +761,15 @@ def create_app(config_file = None):
             loglevel = logging.DEBUG
 
     # configure logging object
-    logfile = os.path.join(logdir, "server-{0}".format(os.path.basename(CONFIG["LOGFILE"])))
-    file_handler = logging.handlers.RotatingFileHandler(logfile, mode="a", maxBytes=1e7, backupCount=7)
-    formatter = logging.Formatter("%(asctime)s | %(pathname)s:%(lineno)d | %(funcName)s | %(levelname)s | %(message)s ")
+    logfile = os.path.join(
+        logdir, "server-{0}".format(os.path.basename(CONFIG["LOGFILE"]))
+    )
+    file_handler = logging.handlers.RotatingFileHandler(
+        logfile, mode="a", maxBytes=1e7, backupCount=7
+    )
+    formatter = logging.Formatter(
+        "%(asctime)s | %(pathname)s:%(lineno)d | %(funcName)s | %(levelname)s | %(message)s "
+    )
     file_handler.setFormatter(formatter)
 
     ########################### prepare to launch server ###############################################################
@@ -707,23 +778,26 @@ def create_app(config_file = None):
     #########################  CONFIGURE HELPER APPLICATIONS ######################
     # plotting engine
     #  prevent https://stackoverflow.com/questions/27147300/how-to-clean-images-in-python-django
-    matplotlib.use("agg")  
+    matplotlib.use("agg")
 
     pm = Persistence()
     PERSIST = pm.get_storage_object(
         dbname=CONFIG["SERVERNAME"],
         connString=CONFIG["FNPERSISTENCE_CONNSTRING"],
         debug=CONFIG["DEBUGMODE"],
-        verbose=True)
+        verbose=True,
+    )
 
     # check is it not sqlite.  We can't run sqlite in a multithreaded environment like flask.
     # you need a proper database managing concurrent connections, such as mongo, or a standard rdbms
     if PERSIST.using_sqlite:
-        raise SQLiteBackendErrror("""Can't use SQlite as a backend for findNeighbour4_server.  
+        raise SQLiteBackendErrror(
+            """Can't use SQlite as a backend for findNeighbour4_server.  
         A database handing sessions is required.  Some unit tests use SQLite; 
         however, you can't run integration tests (test_server_rdbms.py) against sqlite.
         To test the server, edit the config/default_test_config_rdbms.json file's "FNPERSISTENCE_CONNSTRING": connection string to
-        point to an suitable database.  For more details of how to do this, see installation instructions on github.""")
+        point to an suitable database.  For more details of how to do this, see installation instructions on github."""
+        )
     # instantiate server class
     try:
         fn = findNeighbour4(CONFIG, PERSIST)
@@ -733,7 +807,7 @@ def create_app(config_file = None):
         raise
 
     ########################  START THE SERVER ###################################
-    
+
     # default parameters for unit testing only; will be overwritten if config file provided.
     RESTBASEURL = "http://127.0.0.1:5020"
 
@@ -752,7 +826,7 @@ def create_app(config_file = None):
         app.config["PROPAGATE_EXCEPTIONS"] = True
 
     def isjson(content):
-        """ returns true if content parses as json, otherwise false. used by unit testing. """
+        """returns true if content parses as json, otherwise false. used by unit testing."""
         try:
             json.loads(content.decode("utf-8"))
             return True
@@ -761,7 +835,7 @@ def create_app(config_file = None):
             return False
 
     def tojson(content):
-        """ json dumps, formatting dates as isoformat """
+        """json dumps, formatting dates as isoformat"""
 
         def converter(o):
             if isinstance(o, datetime.datetime):
@@ -774,7 +848,9 @@ def create_app(config_file = None):
     # --------------------------------------------------------------------------------------------------
     @app.errorhandler(404)
     def not_found(error):
-        json_err = jsonify({"error": "Not found (custom error handler for mis-routing)"})
+        json_err = jsonify(
+            {"error": "Not found (custom error handler for mis-routing)"}
+        )
         return make_response(json_err, 404)
 
     # --------------------------------------------------------------------------------------------------
@@ -852,7 +928,9 @@ def create_app(config_file = None):
             clustering_names = list(fn.clustering_settings.keys())
 
             if len(clustering_names) == 0:
-                raise ValueError("no clustering settings defined; cannot test error generation in clustering")
+                raise ValueError(
+                    "no clustering settings defined; cannot test error generation in clustering"
+                )
             else:
                 clustering_name = clustering_names[0]
                 fn.clustering_settings[clustering_name].raise_error(token)
@@ -861,7 +939,9 @@ def create_app(config_file = None):
         elif component == "persist":
             fn.PERSIST.raise_error(token)
         else:
-            raise KeyError("Invalid component called.  Allowed: main;persist;clustering;py_seqComparer.")
+            raise KeyError(
+                "Invalid component called.  Allowed: main;persist;clustering;py_seqComparer."
+            )
 
     def construct_msa(guids, output_format, what):
 
@@ -875,8 +955,14 @@ def create_app(config_file = None):
         this_token = fn.ms.get_token(what, False, guids)  # no outgroup, guids
         msa_result = fn.ms.load(this_token)  # recover any stored version
         if msa_result is None:
-            logging.info("Asked to recover MSA id = {0} but it did not exist.  Recomputing this".format(this_token))
-            msa_result = fn.hc.multi_sequence_alignment(guids=guids, uncertain_base_type=what)  # make it
+            logging.info(
+                "Asked to recover MSA id = {0} but it did not exist.  Recomputing this".format(
+                    this_token
+                )
+            )
+            msa_result = fn.hc.multi_sequence_alignment(
+                guids=guids, uncertain_base_type=what
+            )  # make it
 
             # this may fail if all the samples are invalid
             if msa_result is not None:
@@ -903,7 +989,7 @@ def create_app(config_file = None):
 
     @app.route("/api/v2/reset", methods=["POST"])
     def reset():
-        """ deletes any existing data from the server """
+        """deletes any existing data from the server"""
         if not fn.debugMode == 2:
             # if we're not in debugMode==2, then this option is not allowed
             abort(404, "Calls to /reset are only allowed with debugMode == 2")
@@ -925,8 +1011,14 @@ def create_app(config_file = None):
             )
         return html
 
-    @app.route("/api/v2/clustering/<string:clustering_algorithm>/<int:cluster_id>/network", methods=["GET"])
-    @app.route("/api/v2/clustering/<string:clustering_algorithm>/<int:cluster_id>/minimum_spanning_tree", methods=["GET"])
+    @app.route(
+        "/api/v2/clustering/<string:clustering_algorithm>/<int:cluster_id>/network",
+        methods=["GET"],
+    )
+    @app.route(
+        "/api/v2/clustering/<string:clustering_algorithm>/<int:cluster_id>/minimum_spanning_tree",
+        methods=["GET"],
+    )
     def cl2network(clustering_algorithm, cluster_id):
         """produces a cytoscape.js compatible graph from a cluster ,
         either from the network (comprising all edges < snp cutoff)
@@ -935,10 +1027,14 @@ def create_app(config_file = None):
         # validate input
         fn.clustering[clustering_algorithm].refresh()
         try:
-            res = fn.clustering[clustering_algorithm].clusters2guidmeta(after_change_id=None)
+            res = fn.clustering[clustering_algorithm].clusters2guidmeta(
+                after_change_id=None
+            )
         except KeyError:
             # no clustering algorithm of this type
-            return make_response(tojson("no clustering algorithm {0}".format(clustering_algorithm)), 404)
+            return make_response(
+                tojson("no clustering algorithm {0}".format(clustering_algorithm)), 404
+            )
 
         # check guids
         df = pd.DataFrame.from_records(res)
@@ -947,7 +1043,9 @@ def create_app(config_file = None):
         df = pd.DataFrame.from_records(res)
 
         if len(df.index) == 0:
-            return make_response(tojson({"success": 0, "message": "No samples exist for that cluster"}))
+            return make_response(
+                tojson({"success": 0, "message": "No samples exist for that cluster"})
+            )
         else:
             df = df[df["cluster_id"] == cluster_id]  # only if there are records
             guids = sorted(df["guid"].tolist())
@@ -960,7 +1058,9 @@ def create_app(config_file = None):
                 is_mixed = int(fn.clustering[clustering_algorithm].is_mixed(guid))
                 snvn.G.add_node(guid, is_mixed=is_mixed)
             for guid in guids:
-                res = fn.PERSIST.guid2neighbours(guid, cutoff=snv_threshold, returned_format=1)
+                res = fn.PERSIST.guid2neighbours(
+                    guid, cutoff=snv_threshold, returned_format=1
+                )
                 for (guid2, snv) in res["neighbours"]:
                     if guid2 in guids:  # don't link outside the cluster
                         E.append((guid, guid2))
@@ -969,12 +1069,16 @@ def create_app(config_file = None):
             if request.base_url.endswith("/minimum_spanning_tree"):
                 snvn.G = nx.minimum_spanning_tree(snvn.G)
                 retVal = snvn.network2cytoscapejs()
-                retVal["message"] = "{0} cluster #{1}. Minimum spanning tree is shown.  Red nodes are mixed.".format(
+                retVal[
+                    "message"
+                ] = "{0} cluster #{1}. Minimum spanning tree is shown.  Red nodes are mixed.".format(
                     clustering_algorithm, cluster_id
                 )
             else:
                 retVal = snvn.network2cytoscapejs()
-                retVal["message"] = "{0} cluster #{1}. Network of all edges < cutoff shown.  Red nodes are mixed.".format(
+                retVal[
+                    "message"
+                ] = "{0} cluster #{1}. Network of all edges < cutoff shown.  Red nodes are mixed.".format(
                     clustering_algorithm, cluster_id
                 )
             retVal["success"] = 1
@@ -1002,12 +1106,26 @@ def create_app(config_file = None):
         """
 
         # validate input
-        valid_output_formats = ["html", "json", "fasta", "json-fasta", "json-records", "interactive"]
+        valid_output_formats = [
+            "html",
+            "json",
+            "fasta",
+            "json-fasta",
+            "json-records",
+            "interactive",
+        ]
         request_payload = request.form.to_dict()
         if "output_format" not in request_payload or "guids" not in request_payload:
-            abort(405, "output_format and guids are not present in the POSTed data {0}".format(request_payload.keys()))
+            abort(
+                405,
+                "output_format and guids are not present in the POSTed data {0}".format(
+                    request_payload.keys()
+                ),
+            )
 
-        guids = request_payload["guids"].split(";")  # coerce both guid and seq to strings
+        guids = request_payload["guids"].split(
+            ";"
+        )  # coerce both guid and seq to strings
         output_format = request_payload["output_format"]
         if "what" in request_payload.keys():
             what = request_payload["what"]
@@ -1016,7 +1134,12 @@ def create_app(config_file = None):
         if what not in ["N", "M", "N_or_M"]:
             abort(404, "what must be one of N M N_or_M, not {0}".format(what))
         if output_format not in valid_output_formats:
-            abort(404, "output_format must be one of {0}  not {1}".format(valid_output_formats, output_format))
+            abort(
+                404,
+                "output_format must be one of {0}  not {1}".format(
+                    valid_output_formats, output_format
+                ),
+            )
 
         # check guids
         try:
@@ -1028,7 +1151,9 @@ def create_app(config_file = None):
         missing_guids = guids - valid_guids
         if len(missing_guids) > 0:
             capture_message(
-                "asked to perform multiple sequence alignment with the following missing guids: {0}".format(missing_guids)
+                "asked to perform multiple sequence alignment with the following missing guids: {0}".format(
+                    missing_guids
+                )
             )
             abort(
                 405,
@@ -1060,9 +1185,18 @@ def create_app(config_file = None):
             fn.clustering[clustering_algorithm].refresh()
         except KeyError:
             # no clustering algorithm of this type
-            return make_response(tojson("no clustering algorithm {0}".format(clustering_algorithm)), 404)
+            return make_response(
+                tojson("no clustering algorithm {0}".format(clustering_algorithm)), 404
+            )
 
-        if output_format not in ["html", "json", "json-records", "json-fasta", "fasta", "interactive"]:
+        if output_format not in [
+            "html",
+            "json",
+            "json-records",
+            "json-fasta",
+            "fasta",
+            "interactive",
+        ]:
             abort(
                 404,
                 "not available: output_format must be one of html, json, json-records, fasta, interactive not {0}".format(
@@ -1071,13 +1205,21 @@ def create_app(config_file = None):
             )
 
         # check guids
-        res = fn.clustering[clustering_algorithm].clusters2guidmeta(after_change_id=None)
+        res = fn.clustering[clustering_algorithm].clusters2guidmeta(
+            after_change_id=None
+        )
         df = pd.DataFrame.from_records(res)
         nSamples = len(df.index)
         if nSamples == 0:
-            return make_response(json.dumps({"status": "No samples exist for {0}".format(clustering_algorithm)}))
+            return make_response(
+                json.dumps(
+                    {"status": "No samples exist for {0}".format(clustering_algorithm)}
+                )
+            )
         else:
-            df = df[df["cluster_id"] == cluster_id]  # select the samples from the cluster
+            df = df[
+                df["cluster_id"] == cluster_id
+            ]  # select the samples from the cluster
             # build or recover the multiple sequence alignment
             # if the cluster_id is invalid, we cannot return
             if len(df.index) == 0:
@@ -1091,7 +1233,9 @@ def create_app(config_file = None):
                     )
                 )
             msa_result = construct_msa(
-                df["guid"].tolist(), what=fn.clustering[clustering_algorithm].uncertain_base_type, output_format=output_format
+                df["guid"].tolist(),
+                what=fn.clustering[clustering_algorithm].uncertain_base_type,
+                output_format=output_format,
             )
             return msa_result
 
@@ -1107,11 +1251,16 @@ def create_app(config_file = None):
         """
         res = fn.server_config()
         if res is None:  # not allowed to see it
-            return make_response(tojson({"NotAvailable": "Endpoint is only available in debug mode"}), 404)
+            return make_response(
+                tojson({"NotAvailable": "Endpoint is only available in debug mode"}),
+                404,
+            )
         else:
             return make_response(tojson(res))
 
-    @app.route("/api/v2/server_database_usage", defaults={"nrows": 100}, methods=["GET"])
+    @app.route(
+        "/api/v2/server_database_usage", defaults={"nrows": 100}, methods=["GET"]
+    )
     @app.route("/api/v2/server_database_usage/<int:nrows>", methods=["GET"])
     @app.route("/api/v2/server_database_usage/<int:nrows>", methods=["GET"])
     def server_database_usage(nrows):
@@ -1126,9 +1275,20 @@ def create_app(config_file = None):
             abort(500, e)
         return make_response(tojson(result))
 
-    @app.route("/api/v2/server_memory_usage", defaults={"nrows": 100, "output_format": "json"}, methods=["GET"])
-    @app.route("/api/v2/server_memory_usage/<int:nrows>", defaults={"output_format": "json"}, methods=["GET"])
-    @app.route("/api/v2/server_memory_usage/<int:nrows>/<string:output_format>", methods=["GET"])
+    @app.route(
+        "/api/v2/server_memory_usage",
+        defaults={"nrows": 100, "output_format": "json"},
+        methods=["GET"],
+    )
+    @app.route(
+        "/api/v2/server_memory_usage/<int:nrows>",
+        defaults={"output_format": "json"},
+        methods=["GET"],
+    )
+    @app.route(
+        "/api/v2/server_memory_usage/<int:nrows>/<string:output_format>",
+        methods=["GET"],
+    )
     def server_memory_usage(nrows, output_format):
         """returns server memory usage information, as list.
         The server notes memory usage at various key points (pre/post insert; pre/post recompression)
@@ -1142,25 +1302,41 @@ def create_app(config_file = None):
 
         # convert to a long, human readable format.
         resl = pd.melt(
-            pd.DataFrame.from_records(result), id_vars=["_id", "context|time|time_now", "context|info|message"]
+            pd.DataFrame.from_records(result),
+            id_vars=["_id", "context|time|time_now", "context|info|message"],
         ).dropna()  # drop any na values
-        resl.columns = ["_id", "event_time", "info_message", "event_description", "value"]
-        resl = resl[resl.event_description.astype(str).str.startswith("server")]  # only server
+        resl.columns = [
+            "_id",
+            "event_time",
+            "info_message",
+            "event_description",
+            "value",
+        ]
+        resl = resl[
+            resl.event_description.astype(str).str.startswith("server")
+        ]  # only server
         resl["descriptor1"] = "Server"
         resl["descriptor2"] = "RAM"
         resl["detail"] = [fn.mhr.convert(x) for x in resl["event_description"].tolist()]
         resl = resl.drop(["event_description"], axis=1)
 
         # reformat this as required
-        if output_format == 'json':
+        if output_format == "json":
             return make_response(resl.to_json(orient="records"))
-        elif output_format == 'html':
+        elif output_format == "html":
             return "<html>{0}</html>".format(resl.to_html())
         else:
             abort(406, "Invalid output_format passed.  Valid values are: json, html")
 
-    @app.route("/ui/server_status", defaults={"absdelta": "absolute", "stats_type": "mstat", "nrows": 1}, methods=["GET"])
-    @app.route("/ui/server_status/<string:absdelta>/<string:stats_type>/<int:nrows>", methods=["GET"])
+    @app.route(
+        "/ui/server_status",
+        defaults={"absdelta": "absolute", "stats_type": "mstat", "nrows": 1},
+        methods=["GET"],
+    )
+    @app.route(
+        "/ui/server_status/<string:absdelta>/<string:stats_type>/<int:nrows>",
+        methods=["GET"],
+    )
     def server_storage_status(absdelta, stats_type, nrows):
         """returns server memory usage information, as list.
         The server notes memory usage at various key points (pre/post insert; pre/post recompression)
@@ -1170,7 +1346,15 @@ def create_app(config_file = None):
             df = pd.DataFrame.from_records(result, index="_id")  # , coerce_float=True
 
             # identify target columns
-            valid_starts = ["clusters", "guid2meta", "guid2neighbour", "refcompressedseq", "server", "mstat", "scstat"]
+            valid_starts = [
+                "clusters",
+                "guid2meta",
+                "guid2neighbour",
+                "refcompressedseq",
+                "server",
+                "mstat",
+                "scstat",
+            ]
 
             if stats_type not in valid_starts:
                 abort(404, "Valid stats_type values are {0}".format(valid_starts))
@@ -1191,17 +1375,27 @@ def create_app(config_file = None):
                 return "More than one row must be requested."
             if len(target_columns) == 0:
                 return "No column data found matching this selection. <p>This may be normal if the server has just started up.<p>We tried to select from {2} rows of data, with {3} columns.  We looked for '{4}'.<p>Valid values for the three variables passed in the URL are as follows: <p> stats_type: {0}. <p> absdelta: ['absolute', 'delta']. <p> nrows must be a positive integer. <p> The columns available for selection from the server's monitoring log are: {1}".format(
-                    valid_starts, df.columns.values, len(df.index), len(df.columns.values), target_string
+                    valid_starts,
+                    df.columns.values,
+                    len(df.index),
+                    len(df.columns.values),
+                    target_string,
                 )
             if len(df.index) == 0:
                 return "No row data found matching this selection. <p>This may be normal if the server has just started up.<p> We tried to select from {2} rows of data, with {3} columns.  We looked for '{4}'.<p>Valid values for the three variables passed in the URL are as follows: <p> stats_type: {0}. <p> absdelta: ['absolute', 'delta']. <p> nrows must be a positive integer. <p> The columns available for selection from the server's monitoring log are: {1}".format(
-                    valid_starts, df.columns.values, len(df.index), len(df.columns.values), target_string
+                    valid_starts,
+                    df.columns.values,
+                    len(df.index),
+                    len(df.columns.values),
+                    target_string,
                 )
 
             # convert x-axis to datetime
             for ix in df.index:
                 try:
-                    df.loc[ix, "context|time|time_now"] = dateutil.parser.parse(df.loc[ix, "context|time|time_now"])
+                    df.loc[ix, "context|time|time_now"] = dateutil.parser.parse(
+                        df.loc[ix, "context|time|time_now"]
+                    )
                 except TypeError:
                     app.logger.warning(
                         "Attempted date conversion on {0} with _id = {1}, but this failed".format(
@@ -1218,7 +1412,11 @@ def create_app(config_file = None):
             dfp = dfp.dropna()
             if len(dfp.index) == 0:
                 return "No non-null row data found matching this selection. <p>This may be normal if the server has just started up.<p> We tried to select from {2} rows of data, with {3} columns.  We looked for '{4}'.<p>Valid values for the three variables passed in the URL are as follows: <p> stats_type: {0}. <p> absdelta: ['absolute', 'delta']. <p> nrows must be a positive integer. <p> The columns available for selection from the server's monitoring log are: {1}".format(
-                    valid_starts, df.columns.values, len(df.index), len(df.columns.values), target_string
+                    valid_starts,
+                    df.columns.values,
+                    len(df.index),
+                    len(df.columns.values),
+                    target_string,
                 )
 
             # construct a dictionary mapping current column names to human readable versions
@@ -1230,14 +1428,21 @@ def create_app(config_file = None):
             dfp.rename(mapper, inplace=True, axis="columns")
 
             # plot
-            plts = dfp.plot(kind="line", x="context|time|time_now", subplots=True, y=new_target_columns)
+            plts = dfp.plot(
+                kind="line",
+                x="context|time|time_now",
+                subplots=True,
+                y=new_target_columns,
+            )
             for plt in plts:
                 fig = plt.get_figure()
                 fig.set_figheight(len(target_columns) * 2)
                 fig.set_figwidth(8)
                 img = io.BytesIO()
                 fig.savefig(img)
-                matplotlib.pyplot.close("all")  # have to explicitly close, otherwise memory leaks
+                matplotlib.pyplot.close(
+                    "all"
+                )  # have to explicitly close, otherwise memory leaks
                 img.seek(0)
                 return send_file(img, mimetype="image/png")
 
@@ -1249,7 +1454,7 @@ def create_app(config_file = None):
 
     @app.route("/api/v2/snpceiling", methods=["GET"])
     def snpceiling():
-        """ returns largest snp distance stored by the server """
+        """returns largest snp distance stored by the server"""
         try:
             result = {"snpceiling": fn.snpCeiling}
 
@@ -1260,7 +1465,7 @@ def create_app(config_file = None):
 
     @app.route("/api/v2/server_time", methods=["GET"])
     def server_time():
-        """ returns server time """
+        """returns server time"""
         try:
             result = fn.server_time()
 
@@ -1271,7 +1476,7 @@ def create_app(config_file = None):
 
     @app.route("/api/v2/server_name", methods=["GET"])
     def server_name():
-        """ returns server name """
+        """returns server name"""
         try:
             result = fn.server_name()
 
@@ -1282,7 +1487,7 @@ def create_app(config_file = None):
 
     @app.route("/api/v2/guids", methods=["GET"])
     def get_all_guids(**debug):
-        """ returns all guids.  other params, if included, is ignored."""
+        """returns all guids.  other params, if included, is ignored."""
         try:
             result = list(fn.get_all_guids())
         except Exception as e:
@@ -1292,7 +1497,7 @@ def create_app(config_file = None):
 
     @app.route("/api/v2/valid_guids", methods=["GET"])
     def get_valid_guids(**debug):
-        """ returns all present, valid guids.  other params, if included, is ignored."""
+        """returns all present, valid guids.  other params, if included, is ignored."""
         try:
             result = list(fn.get_all_valid_guids())
         except Exception as e:
@@ -1302,7 +1507,7 @@ def create_app(config_file = None):
 
     @app.route("/api/v2/invalid_guids", methods=["GET"])
     def get_invalid_guids(**debug):
-        """ returns all present, but invalid, guids.  other params, if included, is ignored."""
+        """returns all present, but invalid, guids.  other params, if included, is ignored."""
         try:
             result = list(fn.get_all_invalid_guids())
         except Exception as e:
@@ -1313,7 +1518,7 @@ def create_app(config_file = None):
     @app.route("/api/v2/guids_with_quality_over/<float:cutoff>", methods=["GET"])
     @app.route("/api/v2/guids_with_quality_over/<int:cutoff>", methods=["GET"])
     def guids_with_quality_over(cutoff, **kwargs):
-        """ returns all guids with quality score >= cutoff."""
+        """returns all guids with quality score >= cutoff."""
         try:
             result = fn.guids_with_quality_over(cutoff)
         except Exception as e:
@@ -1427,7 +1632,7 @@ def create_app(config_file = None):
 
     @app.route("/api/v2/<string:guid>/clusters", methods=["GET"])
     def clusters_sample(guid):
-        """ returns clusters in which a sample resides.  if the sample is not clustered, returns an empty list. """
+        """returns clusters in which a sample resides.  if the sample is not clustered, returns an empty list."""
 
         clustering_algorithms = sorted(fn.clustering.keys())
         retVal = []
@@ -1442,7 +1647,7 @@ def create_app(config_file = None):
 
     @app.route("/api/v2/<string:guid>/annotation", methods=["GET"])
     def annotations_sample(guid):
-        """ returns annotations of one sample """
+        """returns annotations of one sample"""
 
         try:
             result = fn.PERSIST.guid_annotation(guid)
@@ -1459,7 +1664,7 @@ def create_app(config_file = None):
 
     @app.route("/api/v2/insert", methods=["POST"])
     def insert():
-        """ inserts a guids with sequence"""
+        """inserts a guids with sequence"""
         try:
             data_keys = set()
             for key in request.form.keys():
@@ -1471,15 +1676,24 @@ def create_app(config_file = None):
             if "seq" in data_keys and "guid" in data_keys:
                 guid = str(payload["guid"])
                 seq = str(payload["seq"])
-                result = fn.insert(guid, seq)
+                return_status_code, result = fn.insert(guid, seq)
+
             else:
-                abort(501, "seq and guid are not present in the POSTed data {0}".format(data_keys))
+                # improperly formatted request
+                return_status_code, result = (
+                    501,
+                    "seq and guid are not present in the POSTed data {0}".format(
+                        data_keys
+                    ),
+                )
 
         except Exception as e:
+            # something untrapped happened
+            logging.error(e)
             capture_exception(e)
             abort(500, e)
 
-        return make_response(tojson(result))
+        return make_response(tojson(result), return_status_code)
 
     @app.route("/api/v2/mirror", methods=["POST"])
     def mirror():
@@ -1493,11 +1707,13 @@ def create_app(config_file = None):
 
     @app.route("/api/v2/clustering", methods=["GET"])
     def algorithms():
-        """  returns the available clustering algorithms """
+        """returns the available clustering algorithms"""
         res = sorted(fn.clustering.keys())
         return make_response(tojson({"algorithms": res}))
 
-    @app.route("/api/v2/clustering/<string:clustering_algorithm>/what_tested", methods=["GET"])
+    @app.route(
+        "/api/v2/clustering/<string:clustering_algorithm>/what_tested", methods=["GET"]
+    )
     def what_tested(clustering_algorithm):
         """returns what is tested (N, M, N_or_M) for clustering_algorithm.
         Useful for producing reports of what clustering algorithms are doing
@@ -1507,12 +1723,21 @@ def create_app(config_file = None):
 
         except KeyError:
             # no clustering algorithm of this type
-            abort(404, "no clustering algorithm {0} (failed update)".format(clustering_algorithm))
+            abort(
+                404,
+                "no clustering algorithm {0} (failed update)".format(
+                    clustering_algorithm
+                ),
+            )
 
         res = fn.clustering[clustering_algorithm].uncertain_base_type
-        return make_response(tojson({"what_tested": res, "clustering_algorithm": clustering_algorithm}))
+        return make_response(
+            tojson({"what_tested": res, "clustering_algorithm": clustering_algorithm})
+        )
 
-    @app.route("/api/v2/clustering/<string:clustering_algorithm>/change_id", methods=["GET"])
+    @app.route(
+        "/api/v2/clustering/<string:clustering_algorithm>/change_id", methods=["GET"]
+    )
     def change_id(clustering_algorithm):
         """returns the current change_id number, which is incremented each time a change is made.
         Useful for recovering changes in clustering after a particular point."""
@@ -1523,14 +1748,20 @@ def create_app(config_file = None):
             # no clustering algorithm of this type
             abort(404, "no clustering algorithm {0}".format(clustering_algorithm))
 
-        return make_response(tojson({"change_id": res, "clustering_algorithm": clustering_algorithm}))
+        return make_response(
+            tojson({"change_id": res, "clustering_algorithm": clustering_algorithm})
+        )
 
-    @app.route("/api/v2/clustering/<string:clustering_algorithm>/guids2clusters", methods=["GET"])
     @app.route(
-        "/api/v2/clustering/<string:clustering_algorithm>/guids2clusters/after_change_id/<int:change_id>", methods=["GET"]
+        "/api/v2/clustering/<string:clustering_algorithm>/guids2clusters",
+        methods=["GET"],
+    )
+    @app.route(
+        "/api/v2/clustering/<string:clustering_algorithm>/guids2clusters/after_change_id/<int:change_id>",
+        methods=["GET"],
     )
     def g2c(clustering_algorithm, change_id=None):
-        """  returns a guid -> clusterid dictionary for all guids with examination time and cluster size"""
+        """returns a guid -> clusterid dictionary for all guids with examination time and cluster size"""
 
         # recover a guid2examination time dictionary.
         g2e = fn.get_all_guids_examination_time()
@@ -1544,10 +1775,14 @@ def create_app(config_file = None):
             abort(404, "no clustering algorithm {0}".format(clustering_algorithm))
         except AttributeError:
             app.logger.info("Never ran {0}".format(clustering_algorithm))
-            abort(421, "never ran clustering algorithm {0}".format(clustering_algorithm))
+            abort(
+                421, "never ran clustering algorithm {0}".format(clustering_algorithm)
+            )
 
         cl2guids = fn.clustering[clustering_algorithm].cluster2guid
-        c2g = fn.clustering[clustering_algorithm].clusters2guidmeta(after_change_id=change_id)
+        c2g = fn.clustering[clustering_algorithm].clusters2guidmeta(
+            after_change_id=change_id
+        )
         res = []
 
         for item in c2g:
@@ -1559,10 +1794,19 @@ def create_app(config_file = None):
 
         return make_response(tojson(res))
 
-    @app.route("/api/v2/clustering/<string:clustering_algorithm>/clusters", methods=["GET"])
-    @app.route("/api/v2/clustering/<string:clustering_algorithm>/members", methods=["GET"])
-    @app.route("/api/v2/clustering/<string:clustering_algorithm>/summary", methods=["GET"])
-    @app.route("/api/v2/clustering/<string:clustering_algorithm>/<int:cluster_id>", methods=["GET"])
+    @app.route(
+        "/api/v2/clustering/<string:clustering_algorithm>/clusters", methods=["GET"]
+    )
+    @app.route(
+        "/api/v2/clustering/<string:clustering_algorithm>/members", methods=["GET"]
+    )
+    @app.route(
+        "/api/v2/clustering/<string:clustering_algorithm>/summary", methods=["GET"]
+    )
+    @app.route(
+        "/api/v2/clustering/<string:clustering_algorithm>/<int:cluster_id>",
+        methods=["GET"],
+    )
     def clusters2cnt(clustering_algorithm, cluster_id=None):
         """returns a dictionary containing
         'summary':a clusterid -> count dictionary for all cluster_ids for clustering_algorithm,
@@ -1575,7 +1819,9 @@ def create_app(config_file = None):
 
         try:
             fn.clustering[clustering_algorithm].refresh()
-            all_res = fn.clustering[clustering_algorithm].clusters2guidmeta(after_change_id=None)
+            all_res = fn.clustering[clustering_algorithm].clusters2guidmeta(
+                after_change_id=None
+            )
 
         except KeyError:
             # no clustering algorithm of this type
@@ -1595,7 +1841,12 @@ def create_app(config_file = None):
                     res.append(item)
             if len(res) == 0:
                 # no cluster exists of that name
-                abort(404, "no cluster {1} exists for algorithm {0}".format(clustering_algorithm, cluster_id))
+                abort(
+                    404,
+                    "no cluster {1} exists for algorithm {0}".format(
+                        clustering_algorithm, cluster_id
+                    ),
+                )
 
         d = pd.DataFrame.from_records(res)
         if len(d.index) == 0:  # no data; first run setting
@@ -1606,7 +1857,9 @@ def create_app(config_file = None):
             try:
                 df = pd.crosstab(d["cluster_id"], d["is_mixed"])
                 df = df.add_prefix("is_mixed_")
-                df = labels.merge(df, how="left", left_on="cluster_id", right_index=True)
+                df = labels.merge(
+                    df, how="left", left_on="cluster_id", right_index=True
+                )
                 summary = json.loads(df.to_json(orient="records"))
                 detail = json.loads(d.to_json(orient="records"))
                 if cluster_id is not None:
@@ -1633,12 +1886,16 @@ def create_app(config_file = None):
 
         return make_response(tojson(retVal))
 
-    @app.route("/api/v2/clustering/<string:clustering_algorithm>/cluster_ids", methods=["GET"])
+    @app.route(
+        "/api/v2/clustering/<string:clustering_algorithm>/cluster_ids", methods=["GET"]
+    )
     def g2cl(clustering_algorithm):
-        """  returns a guid -> clusterid dictionary for all guids """
+        """returns a guid -> clusterid dictionary for all guids"""
         try:
             fn.clustering[clustering_algorithm].refresh()
-            res = fn.clustering[clustering_algorithm].clusters2guidmeta(after_change_id=None)
+            res = fn.clustering[clustering_algorithm].clusters2guidmeta(
+                after_change_id=None
+            )
         except KeyError:
             # no clustering algorithm of this type
             abort(404, "no clustering algorithm {0}".format(clustering_algorithm))
@@ -1655,9 +1912,17 @@ def create_app(config_file = None):
         retVal = sorted(list(cluster_ids))
         return make_response(tojson(retVal))
 
-    @app.route("/api/v2/<string:guid>/neighbours_within/<int:threshold>", methods=["GET"])
-    @app.route("/api/v2/<string:guid>/neighbours_within/<int:threshold>/with_quality_cutoff/<float:cutoff>", methods=["GET"])
-    @app.route("/api/v2/<string:guid>/neighbours_within/<int:threshold>/with_quality_cutoff/<int:cutoff>", methods=["GET"])
+    @app.route(
+        "/api/v2/<string:guid>/neighbours_within/<int:threshold>", methods=["GET"]
+    )
+    @app.route(
+        "/api/v2/<string:guid>/neighbours_within/<int:threshold>/with_quality_cutoff/<float:cutoff>",
+        methods=["GET"],
+    )
+    @app.route(
+        "/api/v2/<string:guid>/neighbours_within/<int:threshold>/with_quality_cutoff/<int:cutoff>",
+        methods=["GET"],
+    )
     @app.route(
         "/api/v2/<string:guid>/neighbours_within/<int:threshold>/with_quality_cutoff/<float:cutoff>/in_format/<int:returned_format>",
         methods=["GET"],
@@ -1666,16 +1931,19 @@ def create_app(config_file = None):
         "/api/v2/<string:guid>/neighbours_within/<int:threshold>/with_quality_cutoff/<int:cutoff>/in_format/<int:returned_format>",
         methods=["GET"],
     )
-    @app.route("/api/v2/<string:guid>/neighbours_within/<int:threshold>/in_format/<int:returned_format>", methods=["GET"])
+    @app.route(
+        "/api/v2/<string:guid>/neighbours_within/<int:threshold>/in_format/<int:returned_format>",
+        methods=["GET"],
+    )
     def neighbours_within(guid, threshold, **kwargs):
-        """ get a guid's neighbours, within a SNP threshold """
+        """get a guid's neighbours, within a SNP threshold"""
 
         # we support optional cutoff and threshold parameters.
         # we also support 'method' and 'reference' parameters but these are ignored.
         # the default for cutoff and format are 0 and 1, respectively.
         if "cutoff" not in kwargs.keys():
             #   if it's not specified, then we use zero (no cutoff)  fix issue #25 CONFIG['MAXN_PROP_DEFAULT']
-            cutoff = 0  
+            cutoff = 0
         else:
             cutoff = kwargs["cutoff"]
 
@@ -1686,12 +1954,17 @@ def create_app(config_file = None):
 
         # validate input
         if returned_format not in set([1, 3, 4]):
-            abort(422, "Invalid format requested, must be 1, 3 or 4.  Format 2 has been deprecated.")
+            abort(
+                422,
+                "Invalid format requested, must be 1, 3 or 4.  Format 2 has been deprecated.",
+            )
         if not (0 <= cutoff and cutoff <= 1):
             abort(422, "Invalid cutoff requested, must be between 0 and 1")
 
         try:
-            result = fn.neighbours_within_filter(guid, threshold, cutoff, returned_format)
+            result = fn.neighbours_within_filter(
+                guid, threshold, cutoff, returned_format
+            )
         except KeyError as e:
             # guid doesn't exist
             abort(404, e)
@@ -1703,7 +1976,7 @@ def create_app(config_file = None):
 
     @app.route("/api/v2/<string:guid>/sequence", methods=["GET"])
     def sequence(guid):
-        """ returns the masked sequence as a string """
+        """returns the masked sequence as a string"""
         result = fn.sequence(guid)
         if result is None:  # no guid exists
             return make_response(tojson("guid {0} does not exist".format(guid)), 404)
@@ -1729,7 +2002,7 @@ def create_app(config_file = None):
     return app
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # command line usage.  Pass the location of a config file as a single argument.
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawTextHelpFormatter,
@@ -1751,7 +2024,12 @@ python findNeighbour4_server.py ../config/myconfig_file.json
 """,
     )
     parser.add_argument(
-        "path_to_config_file", type=str, action="store", nargs="?", help="the path to the configuration file", default=None
+        "path_to_config_file",
+        type=str,
+        action="store",
+        nargs="?",
+        help="the path to the configuration file",
+        default=None,
     )
     parser.add_argument(
         "--on_startup_recompress_memory_every",
@@ -1782,9 +2060,8 @@ python findNeighbour4_server.py ../config/myconfig_file.json
         flask_debug = False
 
     # construct the required global variables
-    LISTEN_TO = "127.0.0.1"         # localhost by default
+    LISTEN_TO = "127.0.0.1"  # localhost by default
     if "LISTEN_TO" in CONFIG.keys():
         LISTEN_TO = CONFIG["LISTEN_TO"]
 
     app.run(host=LISTEN_TO, debug=flask_debug, port=CONFIG["REST_PORT"])
-    

@@ -137,6 +137,7 @@ pipenv run python fn4_configure.py /path/to/config_file.json --set
         ev.save_changes()
 
     if args.drop_insert_semaphore or args.startup:
+        logging.info("Dropping insert semaphore")
         PERSIST.unlock(1, force=True)
 
     if args.prepopulate_catwalk or args.startup:

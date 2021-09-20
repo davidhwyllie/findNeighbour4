@@ -88,20 +88,18 @@ class fn4Client:
         response object is returned, even if it has a status_code indicating the call failed
         """
 
-        session = requests.Session()
-        session.trust_env = False
+        with requests.Session() as session:
+            session.trust_env = False
 
-        url = self.absurl(relpath)
-        if method == "GET":
-            response = session.get(url=url)
+            url = self.absurl(relpath)
+            if method == "GET":
+                response = session.get(url=url, timeout=timeout)
 
-        elif method == "POST":
-            response = session.post(url=url, data=payload)
+            elif method == "POST":
+                response = session.post(url=url, data=payload, timeout=timeout)
 
-        else:
-            raise NotImplementedError("either GET or POST is required as a method.  was passed {0}".format(method))
-
-        session.close()
+            else:
+                raise NotImplementedError("either GET or POST is required as a method.  was passed {0}".format(method))
 
         if response.status_code >= 500:
             response.raise_for_status()  # raise error if there's an error.  Sub 500 (404 etc) are let through and handled by the client routines
