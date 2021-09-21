@@ -2,8 +2,7 @@
 from a muliti-fasta file (e.g. the COVID-19 alignment produced by COG-UK)
 
 assumes a findNeighbour4 server is running
-
-Paths expected are currently hard-coded
+also assumes that no other process(es) are loading data  -
 
 Example usage: 
 ============== 
@@ -70,7 +69,6 @@ def measure_sr(fn4_client, ensure_database_monitor=False):
         report_time = server_database_usage["trend_stats"].loc[
             0, "context|time|time_now"
         ]
-        print(server_database_usage)
 
         td = dateutil.parser.parse(
             server_time_now["server_time"]
@@ -89,19 +87,12 @@ def measure_sr(fn4_client, ensure_database_monitor=False):
             seconds_ago = 'never measured'
         if ensure_database_monitor:
             raise DatabaseMonitorInoperativeError(
-                "No recent measurements of server health indicate findNeighbour4_dbmanager is not operational",
+                "No recent measurements of server health indicate findNeighbour4_dbmanager is not operational.", 
                 "Last measurement was {0} seconds ago ".format(
                     seconds_ago
                 ),
             )
         else:
-            logging.warning(
-                "No recent measurements of server health indicate findNeighbour4_dbmanager is not operational",
-                "Last measurement was {0} seconds ago (None = no record of ever measurement)".format(
-                    seconds_ago
-                ),
-            )
-
             server_database_usage["latest_stats"][
                 "storage_ratio"
             ] = 1  # not sure what it is now - continue
@@ -160,6 +151,7 @@ nohup pipenv run python3 fn4_load_multifasta.py http://localhost:5035 /data/data
         help="logfile to write to",
         default="",
     )
+
     args = parser.parse_args()
 
     ####################################    STARTUP ###############################

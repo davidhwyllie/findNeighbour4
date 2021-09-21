@@ -468,6 +468,7 @@ class findNeighbour4:
             # we use a semaphore to do this.
 
             if self.PERSIST.lock(1):  # true if an insert lock was acquired
+                logging.info("insert lock acquired")
                 try:
                     self.hc.persist(
                         refcompressedsequence,
@@ -488,6 +489,7 @@ class findNeighbour4:
                     return_status_code, return_text = 503, error_message
 
                 finally:
+                    logging.info("Unlocking")
                     self.PERSIST.unlock(1)  # release the lock if it was acquired
 
             else:
