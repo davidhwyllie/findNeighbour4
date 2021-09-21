@@ -466,32 +466,31 @@ class findNeighbour4:
 
             # addition should be an atomic operation, in which all the component complete or do not complete.
             # we use a semaphore to do this.
-
             if self.PERSIST.lock(1):  # true if an insert lock was acquired
-                logging.info("insert lock acquired")
+
+                # if failure occurred, errors should be raised
                 try:
                     self.hc.persist(
                         refcompressedsequence,
                         guid,
                         {"DNAQuality": self.objExaminer.composition},
                     )
-                    logging.info("Insert succeeded {0}".format(guid))
                     return_status_code, return_text = 200, "Guid {0} inserted.".format(
                         guid
                     )
+                    logging.info("Insert succeeded {0}".format(guid))
 
                 except Exception as e:
                     # the rdbms server may be refusing connections, or busy.  This is observed occasionally in real-world use
+                    capture_exception(e)  # log what happened in Sentry
                     error_message = "Error raised on persisting {0}".format(guid)
                     logging.exception(error_message)
                     logging.exception(e)
-                    capture_exception(e)  # log what happened in Sentry
+
                     return_status_code, return_text = 503, error_message
 
                 finally:
-                    logging.info("Unlocking")
                     self.PERSIST.unlock(1)  # release the lock if it was acquired
-
             else:
                 # lock acquisition failed, indicative of another process inserting at present
                 info_msg = """A lock is in place preventing insertion.  This may arise because
@@ -500,7 +499,7 @@ class findNeighbour4:
                 (ii) if you are only inserting with one load script synchronously, it may reflect the lock being held because of an error or crash TBD. 
                 You can reset the lock as follows:  fn4_configure <path to config file> --drop_insert_semaphore"""
                 logging.warning("An insert lock prevented insertion {0}".format(guid))
-                capture_message(info_msg)
+                logging.info(info_msg)
                 return_status_code, return_text = 409, info_msg
 
         else:
@@ -508,7 +507,7 @@ class findNeighbour4:
             return_status_code, return_text = 201, "Guid {0} is already present".format(
                 guid
             )
-
+        logging.info("{0}-{1}".format(return_status_code, return_text))
         return return_status_code, return_text
 
     def exist_sample(self, guid):
@@ -773,6 +772,7 @@ def create_app(config_file=None):
         "%(asctime)s | %(pathname)s:%(lineno)d | %(funcName)s | %(levelname)s | %(message)s "
     )
     file_handler.setFormatter(formatter)
+    logging.info("Logging to {0}".format(logfile))
 
     ########################### prepare to launch server ###############################################################
     RESTBASEURL = "http://{0}:{1}".format(CONFIG["IP"], CONFIG["REST_PORT"])
@@ -819,6 +819,7 @@ def create_app(config_file=None):
 
     app.logger.setLevel(loglevel)
     app.logger.addHandler(file_handler)
+    app.logger.info("Logging to {0}".format(logfile))
     # launch sentry if API key provided
     if "SENTRY_URL" in CONFIG.keys():
         app.logger.info("Launching communication with Sentry bug-tracking service")

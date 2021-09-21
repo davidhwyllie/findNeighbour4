@@ -264,12 +264,12 @@ nohup pipenv run python3 fn4_load_multifasta.py http://localhost:5035 /data/data
 
                 if len(seq) == reflen:
                     try:
-                        res = fn4c.insert(guid=guid, seq=seq, timeout=30)
+                        res = fn4c.insert(guid=guid, seq=seq, timeout=90)
                         if res.status_code not in [200, 201]:
                             # failed to add
                             failed.append((i, guid))
                             msg = "** FAILED; status code = {0} **".format(res.status_code)
-                          
+                         
                         else:
                             msg = "succeeded"
                             nGood += 1
@@ -306,8 +306,8 @@ nohup pipenv run python3 fn4_load_multifasta.py http://localhost:5035 /data/data
                     # capture any errors which inherit from RequestException
                     except requests.exceptions.RequestException as e:
                         sentry_sdk.capture_exception(e)
-                        logger.warning("Server connection failed .. waiting 30 seconds")
-                        time.sleep(30)  # it will reconnect
+                        logger.warning("Server connection failed .. waiting 90 seconds")
+                        time.sleep(90)  # it will reconnect
                 else:
                     logger.info(
                         "{0} Wrong length {1} not {2}".format(guid, len(seq), reflen)
