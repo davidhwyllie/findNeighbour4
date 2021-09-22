@@ -137,6 +137,7 @@ pipenv run python fn4_configure.py /path/to/config_file.json --set
         ev.save_changes()
 
     if args.drop_insert_semaphore or args.startup:
+        logging.info("Dropping insert semaphore")
         PERSIST.unlock(1, force=True)
 
     if args.prepopulate_catwalk or args.startup:
@@ -160,7 +161,7 @@ pipenv run python fn4_configure.py /path/to/config_file.json --set
         LISTEN_TO = CONFIG["LISTEN_TO"]
 
     if args.startup:
-        startup_cmd = "nohup pipenv run gunicorn wsgi:app --bind {1}:{2} --log-level info  --workers {0} &".format(
+        startup_cmd = "nohup pipenv run gunicorn wsgi:app --bind {1}:{2} --log-level info  --workers {0} --error-logfile test_error.log --access-logfile test_access.log --capture-output --timeout 90  > gunicorn.log &".format(
             args.n_workers, LISTEN_TO, CONFIG["REST_PORT"]
         )
         logging.info(

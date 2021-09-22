@@ -2,8 +2,7 @@
 from a muliti-fasta file (e.g. the COVID-19 alignment produced by COG-UK)
 
 assumes a findNeighbour4 server is running
-
-Paths expected are currently hard-coded
+also assumes that no other process(es) are loading data  -
 
 Example usage: 
 ============== 
@@ -39,12 +38,13 @@ import argparse
 import time
 from collections import Counter
 from fn4client import fn4Client
+import requests
 import sentry_sdk
 from version import version
 
 ## define functions and classes
 class DatabaseMonitorInoperativeError(Exception):
-    """ insert failed """
+    """insert failed"""
 
     def __init__(self, expression, message):
         self.expression = expression
@@ -66,28 +66,36 @@ def measure_sr(fn4_client, ensure_database_monitor=False):
     server_database_usage = fn4_client.server_database_usage(nrows=1)
     server_time_now = fn4_client.server_time()
     if "trend_stats" in server_database_usage.keys():
-        report_time = server_database_usage["trend_stats"].loc[0, "context|time|time_now"]
-        print(server_database_usage)
+        report_time = server_database_usage["trend_stats"].loc[
+            0, "context|time|time_now"
+        ]
 
-        td = dateutil.parser.parse(server_time_now["server_time"]) - dateutil.parser.parse(
+        td = dateutil.parser.parse(
+            server_time_now["server_time"]
+        ) - dateutil.parser.parse(
             report_time
         )  # how long ago was the report on the database?
         seconds_ago = td.total_seconds()
-        logging.info("Checked storage ratio.  Last measurement was {0} seconds ago".format(seconds_ago))
+        logging.info(
+            "Checked storage ratio.  Last measurement was {0} seconds ago".format(
+                seconds_ago
+            )
+        )
 
     if seconds_ago is None or seconds_ago > 600:  # 10 mins ago
+        if seconds_ago is None:
+            seconds_ago = 'never measured'
         if ensure_database_monitor:
             raise DatabaseMonitorInoperativeError(
-                "No recent measurements of server health indicate findNeighbour4_dbmanager is not operational",
-                "Last measurement was {0} seconds ago (None = no record of ever measurement)".format(seconds_ago),
+                "No recent measurements of server health indicate findNeighbour4_dbmanager is not operational.", 
+                "Last measurement was {0} seconds ago ".format(
+                    seconds_ago
+                ),
             )
         else:
-            logging.warning(
-                "No recent measurements of server health indicate findNeighbour4_dbmanager is not operational",
-                "Last measurement was {0} seconds ago (None = no record of ever measurement)".format(seconds_ago),
-            )
-
-            server_database_usage["latest_stats"]["storage_ratio"] = 1  # not sure what it is now - continue
+            server_database_usage["latest_stats"][
+                "storage_ratio"
+            ] = 1  # not sure what it is now - continue
     return server_database_usage["latest_stats"]["storage_ratio"]
 
 
@@ -109,7 +117,7 @@ python fn4_load_multifasta.py --help
 nohup pipenv run python3 fn4_load_multifasta.py http://localhost:5035 /data/data/inputfasta loadtest.fasta fn4_load_rdbms.log > rdbms.out &
 
 
-"""
+""",
     )
     parser.add_argument(
         "server_url",
@@ -120,20 +128,48 @@ nohup pipenv run python3 fn4_load_multifasta.py http://localhost:5035 /data/data
         default="",
     )
     parser.add_argument(
-        "fastadir", type=str, action="store", nargs="?", help="the directory in which fasta files will appear", default=""
+        "fastadir",
+        type=str,
+        action="store",
+        nargs="?",
+        help="the directory in which fasta files will appear",
+        default="",
     )
-    parser.add_argument("fileglob", type=str, action="store", nargs="?", help="a pattern to glob for", default="")
-    parser.add_argument("logfile", type=str, action="store", nargs="?", help="logfile to write to", default="")
+    parser.add_argument(
+        "fileglob",
+        type=str,
+        action="store",
+        nargs="?",
+        help="a pattern to glob for",
+        default="",
+    )
+    parser.add_argument(
+        "logfile",
+        type=str,
+        action="store",
+        nargs="?",
+        help="logfile to write to",
+        default="",
+    )
+
     args = parser.parse_args()
 
     ####################################    STARTUP ###############################
     # validate input
     if not os.path.exists(args.fastadir):
         # that's an error
-        raise FileNotFoundError("The directory specified for fasta files does not exist: '{0}'".format(args.fastadir))
+        raise FileNotFoundError(
+            "The directory specified for fasta files does not exist: '{0}'".format(
+                args.fastadir
+            )
+        )
     else:
         if not os.path.isdir(args.fastadir):
-            raise FileNotFoundError("The path specified for fasta files is not a directory: '{0}'".format(args.fastadir))
+            raise FileNotFoundError(
+                "The path specified for fasta files is not a directory: '{0}'".format(
+                    args.fastadir
+                )
+            )
 
     # the fasta dir exists.  Make sure we have log directories.
     logdir = os.path.join(args.fastadir, "logs")
@@ -146,8 +182,12 @@ nohup pipenv run python3 fn4_load_multifasta.py http://localhost:5035 /data/data
     logger.setLevel(logging.INFO)
     timenow = datetime.datetime.now().isoformat()
     logfile = os.path.join(logdir, args.logfile)
-    file_handler = logging.handlers.RotatingFileHandler(logfile, mode="a", maxBytes=1e7, backupCount=7)
-    formatter = logging.Formatter("%(asctime)s | %(pathname)s:%(lineno)d | %(funcName)s | %(levelname)s | %(message)s ")
+    file_handler = logging.handlers.RotatingFileHandler(
+        logfile, mode="a", maxBytes=1e7, backupCount=7
+    )
+    formatter = logging.Formatter(
+        "%(asctime)s | %(pathname)s:%(lineno)d | %(funcName)s | %(levelname)s | %(message)s "
+    )
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
     logger.info("Startup with arguments: {0}".format(args))
@@ -159,10 +199,14 @@ nohup pipenv run python3 fn4_load_multifasta.py http://localhost:5035 /data/data
         sentry_sdk.init(os.environ.get("FN_SENTRY_URL"), release=version)
         logger.info("Sentry comms established")
     else:
-        logger.info("No error monitoring via sentry.  Set environment variable FN_SENTRY_URL to do so.")
+        logger.info(
+            "No error monitoring via sentry.  Set environment variable FN_SENTRY_URL to do so."
+        )
 
     # instantiate client
-    fn4c = fn4Client(args.server_url)  # expects operation on local host; pass baseurl if somewhere else.
+    fn4c = fn4Client(
+        args.server_url
+    )  # expects operation on local host; pass baseurl if somewhere else.
 
     existing_guids = set(fn4c.guids())
     clustering_created = False
@@ -182,7 +226,9 @@ nohup pipenv run python3 fn4_load_multifasta.py http://localhost:5035 /data/data
         logger.info("Reference already present")
 
     fastafiles = sorted(glob.glob(os.path.join(args.fastadir, args.fileglob)))
-    logger.info("There are {0} fasta files waiting to be loaded".format(len(fastafiles)))
+    logger.info(
+        "There are {0} fasta files waiting to be loaded".format(len(fastafiles))
+    )
 
     ## optionally raise an error if this list is too long
     for fastafile in fastafiles:
@@ -217,43 +263,55 @@ nohup pipenv run python3 fn4_load_multifasta.py http://localhost:5035 /data/data
             if guid not in existing_guids:
 
                 if len(seq) == reflen:
-                    res = fn4c.insert(guid=guid, seq=seq)
-                    if not res.status_code == 200:
-                        # failed to add
-                        failed.append((i, guid))
-                        msg = "** FAILED **"
+                    try:
+                        res = fn4c.insert(guid=guid, seq=seq, timeout=90)
+                        if res.status_code not in [200, 201]:
+                            # failed to add
+                            failed.append((i, guid))
+                            msg = "** FAILED; status code = {0} **".format(res.status_code)
+                         
+                        else:
+                            msg = "succeeded"
+                            nGood += 1
 
-                    else:
-                        msg = "succeeded"
-                        nGood += 1
-
-                    t2 = datetime.datetime.now()
-                    i1 = t2 - t1
-                    s = i1.total_seconds()
-                    logger.info("Scanned {0} Adding #{1} ({2}) {3} in {4:.2f} secs.".format(i, nGood, guid, msg, s))
-
-                    # build in pause if high storage ratio ('fragmentation')
-                    if nGood % 50 == 0 and nGood > 0:
-
-                        # check whether database is keeping repacked adequately.  If it isn't, insertion will pause.
-                        # If we don't know, because monitoring is off, then an error will be raised.
-                        sr = measure_sr(fn4c)
+                        t2 = datetime.datetime.now()
+                        i1 = t2 - t1
+                        s = i1.total_seconds()
                         logger.info(
-                            "Examined {0} / skipped {1}.  Database neighbour fragmentation is {2:.1f} (target: 1)".format(
-                                i, nSkipped, sr
+                            "Scanned {0} Adding #{1} ({2}) {3} in {4:.2f} secs.".format(
+                                i, nGood, guid, msg, s
                             )
                         )
-                        # ratio of records containing neighbours to those containing samples - target is 1:1
-                        while sr > 100:  
-                            logger.warning(
-                                "Waiting 6 minutes to allow repacking operations.  Will resume when fragmentation, which is now {0:.1f}, is < 100.".format(
-                                    sr
+
+                        # build in pause if high storage ratio ('fragmentation')
+                        if nGood % 50 == 0 and nGood > 0:
+
+                            # check whether database is keeping repacked adequately.  If it isn't, insertion will pause.
+                            # If we don't know, because monitoring is off, then an error will be raised.
+                            sr = measure_sr(fn4c)
+                            logger.info(
+                                "Examined {0} / skipped {1}.  Database neighbour fragmentation is {2:.1f} (target: 1)".format(
+                                    i, nSkipped, sr
                                 )
                             )
-                            time.sleep(360)  # restart in 6 mins  if below target
-                            sr = measure_sr(fn4c)
+                            # ratio of records containing neighbours to those containing samples - target is 1:1
+                            while sr > 100:
+                                logger.warning(
+                                    "Waiting 6 minutes to allow repacking operations.  Will resume when fragmentation, which is now {0:.1f}, is < 100.".format(
+                                        sr
+                                    )
+                                )
+                                time.sleep(360)  # restart in 6 mins  if below target
+                                sr = measure_sr(fn4c)
+                    # capture any errors which inherit from RequestException
+                    except requests.exceptions.RequestException as e:
+                        sentry_sdk.capture_exception(e)
+                        logger.warning("Server connection failed .. waiting 90 seconds")
+                        time.sleep(90)  # it will reconnect
                 else:
-                    logger.info("{0} Wrong length {1} not {2}".format(guid, len(seq), reflen))
+                    logger.info(
+                        "{0} Wrong length {1} not {2}".format(guid, len(seq), reflen)
+                    )
 
             else:
                 nSkipped += 1
@@ -269,10 +327,16 @@ nohup pipenv run python3 fn4_load_multifasta.py http://localhost:5035 /data/data
 
         if len(failed) > 0:
             # do not move the file
-            logger.warning("findneighbour_load | not all fasta files could be uploaded; {0} failed".format(len(failed)))
+            logger.warning(
+                "findneighbour_load | not all fasta files could be uploaded; {0} failed".format(
+                    len(failed)
+                )
+            )
             logger.info("Failed samples are: {0}".format(failed))
         else:
-            logger.info("Sample load succeeded.  Moving fasta file to /completed directory")
+            logger.info(
+                "Sample load succeeded.  Moving fasta file to /completed directory"
+            )
             shutil.move(fastafile, completedir)
 
         # finished
