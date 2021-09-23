@@ -84,7 +84,7 @@ echo $SRVLOG
 echo $CLUSTLOG
 
 echo "Starting server with prespecified worker processes (remove --n_workers X from fn4_startup.sh to autopick number of workers)"
-pipenv run python3 fn4_configure.py $1 --startup --n_workers 8 > $LAUNCHSCRIPT
+pipenv run python3 fn4_configure.py $1 --startup --n_workers 24 > $LAUNCHSCRIPT
 chmod +x $LAUNCHSCRIPT
 
 echo "running $LAUNCHSCRIPT"
