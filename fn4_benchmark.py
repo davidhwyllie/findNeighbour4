@@ -46,7 +46,7 @@ async def fetch(session, url):
     Args:
         session ([aiohttp Client Session object]): [session object]
         url ([string]): [URL to query]
- 
+
     Returns:
         [list]: [response url, status and time taken]
 
@@ -192,7 +192,8 @@ if __name__ == "__main__":
     random_ordered = list(existing_guids)
     random.shuffle(random_ordered)
 
-    urls = {"exists": [], "neighbours": [], "server_time": []}
+    # constructs 80 requests of four different types, and send them to the server as fast as possible using asyncio
+    urls = {"exists": [], "neighbours": [], "server_time": [], "exact_distance": []}
     for i, guid in enumerate(random_ordered):
         # add urls; can choose what to use
         this_url = "{0}/api/v2/{1}/exists".format(server_url, guid)
@@ -202,28 +203,21 @@ if __name__ == "__main__":
         urls["server_time"].append(
             "{0}/api/v2/server_time".format(server_url)
         )  # no database access
-        # this_url = "{0}/api/v2/{1}/{2}/exact_distance".format(server_url, one_guid, guid)    # 2 database access needed + a
+        this_url = "{0}/api/v2/{1}/{2}/exact_distance".format(
+            server_url, one_guid, guid
+        )  # 2 database access needed + a
 
-        # .append(this_url)
+        urls["exact_distance"].append(this_url)
         if i > 20:
             break
-
-    # 8 workers
-    # 810,000 samples in database
-    # mongo
-    # 1.6msec per server time for 1000 requests
-    # 2.3msce per exists call for 1000 requests
-    # 4.1msec per pairwise comparison for 1000 requests
 
     # fire them at the server using asyncio
     print("Starting benchmarking")
     start_time = datetime.datetime.now()
     loop = asyncio.get_event_loop()
-    # loop.run_until_complete(main(urls))
-    # loop.run_until_complete(main([this_url]))
 
     dfs = []
-    for url_type in ["exists", "neighbours", "server_time"]:
+    for url_type in ["exists", "neighbours", "server_time", "exact_distance"]:
         print(url_type)
         results = {}
         loop.run_until_complete(main(urls[url_type]))
