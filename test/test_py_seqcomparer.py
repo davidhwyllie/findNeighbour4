@@ -13,6 +13,7 @@ by the Free Software Foundation.  See <https://opensource.org/licenses/MIT>, and
 """
 
 import unittest
+import json
 from Bio import SeqIO
 from findn.py_seqComparer import py_seqComparer
 
@@ -44,7 +45,82 @@ class test_py_seqComparer_51(unittest.TestCase):
 
         res = sc.mcompare(guids[0])  # defaults to sample size 30
         self.assertEqual(len(res), len(originals) - 1)
-        print("completed")
+
+
+class test_py_seqComparer_ec(unittest.TestCase):
+    """tests exact comparison"""
+
+    def runTest(self):
+        # generate compressed sequences
+        refSeq = "G" * 30000
+        sc = py_seqComparer(maxNs=1e8, reference=refSeq, snpCeiling=1000)
+
+        obj1 = json.loads(
+            """{
+        "A": [], 
+        "C": [], 
+        "G": [], 
+        "invalid": 0, 
+        "M": [], 
+        "N": [], 
+        "T": [], 
+        "U": []
+        }"""
+        )
+
+        obj2 = json.loads(
+            """{
+        "A": [], 
+        "C": [], 
+        "G": [
+        23402
+        ], 
+        "invalid": 0, 
+        "M": {}, 
+        "N": [
+        385, 
+        386, 
+        387, 
+        388, 
+        389, 
+        390, 
+        391, 
+        392, 
+        393, 
+        394
+        ], 
+        "T": [
+        28931, 
+        203, 
+        29644, 
+        6285, 
+        21613, 
+        240, 
+        19184, 
+        10448, 
+        22226, 
+        27768
+        ], 
+        "U": [
+        385, 
+        386, 
+        387, 
+        388, 
+        389, 
+        390, 
+        391, 
+        392, 
+        393, 
+        394
+        ]
+        }"""
+        )
+
+        sc.persist(obj1, "guid1")
+        sc.persist(obj2, "guid2")
+        dist = sc.compare("guid1", "guid2")
+
+        self.assertEqual(dist, 11)
 
 
 class test_py_seqComparer_49(unittest.TestCase):
@@ -244,7 +320,7 @@ class test_py_seqComparer_46b(unittest.TestCase):
 
         # analyse them all
         res = sc.estimate_expected_unk(sample_size=7, exclude_guids=[])
-        self.assertEqual(res, None)
+        self.assertEqual(res, 1)
 
         # analyse them all
         res = sc.estimate_expected_unk(sample_size=6, exclude_guids=[])

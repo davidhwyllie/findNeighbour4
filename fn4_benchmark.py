@@ -30,29 +30,59 @@ import logging
 import logging.handlers
 import argparse
 import pandas as pd
-import sentry_sdk
+import random
 import uuid
+import json
 from findn.common_utils import ConfigManager
 from fn4client import fn4Client
 import aiohttp
 import asyncio
-
-http_results = {}
+import time
 
 
 async def fetch(session, url):
-    async with session.get(url) as response:
-        return await response.text()
+    """[Coroutine to send HTTP request to URLs provided]
+
+    Args:
+        session ([aiohttp Client Session object]): [session object]
+        url ([string]): [URL to query]
+
+    Returns:
+        [list]: [response url, status and time taken]
+
+    https://stackoverflow.com/questions/64564373/python-asyncio-response-time
+
+    """
+    tic = time.perf_counter()  # Start timer
+    try:
+        response = await session.request(method="GET", url=url, timeout=10)
+        toc = time.perf_counter()  # Stop timer
+        time_taken = toc - tic  # Calculate time taken to get response
+        response.raise_for_status()
+        key = uuid.uuid4().hex
+
+        results[key] = {"url": url, "status": response.status, "time_taken": time_taken}
+
+        if "neighbours_within" in url:
+            txt = await response.text()
+            nneighbours = len(json.loads(txt))
+        else:
+            nneighbours = None
+        results[key]["nneighbours"] = nneighbours
+        return str(response.url), response.status, time_taken
+
+    except aiohttp.web.HTTPError as http_err:
+        logging.error(http_err)
+    except Exception as err:
+        raise
+        logging.error(err)
 
 
 async def main(urls):
+
     async with aiohttp.ClientSession() as session:
-        for url in urls:
-            http_response = await fetch(session, url)
-            token = uuid.uuid4().hex
-            http_results[token] = dict(
-                url=url, response=http_response, response_time=datetime.datetime.now()
-            )
+        htmls = await asyncio.gather(*[fetch(session, url) for url in urls])
+        return htmls
 
 
 ## define functions and classes
@@ -147,16 +177,6 @@ if __name__ == "__main__":
     logger.addHandler(file_handler)
     logger.info("Startup with arguments: {0}".format(args))
 
-    # launch comms with Sentry
-    if os.environ.get("FN_SENTRY_URL") is not None:
-        logger.info("Launching communication with Sentry bug-tracking service")
-        sentry_sdk.init(os.environ.get("FN_SENTRY_URL"))
-        logger.info("Sentry comms established")
-    else:
-        logger.info(
-            "No error monitoring via sentry.  Set environment variable FN_SENTRY_URL to do so."
-        )
-
     # instantiate client
     server_url = "http://localhost:{0}".format(CONFIG["REST_PORT"])
     fn4c = fn4Client(
@@ -167,37 +187,45 @@ if __name__ == "__main__":
     logger.info("There are {0} samples in the server".format(len(existing_guids)))
 
     # benchmarking snippet
-    one_guid = min(existing_guids)
-    urls = []
-    for i, guid in enumerate(fn4c.guids()):
-        # add urls; can choose what to use
-        #urls.append("{0}/api/v2/{1}/exists".format(server_url, guid)) # one database access
-        urls.append(
-            "{0}/api/v2/{1}/neighbours_within/4".format(server_url, guid)
-        )  # one database access
+    one_guid = max(existing_guids)
 
-        #urls.append("{0}/api/v2/server_time".format(server_url))  # no database access
-        # urls.append("{0}/api/v2/{1}/{2}/exact_distance".format(server_url, one_guid, guid))     # 2 database access needed + a
-        if i > 1000:
+    random_ordered = list(existing_guids)
+    random.shuffle(random_ordered)
+
+    # constructs 80 requests of four different types, and send them to the server as fast as possible using asyncio
+    urls = {"exists": [], "neighbours": [], "server_time": [], "exact_distance": []}
+    for i, guid in enumerate(random_ordered):
+        # add urls; can choose what to use
+        this_url = "{0}/api/v2/{1}/exists".format(server_url, guid)
+        urls["exists"].append(this_url)
+        this_url = "{0}/api/v2/{1}/neighbours_within/4".format(server_url, guid)
+        urls["neighbours"].append(this_url)
+        urls["server_time"].append(
+            "{0}/api/v2/server_time".format(server_url)
+        )  # no database access
+        this_url = "{0}/api/v2/{1}/{2}/exact_distance".format(
+            server_url, one_guid, guid
+        )  # 2 database access needed + a
+
+        urls["exact_distance"].append(this_url)
+        if i > 20:
             break
 
-    # 8 workers
-    # 810,000 samples in database
-    # 1.6msec per server time for 1000 requests
-    # 2.3msce per exists call for 1000 requests
-    # 4.1msec per pairwise comparison for 1000 requests
-
     # fire them at the server using asyncio
+    print("Starting benchmarking")
     start_time = datetime.datetime.now()
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(main(urls))
 
-    res = pd.DataFrame.from_dict(http_results, orient="index")
-    if len(res.index)>0:
-        res["start_time"] = start_time
-        res["delta"] = res["response_time"] - res["start_time"]
-        res["msec"] = [1000 * x.total_seconds() for x in res["delta"]]
-        print(res)
-    else:
-        print("No results")
-    logging.info("Finished, terminating program.")
+    dfs = []
+    for url_type in ["exists", "neighbours", "server_time", "exact_distance"]:
+        print(url_type)
+        results = {}
+        loop.run_until_complete(main(urls[url_type]))
+        for key in results.keys():
+            results[key]["url_type"] = url_type
+
+        dfs.append(pd.DataFrame.from_dict(results, orient="index"))
+    df = pd.concat(dfs)
+    outfile = os.path.join(completedir, "output.txt")
+    df.to_csv(outfile)
+    print("Data written to ", outfile)

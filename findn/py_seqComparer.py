@@ -96,6 +96,14 @@ class py_seqComparer:
         Compression relative to each other is carried out post-hoc in ram
         """
 
+        # loading from the database, the object may have lists not sets
+        for nucleotide in ["A", "C", "G", "T", "N", "U"]:
+            if nucleotide not in object.keys():
+                object[nucleotide] = set([])
+            else:
+                if isinstance(object[nucleotide], list):
+                    object[nucleotide] = set(object[nucleotide])
+
         # older databases don't store the M/N combination positions in the 'U' key
         # we create it on load into RAM
         if "U" not in object.keys():
@@ -440,14 +448,11 @@ class py_seqComparer:
             return nDiff
 
     def compare(self, key1, key2):
-        """ Provides an exact distance between two guids, guid1 and guid2
-        
-        Will raise KeyError if either guid does not exist. """
-       
-        return self.countDifferences(
-            self.seqProfile[key1], 
-            self.seqProfile[key2]
-        )
+        """Provides an exact distance between two guids, guid1 and guid2
+
+        Will raise KeyError if either guid does not exist."""
+
+        return self.countDifferences(self.seqProfile[key1], self.seqProfile[key2])
 
     def compressed_sequence_hash(self, compressed_sequence):
         """returns a string containing a hash of a compressed object.
