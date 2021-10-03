@@ -25,7 +25,7 @@ jobs:
     - uses: actions/checkout@v2
 
     - name: Setup Nim environment
-      uses: alaviss/setup-nim@0.1.1
-      with:
-        path: "nim"
-    - run: nimble test
+      run: |
+      wget https://nim-lang.org/download/nim-1.4.8-linux_x64.tar.xz
+      tar -xf nim-1.4.8-linux_x64.tar.xz
+      nim-1.4.8/bin/nimble --version
