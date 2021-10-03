@@ -26,6 +26,8 @@ jobs:
 
     - name: Setup Nim environment
       run: |
-      wget https://nim-lang.org/download/nim-1.4.8-linux_x64.tar.xz
-      tar -xf nim-1.4.8-linux_x64.tar.xz
-      nim-1.4.8/bin/nimble --version
+        mkdir external_software
+        cd external_software
+        wget https://nim-lang.org/download/nim-1.4.8-linux_x64.tar.xz
+        tar -xf nim-1.4.8-linux_x64.tar.xz
+        ./nim-1.4.8/bin/nimble --version
