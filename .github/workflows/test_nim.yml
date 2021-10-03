@@ -31,10 +31,17 @@ jobs:
         wget https://nim-lang.org/download/nim-1.4.8-linux_x64.tar.xz
         tar -xf nim-1.4.8-linux_x64.tar.xz
         ./nim-1.4.8/bin/nimble --version
+
+        # show what is on the path
+        sed 's/:/\n/g' <<< "$PATH"
+
         NIMDIR="`pwd`/nim-1.4.8/bin"
         echo "$NIMDIR"
-        echo "{NIMDIR}" >> $GITHUB_PATH
-        echo "$PATH"
+        echo "$NIMDIR" >> $GITHUB_PATH
+       
+        # show what is on the path
+        sed 's/:/\n/g' <<< "$PATH"
+
 
         # clone catwalk relatedness engine
         git clone https://gitea.mmmoxford.uk/dvolk/catwalk.git
