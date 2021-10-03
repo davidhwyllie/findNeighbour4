@@ -41,7 +41,7 @@ jobs:
         echo "$NIMDIR"
 
         echo "Appending to PATH"
-        echo "$NIMDIR" >> $GITHUB_PATH
+        echo "{NIMDIR}" >> $GITHUB_PATH
 
         echo "Updated path"       
         # show what is on the path
