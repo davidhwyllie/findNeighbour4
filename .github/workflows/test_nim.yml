@@ -25,8 +25,8 @@ jobs:
     - uses: actions/checkout@v2
 
     - name: Setup Nim environment
-      uses: iffy/install-nim@v3.2.0
+      uses: alaviss/setup-nim@0.1.1
       with:
         version: "1.4.0"
-    - run: nimble install -y
+        path: "nim"
     - run: nimble test
