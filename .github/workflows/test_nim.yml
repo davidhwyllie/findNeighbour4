@@ -30,6 +30,8 @@ jobs:
         cd external_software
         wget https://nim-lang.org/download/nim-1.4.8-linux_x64.tar.xz
         tar -xf nim-1.4.8-linux_x64.tar.xz
+
+        echo "Checking nimble works when absolute path applied"
         ./nim-1.4.8/bin/nimble --version
 
         # show what is on the path
@@ -40,6 +42,9 @@ jobs:
         echo "Nim directory:"
         echo "$NIMDIR"
 
+        echo "Checking nimble works when computed NIMDIR path applied"
+        ${NIMDIR}/nimble --version
+
         echo "Appending to PATH"
         echo "{NIMDIR}" >> $GITHUB_PATH
 
@@ -47,7 +52,7 @@ jobs:
         # show what is on the path
         sed 's/:/\n/g' <<< "$PATH"
 
-        # is nimble accessible
+        # is nimble accessible on path
         echo "Nimble version:"
         nimble --version
 
