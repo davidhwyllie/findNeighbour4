@@ -18,10 +18,12 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.8]
-        mongodb-version: [4.4.4]
+        python-version: ["3.8"]
+        mongodb-version: ["4.4.4"]
 
     steps:
     - name: Setup Nim environment
     - uses: jiro4989/setup-nim-action@v1.1.4
-
+      with:
+        nim-version: '1.4.0' # default is 'stable'
+    - run: nimble build -Y
