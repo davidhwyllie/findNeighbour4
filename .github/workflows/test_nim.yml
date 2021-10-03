@@ -27,6 +27,6 @@ jobs:
     - name: Setup Nim environment
       uses: alaviss/setup-nim@0.1.1
       with:
-        version: "1.4.0"
+        version: version-1-4"
         path: "nim"
     - run: nimble test
