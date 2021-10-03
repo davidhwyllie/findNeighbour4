@@ -16,10 +16,6 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.8"]
-        mongodb-version: ["4.4.4"]
 
     steps:
     - uses: actions/checkout@v2
@@ -31,7 +27,7 @@ jobs:
         wget https://nim-lang.org/download/nim-1.4.8-linux_x64.tar.xz
         tar -xf nim-1.4.8-linux_x64.tar.xz
 
-        echo "Checking nimble works when absolute path applied"
+        echo "Checking nimble works when relative path applied"
         ./nim-1.4.8/bin/nimble --version
 
         # show what is on the path
@@ -53,9 +49,8 @@ jobs:
         sed 's/:/\n/g' <<< "$PATH"
 
         # is nimble accessible on path
-        # no
-        #echo "Nimble version:"
-        #nimble --version
+        echo "Nimble version:"
+        nimble --version
 
         # clone catwalk relatedness engine
         git clone https://gitea.mmmoxford.uk/dvolk/catwalk.git
