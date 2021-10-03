@@ -31,12 +31,16 @@ jobs:
         wget https://nim-lang.org/download/nim-1.4.8-linux_x64.tar.xz
         tar -xf nim-1.4.8-linux_x64.tar.xz
         ./nim-1.4.8/bin/nimble --version
+        NIMDIR="`pwd`/nim-1.4.8/bin"
+        echo "$NIMDIR"
+        echo "{NIMDIR}" >> $GITHUB_PATH
+        echo "$PATH"
 
         # clone catwalk relatedness engine
         git clone https://gitea.mmmoxford.uk/dvolk/catwalk.git
         cd catwalk
         ../nim-1.4.8/bin/nimble -y build -d:release -d:danger -d:no_serialisation --nimbleDir:../nim-1.4.8/bin
-        
+
         # add path to executable to .env file 
         echo CW_BINARY_FILEPATH=\"`pwd`/cw_server\" > ../../.env
         # back to original directory
