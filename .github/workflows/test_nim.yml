@@ -11,9 +11,6 @@ on:
   push:
     branches:
     - '*'
-  pull_request:
-    branches:
-    - '*'
 
 jobs:
   build:
@@ -25,15 +22,6 @@ jobs:
         mongodb-version: [4.4.4]
 
     steps:
-      - uses: actions/checkout@v2
-      - name: Cache nimble
-        id: cache-nimble
-        uses: actions/cache@v1
-        with:
-          path: ~/.nimble
-          key: ${{ runner.os }}-nimble-${{ hashFiles('*.nimble') }}
-        if: runner.os != 'Windows'
-      - uses: jiro4989/setup-nim-action@v1
-      - run: nimble build -Y
-      - run: nimble test -Y
- 
+    - name: Setup Nim environment
+    - uses: jiro4989/setup-nim-action@v1.1.4
+
