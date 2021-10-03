@@ -1,0 +1,39 @@
+# This workflow will build the latest version of nim
+# and test catwalk
+
+name: Test catwalk with latest nim
+
+on: 
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: 'Test catwalk with latest nim'
+  push:
+    branches:
+    - '*'
+  pull_request:
+    branches:
+    - '*'
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.8]
+        mongodb-version: [4.4.4]
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Cache nimble
+        id: cache-nimble
+        uses: actions/cache@v1
+        with:
+          path: ~/.nimble
+          key: ${{ runner.os }}-nimble-${{ hashFiles('*.nimble') }}
+        if: runner.os != 'Windows'
+      - uses: jiro4989/setup-nim-action@v1
+      - run: nimble build -Y
+      - run: nimble test -Y
+ 
