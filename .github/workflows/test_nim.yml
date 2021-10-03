@@ -46,7 +46,7 @@ jobs:
         ${NIMDIR}/nimble --version
 
         echo "Appending to PATH"
-        echo "{NIMDIR}" >> $GITHUB_PATH
+        echo "$NIMDIR" >> $GITHUB_PATH
 
         echo "Updated path"       
         # show what is on the path
@@ -62,7 +62,7 @@ jobs:
         cd catwalk
 
         echo "Compiling with nimble"
-        ${NIMDIR}/nimble -y build -d:release -d:danger -d:no_serialisation 
+        nimble -y build -d:release -d:danger -d:no_serialisation 
 
         # add path to executable to .env file 
         echo CW_BINARY_FILEPATH=\"`pwd`/cw_server\" > ../../.env
