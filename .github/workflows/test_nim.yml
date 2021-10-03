@@ -47,9 +47,15 @@ jobs:
         # show what is on the path
         sed 's/:/\n/g' <<< "$PATH"
 
+        # is nimble accessible
+        echo "Nimble version:"
+        nimble --version
+
         # clone catwalk relatedness engine
         git clone https://gitea.mmmoxford.uk/dvolk/catwalk.git
         cd catwalk
+
+        echo "Compiling with nimble"
         nimble -y build -d:release -d:danger -d:no_serialisation 
 
         # add path to executable to .env file 
