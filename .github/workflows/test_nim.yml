@@ -22,6 +22,7 @@ jobs:
 
     - name: Setup Nim 
       run: |
+        ls
         mkdir external_software
         cd external_software
         wget https://nim-lang.org/download/nim-1.4.8-linux_x64.tar.xz
@@ -41,6 +42,7 @@ jobs:
     - name: clone catwalk
       run: |
         # clone catwalk relatedness engine
+        ls
         git clone https://gitea.mmmoxford.uk/dvolk/catwalk.git catwalk
         
     - name: compile catwalk
