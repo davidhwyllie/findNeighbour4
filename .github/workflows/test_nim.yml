@@ -43,24 +43,13 @@ jobs:
     - name: clone catwalk
       run: |
         # clone catwalk relatedness engine
+        cd external_software
         ls
         git clone https://gitea.mmmoxford.uk/dvolk/catwalk.git catwalk
         
     - name: compile catwalk
       run: |
-        cd catwalk
+        cd external_software/catwalk
         nimble -y build -d:release -d:danger -d:no_serialisation
-      
-    - name: add 
-      run: |
-        # add path to executable to .env file 
         echo CW_BINARY_FILEPATH=\"`pwd`/cw_server\" > ../../.env
-
-        # back to original directory
-        cd ../..
-
-    - name: Python interface to catwalk
-      run: |
-        pipenv run pytest test/test_pycw_client.py
-
-  
+      
