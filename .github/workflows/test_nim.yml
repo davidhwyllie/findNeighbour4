@@ -25,13 +25,10 @@ jobs:
 
         mkdir external_software
         cd external_software
-        ls
         wget https://nim-lang.org/download/nim-1.4.8-linux_x64.tar.xz
         tar -xf nim-1.4.8-linux_x64.tar.xz
-
         NIMDIR="`pwd`/nim-1.4.8/bin"
-
-        # Appending to PATH
+        # Append to PATH
         echo "$NIMDIR" >> $GITHUB_PATH
 
     - name: check nimble is available
@@ -44,7 +41,6 @@ jobs:
       run: |
         # clone catwalk relatedness engine
         cd external_software
-        ls
         git clone https://gitea.mmmoxford.uk/dvolk/catwalk.git catwalk
         
     - name: compile catwalk
@@ -53,3 +49,7 @@ jobs:
         nimble -y build -d:release -d:danger -d:no_serialisation
         echo CW_BINARY_FILEPATH=\"`pwd`/cw_server\" > ../../.env
       
+    - name: Test with pytest
+      run: |
+        pipenv run pytest test/test_pycw_client.py
+        
