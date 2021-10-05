@@ -23,6 +23,13 @@ echo "Terminating $pid"
 kill -9 $pid
 done
 
+# set version
+echo "Setting software version from git repo."
+VERSION=`python3 setup.py --version`
+rm version.py -f
+touch version.py
+echo "version = '$VERSION'" > version.py
+
 # startup the server
 echo "Starting test findNeighbour servers to run tests with; waiting 15 seconds to ensure it has started  .."
 echo "starting mongodb server with gunicorn and 1 workers.  Note you cannot run these unittests with > 1 workers"

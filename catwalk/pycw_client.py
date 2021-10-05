@@ -15,9 +15,6 @@ This program is free software: you can redistribute it and/or modify
 it under the terms of the MIT License as published
 by the Free Software Foundation.  See <https://opensource.org/licenses/MIT>, and the LICENSE file.
 
- 
-
-
 """
 
 import shlex
@@ -221,8 +218,10 @@ in either
         for key in refcomp.keys():
             if isinstance(refcomp[key], set):
                 refcompressed[key] = list(refcomp[key])
-            else:
+            elif isinstance(refcomp[key], list):
                 refcompressed[key] = refcomp[key]
+            else:
+                pass            # drop everything else, such as invalid
         payload = {"name": name, "refcomp": json.dumps(refcompressed), "keep": True}
 
         r = requests.post("{0}/add_sample_from_refcomp".format(self.cw_url), json=payload)

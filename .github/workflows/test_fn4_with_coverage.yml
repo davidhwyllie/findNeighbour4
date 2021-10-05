@@ -27,10 +27,12 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
@@ -59,20 +61,35 @@ jobs:
         # stop the build if there are Python syntax errors or undefined names
         pipenv run flake8 . --count --ignore=W293,E266,E302,E251,E225,E265,W291,E501,W503,C901 --show-source --max-complexity=200 --statistics
 
-    - name: Install catwalk
+    - name: Setup Nim 
+      run: |
+
+        mkdir external_software
+        cd external_software
+        wget https://nim-lang.org/download/nim-1.4.8-linux_x64.tar.xz
+        tar -xf nim-1.4.8-linux_x64.tar.xz
+        NIMDIR="`pwd`/nim-1.4.8/bin"
+        # Append to PATH
+        echo "$NIMDIR" >> $GITHUB_PATH
+
+    - name: check nimble is available
+      run: |
+        # check nimble is accessible on path
+        echo "Nimble version:"
+        nimble --version
+
+    - name: clone catwalk
       run: |
         # clone catwalk relatedness engine
-        mkdir external_software
-        sudo apt-get install nim
         cd external_software
-        git clone https://gitea.mmmoxford.uk/dvolk/catwalk.git
-        cd catwalk
+        git clone https://gitea.mmmoxford.uk/dvolk/catwalk.git catwalk
+        
+    - name: compile catwalk
+      run: |
+        cd external_software/catwalk
         nimble -y build -d:release -d:danger -d:no_serialisation
-        # add path to executable to .env file 
         echo CW_BINARY_FILEPATH=\"`pwd`/cw_server\" > ../../.env
-        # back to original directory
-        cd ../..
-
+      
     - name: Test with pytest
       run: |
         python3 setup.py --version

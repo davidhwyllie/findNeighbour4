@@ -89,14 +89,29 @@ Catwalk is an external component which is required by findneighbour4.
 Installation Example:
 
 ```
-mkdir external_software       # or wherever you want catwalk to go
-sudo apt-get install nim
+mkdir external_software
+
 cd external_software
+wget https://nim-lang.org/download/nim-1.4.8-linux_x64.tar.xz
+tar -xf nim-1.4.8-linux_x64.tar.xz
+
+NIMDIR="`pwd`/nim-1.4.8/bin"
+
+# Appending to PATH
+export PATH="$NIMDIR:$PATH"
+
+# check nimble is accessible on path
+echo "Nimble version:"
+nimble --version
+
+# clone catwalk relatedness engine
 git clone https://gitea.mmmoxford.uk/dvolk/catwalk.git
+
 cd catwalk
 nimble -y build -d:release -d:danger -d:no_serialisation
 # add path to executable to .env file 
 echo CW_BINARY_FILEPATH=\"`pwd`/cw_server\" > ../../.env
+
 ```
 
 .env file
