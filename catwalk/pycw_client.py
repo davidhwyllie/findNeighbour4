@@ -35,6 +35,13 @@ class CatWalkServerInsertError(Exception):
         self.expression = expression
         self.message = message
 
+class CatWalkServerDeleteError(Exception):
+    """ delete failed """
+
+    def __init__(self, expression, message):
+        self.expression = expression
+        self.message = message
+
 
 class CatWalkServerDidNotStartError(Exception):
     """ the catwalk server did not start """
@@ -200,6 +207,21 @@ in either
         r.raise_for_status()
         return r.json()
 
+    def _filter_refcomp(self, refcomp):
+        """ examines the keys in a dictionary, refcomp, and only lets through keys with a list
+        This will remove Ms (linked to a dictionary) and invalid keys which are linked to an integer.
+        These keys are not required by catwalk
+        """
+        refcompressed = {}
+        for key in refcomp.keys():
+            if isinstance(refcomp[key], set):
+                refcompressed[key] = list(refcomp[key])
+            elif isinstance(refcomp[key], list):
+                refcompressed[key] = refcomp[key]
+            else:
+                pass            # drop everything else, such as invalid
+        return refcompressed
+
     def add_sample_from_refcomp(self, name, refcomp):
         """
         Add a reference compressed (dict with ACGTN keys and list of positions as values) sample.
@@ -214,20 +236,52 @@ in either
 
         # note particular way of creating json, but catwalk accepts this (refcomp has to be in '')
         # cannot json serialise sets; use lists instead
-        refcompressed = {}
-        for key in refcomp.keys():
-            if isinstance(refcomp[key], set):
-                refcompressed[key] = list(refcomp[key])
-            elif isinstance(refcomp[key], list):
-                refcompressed[key] = refcomp[key]
-            else:
-                pass            # drop everything else, such as invalid
+        refcompressed = self._filter_refcomp(refcomp)
         payload = {"name": name, "refcomp": json.dumps(refcompressed), "keep": True}
 
         r = requests.post("{0}/add_sample_from_refcomp".format(self.cw_url), json=payload)
         r.raise_for_status()
         if r.status_code not in [200, 201]:
             raise CatWalkServerInsertError(message="Failed to insert {0}; return code was {1}".format(name, r.text))
+        return r.status_code
+    
+    def add_sample_from_refcomps(self, refcomps):
+        """
+        Add reference compressed sequences to the catwalk.
+        
+        refcomps is a dictionary of dictionaries.
+        The outer keys are sample names, and the values are dictionaries containing reference compressed sequences
+         (dict with ACGTN keys and list of positions as values) 
+        
+        Returns: 
+        status code
+        201 = added successfully
+        200 = was already present
+        """
+
+        if not isinstance(refcomps, dict):
+            raise TypeError("refcomps must be dict not {0}".format(type(refcomps)))
+
+        dict_to_submit = {}
+        for sequence_name in refcomps.keys():
+            dict_to_submit[sequence_name] = self._filter_refcomp(refcomps[sequence_name])
+
+        payload = json.dumps(dict_to_submit)
+        print(payload)
+
+        r = requests.post("{0}/add_sample_from_refcomp_array".format(self.cw_url), json=payload)
+        r.raise_for_status()
+        if r.status_code not in [201]:
+            raise CatWalkServerInsertError(message="Failed to insert {0}; return code was {1}".format(name, r.text))
+        return r.status_code
+
+    def remove_sample(self, name):
+        """ deletes a sample called name"""
+        
+        r = requests.get("{0}/remove_sample/{1}".format(self.cw_url, name))
+        r.raise_for_status()
+        if r.status_code not in [200]:
+            raise CatWalkServerDeleteError(message="Failed to delete {0}; return code was {1}".format(name, r.text))
         return r.status_code
 
     def neighbours(self, name, distance=None):
@@ -249,3 +303,4 @@ in either
         r = requests.get("{0}/list_samples".format(self.cw_url))
         r.raise_for_status()
         return r.json()
+

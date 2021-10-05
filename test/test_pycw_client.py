@@ -143,3 +143,73 @@ class test_cw_3(test_cw):
         self.assertEqual(
             set(self.cw.sample_names()), set(["guid1", "guid2"])
         )  # order doesn't matter
+
+
+class test_cw_4(test_cw):
+    """tests remove_sample"""
+
+    def runTest(self):
+
+        payload1 = {
+            "A": [1000, 1001, 1002],
+            "G": [],
+            "T": [],
+            "C": [],
+            "N": [20000, 20001, 20002],
+        }
+        payload2 = {
+            "A": [1003, 1004, 1005],
+            "G": [],
+            "T": [],
+            "C": [],
+            "N": [20000, 20001, 20002],
+        }
+        self.cw.add_sample_from_refcomp("guid1", payload1)
+        self.cw.add_sample_from_refcomp("guid2", payload2)
+
+        self.assertEqual(
+            set(self.cw.sample_names()), set(["guid1", "guid2"])
+        )  # order doesn't matter
+
+        self.cw.remove_sample('guid1')
+
+        self.assertEqual(
+            set(self.cw.sample_names()), set(["guid2"])
+        )  # order doesn't matter
+
+        self.cw.remove_sample('guid2')
+
+        self.assertEqual(
+            set(self.cw.sample_names()), set([])
+        )  # order doesn't matter
+
+
+class test_cw_5(test_cw):
+    """tests adding multiple samples at once"""
+
+    def runTest(self):
+
+        payload1 = {
+            "A": [1000, 1001, 1002],
+            "G": [],
+            "T": [],
+            "C": [],
+            "N": [20000, 20001, 20002],
+        }
+        payload2 = {
+            "A": [1003, 1004, 1005],
+            "G": [],
+            "T": [],
+            "C": [],
+            "N": [20000, 20001, 20002],
+        }
+
+        to_add = dict(guid1 = payload1, guid2 = payload2)
+        print(to_add)
+        self.cw.add_sample_from_refcomps(to_add)
+
+        self.assertEqual(
+            set(self.cw.sample_names()), set(["guid1", "guid2"])
+        )  # order doesn't matter
+
+      
