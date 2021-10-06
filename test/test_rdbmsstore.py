@@ -17,10 +17,12 @@ from findn.rdbmsstore import (
     BulkLoadTest,
     RDBMSError,
     RefCompressedSeq,
-    Config
+    Config,
 )
+
 # skip these tests if the NORDBMSTESTS variable exists
 rdbms_test = unittest.skipIf(os.environ.get("NO_RDBMS_TESTS", False), "No rdbms tests")
+
 
 @rdbms_test
 class Test_Database(unittest.TestCase):
@@ -63,7 +65,7 @@ class Test_Database(unittest.TestCase):
                 conn_detail = json.load(f)
                 for key in conn_detail.keys():
                     if key.startswith("unittest_ora"):
-                        self.engines[key] = key     # add it for testing
+                        self.engines[key] = key  # add it for testing
                         pass
 
         # define a sequence object for testing
@@ -178,7 +180,7 @@ class Test_oracle_bulk_upload_2(Test_Database):
 
 @rdbms_test
 class Test_Thread_Local_Session(Test_Database):
-    """ tests generation of a connection """
+    """tests generation of a connection"""
 
     def runTest(self):
         for pdm in self.pdms():
@@ -187,16 +189,16 @@ class Test_Thread_Local_Session(Test_Database):
             tls.query(Config).one_or_none()
             # should succeed
 
-            tls = pdm.thread_local_session(simulate_failure = 'once')
+            tls = pdm.thread_local_session(simulate_failure="once")
             # try it
             tls.query(Config).one_or_none()
             # should succeed, because a functional session will be generated even if the first one 'failed'
             # try it; should fail
 
             with self.assertRaises(RDBMSError):
-                pdm.thread_local_session(simulate_failure = 'always')
+                pdm.thread_local_session(simulate_failure="always")
 
-           
+
 @rdbms_test
 class Test_Server_Monitoring_0(Test_Database):
     """adds server monitoring info"""
@@ -671,7 +673,7 @@ class Test_SeqMeta_Base1(Test_Database):
                 pdm.refcompressedseq_store(
                     guid, self.seqobj
                 )  # try to add the last item again;
-                 
+
             n2 = 0
             res = set()
             for (x,) in tls.query(RefCompressedSeq.sequence_id).all():
@@ -781,22 +783,22 @@ class Test_SeqMeta_guid_added_after(Test_SeqMeta_Base1t):
 
     def runTest(self):
         for pdm in self.pdms():
-            
-            res = pdm.guids_added_after_sample('noguid')       # should be None
+
+            res = pdm.guids_added_after_sample("noguid")  # should be None
             self.assertIsNone(res)
 
-            res = pdm.guids_added_after_sample('guid4')       # should be empty set
+            res = pdm.guids_added_after_sample("guid4")  # should be empty set
             self.assertEqual(set([]), res)
 
+            res = pdm.guids_added_after_sample("guid1")  # should be empty set
+            self.assertEqual(set(["guid2", "guid3", "guid4"]), res)
 
-            res = pdm.guids_added_after_sample('guid1')       # should be empty set
-            self.assertEqual(set(['guid2','guid3','guid4']), res)
+            res = pdm.guids_added_after_sample("guid2")  # should be empty set
+            self.assertEqual(set(["guid3", "guid4"]), res)
 
-            res = pdm.guids_added_after_sample('guid2')       # should be empty set
-            self.assertEqual(set(['guid3','guid4']), res)
+            res = pdm.guids_added_after_sample("guid3")  # should be empty set
+            self.assertEqual(set(["guid4"]), res)
 
-            res = pdm.guids_added_after_sample('guid3')       # should be empty set
-            self.assertEqual(set(['guid4']), res)
 
 @rdbms_test
 class Test_SeqMeta_guid_considered_after(Test_SeqMeta_Base1t):
@@ -1216,27 +1218,27 @@ class Test_guid2items(Test_Database):
             )
             self.assertEqual(pdm.guid2item(["guid1"], "ns1", "datum"), {"guid1": 1})
 
+
 @rdbms_test
 class Test_lock(Test_Database):
-    """tests locking.  
-    
+    """tests locking.
+
     Note: does not test concurrent operations"""
 
     def runTest(self):
 
         for pdm in self.pdms():
 
-            self.assertTrue(pdm.unlock(1, force= True))
+            self.assertTrue(pdm.unlock(1, force=True))
             self.assertEqual(0, pdm.lock_status(1).lock_status)
-            self.assertTrue(pdm.unlock(0, force= True))
+            self.assertTrue(pdm.unlock(0, force=True))
             self.assertEqual(0, pdm.lock_status(0).lock_status)
 
-            self.assertTrue(pdm.lock(1))        # lock open; should succeed
+            self.assertTrue(pdm.lock(1))  # lock open; should succeed
             self.assertEqual(1, pdm.lock_status(1).lock_status)
-            self.assertTrue(pdm.lock(0))        # lock open; should succeed          
-            self.assertFalse(pdm.lock(1))        # lock closed; should fail         
+            self.assertTrue(pdm.lock(0))  # lock open; should succeed
+            self.assertFalse(pdm.lock(1))  # lock closed; should fail
             self.assertEqual(1, pdm.lock_status(1).lock_status)
-            
-            self.assertTrue(pdm.unlock(1))        # lock closed should succeed
+
+            self.assertTrue(pdm.unlock(1))  # lock closed should succeed
             self.assertEqual(0, pdm.lock_status(1).lock_status)
-            

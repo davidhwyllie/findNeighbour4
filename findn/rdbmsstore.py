@@ -99,6 +99,7 @@ class RDBMSError(Exception):
 
     pass
 
+
 ## define schema
 class BulkLoadTest(db_pc):
     """used only for testing bulk uploads as part of unit testing"""
@@ -1397,7 +1398,7 @@ class fn3persistence_r:
             .filter_by(sequence_id=guid)
             .one_or_none()
         )
-        if res is None:     # it doesn't exits
+        if res is None:  # it doesn't exits
             tls.add(
                 RefCompressedSeq(
                     sequence_id=guid,
@@ -1476,26 +1477,25 @@ class fn3persistence_r:
     def guids(self) -> Set[str]:
         """returns all registered guids"""
         return self.refcompressedsequence_guids()
-    
+
     def guids_added_after_sample(self, guid: str) -> Set[str]:
-        """ returns all guids added after a sample"""
+        """returns all guids added after a sample"""
         tls = self.thread_local_session()
         rcs = (
-                    tls.query(RefCompressedSeq.seq_int_id)
-                    .filter(RefCompressedSeq.sequence_id == guid)
-                    .one_or_none()
-                )
+            tls.query(RefCompressedSeq.seq_int_id)
+            .filter(RefCompressedSeq.sequence_id == guid)
+            .one_or_none()
+        )
         if rcs is None:
-            return None     # does not exist
-        
-        this_seq_int_id, = rcs      # the sequence int id of the sample
+            return None  # does not exist
+
+        (this_seq_int_id,) = rcs  # the sequence int id of the sample
         retVal = []
         for (guid,) in tls.query(RefCompressedSeq.sequence_id).filter(
             RefCompressedSeq.seq_int_id > this_seq_int_id
         ):
             retVal.append(guid)
         return set(retVal)
-
 
     def guids_considered_after(self, addition_datetime: datetime) -> Set[str]:
         """returns all registered guid added after addition_datetime

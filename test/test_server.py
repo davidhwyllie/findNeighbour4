@@ -974,7 +974,6 @@ class test_clusters_sample(unittest.TestCase):
         res = do_GET(relpath)
         guids_loaded = json.loads(res.content.decode("utf-8"))
         n_post = len(guids_loaded)
-        # print("*** GUIDS LOADED ", guids_loaded)
         self.assertEqual(n_pre + 1, n_post)
 
         relpath = "/api/v2/{0}/clusters".format(guid_to_insert)
@@ -2094,7 +2093,6 @@ class test_guids_added_after_sample(unittest.TestCase):
         guid_to_insert3 = "guid_{0}".format(n_pre + 3)
         guid_to_insert4 = "guid_{0}".format(n_pre + 4)
 
-
         relpath = "/api/v2/insert"
         res = do_POST(relpath, payload={"guid": guid_to_insert1, "seq": seq})
         self.assertEqual(res.status_code, 200)
@@ -2108,9 +2106,12 @@ class test_guids_added_after_sample(unittest.TestCase):
         relpath = "/api/v2/guids"
         res = do_GET(relpath)
         guids = json.loads(res.content.decode("utf-8"))  # get all the guids
-        self.assertEqual(set(guids), set([guid_to_insert1, guid_to_insert2, guid_to_insert3, guid_to_insert4]))
-   
-        relpath = "/api/v2/guids_added_after_sample/{0}".format('notthere')
+        self.assertEqual(
+            set(guids),
+            set([guid_to_insert1, guid_to_insert2, guid_to_insert3, guid_to_insert4]),
+        )
+
+        relpath = "/api/v2/guids_added_after_sample/{0}".format("notthere")
         res = do_GET(relpath)
         self.assertEqual(res.status_code, 404)
 
@@ -2118,7 +2119,9 @@ class test_guids_added_after_sample(unittest.TestCase):
         res = do_GET(relpath)
         self.assertEqual(res.status_code, 200)
         info = json.loads(res.content.decode("utf-8"))
-        self.assertEqual(set(info), set([guid_to_insert2, guid_to_insert3, guid_to_insert4]))
+        self.assertEqual(
+            set(info), set([guid_to_insert2, guid_to_insert3, guid_to_insert4])
+        )
 
         relpath = "/api/v2/guids_added_after_sample/{0}".format(guid_to_insert4)
         res = do_GET(relpath)

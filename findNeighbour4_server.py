@@ -40,7 +40,6 @@ by the Free Software Foundation.  See <https://opensource.org/licenses/MIT>, and
 
 # import libraries
 import os
-from unittest.signals import registerResult
 import requests
 import json
 import logging
