@@ -1708,7 +1708,7 @@ class fn3persistence:
         # recover the guids
         return {"guid": guid, "neighbours": retVal}
 
-    def _set_lock_status(self, lock_int_id, lock_status):
+    def _set_lock_status(self, lock_int_id, lock_status, sequence_id='-NotSpecified-'):
         """locks or unlocks resources identified by lock_int_id, allowing cross- process sequential processing (e.g. insertion)
 
         To lock, set lock_status =1 ; to unlock, set lock_status =0
@@ -1732,6 +1732,7 @@ class fn3persistence:
                 _id=lock_int_id,
                 lock_status=0,
                 lock_set_date=datetime.datetime.now(),
+                sequence_id = sequence_id,
                 uuid=uuid.uuid4().hex,
             )
             self.db.fnlock.insert_one(lock_row)
@@ -1756,12 +1757,15 @@ class fn3persistence:
             elif lock_row["lock_status"] == 0 and lock_status == 1:
                 # it's already unlocked, we can lock
                 lock_row["lock_status"] = 1
+                lock_row['sequence_id'] = sequence_id
                 lock_row["lock_set_date"] = datetime.datetime.now()
                 lock_row["uuid"] = uuid.uuid4().hex
+               
                 self.db.fnlock.replace_one({"_id": lock_int_id}, lock_row)
                 retval = True
 
             elif lock_row["lock_status"] == 1 and lock_status == 0:
+                lock_row['sequence_id'] = '-NotSpecified-'
                 lock_row["lock_status"] = 0
                 lock_row["lock_set_date"] = datetime.datetime.now()
                 lock_row["uuid"] = uuid.uuid4().hex
@@ -1782,17 +1786,18 @@ class fn3persistence:
 
         return self._set_lock_status(lock_int_id, None)
 
-    def lock(self, lock_int_id):
+    def lock(self, lock_int_id, sequence_id):
         """obtains a database-based lock.
 
         Parameters:
         lock_int_id: an integer identifier to the lock of interest
+        sequence_id: the id (typically guid) of the sequence being added.  Used if the inserting process crashes
 
         Returns:
         True if the lock is acquired
         False if it is not"""
 
-        return self._set_lock_status(lock_int_id, 1)
+        return self._set_lock_status(lock_int_id, 1, sequence_id)
 
     def unlock(self, lock_int_id, force=False):
         """obtains a database-based lock.

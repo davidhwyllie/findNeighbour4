@@ -1231,14 +1231,24 @@ class Test_lock(Test_Database):
 
             self.assertTrue(pdm.unlock(1, force=True))
             self.assertEqual(0, pdm.lock_status(1).lock_status)
+            self.assertEqual("-NotSpecified-", pdm.lock_status(1).sequence_id)
+
             self.assertTrue(pdm.unlock(0, force=True))
             self.assertEqual(0, pdm.lock_status(0).lock_status)
+            self.assertEqual("-NotSpecified-", pdm.lock_status(0).sequence_id)
 
-            self.assertTrue(pdm.lock(1))  # lock open; should succeed
-            self.assertEqual(1, pdm.lock_status(1).lock_status)
-            self.assertTrue(pdm.lock(0))  # lock open; should succeed
-            self.assertFalse(pdm.lock(1))  # lock closed; should fail
-            self.assertEqual(1, pdm.lock_status(1).lock_status)
+            self.assertTrue(pdm.lock(1, "guid1"))  # lock open; should succeed
+            res = pdm.lock_status(1)
+            self.assertEqual(1, res.lock_status)
+            self.assertEqual("guid1", res.sequence_id)
+
+            self.assertTrue(pdm.lock(0, "guid2"))  # lock open; should succeed
+            self.assertFalse(pdm.lock(1, "guid3"))  # lock closed; should fail
+
+            res = pdm.lock_status(1)
+            self.assertEqual(1, res.lock_status)
+            self.assertEqual("guid1", res.sequence_id)
 
             self.assertTrue(pdm.unlock(1))  # lock closed should succeed
             self.assertEqual(0, pdm.lock_status(1).lock_status)
+            self.assertEqual("-NotSpecified-", pdm.lock_status(1).sequence_id)

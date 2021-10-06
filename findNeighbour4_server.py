@@ -466,7 +466,7 @@ class findNeighbour4:
 
             # addition should be an atomic operation, in which all the component complete or do not complete.
             # we use a semaphore to do this.
-            if self.PERSIST.lock(1):  # true if an insert lock was acquired
+            if self.PERSIST.lock(1, guid):  # true if an insert lock was acquired
 
                 # if failure occurred, errors should be raised
                 try:
@@ -497,7 +497,8 @@ class findNeighbour4:
                 (i) a separate process is inserting data; 
                 in this case, retry later or 
                 (ii) if you are only inserting with one load script synchronously, it may reflect the lock being held because of an error or crash TBD. 
-                You can reset the lock as follows:  fn4_configure <path to config file> --drop_insert_semaphore"""
+                The findNeighbour4_lockmonitor should unlock it automatically in 90 seconds.  
+                If needed, you can reset the lock as follows:  fn4_configure <path to config file> --drop_insert_semaphore"""
                 logging.warning("An insert lock prevented insertion {0}".format(guid))
                 logging.info(info_msg)
                 return_status_code, return_text = 409, info_msg
