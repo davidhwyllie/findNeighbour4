@@ -1962,7 +1962,6 @@ class test_sequence_4(unittest.TestCase):
 
         relpath = "/api/v2/guids"
         res = do_GET(relpath)
-        # print(res)
         n_pre = len(json.loads(res.content.decode("utf-8")))  # get all the guids
 
         inputfile = "COMPASS_reference/R39/R00000039.fasta"
@@ -2070,3 +2069,65 @@ class test_nucleotides_excluded(unittest.TestCase):
         self.assertTrue(isinstance(resDict, dict))
         self.assertEqual(set(resDict.keys()), set(["exclusion_id", "excluded_nt"]))
         self.assertEqual(res.status_code, 200)
+
+
+class test_guids_added_after_sample(unittest.TestCase):
+    """tests route /api/v2/guids_added_after_sample"""
+
+    def runTest(self):
+
+        relpath = "/api/v2/reset"
+        res = do_POST(relpath, payload={})
+
+        relpath = "/api/v2/guids"
+        res = do_GET(relpath)
+        # print(res)
+        n_pre = len(json.loads(res.content.decode("utf-8")))  # get all the guids
+
+        inputfile = "COMPASS_reference/R39/R00000039.fasta"
+        with open(inputfile, "rt") as f:
+            for record in SeqIO.parse(f, "fasta"):
+                seq = str(record.seq)
+
+        guid_to_insert1 = "guid_{0}".format(n_pre + 1)
+        guid_to_insert2 = "guid_{0}".format(n_pre + 2)
+        guid_to_insert3 = "guid_{0}".format(n_pre + 3)
+        guid_to_insert4 = "guid_{0}".format(n_pre + 4)
+
+
+        relpath = "/api/v2/insert"
+        res = do_POST(relpath, payload={"guid": guid_to_insert1, "seq": seq})
+        self.assertEqual(res.status_code, 200)
+        res = do_POST(relpath, payload={"guid": guid_to_insert2, "seq": seq})
+        self.assertEqual(res.status_code, 200)
+        res = do_POST(relpath, payload={"guid": guid_to_insert3, "seq": seq})
+        self.assertEqual(res.status_code, 200)
+        res = do_POST(relpath, payload={"guid": guid_to_insert4, "seq": seq})
+        self.assertEqual(res.status_code, 200)
+
+        relpath = "/api/v2/guids"
+        res = do_GET(relpath)
+        guids = json.loads(res.content.decode("utf-8"))  # get all the guids
+        self.assertEqual(set(guids), set([guid_to_insert1, guid_to_insert2, guid_to_insert3, guid_to_insert4]))
+   
+        relpath = "/api/v2/guids_added_after_sample/{0}".format('notthere')
+        res = do_GET(relpath)
+        self.assertEqual(res.status_code, 404)
+
+        relpath = "/api/v2/guids_added_after_sample/{0}".format(guid_to_insert1)
+        res = do_GET(relpath)
+        self.assertEqual(res.status_code, 200)
+        info = json.loads(res.content.decode("utf-8"))
+        self.assertEqual(set(info), set([guid_to_insert2, guid_to_insert3, guid_to_insert4]))
+
+        relpath = "/api/v2/guids_added_after_sample/{0}".format(guid_to_insert4)
+        res = do_GET(relpath)
+        self.assertEqual(res.status_code, 200)
+        info = json.loads(res.content.decode("utf-8"))
+        self.assertEqual(info, [])
+
+        relpath = "/api/v2/guids_added_after_sample/{0}".format(guid_to_insert3)
+        res = do_GET(relpath)
+        self.assertEqual(res.status_code, 200)
+        info = json.loads(res.content.decode("utf-8"))
+        self.assertEqual(info, [guid_to_insert4])

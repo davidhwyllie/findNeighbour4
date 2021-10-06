@@ -40,6 +40,7 @@ by the Free Software Foundation.  See <https://opensource.org/licenses/MIT>, and
 
 # import libraries
 import os
+from unittest.signals import registerResult
 import requests
 import json
 import logging
@@ -693,6 +694,10 @@ class findNeighbour4:
             return []
         else:
             return list(rs.keys())
+
+    def guids_added_after_sample(self, guid):
+        res = self.PERSIST.guids_added_after_sample(guid)
+        return res
 
     def get_all_guids_examination_time(self):
         res = self.PERSIST.guid2ExaminationDateTime()
@@ -1548,11 +1553,24 @@ def create_app(config_file=None):
         """
         try:
             result = fn.gs.search(search_string=startstr, max_returned=max_returned)
-            app.logger.debug(result)
         except Exception as e:
             capture_exception(e)
             abort(500, e)
         return make_response(tojson(result))
+
+    @app.route("/api/v2/guids_added_after_sample/<string:guid>", methods=["GET"])
+    def get_guids_added_after_sample(guid):
+        """returns all guids added after guid.
+        If guid does not exist, returns 404
+        """
+        try:
+            result = fn.guids_added_after_sample(guid)
+        except Exception as e:
+            capture_exception(e)
+            abort(500, e)
+        if result is None:
+            abort(404, 'Sample {0} does not exist'.format(guid))
+        return make_response(tojson(list(result)))
 
     @app.route("/api/v2/annotations", methods=["GET"])
     def annotations(**kwargs):

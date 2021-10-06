@@ -854,7 +854,7 @@ class fn3persistence:
 
     def guids_added_after_sample(self, guid: str) -> Set[str]:
         """ returns all guids added after a sample"""
-
+        print("*** SEARCHING FOR ", guid)
         this_examination_time = self.guid_examination_time(guid)
         if this_examination_time is None:
             return None
@@ -871,6 +871,7 @@ class fn3persistence:
                     type(addition_datetime), addition_datetime
                 )
             )
+            
         retVal = [
             x["_id"]
             for x in self.db.guid2meta.find(
