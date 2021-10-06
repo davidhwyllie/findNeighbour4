@@ -24,7 +24,6 @@ it under the terms of the MIT License as published
 by the Free Software Foundation.  See <https://opensource.org/licenses/MIT>, and the LICENSE file.
 
  
-
 """
 import bson  # type: ignore
 from datetime import datetime, timedelta, date
@@ -99,7 +98,6 @@ class RDBMSError(Exception):
     """a general purpose error used by the rdbms module."""
 
     pass
-
 
 ## define schema
 class BulkLoadTest(db_pc):
@@ -1478,6 +1476,26 @@ class fn3persistence_r:
     def guids(self) -> Set[str]:
         """returns all registered guids"""
         return self.refcompressedsequence_guids()
+    
+    def guids_added_after_sample(self, guid: str) -> Set[str]:
+        """ returns all guids added after a sample"""
+        tls = self.thread_local_session()
+        rcs = (
+                    tls.query(RefCompressedSeq.seq_int_id)
+                    .filter(RefCompressedSeq.sequence_id == guid)
+                    .one_or_none()
+                )
+        if rcs is None:
+            return None     # does not exist
+        
+        this_seq_int_id, = rcs      # the sequence int id of the sample
+        retVal = []
+        for (guid,) in tls.query(RefCompressedSeq.sequence_id).filter(
+            RefCompressedSeq.seq_int_id > this_seq_int_id
+        ):
+            retVal.append(guid)
+        return set(retVal)
+
 
     def guids_considered_after(self, addition_datetime: datetime) -> Set[str]:
         """returns all registered guid added after addition_datetime

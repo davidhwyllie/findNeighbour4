@@ -1047,6 +1047,26 @@ class Test_SeqMeta_guid_considered_after(Test_SeqMeta_Base1t):
                 len(res2), 3 - i
             )  # with guid1, we expect three; with guid2, we expect 2; etc
 
+@mongo_test
+class Test_SeqMeta_guid_added_after(Test_SeqMeta_Base1t):
+    """recovering guids added after another guid;"""
+
+    def runTest(self):
+        res = self.t.guids_added_after_sample('noguid')       # should be None
+        self.assertIsNone(res)
+
+        res = self.t.guids_added_after_sample('guid4')       # should be empty set
+        self.assertEqual(set([]), res)
+
+        res = self.t.guids_added_after_sample('guid1')       # should be empty set
+        self.assertEqual(set(['guid2','guid3','guid4']), res)
+
+        res = self.t.guids_added_after_sample('guid2')       # should be empty set
+        self.assertEqual(set(['guid3','guid4']), res)
+
+        res = self.t.guids_added_after_sample('guid3')       # should be empty set
+        self.assertEqual(set(['guid4']), res)
+
 
 @mongo_test
 class Test_SeqMeta_propACTG_filteredSequenceGuids(Test_SeqMeta_Base1):

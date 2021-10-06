@@ -852,6 +852,15 @@ class fn3persistence:
         retVal = [x["_id"] for x in self.db.guid2meta.find({}, {"_id": 1})]
         return set(retVal)
 
+    def guids_added_after_sample(self, guid: str) -> Set[str]:
+        """ returns all guids added after a sample"""
+
+        this_examination_time = self.guid_examination_time(guid)
+        if this_examination_time is None:
+            return None
+
+        return self.guids_considered_after(addition_datetime = this_examination_time)
+
     def guids_considered_after(self, addition_datetime: datetime.datetime) -> Set[str]:
         """returns all registered guid added after addition_datetime
         addition_datetime: a date of datetime class."""
