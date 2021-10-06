@@ -78,7 +78,7 @@ A pipenv Pipfile is provided which specifies dependencies.  See also [here](depe
 
 ```
 cd /mydir/fn4       # or whatever you've installed into
-pipenv install --skip-lock -e .    # put fn4 packages in virtualenv; this is essential for effective imports
+pipenv install . -e --skip-lock   # put fn4 packages in virtualenv; this is essential for effective imports
 
 ```
 
