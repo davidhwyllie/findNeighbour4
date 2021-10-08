@@ -9,8 +9,8 @@ This program is free software: you can redistribute it and/or modify
 it under the terms of the MIT License as published
 by the Free Software Foundation.  See <https://opensource.org/licenses/MIT>, and the LICENSE file.
 
- 
 """
+
 # python3 code to compare fasta sequences
 import hashlib
 import json
