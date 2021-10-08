@@ -260,7 +260,7 @@ in either
         """
 
         # not currently implemented
-        raise NotImplemementedError("add_sample_to_refcomps endpoint is not currently implemented by the python client")
+        raise NotImplementedError("add_sample_to_refcomps endpoint is not currently implemented by the python client")   
 
         ## needs review when catwalk expected data structure is confirmed
         if not isinstance(refcomps, dict):
