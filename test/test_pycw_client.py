@@ -171,17 +171,16 @@ class test_cw_4(test_cw):
             set(self.cw.sample_names()), set(["guid1", "guid2"])
         )  # order doesn't matter
 
-        self.cw.remove_sample('guid1')
+        self.cw.remove_sample("guid1")
 
         self.assertEqual(
             set(self.cw.sample_names()), set(["guid2"])
         )  # order doesn't matter
 
-        self.cw.remove_sample('guid2')
+        self.cw.remove_sample("guid2")
 
-        self.assertEqual(
-            set(self.cw.sample_names()), set([])
-        )  # order doesn't matter
+        self.assertEqual(set(self.cw.sample_names()), set([]))  # order doesn't matter
+
 
 @unittest.skip("inputs not clearly specified; not yet implemented")
 class test_cw_5(test_cw):
@@ -204,12 +203,10 @@ class test_cw_5(test_cw):
             "N": [20000, 20001, 20002],
         }
 
-        to_add = dict(guid1 = payload1, guid2 = payload2)
+        to_add = dict(guid1=payload1, guid2=payload2)
         print(to_add)
         self.cw.add_sample_from_refcomps(to_add)
 
         self.assertEqual(
             set(self.cw.sample_names()), set(["guid1", "guid2"])
         )  # order doesn't matter
-
-      

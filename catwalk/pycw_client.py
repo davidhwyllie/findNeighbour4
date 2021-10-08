@@ -29,14 +29,15 @@ import warnings
 
 
 class CatWalkServerInsertError(Exception):
-    """ insert failed """
+    """insert failed"""
 
     def __init__(self, expression, message):
         self.expression = expression
         self.message = message
 
+
 class CatWalkServerDeleteError(Exception):
-    """ delete failed """
+    """delete failed"""
 
     def __init__(self, expression, message):
         self.expression = expression
@@ -44,7 +45,7 @@ class CatWalkServerDeleteError(Exception):
 
 
 class CatWalkServerDidNotStartError(Exception):
-    """ the catwalk server did not start """
+    """the catwalk server did not start"""
 
     def __init__(self, expression, message):
         self.expression = expression
@@ -52,7 +53,7 @@ class CatWalkServerDidNotStartError(Exception):
 
 
 class CatWalkBinaryNotAvailableError(Exception):
-    """ no catwalk binary """
+    """no catwalk binary"""
 
     def __init__(self, expression, message):
         self.expression = expression
@@ -60,7 +61,7 @@ class CatWalkBinaryNotAvailableError(Exception):
 
 
 class CatWalk:
-    """ start, stop, and communicate with a CatWalk server"""
+    """start, stop, and communicate with a CatWalk server"""
 
     def __init__(
         self,
@@ -108,15 +109,19 @@ in either
             if "CW_BINARY_FILEPATH" in os.environ:
                 cw_binary_filepath = os.environ["CW_BINARY_FILEPATH"]
             else:
-                raise CatWalkBinaryNotAvailableError(expression=None, message=no_catwalk_exe_message)
+                raise CatWalkBinaryNotAvailableError(
+                    expression=None, message=no_catwalk_exe_message
+                )
         if not os.path.exists(cw_binary_filepath):
             raise FileNotFoundError(
-                "Was provided a cw_binary_filepath, but there is no file there {0}".format(cw_binary_filepath)
+                "Was provided a cw_binary_filepath, but there is no file there {0}".format(
+                    cw_binary_filepath
+                )
             )
 
         # store parameters
         self.bind_host = bind_host
-        self.bind_port = int(bind_port)     # has to be an integer
+        self.bind_port = int(bind_port)  # has to be an integer
         self.cw_url = "http://{0}:{1}".format(bind_host, self.bind_port)
         self.cw_binary_filepath = cw_binary_filepath
         self.reference_filepath = reference_filepath
@@ -126,7 +131,9 @@ in either
         self.instance_stem = "CatWalk-PORT-{0}".format(self.bind_port)
         if identity_token is None:
             identity_token = str(uuid.uuid1())
-        self.instance_name = "{0}-SNV-{1}-{2}".format(self.instance_stem, self.max_distance, identity_token)
+        self.instance_name = "{0}-SNV-{1}-{2}".format(
+            self.instance_stem, self.max_distance, identity_token
+        )
 
         # start up if not running
         if unittesting and self.server_is_running():
@@ -139,7 +146,7 @@ in either
             raise CatWalkServerDidNotStartError()
 
     def server_is_running(self):
-        """ returns true if  response is received by the server, otherwise returns False """
+        """returns true if  response is received by the server, otherwise returns False"""
 
         try:
             self.info()
@@ -150,7 +157,7 @@ in either
             raise e  # something else when wrong
 
     def start(self):
-        """ starts a catwalk process in the background """
+        """starts a catwalk process in the background"""
         cw_binary_filepath = shlex.quote(self.cw_binary_filepath)
         instance_name = shlex.quote(self.instance_name)
         reference_filepath = shlex.quote(self.reference_filepath)
@@ -169,7 +176,7 @@ in either
             logging.info("Catwalk server running: {0}".format(info))
 
     def stop(self):
-        """ stops the catwalk server launched by this process, if running.  The process is identified by a uuid, so only one catwalk server will be shut down. """
+        """stops the catwalk server launched by this process, if running.  The process is identified by a uuid, so only one catwalk server will be shut down."""
         for proc in psutil.process_iter():
             if "cw_server" in proc.name():
                 cmdline_parts = proc.cmdline()
@@ -185,7 +192,7 @@ in either
             )
 
     def stop_all(self):
-        """ stops all catwalk servers """
+        """stops all catwalk servers"""
         nKilled = 0
         for proc in psutil.process_iter():
             if "cw_server" in proc.name():
@@ -208,7 +215,7 @@ in either
         return r.json()
 
     def _filter_refcomp(self, refcomp):
-        """ examines the keys in a dictionary, refcomp, and only lets through keys with a list
+        """examines the keys in a dictionary, refcomp, and only lets through keys with a list
         This will remove Ms (linked to a dictionary) and invalid keys which are linked to an integer.
         These keys are not required by catwalk
         """
@@ -219,7 +226,7 @@ in either
             elif isinstance(refcomp[key], list):
                 refcompressed[key] = refcomp[key]
             else:
-                pass            # drop everything else, such as invalid
+                pass  # drop everything else, such as invalid
         return refcompressed
 
     def add_sample_from_refcomp(self, name, refcomp):
@@ -228,7 +235,7 @@ in either
         Note, if the sample already exists, it will not be added twice.
         The json dict must have all keys: ACGTN, even if they're empty
 
-        Returns: 
+        Returns:
         status code
         201 = added successfully
         200 = was already present
@@ -239,28 +246,34 @@ in either
         refcompressed = self._filter_refcomp(refcomp)
         payload = {"name": name, "refcomp": json.dumps(refcompressed), "keep": True}
 
-        r = requests.post("{0}/add_sample_from_refcomp".format(self.cw_url), json=payload)
+        r = requests.post(
+            "{0}/add_sample_from_refcomp".format(self.cw_url), json=payload
+        )
         r.raise_for_status()
         if r.status_code not in [200, 201]:
-            raise CatWalkServerInsertError(message="Failed to insert {0}; return code was {1}".format(name, r.text))
+            raise CatWalkServerInsertError(
+                message="Failed to insert {0}; return code was {1}".format(name, r.text)
+            )
         return r.status_code
-    
+
     def add_sample_from_refcomps(self, refcomps):
         """
         Add reference compressed sequences to the catwalk.
-        
+
         refcomps is a dictionary of dictionaries.
         The outer keys are sample names, and the values are dictionaries containing reference compressed sequences
-         (dict with ACGTN keys and list of positions as values) 
-        
-        Returns: 
+         (dict with ACGTN keys and list of positions as values)
+
+        Returns:
         status code
         201 = added successfully
         200 = was already present
         """
 
         # not currently implemented
-        raise NotImplementedError("add_sample_to_refcomps endpoint is not currently implemented by the python client")   
+        raise NotImplementedError(
+            "add_sample_to_refcomps endpoint is not currently implemented by the python client"
+        )
 
         ## needs review when catwalk expected data structure is confirmed
         if not isinstance(refcomps, dict):
@@ -270,24 +283,30 @@ in either
         names_to_submit = []
         for sequence_name in refcomps.keys():
             names_to_submit.append(sequence_name)
-            dicts_to_submit.append( self._filter_refcomp(refcomps[sequence_name]))
+            dicts_to_submit.append(self._filter_refcomp(refcomps[sequence_name]))
 
         payload = json.dumps(dict(names=names_to_submit, refcomps=dicts_to_submit))
         print(payload)
 
-        r = requests.post("{0}/add_sample_from_refcomp_array".format(self.cw_url), json=payload)
+        r = requests.post(
+            "{0}/add_sample_from_refcomp_array".format(self.cw_url), json=payload
+        )
         r.raise_for_status()
         if r.status_code not in [201]:
-            raise CatWalkServerInsertError(message="Failed to insert {0}; return code was {1}".format(name, r.text))
+            raise CatWalkServerInsertError(
+                message="Failed to insert {0}; return code was {1}".format(sequence_name, r.text)
+            )
         return r.status_code
 
     def remove_sample(self, name):
-        """ deletes a sample called name"""
-        
+        """deletes a sample called name"""
+
         r = requests.get("{0}/remove_sample/{1}".format(self.cw_url, name))
         r.raise_for_status()
         if r.status_code not in [200]:
-            raise CatWalkServerDeleteError(message="Failed to delete {0}; return code was {1}".format(name, r.text))
+            raise CatWalkServerDeleteError(
+                message="Failed to delete {0}; return code was {1}".format(name, r.text)
+            )
         return r.status_code
 
     def neighbours(self, name, distance=None):
@@ -309,4 +328,4 @@ in either
         r = requests.get("{0}/list_samples".format(self.cw_url))
         r.raise_for_status()
         return r.json()
-
+        
