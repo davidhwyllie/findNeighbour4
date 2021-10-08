@@ -259,14 +259,20 @@ in either
         200 = was already present
         """
 
+        # not currently implemented
+        raise NotImplemementedError("add_sample_to_refcomps endpoint is not currently implemented by the python client")
+
+        ## needs review when catwalk expected data structure is confirmed
         if not isinstance(refcomps, dict):
             raise TypeError("refcomps must be dict not {0}".format(type(refcomps)))
 
-        dict_to_submit = {}
+        dicts_to_submit = []
+        names_to_submit = []
         for sequence_name in refcomps.keys():
-            dict_to_submit[sequence_name] = self._filter_refcomp(refcomps[sequence_name])
+            names_to_submit.append(sequence_name)
+            dicts_to_submit.append( self._filter_refcomp(refcomps[sequence_name]))
 
-        payload = json.dumps(dict_to_submit)
+        payload = json.dumps(dict(names=names_to_submit, refcomps=dicts_to_submit))
         print(payload)
 
         r = requests.post("{0}/add_sample_from_refcomp_array".format(self.cw_url), json=payload)
