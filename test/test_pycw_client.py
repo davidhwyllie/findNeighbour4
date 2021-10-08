@@ -181,6 +181,10 @@ class test_cw_4(test_cw):
 
         self.assertEqual(set(self.cw.sample_names()), set([]))  # order doesn't matter
 
+        # add guid2 again
+        self.cw.add_sample_from_refcomp("guid2", payload2)
+        self.assertEqual(set(self.cw.sample_names()), set(['guid2']))  # order doesn't matter
+
 
 @unittest.skip("inputs not clearly specified; not yet implemented")
 class test_cw_5(test_cw):
