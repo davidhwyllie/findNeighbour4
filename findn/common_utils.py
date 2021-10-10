@@ -150,7 +150,7 @@ class ConfigManager:
 
         returns: configuration dictionary
 
-        override_disable_debug_mode is required for unit testing of clustering, but should not otherwise be needed
+        not_debug_mode is required for unit testing of clustering and lockmanagement, but should not otherwise be needed
 
         """
 

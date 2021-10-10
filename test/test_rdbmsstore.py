@@ -1232,23 +1232,49 @@ class Test_lock(Test_Database):
             self.assertTrue(pdm.unlock(1, force=True))
             self.assertEqual(0, pdm.lock_status(1).lock_status)
             self.assertEqual("-NotSpecified-", pdm.lock_status(1).sequence_id)
+            res = pdm.lock_details(1)
+            self.assertIsNone(res)
 
             self.assertTrue(pdm.unlock(0, force=True))
             self.assertEqual(0, pdm.lock_status(0).lock_status)
             self.assertEqual("-NotSpecified-", pdm.lock_status(0).sequence_id)
 
-            self.assertTrue(pdm.lock(1, "guid1"))  # lock open; should succeed
+            res = pdm.lock_details(0)
+            self.assertIsNone(res)
+
+            self.assertTrue(pdm.lock(1, "guid1"))  # lock  should succeed
+            res = pdm.lock_status(1)
+            self.assertEqual(1, res.lock_status)
+            self.assertEqual("guid1", res.sequence_id)
+            res = pdm.lock_details(1)
+            self.assertEqual(res["sequence_id"], "guid1")
+            self.assertIsInstance(res["uuid"], str)
+            self.assertIsInstance(res["lock_set_date"], datetime.datetime)
+
+            self.assertTrue(pdm.lock(0, "guid2"))  # lock  should succeed
+
+            res = pdm.lock_details(0)
+            self.assertEqual(res["sequence_id"], "guid2")
+            self.assertIsInstance(res["uuid"], str)
+            self.assertIsInstance(res["lock_set_date"], datetime.datetime)
+
+            self.assertFalse(pdm.lock(1, "guid3"))  # lock should fail
+            res = pdm.lock_details(0)
+            self.assertEqual(res["sequence_id"], "guid2")
+            self.assertIsInstance(res["uuid"], str)
+            self.assertIsInstance(res["lock_set_date"], datetime.datetime)
+
             res = pdm.lock_status(1)
             self.assertEqual(1, res.lock_status)
             self.assertEqual("guid1", res.sequence_id)
 
-            self.assertTrue(pdm.lock(0, "guid2"))  # lock open; should succeed
-            self.assertFalse(pdm.lock(1, "guid3"))  # lock closed; should fail
+            res = pdm.lock_details(1)
+            self.assertEqual(res["sequence_id"], "guid1")
+            self.assertIsInstance(res["uuid"], str)
+            self.assertIsInstance(res["lock_set_date"], datetime.datetime)
 
-            res = pdm.lock_status(1)
-            self.assertEqual(1, res.lock_status)
-            self.assertEqual("guid1", res.sequence_id)
-
-            self.assertTrue(pdm.unlock(1))  # lock closed should succeed
+            self.assertTrue(pdm.unlock(1))  # lock should succeed
             self.assertEqual(0, pdm.lock_status(1).lock_status)
             self.assertEqual("-NotSpecified-", pdm.lock_status(1).sequence_id)
+            res = pdm.lock_details(1)
+            self.assertIsNone(res)

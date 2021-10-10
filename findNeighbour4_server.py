@@ -468,7 +468,7 @@ class findNeighbour4:
             # we use a semaphore to do this.
             if self.PERSIST.lock(1, guid):  # true if an insert lock was acquired
 
-                # if failure occurred, errors should be raised
+                # if failure occurs, errors should be raised
                 try:
                     self.hc.persist(
                         refcompressedsequence,

@@ -1717,7 +1717,12 @@ class fn3persistence:
         See the acquire_lock() method for more details
 
         returns:
+
+        If lock_status is either 1 or 0:
         True if update succeeded, false if it did not
+
+        If lock_status is None:
+        the lock row, as a dictionary
 
         Technical notes:
         https://www.mongodb.com/blog/post/how-to-select--for-update-inside-mongodb-transactions
@@ -1746,7 +1751,7 @@ class fn3persistence:
             if lock_status is None:
                 retval = lock_row
 
-            if lock_row["lock_status"] == 0 and lock_status == 0:
+            elif lock_row["lock_status"] == 0 and lock_status == 0:
                 # it's already unlocked
                 retval = True
 
@@ -1774,6 +1779,25 @@ class fn3persistence:
 
             return retval
 
+    def lock_details(self, lock_int_id):
+        """ returns details of the lock as a dictionary 
+
+        Parameters:
+        lock_int_id: an integer identifier to the lock of interest
+
+        Returns:
+        None if there is no lock, 
+        or a dictionary containing details of the lock held including sequence_id, lock_status, lock_set_date, and uuid """ 
+        res = self.lock_status(lock_int_id)
+
+        if res['lock_status'] == 0:     # no lock held
+            return None
+        else:
+            return dict(
+                sequence_id = res['sequence_id'],
+                lock_set_date = res['lock_set_date'],
+                uuid = res['uuid'])
+
     def lock_status(self, lock_int_id):
         """determine whether a database-based lock is open (0) or closed (1).
 
@@ -1781,8 +1805,7 @@ class fn3persistence:
         lock_int_id: an integer identifier to the lock of interest
 
         Returns:
-        0 if the lock is open
-        1 if it is locked"""
+        a dictionary containing details of the lock """
 
         return self._set_lock_status(lock_int_id, None)
 

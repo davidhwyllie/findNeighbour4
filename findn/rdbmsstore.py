@@ -1862,7 +1862,7 @@ class fn3persistence_r:
             ],
         }
 
-    def _set_lock_status(self, lock_int_id, lock_status, sequence_id='-NotSpecified-'):
+    def _set_lock_status(self, lock_int_id, lock_status, sequence_id="-NotSpecified-"):
         """locks or unlocks resources identified by lock_int_id, allowing cross- process sequential processing (e.g. insertion)
 
         To lock, set lock_status =1 ; to unlock, set lock_status =0
@@ -1871,7 +1871,12 @@ class fn3persistence_r:
         See the acquire_lock() method for more details
 
         returns:
+
+        If lock_status is either 1 or 0:
         True if update succeeded, false if it did not
+
+        If lock_status is None:
+        the lock row, as an Sqlalchemy object, from which field values can be accessed by dot notation, e.g. retVal.lock_set_date, or retVal.lock_status
 
         Technical notes:
         https://docs.sqlalchemy.org/en/14/orm/session_transaction.html
@@ -1890,7 +1895,7 @@ class fn3persistence_r:
             lock_row = FNLock(
                 lock_int_id=lock_int_id,
                 lock_status=0,
-                sequence_id = sequence_id,
+                sequence_id=sequence_id,
                 lock_set_date=datetime.now(),
                 uuid=uuid.uuid4().hex,
             )
@@ -1907,7 +1912,7 @@ class fn3persistence_r:
         if lock_status is None:
             retval = lock_row
 
-        if lock_row.lock_status == 0 and lock_status == 0:
+        elif lock_row.lock_status == 0 and lock_status == 0:
             # it's already unlocked
             retval = True
 
@@ -1927,12 +1932,32 @@ class fn3persistence_r:
             # it's already locked, we can unlock
             lock_row.lock_status = 0
             lock_row.lock_set_date = datetime.now()
-            lock_row.sequence_id = '-NotSpecified-'
+            lock_row.sequence_id = "-NotSpecified-"
             lock_row.uuid = uuid.uuid4().hex
             retval = True
 
         tls.commit()
         return retval
+
+    def lock_details(self, lock_int_id):
+        """returns details of the lock as a dictionary
+
+        Parameters:
+        lock_int_id: an integer identifier to the lock of interest
+
+        Returns:
+        None if there is no lock,
+        or a dictionary containing details of the lock held including sequence_id, lock_status, lock_set_date, and uuid"""
+        res = self.lock_status(lock_int_id)
+
+        if res.lock_status == 0:
+            return None
+        else:
+            return dict(
+                sequence_id=res.sequence_id,
+                lock_set_date=res.lock_set_date,
+                uuid=res.uuid,
+            )
 
     def lock_status(self, lock_int_id):
         """determine whether a database-based lock is open (0) or closed (1).
@@ -1941,8 +1966,7 @@ class fn3persistence_r:
         lock_int_id: an integer identifier to the lock of interest
 
         Returns:
-        0 if the lock is open
-        1 if it is locked"""
+        a sqlalchemy object containing the lock row"""
 
         return self._set_lock_status(lock_int_id, None)
 

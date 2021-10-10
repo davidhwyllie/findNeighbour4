@@ -91,6 +91,10 @@ echo "running $LAUNCHSCRIPT"
 ./$LAUNCHSCRIPT $1 > $SRVLOG 
 
 sleep 5
+echo "Starting lockmanager"
+nohup pipenv run python3 findNeighbour4_lockmanager.py $1 --max_run_time 90 > $MANLOG &
+
+sleep 5
 echo "Starting dbmanager instance 1"
 nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset 01 $1 > $MANLOG &
 sleep 5
