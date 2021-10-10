@@ -16,12 +16,18 @@ import unittest
 from findn.common_utils import ConfigManager
 
 class test_lockmanager_1(unittest.TestCase):
-    """tests whether the lockmanager runa"""
+    """tests whether the lockmanager runs when no lock is in place"""
 
     def runTest(self):
 
-        # run the clustering engine.
+        # run the lockmonitor
         config_file = os.path.join("config", "default_test_config.json")
+
+        # empty everything out
+        cfm = ConfigManager(config_file)
+        cfm.read_config()
+
+        # start test
         cfm = ConfigManager(config_file)
         cfm.read_config(not_debug_mode=True)
 
@@ -42,12 +48,17 @@ class test_lockmanager_1(unittest.TestCase):
 
 
 class test_lockmanager_2(unittest.TestCase):
-    """tests whether the lockmanager runa"""
+    """tests whether the lockmanager runs and releases a lock running lock"""
 
     def runTest(self):
 
-        # run the clustering engine.
+        # run the lock monitor
         config_file = os.path.join("config", "default_test_config.json")
+
+        # empty everything out
+        cfm = ConfigManager(config_file)
+        cfm.read_config()
+
         cfm = ConfigManager(config_file)
         cfm.read_config(not_debug_mode=True)
 

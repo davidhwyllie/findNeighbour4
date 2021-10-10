@@ -243,6 +243,10 @@ in either
 
         # note particular way of creating json, but catwalk accepts this (refcomp has to be in '')
         # cannot json serialise sets; use lists instead
+        if refcomp is None:
+            # issue warning, return
+            logging.warning("Asked to reload catwalk with {0} but the refcomp was None".format(name))
+            
         refcompressed = self._filter_refcomp(refcomp)
         payload = {"name": name, "refcomp": json.dumps(refcompressed), "keep": True}
 
