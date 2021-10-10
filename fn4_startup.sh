@@ -92,7 +92,7 @@ echo "running $LAUNCHSCRIPT"
 
 sleep 5
 echo "Starting lockmanager"
-nohup pipenv run python3 findNeighbour4_lockmanager.py $1 --max_run_time 90 > $MANLOG &
+nohup pipenv run python3 findNeighbour4_lockmanager.py --path_to_config_file $1 --max_run_time 90 > $MANLOG &
 
 sleep 5
 echo "Starting dbmanager instance 1"
