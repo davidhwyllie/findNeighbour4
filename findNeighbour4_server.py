@@ -270,7 +270,11 @@ class findNeighbour4:
 
         # load catwalk and in-ram searchable data assets
         self.gs = guidDbSearcher(PERSIST=PERSIST, recheck_interval_seconds=60)
+
+        logging.info("Prepopulating catwalk")
         self.prepopulate_catwalk()
+
+        logging.info("Prepopulating clustering")
         self.prepopulate_clustering()
 
         # log database state
@@ -280,12 +284,15 @@ class findNeighbour4:
         )
 
         # set up an in-RAM only precomparer for use by pairwise comparisons.  There is no SNP ceiling
+        
         self.sc = py_seqComparer(
             reference=self.reference,
             excludePositions=self.excludePositions,
             snpCeiling=1e9,
             maxNs=self.maxNs,
         )
+
+        logging.info("fn4 server Initialisation complete")
 
     def pairwise_comparison(self, guid1, guid2):
         """compares two sequences which have already been stored
@@ -805,6 +812,7 @@ def create_app(config_file=None):
         To test the server, edit the config/default_test_config_rdbms.json file's "FNPERSISTENCE_CONNSTRING": connection string to
         point to an suitable database.  For more details of how to do this, see installation instructions on github."""
         )
+    
     # instantiate server class
     try:
         fn = findNeighbour4(CONFIG, PERSIST)
