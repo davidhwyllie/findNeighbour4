@@ -24,7 +24,6 @@ it under the terms of the MIT License as published
 by the Free Software Foundation.  See <https://opensource.org/licenses/MIT>, and the LICENSE file.
 
  
-
 """
 import bson  # type: ignore
 from datetime import datetime, timedelta, date
@@ -119,6 +118,10 @@ class FNLock(db_pc):
         Integer,
         primary_key=True,
         comment="an integer reflecting the kind of lock studied",
+    )
+    sequence_id = Column(
+        String(38),
+        comment="the sample_id represented by the entry; sample_ids are typically guids",
     )
     lock_set_date = Column(
         TIMESTAMP, index=True, comment="the date and time the lock was modified"
@@ -1399,7 +1402,7 @@ class fn3persistence_r:
             .filter_by(sequence_id=guid)
             .one_or_none()
         )
-        if res is None:     # it doesn't exits
+        if res is None:  # it doesn't exits
             tls.add(
                 RefCompressedSeq(
                     sequence_id=guid,
@@ -1478,6 +1481,25 @@ class fn3persistence_r:
     def guids(self) -> Set[str]:
         """returns all registered guids"""
         return self.refcompressedsequence_guids()
+
+    def guids_added_after_sample(self, guid: str) -> Set[str]:
+        """returns all guids added after a sample"""
+        tls = self.thread_local_session()
+        rcs = (
+            tls.query(RefCompressedSeq.seq_int_id)
+            .filter(RefCompressedSeq.sequence_id == guid)
+            .one_or_none()
+        )
+        if rcs is None:
+            return None  # does not exist
+
+        (this_seq_int_id,) = rcs  # the sequence int id of the sample
+        retVal = []
+        for (guid,) in tls.query(RefCompressedSeq.sequence_id).filter(
+            RefCompressedSeq.seq_int_id > this_seq_int_id
+        ):
+            retVal.append(guid)
+        return set(retVal)
 
     def guids_considered_after(self, addition_datetime: datetime) -> Set[str]:
         """returns all registered guid added after addition_datetime
@@ -1840,7 +1862,7 @@ class fn3persistence_r:
             ],
         }
 
-    def _set_lock_status(self, lock_int_id, lock_status):
+    def _set_lock_status(self, lock_int_id, lock_status, sequence_id="-NotSpecified-"):
         """locks or unlocks resources identified by lock_int_id, allowing cross- process sequential processing (e.g. insertion)
 
         To lock, set lock_status =1 ; to unlock, set lock_status =0
@@ -1849,7 +1871,12 @@ class fn3persistence_r:
         See the acquire_lock() method for more details
 
         returns:
+
+        If lock_status is either 1 or 0:
         True if update succeeded, false if it did not
+
+        If lock_status is None:
+        the lock row, as an Sqlalchemy object, from which field values can be accessed by dot notation, e.g. retVal.lock_set_date, or retVal.lock_status
 
         Technical notes:
         https://docs.sqlalchemy.org/en/14/orm/session_transaction.html
@@ -1868,6 +1895,7 @@ class fn3persistence_r:
             lock_row = FNLock(
                 lock_int_id=lock_int_id,
                 lock_status=0,
+                sequence_id=sequence_id,
                 lock_set_date=datetime.now(),
                 uuid=uuid.uuid4().hex,
             )
@@ -1884,7 +1912,7 @@ class fn3persistence_r:
         if lock_status is None:
             retval = lock_row
 
-        if lock_row.lock_status == 0 and lock_status == 0:
+        elif lock_row.lock_status == 0 and lock_status == 0:
             # it's already unlocked
             retval = True
 
@@ -1896,6 +1924,7 @@ class fn3persistence_r:
             # it's already unlocked, we can lock
             lock_row.lock_status = 1
             lock_row.lock_set_date = datetime.now()
+            lock_row.sequence_id = sequence_id
             lock_row.uuid = uuid.uuid4().hex
             retval = True
 
@@ -1903,11 +1932,32 @@ class fn3persistence_r:
             # it's already locked, we can unlock
             lock_row.lock_status = 0
             lock_row.lock_set_date = datetime.now()
+            lock_row.sequence_id = "-NotSpecified-"
             lock_row.uuid = uuid.uuid4().hex
             retval = True
 
         tls.commit()
         return retval
+
+    def lock_details(self, lock_int_id):
+        """returns details of the lock as a dictionary
+
+        Parameters:
+        lock_int_id: an integer identifier to the lock of interest
+
+        Returns:
+        None if there is no lock,
+        or a dictionary containing details of the lock held including sequence_id, lock_status, lock_set_date, and uuid"""
+        res = self.lock_status(lock_int_id)
+
+        if res.lock_status == 0:
+            return None
+        else:
+            return dict(
+                sequence_id=res.sequence_id,
+                lock_set_date=res.lock_set_date,
+                uuid=res.uuid,
+            )
 
     def lock_status(self, lock_int_id):
         """determine whether a database-based lock is open (0) or closed (1).
@@ -1916,22 +1966,22 @@ class fn3persistence_r:
         lock_int_id: an integer identifier to the lock of interest
 
         Returns:
-        0 if the lock is open
-        1 if it is locked"""
+        a sqlalchemy object containing the lock row"""
 
         return self._set_lock_status(lock_int_id, None)
 
-    def lock(self, lock_int_id):
+    def lock(self, lock_int_id, sequence_id):
         """obtains a database-based lock.
 
         Parameters:
         lock_int_id: an integer identifier to the lock of interest
+        sequence_id: the id (typically guid) of the sequence being added.  Used if the inserting process crashes
 
         Returns:
         True if the lock is acquired
         False if it is not"""
 
-        return self._set_lock_status(lock_int_id, 1)
+        return self._set_lock_status(lock_int_id, 1, sequence_id)
 
     def unlock(self, lock_int_id, force=False):
         """obtains a database-based lock.

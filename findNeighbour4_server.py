@@ -270,7 +270,11 @@ class findNeighbour4:
 
         # load catwalk and in-ram searchable data assets
         self.gs = guidDbSearcher(PERSIST=PERSIST, recheck_interval_seconds=60)
+
+        logging.info("Prepopulating catwalk")
         self.prepopulate_catwalk()
+
+        logging.info("Prepopulating clustering")
         self.prepopulate_clustering()
 
         # log database state
@@ -280,12 +284,15 @@ class findNeighbour4:
         )
 
         # set up an in-RAM only precomparer for use by pairwise comparisons.  There is no SNP ceiling
+        
         self.sc = py_seqComparer(
             reference=self.reference,
             excludePositions=self.excludePositions,
             snpCeiling=1e9,
             maxNs=self.maxNs,
         )
+
+        logging.info("fn4 server Initialisation complete")
 
     def pairwise_comparison(self, guid1, guid2):
         """compares two sequences which have already been stored
@@ -466,9 +473,9 @@ class findNeighbour4:
 
             # addition should be an atomic operation, in which all the component complete or do not complete.
             # we use a semaphore to do this.
-            if self.PERSIST.lock(1):  # true if an insert lock was acquired
+            if self.PERSIST.lock(1, guid):  # true if an insert lock was acquired
 
-                # if failure occurred, errors should be raised
+                # if failure occurs, errors should be raised
                 try:
                     self.hc.persist(
                         refcompressedsequence,
@@ -497,7 +504,8 @@ class findNeighbour4:
                 (i) a separate process is inserting data; 
                 in this case, retry later or 
                 (ii) if you are only inserting with one load script synchronously, it may reflect the lock being held because of an error or crash TBD. 
-                You can reset the lock as follows:  fn4_configure <path to config file> --drop_insert_semaphore"""
+                The findNeighbour4_lockmonitor should unlock it automatically in 90 seconds.  
+                If needed, you can reset the lock as follows:  fn4_configure <path to config file> --drop_insert_semaphore"""
                 logging.warning("An insert lock prevented insertion {0}".format(guid))
                 logging.info(info_msg)
                 return_status_code, return_text = 409, info_msg
@@ -694,6 +702,10 @@ class findNeighbour4:
         else:
             return list(rs.keys())
 
+    def guids_added_after_sample(self, guid):
+        res = self.PERSIST.guids_added_after_sample(guid)
+        return res
+
     def get_all_guids_examination_time(self):
         res = self.PERSIST.guid2ExaminationDateTime()
         # isoformat all the keys, as times are not json serialisable
@@ -800,6 +812,7 @@ def create_app(config_file=None):
         To test the server, edit the config/default_test_config_rdbms.json file's "FNPERSISTENCE_CONNSTRING": connection string to
         point to an suitable database.  For more details of how to do this, see installation instructions on github."""
         )
+    
     # instantiate server class
     try:
         fn = findNeighbour4(CONFIG, PERSIST)
@@ -1548,11 +1561,24 @@ def create_app(config_file=None):
         """
         try:
             result = fn.gs.search(search_string=startstr, max_returned=max_returned)
-            app.logger.debug(result)
         except Exception as e:
             capture_exception(e)
             abort(500, e)
         return make_response(tojson(result))
+
+    @app.route("/api/v2/guids_added_after_sample/<string:guid>", methods=["GET"])
+    def get_guids_added_after_sample(guid):
+        """returns all guids added after guid.
+        If guid does not exist, returns 404
+        """
+        try:
+            result = fn.guids_added_after_sample(guid)
+        except Exception as e:
+            capture_exception(e)
+            abort(500, e)
+        if result is None:
+            abort(404, 'Sample {0} does not exist'.format(guid))
+        return make_response(tojson(list(result)))
 
     @app.route("/api/v2/annotations", methods=["GET"])
     def annotations(**kwargs):

@@ -84,11 +84,15 @@ echo $SRVLOG
 echo $CLUSTLOG
 
 echo "Starting server with prespecified worker processes (remove --n_workers X from fn4_startup.sh to autopick number of workers)"
-pipenv run python3 fn4_configure.py $1 --startup --n_workers 24 > $LAUNCHSCRIPT
+pipenv run python3 fn4_configure.py $1 --startup --n_workers 8 > $LAUNCHSCRIPT
 chmod +x $LAUNCHSCRIPT
 
 echo "running $LAUNCHSCRIPT"
 ./$LAUNCHSCRIPT $1 > $SRVLOG 
+
+sleep 5
+echo "Starting lockmanager"
+nohup pipenv run python3 findNeighbour4_lockmanager.py --path_to_config_file $1 --max_run_time 90 > $MANLOG &
 
 sleep 5
 echo "Starting dbmanager instance 1"

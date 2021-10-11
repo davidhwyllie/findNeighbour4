@@ -6,6 +6,7 @@ import pymongo  # type: ignore
 import os
 import pandas as pd  # type: ignore
 import pickle
+import datetime
 from findn.NucleicAcid import NucleicAcid
 
 from findn.mongoStore import fn3persistence
@@ -689,9 +690,9 @@ class Test_SeqMeta_guid_valid_1(unittest.TestCase):
         self.assertEqual(res, -1)
 
         valid_guids = p.guids_valid()
-        self.assertEqual(valid_guids, set(['valid']))
+        self.assertEqual(valid_guids, set(["valid"]))
         invalid_guids = p.guids_invalid()
-        self.assertEqual(invalid_guids, set(['invalid']))
+        self.assertEqual(invalid_guids, set(["invalid"]))
 
 
 @mongo_test
@@ -1049,6 +1050,27 @@ class Test_SeqMeta_guid_considered_after(Test_SeqMeta_Base1t):
 
 
 @mongo_test
+class Test_SeqMeta_guid_added_after(Test_SeqMeta_Base1t):
+    """recovering guids added after another guid;"""
+
+    def runTest(self):
+        res = self.t.guids_added_after_sample("noguid")  # should be None
+        self.assertIsNone(res)
+
+        res = self.t.guids_added_after_sample("guid4")  # should be empty set
+        self.assertEqual(set([]), res)
+
+        res = self.t.guids_added_after_sample("guid1")  # should be empty set
+        self.assertEqual(set(["guid2", "guid3", "guid4"]), res)
+
+        res = self.t.guids_added_after_sample("guid2")  # should be empty set
+        self.assertEqual(set(["guid3", "guid4"]), res)
+
+        res = self.t.guids_added_after_sample("guid3")  # should be empty set
+        self.assertEqual(set(["guid4"]), res)
+
+
+@mongo_test
 class Test_SeqMeta_propACTG_filteredSequenceGuids(Test_SeqMeta_Base1):
     """recovered guids filtered by the propACTG criterion"""
 
@@ -1234,27 +1256,50 @@ class Test_rotate_log(unittest.TestCase):
         p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
         p.rotate_log()
 
+
 @mongo_test
 class Test_lock(unittest.TestCase):
-    """tests locking.  
-    
+    """tests locking.
+
     Note: does not test concurrent operations"""
 
     def runTest(self):
 
         pdm = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
-        
-        self.assertTrue(pdm.unlock(1, force= True))
-        self.assertEqual(0, pdm.lock_status(1)['lock_status'])
-        self.assertTrue(pdm.unlock(0, force= True))
-        self.assertEqual(0, pdm.lock_status(0)['lock_status'])
 
-        self.assertTrue(pdm.lock(1))        # lock open; should succeed
-        self.assertEqual(1, pdm.lock_status(1)['lock_status'])
-        self.assertTrue(pdm.lock(0))        # lock open; should succeed          
-        self.assertFalse(pdm.lock(1))        # lock closed; should fail         
-        self.assertEqual(1, pdm.lock_status(1)['lock_status'])
-        
-        self.assertTrue(pdm.unlock(1))        # lock closed should succeed
-        self.assertEqual(0, pdm.lock_status(1)['lock_status'])
-        
+        self.assertTrue(pdm.unlock(1, force=True))
+        self.assertEqual(0, pdm.lock_status(1)["lock_status"])
+        self.assertEqual("-NotSpecified-", pdm.lock_status(1)["sequence_id"])
+
+        res = pdm.lock_details(1)
+        self.assertIsNone(res)
+
+        self.assertTrue(pdm.unlock(0, force=True))
+        self.assertEqual(0, pdm.lock_status(0)["lock_status"])
+        self.assertEqual("-NotSpecified-", pdm.lock_status(0)["sequence_id"])
+        res = pdm.lock_details(0)
+        self.assertIsNone(res)
+
+        self.assertTrue(pdm.lock(1, "guid1"))  # lock open; should succeed
+        self.assertEqual(1, pdm.lock_status(1)["lock_status"])
+        self.assertEqual("guid1", pdm.lock_status(1)["sequence_id"])
+        res = pdm.lock_details(1)
+        self.assertEqual(res["sequence_id"], "guid1")
+        self.assertIsInstance(res["uuid"], str)
+        self.assertIsInstance(res["lock_set_date"], datetime.datetime)
+
+        self.assertTrue(pdm.lock(0, "guid0"))  # lock open; should succeed
+
+        self.assertFalse(pdm.lock(1, "guid3"))  # lock closed; should fail
+        self.assertEqual(1, pdm.lock_status(1)["lock_status"])
+        self.assertEqual("guid1", pdm.lock_status(1)["sequence_id"])
+        res = pdm.lock_details(1)
+        self.assertEqual(res["sequence_id"], "guid1")
+        self.assertIsInstance(res["uuid"], str)
+        self.assertIsInstance(res["lock_set_date"], datetime.datetime)
+
+        self.assertTrue(pdm.unlock(1))  # lock closed should succeed
+        self.assertEqual(0, pdm.lock_status(1)["lock_status"])
+        self.assertEqual("-NotSpecified-", pdm.lock_status(1)["sequence_id"])
+        res = pdm.lock_details(1)
+        self.assertIsNone(res)

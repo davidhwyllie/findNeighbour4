@@ -852,6 +852,15 @@ class fn3persistence:
         retVal = [x["_id"] for x in self.db.guid2meta.find({}, {"_id": 1})]
         return set(retVal)
 
+    def guids_added_after_sample(self, guid: str) -> Set[str]:
+        """ returns all guids added after a sample"""
+        print("*** SEARCHING FOR ", guid)
+        this_examination_time = self.guid_examination_time(guid)
+        if this_examination_time is None:
+            return None
+
+        return self.guids_considered_after(addition_datetime = this_examination_time)
+
     def guids_considered_after(self, addition_datetime: datetime.datetime) -> Set[str]:
         """returns all registered guid added after addition_datetime
         addition_datetime: a date of datetime class."""
@@ -862,6 +871,7 @@ class fn3persistence:
                     type(addition_datetime), addition_datetime
                 )
             )
+            
         retVal = [
             x["_id"]
             for x in self.db.guid2meta.find(
@@ -1698,7 +1708,7 @@ class fn3persistence:
         # recover the guids
         return {"guid": guid, "neighbours": retVal}
 
-    def _set_lock_status(self, lock_int_id, lock_status):
+    def _set_lock_status(self, lock_int_id, lock_status, sequence_id='-NotSpecified-'):
         """locks or unlocks resources identified by lock_int_id, allowing cross- process sequential processing (e.g. insertion)
 
         To lock, set lock_status =1 ; to unlock, set lock_status =0
@@ -1707,7 +1717,12 @@ class fn3persistence:
         See the acquire_lock() method for more details
 
         returns:
+
+        If lock_status is either 1 or 0:
         True if update succeeded, false if it did not
+
+        If lock_status is None:
+        the lock row, as a dictionary
 
         Technical notes:
         https://www.mongodb.com/blog/post/how-to-select--for-update-inside-mongodb-transactions
@@ -1722,6 +1737,7 @@ class fn3persistence:
                 _id=lock_int_id,
                 lock_status=0,
                 lock_set_date=datetime.datetime.now(),
+                sequence_id = sequence_id,
                 uuid=uuid.uuid4().hex,
             )
             self.db.fnlock.insert_one(lock_row)
@@ -1735,7 +1751,7 @@ class fn3persistence:
             if lock_status is None:
                 retval = lock_row
 
-            if lock_row["lock_status"] == 0 and lock_status == 0:
+            elif lock_row["lock_status"] == 0 and lock_status == 0:
                 # it's already unlocked
                 retval = True
 
@@ -1746,12 +1762,15 @@ class fn3persistence:
             elif lock_row["lock_status"] == 0 and lock_status == 1:
                 # it's already unlocked, we can lock
                 lock_row["lock_status"] = 1
+                lock_row['sequence_id'] = sequence_id
                 lock_row["lock_set_date"] = datetime.datetime.now()
                 lock_row["uuid"] = uuid.uuid4().hex
+               
                 self.db.fnlock.replace_one({"_id": lock_int_id}, lock_row)
                 retval = True
 
             elif lock_row["lock_status"] == 1 and lock_status == 0:
+                lock_row['sequence_id'] = '-NotSpecified-'
                 lock_row["lock_status"] = 0
                 lock_row["lock_set_date"] = datetime.datetime.now()
                 lock_row["uuid"] = uuid.uuid4().hex
@@ -1760,6 +1779,25 @@ class fn3persistence:
 
             return retval
 
+    def lock_details(self, lock_int_id):
+        """ returns details of the lock as a dictionary 
+
+        Parameters:
+        lock_int_id: an integer identifier to the lock of interest
+
+        Returns:
+        None if there is no lock, 
+        or a dictionary containing details of the lock held including sequence_id, lock_status, lock_set_date, and uuid """ 
+        res = self.lock_status(lock_int_id)
+
+        if res['lock_status'] == 0:     # no lock held
+            return None
+        else:
+            return dict(
+                sequence_id = res['sequence_id'],
+                lock_set_date = res['lock_set_date'],
+                uuid = res['uuid'])
+
     def lock_status(self, lock_int_id):
         """determine whether a database-based lock is open (0) or closed (1).
 
@@ -1767,22 +1805,22 @@ class fn3persistence:
         lock_int_id: an integer identifier to the lock of interest
 
         Returns:
-        0 if the lock is open
-        1 if it is locked"""
+        a dictionary containing details of the lock """
 
         return self._set_lock_status(lock_int_id, None)
 
-    def lock(self, lock_int_id):
+    def lock(self, lock_int_id, sequence_id):
         """obtains a database-based lock.
 
         Parameters:
         lock_int_id: an integer identifier to the lock of interest
+        sequence_id: the id (typically guid) of the sequence being added.  Used if the inserting process crashes
 
         Returns:
         True if the lock is acquired
         False if it is not"""
 
-        return self._set_lock_status(lock_int_id, 1)
+        return self._set_lock_status(lock_int_id, 1, sequence_id)
 
     def unlock(self, lock_int_id, force=False):
         """obtains a database-based lock.

@@ -2,6 +2,10 @@ Testing
 =============================================
 instructions on how to install dependencies are [here](HowToTest.md)
 
+End to end testing (requires mongodb at present) can be run with
+``` ./run_tests.sh ```
+This script is part of continuous integration, and all tests should pass.  Will take about 10-15 minutes.  
+More detail on unit testing is below.
 
 To run with a virtual environment, which is strongly recommended, preface commands with   
 ```pipenv run ..```  
@@ -85,6 +89,7 @@ or
 ```
 pipenv run pytest  test/test_seq2dict.py
 ```
+To run an individual test with pytest, use the -k flag, see pytest docs.
 
 
 ## Demonstrations

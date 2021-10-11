@@ -57,9 +57,7 @@ class test_cw_seqComparer_estimate_expected_unk_1(setup_ref):
             unittesting=True,
         )
 
-        res = sc.estimate_expected_unk(
-            sample_size=2, unk_type="N"
-        )
+        res = sc.estimate_expected_unk(sample_size=2, unk_type="N")
 
         self.assertIsNone(res)
         n = 0
@@ -94,6 +92,7 @@ class test_cw_seqComparer_estimate_expected_unk_1(setup_ref):
             sample_size=2, unk_type="N", exclude_guids=guids[2:7]
         )
         self.assertEqual(res, 1)
+
 
 class test_cw_seqComparer_estimate_expected_unk_sites(setup_ref):
     """tests estimate_expected_unk_sites, a function estimating the number of Ns or Ms in sequences
@@ -1099,3 +1098,223 @@ class test_cw_seqComparer_epp(setup_ref):
         res = sc.estimate_expected_proportion(["AAN", "AAN", "AAN"])
         self.assertTrue(res is not None)
         self.assertAlmostEqual(res, 1 / 3)
+
+
+class test_cw_seqComparer_verify_1(setup_ref):
+    """tests verification when there is no data"""
+
+    def runTest(self):
+
+        refSeq = "GGGGGGGGGGGG"
+        sc = cw_seqComparer(
+            unittesting=True,
+            maxNs=1e8,
+            reference=refSeq,
+            snpCeiling=10,
+            preComparer_parameters={
+                "selection_cutoff": 20,
+                "uncertain_base": "M",
+                "over_selection_cutoff_ignore_factor": 5,
+                "catWalk_parameters": {
+                    "bind_port": 5999,
+                    "bind_host": "localhost",
+                    "cw_binary_filepath": None,
+                    "reference_name": "H37RV",
+                    "reference_filepath": self.inputfile,
+                    "mask_filepath": "reference/TB-exclude-adaptive.txt",
+                },
+            },
+        )
+
+        res = sc.verify_insertion("noguid")
+        self.assertEqual(res["status"], "Neither")
+        self.assertEqual(res["n_updated"], 0)
+
+
+class test_cw_seqComparer_verify_2(setup_ref):
+    """tests verification when there is data in both catwalk and the database"""
+
+    def runTest(self):
+
+        refSeq = "GGGGGGGGGGGG"
+        sc = cw_seqComparer(
+            unittesting=True,
+            maxNs=1e8,
+            reference=refSeq,
+            snpCeiling=10,
+            preComparer_parameters={
+                "selection_cutoff": 20,
+                "uncertain_base": "M",
+                "over_selection_cutoff_ignore_factor": 5,
+                "catWalk_parameters": {
+                    "bind_port": 5999,
+                    "bind_host": "localhost",
+                    "cw_binary_filepath": None,
+                    "reference_name": "H37RV",
+                    "reference_filepath": self.inputfile,
+                    "mask_filepath": "reference/TB-exclude-adaptive.txt",
+                },
+            },
+        )
+
+        seq1 = sc.compress(refSeq)
+        sc.persist(seq1, "k1")
+
+        res = sc.verify_insertion("k1")
+        self.assertEqual(res["status"], "Both")
+        self.assertEqual(res["n_updated"], 0)
+
+
+class test_cw_seqComparer_verify_3(setup_ref):
+    """tests verification when there is data in both catwalk and the database.  There is one link."""
+
+    def runTest(self):
+
+        refSeq = "GGGGGGGGGGGG"
+        sc = cw_seqComparer(
+            unittesting=True,
+            maxNs=1e8,
+            reference=refSeq,
+            snpCeiling=10,
+            preComparer_parameters={
+                "selection_cutoff": 20,
+                "uncertain_base": "M",
+                "over_selection_cutoff_ignore_factor": 5,
+                "catWalk_parameters": {
+                    "bind_port": 5999,
+                    "bind_host": "localhost",
+                    "cw_binary_filepath": None,
+                    "reference_name": "H37RV",
+                    "reference_filepath": self.inputfile,
+                    "mask_filepath": "reference/TB-exclude-adaptive.txt",
+                },
+            },
+        )
+
+        seq1 = sc.compress(refSeq)
+        sc.persist(seq1, "k1")
+        sc.persist(seq1, "k2")
+
+        res = sc.verify_insertion("k1")
+        self.assertEqual(res["status"], "Both")
+        self.assertEqual(res["n_updated"], 0)
+
+
+class test_cw_seqComparer_verify_4(setup_ref):
+    """tests verification when there is data in both catwalk and the database.  There should be one link but there is not."""
+
+    def runTest(self):
+
+        refSeq = "GGGGGGGGGGGG"
+        sc = cw_seqComparer(
+            unittesting=True,
+            maxNs=1e8,
+            reference=refSeq,
+            snpCeiling=10,
+            preComparer_parameters={
+                "selection_cutoff": 20,
+                "uncertain_base": "M",
+                "over_selection_cutoff_ignore_factor": 5,
+                "catWalk_parameters": {
+                    "bind_port": 5999,
+                    "bind_host": "localhost",
+                    "cw_binary_filepath": None,
+                    "reference_name": "H37RV",
+                    "reference_filepath": self.inputfile,
+                    "mask_filepath": "reference/TB-exclude-adaptive.txt",
+                },
+            },
+        )
+
+        seq1 = sc.compress(refSeq)
+        sc.persist(seq1, "k1")
+        sc.persist(
+            seq1, "k2", unittesting_omit_link=True
+        )  # don't add links.  This will be recgonisied as an issue by verify_insertion
+
+        res = sc.verify_insertion("k1")
+        self.assertEqual(res["status"], "Both")
+        self.assertEqual(res["n_updated"], 1)
+
+
+class test_cw_seqComparer_verify_5(setup_ref):
+    """tests verification when there is data in database but not catwalk."""
+
+    def runTest(self):
+
+        refSeq = "GGGGGGGGGGGG"
+        sc = cw_seqComparer(
+            unittesting=True,
+            maxNs=1e8,
+            reference=refSeq,
+            snpCeiling=10,
+            preComparer_parameters={
+                "selection_cutoff": 20,
+                "uncertain_base": "M",
+                "over_selection_cutoff_ignore_factor": 5,
+                "catWalk_parameters": {
+                    "bind_port": 5999,
+                    "bind_host": "localhost",
+                    "cw_binary_filepath": None,
+                    "reference_name": "H37RV",
+                    "reference_filepath": self.inputfile,
+                    "mask_filepath": "reference/TB-exclude-adaptive.txt",
+                },
+            },
+        )
+
+        seq1 = sc.compress(refSeq)
+        sc.persist(seq1, "k1")
+        sc.persist(seq1, "k2")
+        self.assertEqual(set(sc.catWalk.sample_names()), set(["k1", "k2"]))
+
+        # delete k1 from catwalk to create a 'catwalk failure'
+        sc.catWalk.remove_sample("k1")
+        self.assertEqual(set(sc.catWalk.sample_names()), set(["k2"]))
+
+        res = sc.verify_insertion("k1")
+
+        self.assertEqual(res["status"], "Database, not catwalk")
+        self.assertEqual(
+            set(sc.catWalk.sample_names()), set(["k1", "k2"])
+        )  # see https://gitea.mmmoxford.uk/dvolk/catwalk/issues/4
+        self.assertEqual(res["n_updated"], 0)
+
+
+class test_cw_seqComparer_verify_6(setup_ref):
+    """tests verification when there is data in catwalk but not the database."""
+
+    def runTest(self):
+
+        refSeq = "GGGGGGGGGGGG"
+        sc = cw_seqComparer(
+            unittesting=True,
+            maxNs=1e8,
+            reference=refSeq,
+            snpCeiling=10,
+            preComparer_parameters={
+                "selection_cutoff": 20,
+                "uncertain_base": "M",
+                "over_selection_cutoff_ignore_factor": 5,
+                "catWalk_parameters": {
+                    "bind_port": 5999,
+                    "bind_host": "localhost",
+                    "cw_binary_filepath": None,
+                    "reference_name": "H37RV",
+                    "reference_filepath": self.inputfile,
+                    "mask_filepath": "reference/TB-exclude-adaptive.txt",
+                },
+            },
+        )
+
+        seq1 = sc.compress(refSeq)
+        sc.catWalk.add_sample_from_refcomp("k1", seq1)
+        self.assertEqual(set(sc.catWalk.sample_names()), set(["k1"]))
+
+        res = sc.verify_insertion("k1")
+
+        self.assertEqual(res["status"], "Catwalk only")
+        self.assertEqual(
+            set(sc.catWalk.sample_names()), set([])
+        )  # see https://gitea.mmmoxford.uk/dvolk/catwalk/issues/4
+        self.assertEqual(res["n_updated"], 0)
