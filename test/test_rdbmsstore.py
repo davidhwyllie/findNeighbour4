@@ -1220,7 +1220,7 @@ class Test_guid2items(Test_Database):
 
 
 @rdbms_test
-class Test_lock(Test_Database):
+class Test_lock_1(Test_Database):
     """tests locking.
 
     Note: does not test concurrent operations"""
@@ -1270,6 +1270,34 @@ class Test_lock(Test_Database):
 
             res = pdm.lock_details(1)
             self.assertEqual(res["sequence_id"], "guid1")
+            self.assertIsInstance(res["uuid"], str)
+            self.assertIsInstance(res["lock_set_date"], datetime.datetime)
+
+            self.assertTrue(pdm.unlock(1))  # lock should succeed
+            self.assertEqual(0, pdm.lock_status(1).lock_status)
+            self.assertEqual("-NotSpecified-", pdm.lock_status(1).sequence_id)
+            res = pdm.lock_details(1)
+            self.assertIsNone(res)
+
+
+@rdbms_test
+class Test_lock_2(Test_Database):
+    """tests locking with a sample identifier 59 characters long.
+
+    Note: does not test concurrent operations"""
+
+    def runTest(self):
+
+        for pdm in self.pdms():
+
+            self.assertTrue(pdm.unlock(1, force=True))
+            guid_name = "X" * 59
+            self.assertTrue(pdm.lock(1, guid_name))  # lock  should succeed
+            res = pdm.lock_status(1)
+            self.assertEqual(1, res.lock_status)
+            self.assertEqual(guid_name, res.sequence_id)
+            res = pdm.lock_details(1)
+            self.assertEqual(res["sequence_id"], guid_name)
             self.assertIsInstance(res["uuid"], str)
             self.assertIsInstance(res["lock_set_date"], datetime.datetime)
 

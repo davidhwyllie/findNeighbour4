@@ -1303,3 +1303,55 @@ class Test_lock(unittest.TestCase):
         self.assertEqual("-NotSpecified-", pdm.lock_status(1)["sequence_id"])
         res = pdm.lock_details(1)
         self.assertIsNone(res)
+
+
+class test_lockmanager_2(unittest.TestCase):
+    """tests whether the lockmanager runs and releases a lock running lock"""
+
+    def runTest(self):
+
+        pdm = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
+
+        # unlock
+        pdm.unlock(1, force=True)
+
+        # there is no lock
+        lock_details = pdm.lock_details(1)
+        self.assertIsNone(lock_details)
+
+        # take a lock
+        pdm.lock(1, "guid1")
+
+        # check the lock is held
+        lock_details = pdm.lock_details(1)
+        self.assertIsNotNone(lock_details)
+
+        os.system(
+            "pipenv run python3 findNeighbour4_lockmanager.py --max_run_time 10 --run_once_only"
+        )
+
+        # check the lock is still held
+        lock_details = pdm.lock_details(1)
+        self.assertIsNotNone(lock_details)
+
+        # unlock
+        pdm.unlock(1)
+
+        # there is no lock
+        lock_details = pdm.lock_details(1)
+        self.assertIsNone(lock_details)
+
+        # take a lock
+        pdm.lock(1, "guid1")
+        lock_details = pdm.lock_details(1)
+        self.assertIsNotNone(lock_details)
+
+        # wait 15 seconds
+        time.sleep(15)
+        os.system(
+            "pipenv run python3 findNeighbour4_lockmanager.py --max_run_time 10 --run_once_only"
+        )
+
+        # there is no lock
+        lock_details = pdm.lock_details(1)
+        self.assertIsNone(lock_details)
