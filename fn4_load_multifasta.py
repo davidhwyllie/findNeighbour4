@@ -213,7 +213,7 @@ nohup pipenv run python3 fn4_load_multifasta.py http://localhost:5035 /data/data
     logger.info("There are {0} existing guids".format(len(existing_guids)))
 
     # add the reference sequence as the root if not already present
-    ref_guid = "--Wuhan-Reference--"
+    ref_guid = "--Reference--"
     ref_guid_present = fn4c.guid_exists(ref_guid)
     for record in Bio.SeqIO.parse("reference/nc_045512.fasta", "fasta"):
         refseq = str(record.seq).upper()

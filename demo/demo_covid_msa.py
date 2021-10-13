@@ -44,7 +44,7 @@ if __name__ == "__main__":
             for_msa.add(related_sample)
 
     # optional - add outgroup/root
-    outgroup_name = "--Wuhan-Reference--"  # the reference sequence, which is in the server
+    outgroup_name = "--Reference--"  # the reference sequence, which is in the server
     for_msa.add(outgroup_name)
 
     # build an MSA
