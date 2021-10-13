@@ -61,10 +61,10 @@ python findNeighbour4_guidetree.py ../config/myconfig_file.json
 
 Realistic example for testing
 pipenv run python3 findNeighbour4_guidetree.py ../demos/covid/covid_config_v3.json --select_from_pca_output_file /backup/bricestudy/pca20210323/pca_output.sqlite --output_filestem guidetree --outputdir /backup/bricestudy --debug
-pipenv run python3 findNeighbour4_guidetree.py ../demos/covid/covid_config_v3.json --select_from_pca_output_file /backup/bricestudy/pca20210323/pca_output.sqlite --output_filestem guidetree --outputdir /backup/bricestudy --root_sample="--Wuhan-Reference--" --debug
+pipenv run python3 findNeighbour4_guidetree.py ../demos/covid/covid_config_v3.json --select_from_pca_output_file /backup/bricestudy/pca20210323/pca_output.sqlite --output_filestem guidetree --outputdir /backup/bricestudy --root_sample="--Reference--" --debug
 
 Realistic example for running
-pipenv run python3 findNeighbour4_guidetree.py ../demos/covid/covid_config_v3.json --select_from_pca_output_file /backup/bricestudy/pca20210323/pca_output.sqlite --output_filestem guidetree --outputdir /backup/bricestudy --root_sample="--Wuhan-Reference--" 
+pipenv run python3 findNeighbour4_guidetree.py ../demos/covid/covid_config_v3.json --select_from_pca_output_file /backup/bricestudy/pca20210323/pca_output.sqlite --output_filestem guidetree --outputdir /backup/bricestudy --root_sample="--Reference--" 
 
 if a config file is not provided, it will run (as does findNeighbour4_server) is debug mode: it will run once, and then terminate.  This is useful for unit testing.  If a config file is specified, the clustering will  run until terminated.  
 

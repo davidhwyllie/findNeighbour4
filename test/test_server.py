@@ -156,6 +156,33 @@ class test_reset(unittest.TestCase):
         self.assertTrue(n_post_reset == 0)
 
 
+class test_guid_name_validity(unittest.TestCase):
+    """tests whether insertion of guids which don't conform to expectations is permitted"""
+
+    def runTest(self):
+        relpath = "/api/v2/guids"
+        res = do_GET(relpath)
+        n_pre = len(json.loads(str(res.text)))  # get all the guids
+
+        guid_to_insert = "X" * 90  # too long
+
+        inputfile = "COMPASS_reference/R39/R00000039.fasta"
+        with open(inputfile, "rt") as f:
+            for record in SeqIO.parse(f, "fasta"):
+                seq = str(record.seq)
+
+        relpath = "/api/v2/insert"
+        res = do_POST(relpath, payload={"guid": guid_to_insert, "seq": seq})
+
+        self.assertEqual(res.status_code, 403)
+
+        relpath = "/api/v2/guids"
+        res = do_GET(relpath)
+        n_post = len(json.loads(str(res.text)))  # get all the guids
+
+        self.assertEqual(n_post, n_pre)
+
+
 class test_guids(unittest.TestCase):
     """tests routes  /guids, /valid_guids and /invalid_guids"""
 

@@ -37,7 +37,7 @@ import numpy as np
 import warnings
 import uuid
 import cx_Oracle
-from sentry_sdk import capture_message, capture_exception
+from sentry_sdk import capture_exception
 
 import progressbar
 from sqlalchemy import (
@@ -120,7 +120,7 @@ class FNLock(db_pc):
         comment="an integer reflecting the kind of lock studied",
     )
     sequence_id = Column(
-        String(38),
+        String(60),
         comment="the sample_id represented by the entry; sample_ids are typically guids",
     )
     lock_set_date = Column(
@@ -155,7 +155,7 @@ class RefCompressedSeq(db_pc):
         comment="the primary key to the table",
     )
     sequence_id = Column(
-        String(38),
+        String(60),
         index=True,
         unique=True,
         comment="the sample_id represented by the entry; sample_ids are typically guids",
@@ -207,11 +207,11 @@ class Edge(db_pc):
         comment="the primary key to the table",
     )
     sequence_id_1 = Column(
-        String(38),
+        String(60),
         comment="One of a pair of sequences. Note: foreign key constraint not enforced at a database level",
     )
     sequence_id_2 = Column(
-        String(38),
+        String(60),
         comment="One of a pair of sequences.  Note: foreign key constraint not enforced at a database level ",
     )
     dist = Column(Integer, comment="the SNV distance between sequences")
@@ -670,21 +670,22 @@ class fn3persistence_r:
                 # if execution continues here, the session works
                 return tls
 
-            except Exception as e:
+            except Exception as e1:
                 logging.info(
-                    "Failed to connect on trial {0}/{1}".format(
-                        n_retries - tries, n_retries
+                    "Failed to connect on trial {0}/{1}; error raised was {2}".format(
+                        n_retries - tries, n_retries, e1
                     )
                 )
+
                 if log_errors:
-                    capture_exception(e)
-                    logging.error(e)
+                    capture_exception(e1)
+                    logging.error(e1)
+
+                # try to remove the failing session, if it has been constructed properly
                 try:
                     tls.remove()
-                except Exception as e:
-                    capture_message("Failed to remove session")
+                except Exception:
                     logging.info("Failed to remove session")
-                    logging.error(e)
 
         raise RDBMSError(
             "Could not connect to database.  Tried {0} times with different sessions".format(

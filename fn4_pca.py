@@ -438,7 +438,7 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
 
         # don't root
         sample_ids = exp_only.index.to_list()
-        sample_ids.append("--Wuhan-Reference--")
+        sample_ids.append("--Reference--")
         msa_result = hc.multi_sequence_alignment(sample_ids)
 
         target_dir = os.path.join(analysis_dir, "tree_no_controls")
@@ -447,7 +447,7 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
         )  # note: if directory is hard coded, will generate conflict if two processes run at the same time
         newick_tree = iqr["output"]["newick"]
         rt = ManipulateTree(newick_tree)
-        rt.reroot("--Wuhan-Reference--")
+        rt.reroot("--Reference--")
         rt.remove_outgroup()
         newick_tree = rt.newick()
         iqr["output"]["newick"] = newick_tree  # store the re-rooted tree back
@@ -550,7 +550,7 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
 
         # build MSA including reference seq which we'll use to root.  We will then remove the reference.
         sample_ids = exp_and_control.index.to_list()
-        sample_ids.append("--Wuhan-Reference--")
+        sample_ids.append("--Reference--")
         msa_result = hc.multi_sequence_alignment(sample_ids)
 
         target_dir = os.path.join(analysis_dir, "tree_with_controls")
@@ -559,7 +559,7 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
         )  # note: if directory is hard coded, will generate conflict if two processes run at the same time
         newick_tree = iqr["output"]["newick"]
         rt = ManipulateTree(newick_tree)
-        rt.reroot("--Wuhan-Reference--")
+        rt.reroot("--Reference--")
         rt.remove_outgroup()
         newick_tree = rt.newick()
         iqr["output"]["newick"] = newick_tree  # store the re-rooted tree back

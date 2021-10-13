@@ -460,6 +460,13 @@ class findNeighbour4:
         # clean, and provide summary statistics for the sequence
         logging.info("Preparing to insert: {0}".format(guid))
 
+        # check guid.  it has to be less than 60 characters long.
+        if len(guid)>=60:
+            return_status_code = 403
+            return_text = 'Supplied sample identifier is unacceptable. Length = {0} (max = 60)'.format(guid)
+            logging.info("{0}-{1}".format(return_status_code, return_text))
+            return return_status_code, return_text
+
         if not self.exist_sample(guid):  # if the guid is not already there
             self.server_monitoring_store(message="About to insert", guid=guid)
             logging.info("Guid is not present: {0}".format(guid))
