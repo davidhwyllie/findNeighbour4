@@ -152,6 +152,14 @@ nohup pipenv run python3 fn4_load_multifasta.py http://localhost:5035 /data/data
         default="",
     )
 
+    parser.add_argument(
+        "--wait_if_server_unavailable",
+        type=int,
+        action="store",
+        nargs="?",
+        help="how long the load script will wait before retrying sample insertion if the server is unavailable.  Seconds.  Recommend 2-5 minutes",
+        default=120,
+    )
     args = parser.parse_args()
 
     ####################################    STARTUP ###############################
@@ -181,6 +189,9 @@ nohup pipenv run python3 fn4_load_multifasta.py http://localhost:5035 /data/data
     logger = logging.Logger("fn4_load_multifasta")
     logger.setLevel(logging.INFO)
     timenow = datetime.datetime.now().isoformat()
+
+    timeout = args.wait_if_server_unavailable
+
     logfile = os.path.join(logdir, args.logfile)
     file_handler = logging.handlers.RotatingFileHandler(
         logfile, mode="a", maxBytes=1e7, backupCount=7
@@ -191,6 +202,7 @@ nohup pipenv run python3 fn4_load_multifasta.py http://localhost:5035 /data/data
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
     logger.info("Startup with arguments: {0}".format(args))
+    logger.info("If the server is not available, this script will wait {0} seconds before trying to add another sequence".format(timeout))
 
     print("To see what is happening, do watch tail {0}".format(logfile))
     # launch comms with Sentry
@@ -264,7 +276,7 @@ nohup pipenv run python3 fn4_load_multifasta.py http://localhost:5035 /data/data
 
                 if len(seq) == reflen:
                     try:
-                        res = fn4c.insert(guid=guid, seq=seq, timeout=90)
+                        res = fn4c.insert(guid=guid, seq=seq, timeout=timeout)
                         if res.status_code not in [200, 201]:
                             # failed to add
                             failed.append((i, guid))
@@ -290,7 +302,7 @@ nohup pipenv run python3 fn4_load_multifasta.py http://localhost:5035 /data/data
                             # If we don't know, because monitoring is off, then an error will be raised.
                             sr = measure_sr(fn4c)
                             logger.info(
-                                "Examined {0} / skipped {1}.  Database neighbour fragmentation is {2:.1f} (target: 1)".format(
+                                "Examined {0} / skipped {1}.  Database neighbour fragmentation is {2:.1f} (target: 1) [note: if using an rdbms backend, this will always be reported as 1]".format(
                                     i, nSkipped, sr
                                 )
                             )
@@ -306,8 +318,9 @@ nohup pipenv run python3 fn4_load_multifasta.py http://localhost:5035 /data/data
                     # capture any errors which inherit from RequestException
                     except requests.exceptions.RequestException as e:
                         sentry_sdk.capture_exception(e)
-                        logger.warning("Server connection failed .. waiting 90 seconds")
-                        time.sleep(90)  # it will reconnect
+                        logger.warning("Server connection failed .. waiting {0} seconds; error is logged next".format(timeout))
+                        logger.error(e)
+                        time.sleep(timeout)  # it will reconnect
                 else:
                     logger.info(
                         "{0} Wrong length {1} not {2}".format(guid, len(seq), reflen)
