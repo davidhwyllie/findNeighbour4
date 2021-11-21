@@ -284,7 +284,7 @@ class findNeighbour4:
         )
 
         # set up an in-RAM only precomparer for use by pairwise comparisons.  There is no SNP ceiling
-        
+
         self.sc = py_seqComparer(
             reference=self.reference,
             excludePositions=self.excludePositions,
@@ -292,7 +292,12 @@ class findNeighbour4:
             maxNs=self.maxNs,
         )
 
-        logging.info("fn4 server Initialisation complete")
+        # log startup event to sentry, if configured.  This automatically catches version number.
+        startup_message = "findneighbour4_server {0} started on PID {1}.".format(
+            CONFIG["SERVERNAME"], os.getpid()
+        )
+        capture_message(startup_message)
+        logging.info(startup_message)
 
     def pairwise_comparison(self, guid1, guid2):
         """compares two sequences which have already been stored
@@ -461,9 +466,11 @@ class findNeighbour4:
         logging.info("Preparing to insert: {0}".format(guid))
 
         # check guid.  it has to be less than 60 characters long.
-        if len(guid)>=60:
+        if len(guid) >= 60:
             return_status_code = 403
-            return_text = 'Supplied sample identifier is unacceptable. Length = {0} (max = 60)'.format(guid)
+            return_text = "Supplied sample identifier is unacceptable. Length = {0} (max = 60)".format(
+                guid
+            )
             logging.info("{0}-{1}".format(return_status_code, return_text))
             return return_status_code, return_text
 
@@ -766,7 +773,7 @@ def create_app(config_file=None):
 
     cfm = ConfigManager(config_file)
     CONFIG = cfm.read_config()
-
+ 
     ########################### SET UP LOGGING #####################################
     # create a log file if it does not exist.
     logdir = os.path.dirname(CONFIG["LOGFILE"])
@@ -819,7 +826,7 @@ def create_app(config_file=None):
         To test the server, edit the config/default_test_config_rdbms.json file's "FNPERSISTENCE_CONNSTRING": connection string to
         point to an suitable database.  For more details of how to do this, see installation instructions on github."""
         )
-    
+
     # instantiate server class
     try:
         fn = findNeighbour4(CONFIG, PERSIST)
@@ -1584,7 +1591,7 @@ def create_app(config_file=None):
             capture_exception(e)
             abort(500, e)
         if result is None:
-            abort(404, 'Sample {0} does not exist'.format(guid))
+            abort(404, "Sample {0} does not exist".format(guid))
         return make_response(tojson(list(result)))
 
     @app.route("/api/v2/annotations", methods=["GET"])
@@ -2044,7 +2051,7 @@ if __name__ == "__main__":
         formatter_class=argparse.RawTextHelpFormatter,
         description="""Runs findNeighbour4_server using a development (werkzeug) server.
                                      
-For instructions on how to run with gunicorn (suitable for production see TODO)
+To run with gunicorn, use fn4_startup.sh (suitable for production)
 
 Example usage: 
 ============== 
@@ -2082,13 +2089,16 @@ python findNeighbour4_server.py ../config/myconfig_file.json
     if config_file is None:
         config_file = DEFAULT_CONFIG_FILE
         warnings.warn(
-            "No config file name supplied ; using a configuration ('default_test_config.json') suitable only for testing, not for production. "
+            "No config file name supplied ; using a configuration ({0}) suitable only for testing, not for production. ".format(config_file)
         )
 
+    ## construct flask application, which is initiated by environement variable
+    os.environ["FN4_SERVER_CONFIG_FILE"] = str(config_file)
     cfm = ConfigManager(config_file)
     CONFIG = cfm.read_config()
+ 
+    app = create_app()
 
-    app = create_app(config_file)
     if CONFIG["DEBUGMODE"] > 0:
         flask_debug = True
         app.config["PROPAGATE_EXCEPTIONS"] = True
