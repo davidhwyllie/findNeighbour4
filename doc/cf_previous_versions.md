@@ -19,7 +19,7 @@ There are the following other differences:
 
 ## Comparison with findNeighbour3
 The server 
-- is much faster (>100x faster inserts) and uses about 5% of the RAM.  This is achieved using using a compiled component, [CatWalk](https://gitea.mmmoxford.uk/dvolk/catwalk.git), to store and compare sequences, developed by Denis Volk.
+- is much faster (>100x faster inserts) and uses about 5% of the RAM.  This is achieved using using a compiled component, [CatWalk](https://github.com/dvolk/catwalk.git), to store and compare sequences, developed by Denis Volk.
 - can use RDBMS backends
 - can be run as multiple WSGI processes
 

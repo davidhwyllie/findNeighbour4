@@ -17,7 +17,7 @@ It has the following features:
 * Allows queries identifying similar sequences, cluster members, and multisequence alignments with  millisecond response times.
 * Tracks memory usage, logging to database, during routine operation.
 *
-It is much faster and uses much less RAM than [previous findNeighbours versions](cf_previous_versions.md). This is achieved using using a compiled component, [CatWalk](https://gitea.mmmoxford.uk/dvolk/catwalk.git), to store and compare sequences, developed by Denis Volk.
+It is much faster and uses much less RAM than [previous findNeighbours versions](cf_previous_versions.md). This is achieved using using a compiled component, [CatWalk](https://github.com/dvolk/catwalk.git), to store and compare sequences, developed by Denis Volk.
 
 It was produced as part of the [Modernising Medical Microbiology](http://modmedmicro.nsms.ox.ac.uk/) initiative, together with [Public Health England](https://www.gov.uk/government/organisations/public-health-england).
 
