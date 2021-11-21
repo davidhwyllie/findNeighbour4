@@ -1,3 +1,4 @@
+""" creates a persistence (database access) object, either by Mongo or RDBMS connection """
 from findn.mongoStore import fn3persistence
 from findn.rdbmsstore import fn3persistence_r
 
