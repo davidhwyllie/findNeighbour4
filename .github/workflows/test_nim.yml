@@ -41,7 +41,7 @@ jobs:
       run: |
         # clone catwalk relatedness engine
         cd external_software
-        git clone https://gitea.mmmoxford.uk/dvolk/catwalk.git catwalk
+        git clone https://github.com/dvolk/catwalk.git catwalk
         
     - name: compile catwalk
       run: |

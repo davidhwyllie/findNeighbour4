@@ -105,7 +105,7 @@ echo "Nimble version:"
 nimble --version
 
 # clone catwalk relatedness engine
-git clone https://gitea.mmmoxford.uk/dvolk/catwalk.git
+git clone https://github.com/dvolk/catwalk.git
 
 cd catwalk
 nimble -y build -d:release -d:danger -d:no_serialisation
