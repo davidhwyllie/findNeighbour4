@@ -15,6 +15,7 @@ import time
 import unittest
 from findn.common_utils import ConfigManager
 
+
 class test_lockmanager_1(unittest.TestCase):
     """tests whether the lockmanager runs when no lock is in place"""
 
@@ -105,3 +106,37 @@ class test_lockmanager_2(unittest.TestCase):
         # there is no lock
         lock_details = cfm.PERSIST.lock_details(1)
         self.assertIsNone(lock_details)
+
+
+class test_lockmanager_3(unittest.TestCase):
+    """tests what happens if an untrapped, or trapped error occurs in lockmanager."""
+
+    def runTest(self):
+
+        # run the lock monitor; no errors
+        res = os.system(
+            "pipenv run python3 findNeighbour4_lockmanager.py --max_run_time 10 --run_once_only"
+        )
+
+        self.assertTrue(res == 0)  # success
+
+        # run the lock monitor; simulate an untrapped error
+        res = os.system(
+            "pipenv run python3 findNeighbour4_lockmanager.py --max_run_time 10 --run_once_only --simulate_failure_type_0"
+        )
+
+        self.assertTrue(res > 0)  # failed
+
+        # run the lock monitor; simulate a trapped error
+        res = os.system(
+            "pipenv run python3 findNeighbour4_lockmanager.py --max_run_time 10 --run_once_only --simulate_failure_type_1"
+        )
+
+        self.assertTrue(res == 0)  # success
+
+        # run the lock monitor; simulate a trapped error
+        res = os.system(
+            "pipenv run python3 findNeighbour4_lockmanager.py --max_run_time 10 --run_once_only --simulate_failure_type_2"
+        )
+
+        self.assertTrue(res == 0)  # success
