@@ -69,6 +69,22 @@ if __name__ == "__main__":
         type=int,
         help="The maximum time a gunicorn web worker can run before it times out.",
     )
+    parser.add_argument(
+        "--simulate_failure_type_0",
+        action="store_true",
+        help="Raises and untrapped error during unit testing.",
+    )
+    parser.add_argument(
+        "--simulate_failure_type_1",
+        action="store_true",
+        help="Simulates failure in the database access PERSIST module.  Used to simulate the effect of database connection failure during unit testing.",
+    )
+    parser.add_argument(
+        "--simulate_failure_type_2",
+        action="store_true",
+        help="Simulates failure in the database access (cw_seqComparer) module.  Used to simulate the effect of database connection failure during unit testing.",
+    )
+
     args = parser.parse_args()
 
     ############################ LOAD CONFIG ######################################
@@ -131,50 +147,74 @@ if __name__ == "__main__":
         )
     )
 
+    # simulate untrapped error
+    if args.simulate_failure_type_0:
+        1 / 0  # divide by zero
+
     while True:
-        PERSIST = pm.get_storage_object(
-            dbname=CONFIG["SERVERNAME"],
-            connString=CONFIG["FNPERSISTENCE_CONNSTRING"],
-            debug=0,
-            server_monitoring_min_interval_msec=CONFIG[
-                "SERVER_MONITORING_MIN_INTERVAL_MSEC"
-            ],
-            verbose=True,
-        )
-
-        # get details of the lock
-        lock_details = PERSIST.lock_details(1)
-        current_time = datetime.datetime.now()
-
-        if lock_details is not None:
-            # a lock is in place; determine whether it has been held for > 90 seconds
-            time_difference = current_time - lock_details["lock_set_date"]
-            time_difference_seconds = time_difference.total_seconds()
-            logging.info(
-                "Insert Lock status checked; lock is held for {0} seconds".format(
-                    time_difference_seconds
-                )
+        try:
+            PERSIST = pm.get_storage_object(
+                dbname=CONFIG["SERVERNAME"],
+                connString=CONFIG["FNPERSISTENCE_CONNSTRING"],
+                debug=0,
+                server_monitoring_min_interval_msec=CONFIG[
+                    "SERVER_MONITORING_MIN_INTERVAL_MSEC"
+                ],
+                verbose=True,
             )
-            if time_difference_seconds > args.max_run_time:
-                logging.warning(
-                    "Releasing lock on {0}".format(lock_details["sequence_id"])
-                )
-                # release lock; create hybridcomparer object
-                hc = cw_seqComparer(
-                    reference=CONFIG["reference"],
-                    maxNs=CONFIG["MAXN_STORAGE"],
-                    snpCeiling=CONFIG["SNPCEILING"],
-                    excludePositions=set(CONFIG["excludePositions"]),
-                    preComparer_parameters=CONFIG["PRECOMPARER_PARAMETERS"],
-                    PERSIST=PERSIST,
-                    unittesting=False,
-                )
 
-                hc.verify_insertion(lock_details["sequence_id"])
-                PERSIST.unlock(1, force=True)
-        else:
-            logging.info("Insert Lock status checked; lock is not held")
-        PERSIST.closedown()
+            if args.simulate_failure_type_1:
+                PERSIST.raise_error()  # raises a divide by zero error, used to simulate failure of an internal component
+
+            # get details of the lock
+            lock_details = PERSIST.lock_details(1)
+            current_time = datetime.datetime.now()
+
+            if lock_details is not None:
+                # a lock is in place; determine whether it has been held for > 90 seconds
+                time_difference = current_time - lock_details["lock_set_date"]
+                time_difference_seconds = time_difference.total_seconds()
+                logging.info(
+                    "Insert Lock status checked; lock is held for {0} seconds".format(
+                        time_difference_seconds
+                    )
+                )
+                if time_difference_seconds > args.max_run_time:
+                    logging.warning(
+                        "Releasing lock on {0}".format(lock_details["sequence_id"])
+                    )
+                    # release lock; create hybridcomparer object
+                    hc = cw_seqComparer(
+                        reference=CONFIG["reference"],
+                        maxNs=CONFIG["MAXN_STORAGE"],
+                        snpCeiling=CONFIG["SNPCEILING"],
+                        excludePositions=set(CONFIG["excludePositions"]),
+                        preComparer_parameters=CONFIG["PRECOMPARER_PARAMETERS"],
+                        PERSIST=PERSIST,
+                        unittesting=False,
+                    )
+
+                    if args.simulate_failure_type_2:
+                        hc.PERSIST.raise_error()  # raises a divide by zero error, used to simulate failure of an internal component
+
+                    hc.verify_insertion(lock_details["sequence_id"])
+                    PERSIST.unlock(1, force=True)
+
+            else:
+                logging.info("Insert Lock status checked; lock is not held")
+
+        except Exception as e:
+            # an error was raised somewhere
+            logging.error(e)
+            sentry_sdk.capture_exception(e)
+
+        # try to close PERSIST object, if it exists
+        try:
+            PERSIST.closedown()
+        except Exception as e:
+            # an error was raised somewhere
+            logging.error(e)
+            sentry_sdk.capture_exception(e)
 
         if args.run_once_only:
             logger.info("Exiting as run_once_only specified")
