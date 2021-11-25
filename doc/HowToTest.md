@@ -14,9 +14,10 @@ The below instructions include linux-specific commands.
 Dependencies
 ------------
 * Python >= 3.8.  
-You may need to install pip3 with: 
+You may need to install pip3 & pipenv with: 
 ```
 sudo apt-get install python3-pip
+pip3 install pipenv
 ```
 
 Database backend
@@ -78,7 +79,7 @@ A pipenv Pipfile is provided which specifies dependencies.  See also [here](depe
 
 ```
 cd /mydir/fn4       # or whatever you've installed into
-pipenv install . -e --skip-lock   # put fn4 packages in virtualenv; this is essential for effective imports
+pipenv install -e . --skip-lock   # put fn4 packages in virtualenv; this is essential for effective imports
 
 ```
 
