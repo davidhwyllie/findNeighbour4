@@ -24,7 +24,7 @@ It was produced as part of the [Modernising Medical Microbiology](http://modmedm
 # Front end
 There is a front end, *findNeighbour4 monitor*.  Although not required to run or use findNeighbour4 effectively, it helps to visualise server status and supports ad hoc queries.  In particular, it allows selecting and browsing of samples and clusters of samples in the server, including multisequence alignment, mixture detection, and depiction of their relationships.  This was developed by [Trien Do](https://github.com/TrienDo).
 
-Note that the findNeighbour4 startup script (fn4_startup.sh) does not startup the web front end.  The web front end startup script requires root priviledges (loads and runs a docker image) but the findNeighbour4 server does not.
+Note that the findNeighbour4 startup script (fn4_startup.sh) does not startup the web front end.  The web front end startup script (fn4_frontend_startup.sh) requires root priviledges to load and run a docker image, whereas the findNeighbour4 server does not.
 
 ![findNeighbour4 monitor example page](https://davidhwyllie.github.io/FNMFINDNEIGHBOUR3/img/startup.PNG)  
 
