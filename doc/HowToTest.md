@@ -121,9 +121,8 @@ echo CW_BINARY_FILEPATH=\"`pwd`/cw_server\" > ../../.env
 In the root of your directory, you will need to create a .env file.  This sets environment variables required for the code to run.   
 Because you are using a virtual environment, it has its own environment variables.
 
-Here is an example:
+Here is an example if using an Oracle database:
 ```
-FN_SENTRY_URL="https://********************.ingest.sentry.io/*****"
 CW_BINARY_FILEPATH="/home/phe.gov.uk/david.wyllie/catwalk/cw_server"
 IQTREE="/home/phe.gov.uk/david.wyllie/software/iqtree-2.1.2-Linux/bin/iqtree2"
 FASTTREE_DIR="/data/software/fasttree"
@@ -131,6 +130,14 @@ LD_LIBRARY_PATH="/data/software/instantclient_21_1"
 PCA_CONNECTION_CONFIG_FILE='/data/credentials/dbconfig.json'
 DB_CONNECTION_CONFIG_FILE='/data/credentials/dbconfig.json'
 ```
+
+Here is an example if using a Mongo database:
+```
+CW_BINARY_FILEPATH="/home/phe.gov.uk/david.wyllie/catwalk/cw_server"
+IQTREE="/home/phe.gov.uk/david.wyllie/software/iqtree-2.1.2-Linux/bin/iqtree2"
+FASTTREE_DIR="/data/software/fasttree"
+```
+
 ### Sentry.io connection details
 ```
 FN_SENTRY_URL="https://********************.ingest.sentry.io/*****"
