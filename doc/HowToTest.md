@@ -86,7 +86,6 @@ pipenv install -e . --skip-lock   # put fn4 packages in virtualenv; this is esse
 Catwalk
 --------
 Catwalk is an external component which is required by findneighbour4.  
-
 Installation Example:
 
 ```
