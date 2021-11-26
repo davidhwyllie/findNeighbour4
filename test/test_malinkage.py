@@ -1225,7 +1225,7 @@ class test_MIXCHECK_1_rdbms(unittest.TestCase):
                 reference_name="H37RV",
                 reference_filepath="reference/TB-ref.fasta",
                 mask_filepath="reference/TB-exclude-adaptive.txt",
-                max_distance=20,
+                max_n_positions=130000,
                 bind_host="localhost",
                 bind_port=5998,
             )
@@ -1364,7 +1364,7 @@ class test_MIXCHECK_1_mongo(unittest.TestCase):
                 reference_name="H37RV",
                 reference_filepath="reference/TB-ref.fasta",
                 mask_filepath="reference/TB-exclude-adaptive.txt",
-                max_distance=20,
+                max_n_positions=130000,
                 bind_host="localhost",
                 bind_port=5998,
             )

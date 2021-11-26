@@ -110,7 +110,7 @@ class cw_seqComparer:
                                     'bind_port':5999}
 
                 Catwalk also requires additional parameters,  These are supplied:
-                    max_distance : maximum distance to report.  Catwalk does not store distances, so high distances can be requested, albeit at the cost of slightly slower computation.  max_distance is set to selection_cutoff.
+                     max_n_positions : maximum Ns to store.  Samples with more Ns than this are not matched.
 
          PERSIST: either a mongo/rdbms connection string, or an instance of a Persistence object
 
@@ -192,9 +192,7 @@ class cw_seqComparer:
 
         self.catWalk_parameters = preComparer_parameters["catWalk_parameters"]
         self.uncertain_base = preComparer_parameters["uncertain_base"]
-        self.catWalk_parameters["max_distance"] = preComparer_parameters[
-            "selection_cutoff"
-        ]
+        self.catWalk_parameters["max_n_positions"] = maxNs
         if len(self.catWalk_parameters) == 0:
             raise NoCWParametersProvidedError()
 

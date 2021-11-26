@@ -8,7 +8,7 @@ unittests:
 pipenv run python -m unittest test/test_pycw_client.py
 
 A component of the findNeighbour4 system for bacterial relatedness monitoring
-Copyright (C) 2021 David Wyllie david.wyllie@phe.gov.uk
+Copyright (C) 2021 David Wyllie; Denis Volk
 repo: https://github.com/davidhwyllie/findNeighbour4
 
 This program is free software: you can redistribute it and/or modify
@@ -69,7 +69,7 @@ class CatWalk:
         reference_name,
         reference_filepath,
         mask_filepath,
-        max_distance,
+        max_n_positions,
         bind_host,
         bind_port,
         identity_token=None,
@@ -82,7 +82,7 @@ class CatWalk:
         reference_name
         reference_filepath
         mask_filepath
-        max_distance
+        max_n_positions
         bind_host
         bind_port
 
@@ -126,13 +126,13 @@ in either
         self.cw_binary_filepath = cw_binary_filepath
         self.reference_filepath = reference_filepath
         self.mask_filepath = mask_filepath
-        self.max_distance = max_distance
+        self.max_n_positions = max_n_positions
         self.reference_name = reference_name
         self.instance_stem = "CatWalk-PORT-{0}".format(self.bind_port)
         if identity_token is None:
             identity_token = str(uuid.uuid1())
         self.instance_name = "{0}-SNV-{1}-{2}".format(
-            self.instance_stem, self.max_distance, identity_token
+            self.instance_stem, self.max_n_positions, identity_token
         )
 
         # start up if not running
@@ -163,7 +163,8 @@ in either
         reference_filepath = shlex.quote(self.reference_filepath)
         mask_filepath = shlex.quote(self.mask_filepath)
 
-        cmd = f"nohup {cw_binary_filepath} --instance_name {instance_name}  --bind_host {self.bind_host} --bind_port {self.bind_port} --reference_filepath {reference_filepath}  --mask_filepath {mask_filepath} --max_distance {self.max_distance} > cw_server_nohup.out &"
+        cmd = f"nohup {cw_binary_filepath} --instance_name {instance_name}  --bind_host {self.bind_host} --bind_port {self.bind_port} --reference_filepath {reference_filepath}  --mask_filepath {mask_filepath} --max_n_positions {self.max_n_positions:.0f} > cw_server_nohup.out &"
+        print(cmd)
         logging.info("Attempting startup of CatWalk server : {0}".format(cmd))
 
         os.system(cmd)
@@ -246,7 +247,7 @@ in either
         if refcomp is None:
             # issue warning, return
             logging.warning("Asked to reload catwalk with {0} but the refcomp was None".format(name))
-            
+
         refcompressed = self._filter_refcomp(refcomp)
         payload = {"name": name, "refcomp": json.dumps(refcompressed), "keep": True}
 
@@ -257,48 +258,6 @@ in either
         if r.status_code not in [200, 201]:
             raise CatWalkServerInsertError(
                 message="Failed to insert {0}; return code was {1}".format(name, r.text)
-            )
-        return r.status_code
-
-    def add_sample_from_refcomps(self, refcomps):
-        """
-        Add reference compressed sequences to the catwalk.
-
-        refcomps is a dictionary of dictionaries.
-        The outer keys are sample names, and the values are dictionaries containing reference compressed sequences
-         (dict with ACGTN keys and list of positions as values)
-
-        Returns:
-        status code
-        201 = added successfully
-        200 = was already present
-        """
-
-        # not currently implemented
-        raise NotImplementedError(
-            "add_sample_to_refcomps endpoint is not currently implemented by the python client"
-        )
-
-        ## needs review when catwalk expected data structure is confirmed
-        if not isinstance(refcomps, dict):
-            raise TypeError("refcomps must be dict not {0}".format(type(refcomps)))
-
-        dicts_to_submit = []
-        names_to_submit = []
-        for sequence_name in refcomps.keys():
-            names_to_submit.append(sequence_name)
-            dicts_to_submit.append(self._filter_refcomp(refcomps[sequence_name]))
-
-        payload = json.dumps(dict(names=names_to_submit, refcomps=dicts_to_submit))
-        print(payload)
-
-        r = requests.post(
-            "{0}/add_sample_from_refcomp_array".format(self.cw_url), json=payload
-        )
-        r.raise_for_status()
-        if r.status_code not in [201]:
-            raise CatWalkServerInsertError(
-                message="Failed to insert {0}; return code was {1}".format(sequence_name, r.text)
             )
         return r.status_code
 
@@ -318,10 +277,12 @@ in either
 
         Parameters:
         name:  the name of the sample to search for
-        distance: the maximum distance reported.  if distance is not supplied, self.max_distance is used.
+        distance: the maximum distance reported.  if distance is not supplied, 99 is used.
         """
-        if distance is None:
-            distance = self.max_distance
+        if not distance:
+            logging.warning("no distance supplied. Using 99")
+            distance = 99
+
         r = requests.get("{0}/neighbours/{1}/{2}".format(self.cw_url, name, distance))
         r.raise_for_status()
         j = r.json()
@@ -332,4 +293,3 @@ in either
         r = requests.get("{0}/list_samples".format(self.cw_url))
         r.raise_for_status()
         return r.json()
-        

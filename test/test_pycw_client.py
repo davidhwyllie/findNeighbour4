@@ -8,7 +8,7 @@ This program is free software: you can redistribute it and/or modify
 it under the terms of the MIT License as published
 by the Free Software Foundation.  See <https://opensource.org/licenses/MIT>, and the LICENSE file.
 
- 
+
 
 """
 
@@ -17,7 +17,7 @@ import requests
 from catwalk.pycw_client import CatWalk
 
 # unit tests
-class test_cw(unittest.TestCase):
+class test_cwclient(unittest.TestCase):
     """starts server, and shuts it down"""
 
     def setUp(self):
@@ -30,7 +30,7 @@ class test_cw(unittest.TestCase):
             reference_name="H37RV",
             reference_filepath="reference/TB-ref.fasta",
             mask_filepath="reference/TB-exclude-adaptive.txt",
-            max_distance=20,
+            max_n_positions=130000,
             bind_host="localhost",
             bind_port=5999,
         )
@@ -47,7 +47,7 @@ class test_cw(unittest.TestCase):
         pass
 
 
-class test_cw_1(test_cw):
+class test_cwclient_1(test_cwclient):
     """tests server startup, shutdown, info(), and the server_is_running method.
     Shuts down **any catwalk server** running initially"""
 
@@ -62,7 +62,7 @@ class test_cw_1(test_cw):
         self.assertFalse(self.cw.server_is_running())
 
 
-class test_cw_2(test_cw):
+class test_cwclient_2(test_cwclient):
     """tests insert"""
 
     def runTest(self):
@@ -118,7 +118,7 @@ class test_cw_2(test_cw):
             res = self.cw.neighbours("guid4")  # should raise 404
 
 
-class test_cw_3(test_cw):
+class test_cwclient_3(test_cwclient):
     """tests list_samples"""
 
     def runTest(self):
@@ -145,7 +145,7 @@ class test_cw_3(test_cw):
         )  # order doesn't matter
 
 
-class test_cw_4(test_cw):
+class test_cwclient_4(test_cwclient):
     """tests remove_sample"""
 
     def runTest(self):
@@ -184,33 +184,3 @@ class test_cw_4(test_cw):
         # add guid2 again
         self.cw.add_sample_from_refcomp("guid2", payload2)
         self.assertEqual(set(self.cw.sample_names()), set(['guid2']))  # order doesn't matter
-
-
-@unittest.skip("inputs not clearly specified; not yet implemented")
-class test_cw_5(test_cw):
-    """tests adding multiple samples at once"""
-
-    def runTest(self):
-
-        payload1 = {
-            "A": [1000, 1001, 1002],
-            "G": [],
-            "T": [],
-            "C": [],
-            "N": [20000, 20001, 20002],
-        }
-        payload2 = {
-            "A": [1003, 1004, 1005],
-            "G": [],
-            "T": [],
-            "C": [],
-            "N": [20000, 20001, 20002],
-        }
-
-        to_add = dict(guid1=payload1, guid2=payload2)
-        print(to_add)
-        self.cw.add_sample_from_refcomps(to_add)
-
-        self.assertEqual(
-            set(self.cw.sample_names()), set(["guid1", "guid2"])
-        )  # order doesn't matter
