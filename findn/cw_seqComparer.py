@@ -48,6 +48,11 @@ class NoCWParametersProvidedError(Exception):
     def __init__(self):
         pass
 
+class CatwalkInsertFailedError(Exception):
+    """no catwalk parameters provided"""
+    def __init__(self, expression, message):
+        self.message = message
+
 
 class cw_seqComparer:
     def __init__(
@@ -391,6 +396,7 @@ class cw_seqComparer:
                 )  # make a dictionary for catwalk
 
             retVal = self.catWalk.add_sample_from_refcomp(guid, to_catwalk)  # add it
+           
         else:
             return 1
 
@@ -398,6 +404,10 @@ class cw_seqComparer:
             retVal == 200
         ):  # the sample was already there; no need to add neighbours; 201 is returned if insert is successful
             return obj["invalid"]
+
+        # check that the Catwalk insertion succeeded
+        if not retVal == 201:
+            raise CatwalkInsertFailedError("Catwalk client returned {0} on attempting storage of {1}".format(retVal, guid))
 
         # add links if the sample is valid and newly inserted
         links = {}
@@ -415,8 +425,6 @@ class cw_seqComparer:
 
         ## now persist links in database.
         # insert any links found, and the datetime we added the statement.
-
-        # insert
         if unittesting_omit_link is False:
             self.PERSIST.guid2neighbour_add_links(guid=guid, targetguids=links)
 

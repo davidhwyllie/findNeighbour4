@@ -151,7 +151,14 @@ nohup pipenv run python3 fn4_load_multifasta.py http://localhost:5035 /data/data
         help="logfile to write to",
         default="",
     )
-
+    parser.add_argument(
+        "reference_fasta",
+        type=str,
+        action="store",
+        nargs="?",
+        help="the location of the fasta reference",
+        default="",
+    )
     parser.add_argument(
         "--wait_if_server_unavailable",
         type=int,
@@ -227,7 +234,7 @@ nohup pipenv run python3 fn4_load_multifasta.py http://localhost:5035 /data/data
     # add the reference sequence as the root if not already present
     ref_guid = "--Reference--"
     ref_guid_present = fn4c.guid_exists(ref_guid)
-    for record in Bio.SeqIO.parse("reference/nc_045512.fasta", "fasta"):
+    for record in Bio.SeqIO.parse(args.reference_fasta, "fasta"):
         refseq = str(record.seq).upper()
         reflen = len(refseq)
 

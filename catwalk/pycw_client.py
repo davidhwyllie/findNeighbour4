@@ -8,7 +8,7 @@ unittests:
 pipenv run python -m unittest test/test_pycw_client.py
 
 A component of the findNeighbour4 system for bacterial relatedness monitoring
-Copyright (C) 2021 David Wyllie; Denis Volk
+Copyright (C) 2021 David Wyllie david.wyllie@phe.gov.uk
 repo: https://github.com/davidhwyllie/findNeighbour4
 
 This program is free software: you can redistribute it and/or modify
@@ -57,6 +57,13 @@ class CatWalkBinaryNotAvailableError(Exception):
 
     def __init__(self, expression, message):
         self.expression = expression
+        self.message = message
+
+
+class CatWalkMultipleServersRunningError(Exception):
+    """multiple catwalk servers with identical specification are running"""
+
+    def __init__(self, message):
         self.message = message
 
 
@@ -126,12 +133,12 @@ in either
         self.cw_binary_filepath = cw_binary_filepath
         self.reference_filepath = reference_filepath
         self.mask_filepath = mask_filepath
-        self.max_n_positions = max_n_positions
+        self.max_n_positions = int(max_n_positions)
         self.reference_name = reference_name
         self.instance_stem = "CatWalk-PORT-{0}".format(self.bind_port)
         if identity_token is None:
             identity_token = str(uuid.uuid1())
-        self.instance_name = "{0}-SNV-{1}-{2}".format(
+        self.instance_name = "{0}-MAXN-{1}-{2}".format(
             self.instance_stem, self.max_n_positions, identity_token
         )
 
@@ -145,16 +152,38 @@ in either
         if not self.server_is_running():  # startup failed
             raise CatWalkServerDidNotStartError()
 
-    def server_is_running(self):
-        """returns true if  response is received by the server, otherwise returns False"""
+    def _running_servers(self):
+        """returns details of running servers matching the details of this server
 
-        try:
-            self.info()
-            return True
-        except requests.exceptions.ConnectionError:
+        There should be either 0 or 1 of these only"""
+
+        servers = []
+        for proc in psutil.process_iter():
+            if "cw_server" in proc.name():
+                cmdline_parts = proc.cmdline()
+                for i, cmdline_part in enumerate(proc.cmdline()):
+                    if cmdline_part == "--instance_name":
+                        if cmdline_parts[i + 1].startswith(self.instance_stem):
+                            servers.append(cmdline_parts)
+        return servers
+
+    def server_is_running(self):
+        """returns true if the relevant process is running, otherwise false.
+
+        The alternative strategy, returning true if a response is received by the server,
+        can result in reporting false if the server is busy"""
+
+        servers = self._running_servers()
+        if len(servers) == 0:
             return False
-        except Exception as e:
-            raise e  # something else when wrong
+        elif len(servers) == 1:
+            return True
+        else:
+            raise CatWalkMultipleServersRunningError(
+                message="{0} servers with specification {1} detected".format(
+                    len(servers), self.instance_stem
+                )
+            )  # there cannot be multiple servers running
 
     def start(self):
         """starts a catwalk process in the background"""
@@ -163,13 +192,13 @@ in either
         reference_filepath = shlex.quote(self.reference_filepath)
         mask_filepath = shlex.quote(self.mask_filepath)
 
-        cmd = f"nohup {cw_binary_filepath} --instance_name {instance_name}  --bind_host {self.bind_host} --bind_port {self.bind_port} --reference_filepath {reference_filepath}  --mask_filepath {mask_filepath} --max_n_positions {self.max_n_positions:.0f} > cw_server_nohup.out &"
-        print(cmd)
-        logging.info("Attempting startup of CatWalk server : {0}".format(cmd))
+        if not self.server_is_running():
+            cmd = f"nohup {cw_binary_filepath} --instance_name {instance_name}  --bind_host {self.bind_host} --bind_port {self.bind_port} --reference_filepath {reference_filepath}  --mask_filepath {mask_filepath} --max_n_positions {self.max_n_positions} > cw_server_nohup.out &"
+            logging.info("Attempting startup of CatWalk server : {0}".format(cmd))
 
-        os.system(cmd)
+            os.system(cmd)  # synchronous: will return when it has started
 
-        time.sleep(1)
+            time.sleep(1)  # short break to ensure it has started
         info = self.info()
         if info is None:
             raise CatWalkServerDidNotStartError()
@@ -211,8 +240,10 @@ in either
         Get status information from catwalk
         """
         target_url = "{0}/info".format(self.cw_url)
+
         r = requests.get(target_url)
-        r.raise_for_status()
+        r.raise_for_status()  # report errors
+
         return r.json()
 
     def _filter_refcomp(self, refcomp):
@@ -246,7 +277,9 @@ in either
         # cannot json serialise sets; use lists instead
         if refcomp is None:
             # issue warning, return
-            logging.warning("Asked to reload catwalk with {0} but the refcomp was None".format(name))
+            logging.warning(
+                "Asked to reload catwalk with {0} but the refcomp was None".format(name)
+            )
 
         refcompressed = self._filter_refcomp(refcomp)
         payload = {"name": name, "refcomp": json.dumps(refcompressed), "keep": True}
@@ -282,6 +315,8 @@ in either
         if not distance:
             logging.warning("no distance supplied. Using 99")
             distance = 99
+
+        distance = int(distance)  # if a float, url contstruction may fail
 
         r = requests.get("{0}/neighbours/{1}/{2}".format(self.cw_url, name, distance))
         r.raise_for_status()

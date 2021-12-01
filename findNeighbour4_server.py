@@ -481,9 +481,7 @@ class findNeighbour4:
             # insert sequence into the sequence store.
             self.objExaminer.examine(dna)  # examine the sequence
             cleaned_dna = self.objExaminer.nucleicAcidString.decode()
-            refcompressedsequence = self.hc.compress(
-                cleaned_dna
-            )  # compress it and store it in RAM
+            refcompressedsequence = self.hc.compress(cleaned_dna)  # compress it
 
             # addition should be an atomic operation, in which all the component complete or do not complete.
             # we use a semaphore to do this.
@@ -502,9 +500,16 @@ class findNeighbour4:
                     logging.info("Insert succeeded {0}".format(guid))
 
                 except Exception as e:
-                    # the rdbms server may be refusing connections, or busy.  This is observed occasionally in real-world use
-                    capture_exception(e)  # log what happened in Sentry
+                    # the database server may be refusing connections, or busy.  This is observed occasionally in real-world use
                     error_message = "Error raised on persisting {0}".format(guid)
+                    for key in refcompressedsequence:
+                        if isinstance(refcompressedsequence[key], set):
+                            n = len(refcompressedsequence[key])
+                        else:
+                            n = refcompressedsequence[key]
+
+                        error_message = error_message + "| {0} len={1}".format(key, n)
+                    capture_exception(e)  # log what happened in Sentry
                     logging.exception(error_message)
                     logging.exception(e)
 
@@ -773,7 +778,7 @@ def create_app(config_file=None):
 
     cfm = ConfigManager(config_file)
     CONFIG = cfm.read_config()
- 
+
     ########################### SET UP LOGGING #####################################
     # create a log file if it does not exist.
     logdir = os.path.dirname(CONFIG["LOGFILE"])
@@ -847,7 +852,17 @@ def create_app(config_file=None):
     app.logger.setLevel(loglevel)
     app.logger.addHandler(file_handler)
     app.logger.info("Logging to {0}".format(logfile))
+
     # launch sentry if API key provided
+    # determine whether a FN_SENTRY_URLenvironment variable is present,
+    # if so, the value of this will take precedence over any values in the config file.
+    # This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuraton file.
+    if os.environ.get("FN_SENTRY_URL") is not None:
+        CONFIG["SENTRY_URL"] = os.environ.get("FN_SENTRY_URL")
+        print("Set Sentry connection string from environment variable")
+    else:
+        print("Using Sentry connection string from configuration file.")
+
     if "SENTRY_URL" in CONFIG.keys():
         app.logger.info("Launching communication with Sentry bug-tracking service")
         sentry_sdk.init(CONFIG["SENTRY_URL"], integrations=[FlaskIntegration()])
@@ -2089,14 +2104,16 @@ python findNeighbour4_server.py ../config/myconfig_file.json
     if config_file is None:
         config_file = DEFAULT_CONFIG_FILE
         warnings.warn(
-            "No config file name supplied ; using a configuration ({0}) suitable only for testing, not for production. ".format(config_file)
+            "No config file name supplied ; using a configuration ({0}) suitable only for testing, not for production. ".format(
+                config_file
+            )
         )
 
     ## construct flask application, which is initiated by environement variable
     os.environ["FN4_SERVER_CONFIG_FILE"] = str(config_file)
     cfm = ConfigManager(config_file)
     CONFIG = cfm.read_config()
- 
+
     app = create_app()
 
     if CONFIG["DEBUGMODE"] > 0:
