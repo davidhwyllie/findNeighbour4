@@ -22,6 +22,7 @@ fi
 echo "Shutdown planned. Targeted processes currently running are:"
 echo "--------------------"	
 ps -x | grep ".[p]y $1"
+ps -x | grep "path_to_config_file $1"
 echo "--------------------"
 
 echo  "Stopping dbmanagers"
@@ -39,13 +40,18 @@ pkill -f "findNeighbour4_server.py $1"
 
 echo "Stopping monitor"
 pkill -f "findNeighbour4_monitor.py $1" 
+
 echo "Stopping clustering"
 pkill -f "findNeighbour4_clustering.py $1" 
+
+echo "Stopping lockmanager"
+pkill -f "findNeighbour4_lockmanager.py --path_to_config_file $1" 
 
 echo "Shutdown attempted.  see below: there should be no findNeighbour processes running "
 echo "Targeted processes still running are as follows:"
 echo "--------------------"
 ps -x | grep ".[p]y $1"
+ps -x | grep "path_to_config_file $1"
 echo "--------------------"
 
 echo "Targeting any CatWalk server operating on the relevant port"
