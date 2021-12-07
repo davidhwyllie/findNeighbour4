@@ -21,16 +21,11 @@ The latter are added before the 43 related samples, as they are used by the serv
 To run the demo:
 - make sure mongodb is running
 -- start the server  
-``` pipenv run python findNeighbour4-server.py demos/AC587/config/config.json ```
-
-or without clustering
-
-``` pipenv run python findNeighbour4-server.py /demos/AC587/config/config_nocl.json ```  
-
--- run the software adding samples to the server  
-``` pipenv run python demo_ac587.py ```
+chmod +x demo/ac587_demo.sh
+./demo/ac587_demos.sh
 
 ### AA041
+TODO: update these instructions
 a larger collection of ~ 1000 mapped samples containing related TB data.
 To run the demo:
 - make sure mongodb is running  
@@ -43,6 +38,7 @@ or (faster, without clustering)
 ``` pipenv run python demo_aa041.py ```
 
 ### Large scale testing
+TODO: update these instructions
 a collection of over 36,500 TB samples from diverse locations  
 i) .csv files containing the positions of [where different bases map with high quality to the same site across each genome](https://github.com/davidhwyllie/VCFMIX)  
 ii) fasta files in which these positions are marked with [IUPAC codes](https://www.bioinformatics.org/sms/iupac.html).  

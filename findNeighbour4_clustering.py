@@ -1,11 +1,9 @@
 """ clustering for findNeighbour4
 assumes a findNeighbour4 server is running, with the connection string stated in demos/AC587/config/config_cl.json.
 
-An example command doing this would be (starting from /src)
+./fn4_startup.sh demos/AC587/config/config_cl.json
 
-pipenv run python3 findNeighbour4_server.py demos/AC587/config/config_cl.json
-
-The test performs clustering.
+This code performs clustering.
 
 A component of the findNeighbour4 system for bacterial relatedness monitoring
 Copyright (C) 2021 David Wyllie david.wyllie@phe.gov.uk
