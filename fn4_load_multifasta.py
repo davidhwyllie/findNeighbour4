@@ -55,6 +55,12 @@ def measure_sr(fn4_client, ensure_database_monitor=False):
     """checks the most recently recorded server ratio (ratio of  rows in guid2neighbour to guid2meta),
     and notes whether this was in the last 10 minutes
 
+    in the implementation using monogodb, this ratio reflects how efficiently the data is repacked for 'read optimisation'
+    If this ratio becomes very high, database performance can fall.  1 reflects perfect 'read optimisation'.  Value of under 500 (approx)
+    are associated with adequate performance.
+
+    In the implementation using an rdbms, this ratio is not meaningful and the server will report a ratio of 1.
+
     it it wasn't it either
     - raises a DatabaseMonitorInoperativeError (if ensure_database_monitor is True) or
     - issues are warning, and continues, reporting storage_ratio as 1
