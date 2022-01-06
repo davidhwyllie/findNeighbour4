@@ -163,12 +163,32 @@ pipenv run python fn4_configure.py /path/to/config_file.json --set
         LISTEN_TO = CONFIG["LISTEN_TO"]
 
     if args.startup:
-        error_output_file = os.path.join(cfm.logdir,"gunicorn_error_logging_{0}_{1}.log".format(CONFIG["SERVERNAME"],CONFIG["REST_PORT"]))
-        access_output_file = os.path.join(cfm.logdir,"gunicorn_access_logging_{0}_{1}.log".format(CONFIG["SERVERNAME"],CONFIG["REST_PORT"]))
-        nohup_output_file = os.path.join(cfm.logdir,"gunicorn_nohup_logging_{0}_{1}.log".format(CONFIG["SERVERNAME"],CONFIG["REST_PORT"]))
+        error_output_file = os.path.join(
+            cfm.logdir,
+            "gunicorn_error_logging_{0}_{1}.log".format(
+                CONFIG["SERVERNAME"], CONFIG["REST_PORT"]
+            ),
+        )
+        access_output_file = os.path.join(
+            cfm.logdir,
+            "gunicorn_access_logging_{0}_{1}.log".format(
+                CONFIG["SERVERNAME"], CONFIG["REST_PORT"]
+            ),
+        )
+        nohup_output_file = os.path.join(
+            cfm.logdir,
+            "gunicorn_nohup_logging_{0}_{1}.log".format(
+                CONFIG["SERVERNAME"], CONFIG["REST_PORT"]
+            ),
+        )
 
         startup_cmd = "nohup pipenv run gunicorn wsgi:app --bind {1}:{2} --log-level info  --workers {0} --error-logfile {3} --access-logfile {4} --timeout 90  > {5} &".format(
-            args.n_workers, LISTEN_TO, CONFIG["REST_PORT"], error_output_file, access_output_file, nohup_output_file
+            args.n_workers,
+            LISTEN_TO,
+            CONFIG["REST_PORT"],
+            error_output_file,
+            access_output_file,
+            nohup_output_file,
         )
         logging.info(
             "Configure finished.  Startup command returned to STDOUT {0}".format(

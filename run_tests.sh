@@ -1,7 +1,7 @@
 # unit tests and lint testss
 # suitable for running as part of CI
 # runs with a default config file, using mongo
-pipenv run flake8 . --count --ignore=W293,E266,E302,E251,E225,E265,W291,E501,W503,C901 --show-source --max-complexity=200 --statistics
+pipenv run flake8 . --count --ignore=W293,E266,E302,E251,E225,E265,W291,E501,W503,C901 --show-source --max-complexity=200 --statistics --exclude external_software,.eggs
 
 # shut down any running test servers
 echo "Terminating any running test catwalk  processes"
