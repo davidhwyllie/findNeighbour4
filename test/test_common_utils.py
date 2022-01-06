@@ -14,6 +14,7 @@ by the Free Software Foundation.  See <https://opensource.org/licenses/MIT>, and
 
 import unittest
 import os
+import pathlib
 from findn.common_utils import ConfigManager, EnvWriter
 
 
@@ -30,7 +31,17 @@ class Test_RC_1(unittest.TestCase):
         res = rc.read_config()
         self.assertTrue(isinstance(res, dict))
 
+        # check catwalk_backupdir set and exists
+        if not os.path.exists(rc.catwalk_backupdir):
+            self.fail("ConfigManager.catwalk_backupdir does not exist")
+
+        # create a file in the backupdir
+        backupfile = os.path.join(rc.catwalk_backupdir, 'rc_test.tar')
+        pathlib.Path(backupfile).touch()
+        self.assertTrue(os.path.exists(backupfile))
+
         rc.delete_existing_data()
+        self.assertFalse(os.path.exists(backupfile))
 
 
 class Test_envwriter_1(unittest.TestCase):

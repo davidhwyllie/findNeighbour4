@@ -22,6 +22,7 @@ by the Free Software Foundation.  See <https://opensource.org/licenses/MIT>, and
 """
 
 # import libraries
+import os
 import logging
 import argparse
 import multiprocessing
@@ -52,7 +53,7 @@ Example usage:
 # show command line options 
 pipenv run python fn4_configure.py --help  
 
-# set path to config file in .env file
+# normal usage; provide the path to config file in .env file
 pipenv run python fn4_configure.py /path/to/config_file.json --set  
 
 """,
@@ -115,6 +116,7 @@ pipenv run python fn4_configure.py /path/to/config_file.json --set
     CONFIG = (
         cfm.read_config()
     )  # tests that it can be read.  Will raise a suitable error if it cannot
+
     pm = Persistence()
     PERSIST = pm.get_storage_object(
         dbname=CONFIG["SERVERNAME"],
@@ -161,8 +163,12 @@ pipenv run python fn4_configure.py /path/to/config_file.json --set
         LISTEN_TO = CONFIG["LISTEN_TO"]
 
     if args.startup:
-        startup_cmd = "nohup pipenv run gunicorn wsgi:app --bind {1}:{2} --log-level info  --workers {0} --error-logfile test_error.log --access-logfile test_access.log --timeout 90  > gunicorn.log &".format(
-            args.n_workers, LISTEN_TO, CONFIG["REST_PORT"]
+        error_output_file = os.path.join(cfm.logdir,"gunicorn_error_logging_{0}_{1}.log".format(CONFIG["SERVERNAME"],CONFIG["REST_PORT"]))
+        access_output_file = os.path.join(cfm.logdir,"gunicorn_access_logging_{0}_{1}.log".format(CONFIG["SERVERNAME"],CONFIG["REST_PORT"]))
+        nohup_output_file = os.path.join(cfm.logdir,"gunicorn_nohup_logging_{0}_{1}.log".format(CONFIG["SERVERNAME"],CONFIG["REST_PORT"]))
+
+        startup_cmd = "nohup pipenv run gunicorn wsgi:app --bind {1}:{2} --log-level info  --workers {0} --error-logfile {3} --access-logfile {4} --timeout 90  > {5} &".format(
+            args.n_workers, LISTEN_TO, CONFIG["REST_PORT"], error_output_file, access_output_file, nohup_output_file
         )
         logging.info(
             "Configure finished.  Startup command returned to STDOUT {0}".format(
