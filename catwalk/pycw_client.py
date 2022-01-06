@@ -180,7 +180,7 @@ in either
             return True
         else:
             raise CatWalkMultipleServersRunningError(
-                message="{0} servers with specification {1} detected".format(
+                message="{0} servers with specification {1} detected.  This is not permitted and should not occur".format(
                     len(servers), self.instance_stem
                 )
             )  # there cannot be multiple servers running
@@ -197,7 +197,7 @@ in either
             cmd = f"nohup {cw_binary_filepath} --instance_name {instance_name}  --bind_host {self.bind_host} --bind_port {self.bind_port} --reference_filepath {reference_filepath}  --mask_filepath {mask_filepath} --max_n_positions {self.max_n_positions} > cw_server_nohup.out &"
             logging.info("Attempting startup of CatWalk server : {0}".format(cmd))
 
-            os.system(cmd)  # synchronous: will return when it has started
+            os.system(cmd)  # synchronous: will return when it has started; runs via nohup
 
             time.sleep(1)  # short break to ensure it has started
         
@@ -205,14 +205,14 @@ in either
         # will raise an error otherwise
         if self.server_is_running() is False:
             raise CatWalkServerDidNotStartError()
-        info = self.info()
+        info = self.info()      # functional test: test responsiveness
         if info is None:
             raise CatWalkServerDidNotStartError()
         else:
             logging.info("Catwalk server running: {0}".format(info))
 
     def stop(self):
-        """stops the catwalk server launched by this process, if running.  The process is identified by a uuid, so only one catwalk server will be shut down."""
+        """stops the catwalk server launched by this process, if running.  Only the specific catwalk server will be shut down."""
         for proc in psutil.process_iter():
             if "cw_server" in proc.name():
                 cmdline_parts = proc.cmdline()
