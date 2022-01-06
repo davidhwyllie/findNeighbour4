@@ -124,7 +124,7 @@ class cw_seqComparer:
          disable_insertion:  catwalk is not used; can only access data already present in the database.
 
          - to run unit tests, do
-         python3 -m unittest cw_seqComparer
+         pipenv run python3 -m unittest cw_seqComparer
         """
 
         # reference based compression relative to reference 'compressed_sequence' have keys as follows:
@@ -201,6 +201,11 @@ class cw_seqComparer:
         if len(self.catWalk_parameters) == 0:
             raise NoCWParametersProvidedError()
 
+        # compute an identity_token as the hash of the reference sequence
+        # this ensures that the catwalk instance name is deterministic cf. issue #117
+        self.catWalk_parameters['identity_token'] = hashlib.md5(reference.encode('utf-8')).hexdigest()
+
+        # start catwalk
         self.catWalk = CatWalk(**self.catWalk_parameters, unittesting=unittesting)
 
         self.repopulate_all()  # reload samples

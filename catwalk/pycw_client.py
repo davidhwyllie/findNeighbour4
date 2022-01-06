@@ -93,7 +93,7 @@ class CatWalk:
         bind_host
         bind_port
 
-        identity_token: a string identifying the process.  If not provided, a guid is generated
+        identity_token: a string identifying the process.  If not provided, a random guid is generated
         unittesting: if True, will shut down and restart (empty) any catwalk on bind_port on creation
         """
 
@@ -143,8 +143,26 @@ in either
         )
 
         # start up if not running
+
+        # if we are unittesting and a server is running, we shut it down
         if unittesting and self.server_is_running():
             self.stop()  # removes any data from server  and any other running cws
+
+        # if it is not running, start
+
+        # ###########################################################################################
+        # Note:
+        # is this capable of producing a race condition whereby more than one server is operating,
+        # and trying to start a single catwalk instance at the same time?
+        # for example if multiple Catwalk instances are being started up all at the same time
+        # e.g. by gunicorn?
+        # 
+        # in theory, it probably is, but such a problem has never been observed in fn4 testing.
+        # this is likely due to Catwalk being started before the gunicorn processes in findneighbour4
+        # startup; this prevents a race between gunicorn processes.
+        # Therefore, this issue has not been considered further at the moment.
+        # cf. issue #117
+        # ###########################################################################################
 
         if not self.server_is_running():
             self.start()
@@ -179,6 +197,7 @@ in either
         elif len(servers) == 1:
             return True
         else:
+            # raise an error. See also issue #117
             raise CatWalkMultipleServersRunningError(
                 message="{0} servers with specification {1} detected.  This is not permitted and should not occur".format(
                     len(servers), self.instance_stem
@@ -212,7 +231,16 @@ in either
             logging.info("Catwalk server running: {0}".format(info))
 
     def stop(self):
-        """stops the catwalk server launched by this process, if running.  Only the specific catwalk server will be shut down."""
+        """stops a catwalk server launched by with this specification, if running.  
+           The server is not killed by pid, so if a different process (but with the same identifier)
+           is running started by a different program, this will be shut down.
+           
+           If more than one catwalk server with the same id is running (this is an error condition)
+           then all will be shut down.
+           
+           The server process is identified by the instance_stem, which is of the for Catwalk-PORT-XXXX-hash
+           where the hash is the hash on an 'identity token' passed to the constructor, see above."""
+
         for proc in psutil.process_iter():
             if "cw_server" in proc.name():
                 cmdline_parts = proc.cmdline()
