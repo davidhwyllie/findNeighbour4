@@ -209,6 +209,7 @@ nohup pipenv run python3 fn4_load_multifasta.py http://localhost:5035 /data/data
     file_handler = logging.handlers.RotatingFileHandler(
         logfile, mode="a", maxBytes=1e7, backupCount=7
     )
+    
     formatter = logging.Formatter(
         "%(asctime)s | %(pathname)s:%(lineno)d | %(funcName)s | %(levelname)s | %(message)s "
     )

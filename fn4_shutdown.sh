@@ -19,13 +19,14 @@ else
     exit 1
 fi
 
-SHUTDOWN_CATWALK=1      
+SHUTDOWN_CATWALK="YES"      
 if [ $# -eq 2 ]; then
     echo "findNeighbour4 shutdown script has 2 parameters; got option $2"
    if [ "$2" = "--leave_catwalk_running" ]; then
-            SHUTDOWN_CATWALK=0
+        echo "Will leave catwalk running."
+        SHUTDOWN_CATWALK="NO"
    else
-        echo "Your command line contains two arguments; the only valid second argument is --leave_catwalk_running.  Instead, got >$2<"
+        echo "Your command line contains two arguments; the only valid second argument is --leave_catwalk_running.  Instead, got $2"
         exit 1
     fi
 fi
@@ -65,34 +66,6 @@ ps -x | grep ".[p]y $1"
 ps -x | grep "path_to_config_file $1"
 echo "--------------------"
 
-
-if [ SHUTDOWN_CATWALK=1 ]; then
-    echo "Targeting any CatWalk server operating on the relevant port"
-    cat $1
-    BIND_PORT=`cat $1 | grep -o -P '(?<=bind_port":).{4}.*'`
-    BIND_PORT=${BIND_PORT:0:4}
-    BIND_PORT_LENGTH=${#BIND_PORT}
-
-    if [ "$BIND_PORT_LENGTH" -eq 4 ]; then
-        echo "Examination of the config file indicates a CatWalk server may be running on port $BIND_PORT"
-        echo "--------------------"
-        ps -x | grep "bind_port $BIND_PORT"
-        echo "--------------------"
-        echo "Stopping any CatWalk process .."
-        pkill -f "bind_port $BIND_PORT"
-        echo "Shutdown attempted.  see below; there should be no catWalk process running on $BIND_PORT"
-        echo "--------------------"
-        ps -x | grep "bind_port $BIND_PORT"
-        echo "--------------------"
-    else
-        echo "Failed to parse the config file.  Identified a BIND_PORT of $BIND_PORT, but this is not the right length"
-    fi  
-else
-    echo "Left catwalk running, as instructed by --leave_catwalk_running"
-fi
-
-
-
 echo "Targeting any gunicorn based servers"
 
 # checksum the config file
@@ -107,6 +80,33 @@ chmod +x $STOPSCRIPT
 
 echo "running $STOPSCRIPT"
 ./$STOPSCRIPT $1 
+
+
+if [ $SHUTDOWN_CATWALK = "YES" ]; then
+
+    BIND_PORT=`cat $1 | grep -o -P '(?<=bind_port":).{4}.*'`
+    BIND_PORT=${BIND_PORT:0:4}
+    BIND_PORT_LENGTH=${#BIND_PORT}
+    echo "Targeting any CatWalk server operating on the relevant port ${BIND_PORT}; initiating shutdown"
+
+    if [ "$BIND_PORT_LENGTH" -eq 4 ]; then
+        echo "Examination of the config file indicates a CatWalk server may be running on port $BIND_PORT"
+        echo "--------------------"
+        ps -x | grep "$BIND_PORT"
+        echo "--------------------"
+        echo "Stopping any CatWalk process .."
+        pkill -f "$BIND_PORT"
+        echo "Shutdown attempted.  see below; there should be no catWalk process running on $BIND_PORT"
+        echo "--------------------"
+        ps -x | grep "$BIND_PORT"
+        echo "--------------------"
+    else
+        echo "Failed to parse the config file.  Identified a BIND_PORT of $BIND_PORT, but this is not the right length"
+    fi  
+else
+    echo "Left catwalk running, as instructed by --leave_catwalk_running"
+fi
+
 
 echo "Shutdown completed"
 

@@ -192,6 +192,7 @@ in either
         reference_filepath = shlex.quote(self.reference_filepath)
         mask_filepath = shlex.quote(self.mask_filepath)
 
+        # note: potential race condition here
         if not self.server_is_running():
             cmd = f"nohup {cw_binary_filepath} --instance_name {instance_name}  --bind_host {self.bind_host} --bind_port {self.bind_port} --reference_filepath {reference_filepath}  --mask_filepath {mask_filepath} --max_n_positions {self.max_n_positions} > cw_server_nohup.out &"
             logging.info("Attempting startup of CatWalk server : {0}".format(cmd))
@@ -199,6 +200,11 @@ in either
             os.system(cmd)  # synchronous: will return when it has started
 
             time.sleep(1)  # short break to ensure it has started
+        
+        # check there is exactly one running.
+        # will raise an error otherwise
+        if self.server_is_running() is False:
+            raise CatWalkServerDidNotStartError()
         info = self.info()
         if info is None:
             raise CatWalkServerDidNotStartError()
