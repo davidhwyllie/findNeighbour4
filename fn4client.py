@@ -2,7 +2,7 @@
 """ A python3 client for findNeighbour4-server.
 
 Provides a class which allows access to all routes described in:
-../doc/rest-routes.md for a list.
+doc/rest-routes.md for a list.
   
 Unit testing:
 * launch a test server
@@ -41,7 +41,7 @@ class fn4Client:
     """python3 API to the findNeighbour3 + -server REST endpoint.
 
     All endpoints are supported.
-    See ../doc/rest-routes.md for a list.
+    See doc/rest-routes.md for a list.
 
     """
 

@@ -34,10 +34,16 @@ echo "version = '$VERSION'" > version.py
 echo "Starting test findNeighbour servers to run tests with; waiting 15 seconds to ensure it has started  .."
 echo "starting mongodb server with gunicorn and 1 workers.  Note you cannot run these unittests with > 1 workers"
 echo "because each worker initialises the database on creation, which causes worker initiation to fail."
+
 rm test_startup.sh -f
 pipenv run python3 fn4_configure.py config/default_test_config.json --startup --n_workers 1 > test_startup.sh
 chmod +x test_startup.sh
+echo "Debug: stopping"
+
 ./test_startup.sh
+#more test_startup.sh
+
+
 rm test_startup.sh 
 sleep 15 # wait for them to start
 
