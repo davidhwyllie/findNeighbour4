@@ -199,8 +199,8 @@ in either
         else:
             # raise an error. See also issue #117
             raise CatWalkMultipleServersRunningError(
-                message="{0} servers with specification {1} detected.  This is not permitted and should not occur".format(
-                    len(servers), self.instance_stem
+                message="{0} servers with specification {1} detected.  This is not permitted and should not occur.  Servers running are:{2}".format(
+                    len(servers), self.instance_stem, servers
                 )
             )  # there cannot be multiple servers running
 
