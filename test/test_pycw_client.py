@@ -53,6 +53,14 @@ class test_cwclient_1(test_cwclient):
 
     def runTest(self):
 
+        self.cw.stop()
+        self.assertFalse(self.cw.server_is_running())
+
+        self.cw.start()
+        self.assertTrue(self.cw.server_is_running())
+
+        # try to start another one.  Should refuse to do so, and ignore the request.
+        # if it does not, and 2 are started, server_is_running() will raise an error.
         self.cw.start()
         self.assertTrue(self.cw.server_is_running())
 

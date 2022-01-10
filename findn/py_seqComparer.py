@@ -93,7 +93,6 @@ class py_seqComparer:
     def persist(self, object, guid):
         """keeps a reference compressed object into RAM.
         Note: the sequences are stored on disc/db relative to the reference.
-        Compression relative to each other is carried out post-hoc in ram
         """
 
         # loading from the database, the object may have lists not sets
@@ -120,9 +119,7 @@ class py_seqComparer:
 
     def remove(self, guid):
         """removes a reference compressed object into RAM.
-        If compression relative to other sequences has been carried out post-hoc in ram,
-        only the sequence is removed; any consensus linked to it (and potentially to other sequences)
-        remain unaltered.
+    
         """
         try:
             del self.seqProfile[guid]
@@ -133,7 +130,6 @@ class py_seqComparer:
     def load(self, guid):
         """returns a reference compressed object into RAM.
         Note: this function loads stored on disc/db relative to the reference.
-        Compression relative to each other is carried out post-hoc in ram
         """
         return self.seqProfile[guid]
 

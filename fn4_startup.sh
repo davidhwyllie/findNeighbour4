@@ -61,7 +61,6 @@ LAUNCHSCRIPT="fn4server_launch_${MD5CHECKSUM}.sh"
 # get the output directory from the config file
 LOGDIR=`python3 get_log_dir_from_config_file.py $1`
 
-
 # set sentry url for bug tracking: FN_SENTRY_URL
 # not set here. Should be set in a .env file in the pipenv
 
@@ -87,46 +86,53 @@ echo "Starting server with prespecified worker processes (remove --n_workers X f
 pipenv run python3 fn4_configure.py $1 --startup --n_workers 8 > $LAUNCHSCRIPT
 chmod +x $LAUNCHSCRIPT
 
-echo "running $LAUNCHSCRIPT"
+echo "running $LAUNCHSCRIPT to start gunicorn based server"
+echo " -------------------------------------- running launch script to start gunicorn -----------------------------------"
+echo $LAUNCHSCRIPT
+cat $LAUNCHSCRIPT
+echo " -------------------------------------- --------------------------------------- -----------------------------------"
+
+## this process launches multiple catwalks -it's a bug
 ./$LAUNCHSCRIPT $1 > $SRVLOG 
 
-sleep 5
+
+sleep 0.5
 echo "Starting lockmanager"
 nohup pipenv run python3 findNeighbour4_lockmanager.py --path_to_config_file $1 --max_run_time 90 > $MANLOG &
 
-sleep 5
+sleep 0.5
 echo "Starting dbmanager instance 1"
 nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset 01 $1 > $MANLOG &
-sleep 5
+sleep 0.5
 echo "Starting dbmanager instance 2"
 nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset 23 $1 > $MANLOG &
-sleep 5
+sleep 0.5
 echo "Starting dbmanager instance 3"
 nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset 45 $1 > $MANLOG &
-sleep 5
+sleep 0.5
 echo "Starting dbmanager instance 4"
 nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset 67 $1 > $MANLOG &
-sleep 5
+sleep 0.5
 echo "Starting dbmanager instance 5"
 nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset 89 $1 > $MANLOG &
-sleep 5
+sleep 0.5
 echo "Starting dbmanager instance 6"
 nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset ab $1 > $MANLOG &
-sleep 5
+sleep 0.5
 echo "Starting dbmanager instance 7"
 nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset cd $1 > $MANLOG &
-sleep 5
+sleep 0.5
 echo "Starting dbmanager instance 8"
 nohup pipenv run python3 findNeighbour4_dbmanager.py --recompress_subset ef $1 > $MANLOG &
-sleep 5
+sleep 0.5
 
 echo "Starting monitor [disabled until issue #71 is resolved]"
 #nohup pipenv run python3 findNeighbour4_monitor.py $1 > $MONLOG &
-#sleep 5
+#sleep 0.5
 
 echo "Starting clustering"
 nohup pipenv run python3 findNeighbour4_clustering.py $1 > $CLUSTLOG &
-sleep 5
+sleep 0.5
 
 echo "Startup complete.  Output files containing STDOUT and STDERR output are being written to $LOGDIR."
 echo "Server processes making their own log in the database. Nohup output is going to the following locations:"

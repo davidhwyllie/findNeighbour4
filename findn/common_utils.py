@@ -12,6 +12,7 @@ by the Free Software Foundation.  See <https://opensource.org/licenses/MIT>, and
  
 """
 import os
+import glob
 import json
 import datetime
 from Bio import SeqIO
@@ -232,6 +233,16 @@ class ConfigManager:
         if "SERVER_MONITORING_MIN_INTERVAL_MSEC" not in self.CONFIG.keys():
             self.CONFIG["SERVER_MONITORING_MIN_INTERVAL_MSEC"] = 0
 
+        # ensure the log directory exists
+        # check the log directory exists.  raises an error if it is not there
+        self.logdir = os.path.dirname(self.CONFIG['LOGFILE'])
+        if not os.path.exists(self.logdir):
+            raise FileNotFoundError("Logdir does not exist at {0}.  You must create this directory".format(self.logdir))
+        
+        # create a storage directory; check it is writeable
+        self.catwalk_backupdir = os.path.join(self.logdir, 'catwalk_fast_restart', self.CONFIG['SERVERNAME'])
+        os.makedirs(self.catwalk_backupdir, exist_ok=True)
+
         return self.CONFIG
 
     def delete_existing_data(self):
@@ -244,6 +255,10 @@ class ConfigManager:
             debug=2,
             verbose=False,
         )
+
+        # delete the contents of any catwalk backupdir
+        for cw_backup_file in glob.glob(os.path.join(self.catwalk_backupdir, "rc_*.tar")):
+            os.unlink(cw_backup_file)
 
     def _first_run(self, do_not_persist_keys):
         """first run actions.  Stores CONFIG to database, minus any keys in do_not_persist_keys"""

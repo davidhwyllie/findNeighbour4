@@ -7,7 +7,6 @@ verify_ssl = true
 
 [packages]
 cmake = "*"
-cython = "*"
 biopython = "*"
 dnspython = "*"
 blinker = "*"
@@ -45,11 +44,12 @@ coverage = "*"
 cx-Oracle = "*"
 statsmodels = "*"
 patsy = "*"
-pyqt5 = "*"
+PyQt5 = "*"
 gunicorn = "*"
-sqlalchemy = "*"
 aiohttp = "*"
 asyncio = "*"
+setuptools-scm = "*"
+setuptools = "*"
 
 [requires]
 python_version = "3.8"

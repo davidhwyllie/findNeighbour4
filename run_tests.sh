@@ -1,7 +1,7 @@
 # unit tests and lint testss
 # suitable for running as part of CI
 # runs with a default config file, using mongo
-pipenv run flake8 . --count --ignore=W293,E266,E302,E251,E225,E265,W291,E501,W503,C901 --show-source --max-complexity=200 --statistics
+pipenv run flake8 . --count --ignore=W293,E266,E302,E251,E225,E265,W291,E501,W503,C901 --show-source --max-complexity=200 --statistics --exclude external_software,.eggs
 
 # shut down any running test servers
 echo "Terminating any running test catwalk  processes"
@@ -34,10 +34,16 @@ echo "version = '$VERSION'" > version.py
 echo "Starting test findNeighbour servers to run tests with; waiting 15 seconds to ensure it has started  .."
 echo "starting mongodb server with gunicorn and 1 workers.  Note you cannot run these unittests with > 1 workers"
 echo "because each worker initialises the database on creation, which causes worker initiation to fail."
+
 rm test_startup.sh -f
 pipenv run python3 fn4_configure.py config/default_test_config.json --startup --n_workers 1 > test_startup.sh
 chmod +x test_startup.sh
+echo "Debug: stopping"
+
 ./test_startup.sh
+#more test_startup.sh
+
+
 rm test_startup.sh 
 sleep 15 # wait for them to start
 
