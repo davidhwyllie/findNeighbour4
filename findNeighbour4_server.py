@@ -864,8 +864,11 @@ def create_app(config_file=None):
         print("Using Sentry connection string from configuration file.")
 
     if "SENTRY_URL" in CONFIG.keys():
-        app.logger.info("Launching communication with Sentry bug-tracking service")
-        sentry_sdk.init(CONFIG["SENTRY_URL"], integrations=[FlaskIntegration()])
+        app.logger.info("Launching communication with Sentry bug-tracking service, with 1% transactional logging")
+        sentry_sdk.init(CONFIG["SENTRY_URL"],
+                         integrations=[FlaskIntegration()],
+                         traces_sample_rate=0.01
+                         )
 
     if CONFIG["DEBUGMODE"] > 0:
         app.config["PROPAGATE_EXCEPTIONS"] = True
