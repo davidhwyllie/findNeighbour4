@@ -140,6 +140,14 @@ class fn4Client:
         """ returns all guids in the server """
         return self._decode(self.getpost("/api/v2/guids", method="GET"))
 
+    def valid_guids(self, timeout=None):
+        """ returns all guids in the server """
+        return self._decode(self.getpost("/api/v2/valid_guids", method="GET"))
+
+    def invalid_guids(self, timeout=None):
+        """ returns all guids in the server """
+        return self._decode(self.getpost("/api/v2/invalid_guids", method="GET"))
+
     def annotations(self, timeout=None):
         """ returns all guids and their annotations as a pandas dataframe"""
         retVal = self._decode(self.getpost("/api/v2/annotations", timeout=timeout, method="GET"))
@@ -157,6 +165,12 @@ class fn4Client:
         if not isinstance(guid, str):
             raise TypeError("guid {0} passed must be a string, not a {1}".format(guid, type(guid)))
         return self._decode(self.getpost("/api/v2/{0}/exists".format(guid), timeout=timeout, method="GET"))
+
+    def guids_added_after_sample(self, guid, timeout=None):
+        """ returns samples added after guid """
+        if not isinstance(guid, str):
+            raise TypeError("guid {0} passed must be a string, not a {1}".format(guid, type(guid)))
+        return self._decode(self.getpost("/api/v2/guids_added_after_sample/{0}".format(guid), timeout=timeout, method="GET"))
 
     def sequence(self, guid, timeout=None):
         """ returns masked sequence of an existing guid """

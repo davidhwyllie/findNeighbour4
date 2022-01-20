@@ -42,7 +42,6 @@ class test_fn4_client_init2(unittest.TestCase):
         with self.assertRaises(Exception):
             fn4Client(baseurl="http://example.com")  # fails, does not exist
 
-
 class test_fn4_client_mirror(unittest.TestCase):
     def runTest(self):
         """tests mirror function - which just sends back the POSTed payload"""
@@ -60,6 +59,28 @@ class test_fn4_client_guids(unittest.TestCase):
         retVal = fn4c.guids()
         self.assertEqual(type(retVal), list)
 
+class test_fn4_client_validguids(unittest.TestCase):
+    def runTest(self):
+        """tests valid_guids"""
+        fn4c = fn4Client()
+        retVal = fn4c.valid_guids()
+        self.assertEqual(type(retVal), list)
+
+class test_fn4_client_invalidguids(unittest.TestCase):
+    def runTest(self):
+        """tests invalid_guids"""
+        fn4c = fn4Client()
+        retVal = fn4c.invalid_guids()
+        self.assertEqual(type(retVal), list)
+
+class test_fn4_client_guidsaddedafter(unittest.TestCase):
+    def runTest(self):
+        """tests invalid_guids"""
+        fn4c = fn4Client()
+        guidlist = fn4c.valid_guids()
+        if len(guidlist)>0:
+            retVal = fn4c.guids_added_after_sample(guidlist[0])
+            self.assertEqual(type(retVal), list)
 
 class test_fn4_client_annotations(unittest.TestCase):
     def runTest(self):
