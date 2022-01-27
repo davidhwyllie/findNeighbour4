@@ -157,8 +157,8 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
         type=str,
         action="store",
         nargs="?",
-        help="the name of the cog-uk data file to load.",
-        default="/data/data/inputfasta/cog_metadata.csv",
+        help="the name of the cog-uk data file (which contains sample dates) to load.",
+        default=None
     )
     parser.add_argument(
         "--remove_existing_data",
@@ -279,6 +279,11 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
         debug=CONFIG["DEBUGMODE"],
         verbose=True)
 
+    all_guids = PERSIST.guids()
+    if len(all_guids)== 0:
+        logging.info("Database contains no samples to analyse")
+        exit(0)
+
     if args.remove_existing_data:
         logging.info("fn4_pca is set to remove all existing data from database")
     else:
@@ -304,10 +309,15 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
     )
 
     if args.only_produce_tree_output is False:
-        logger.info("Loading cog-uk metadata")
-        samples_added = pdm.store_cog_metadata(
-            cogfile=args.cogfile, date_end=analysis_date
-        )
+
+        if args.cogfile is not None:
+            logger.info("Loading cog-uk metadata")
+            samples_added = pdm.store_cog_metadata(
+                cogfile=args.cogfile, date_end=analysis_date
+            )
+        else:
+            logger.info("No cogfile (dates) provided.  Running analysis on all samples")
+            samples_added = list(all_guids)
 
         # instantiate builder for PCA object
         try:
@@ -334,6 +344,10 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
 
         logging.info("Storing PCA summary")
         pdm.store_pca_summary()  # store a summary
+
+        if args.cogfile is None:
+            logger.info("Analysis complete; no date data, so no trend analyses performed")
+            exit(0)
 
         pcas_df = pdm.pca_summary(
             only_pc_cats_less_than_days_old=args.focus_on_most_recent_n_days,
