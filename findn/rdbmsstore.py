@@ -12,7 +12,7 @@ MS SQL server, PostgreSQL
 Tested but doesn't work at present
 MySQL - the issue is with storage of character large objects in TEXT fields.  The SQL alchemy version used make TEXT, not LARGETEXT fields.
       - Workarounds described https://stackoverflow.com/questions/47644739/what-column-type-does-sqlalchemy-use-for-text-on-mysql did not fix this
-      - probably a soluble problem 
+      - probably a soluble problem
       - tested with MySQL 8 on Ubuntu 20.  Connection string was "mysql://root:root@localhost:3306/test_db" with user/password root
 
 A component of the findNeighbour4 system for bacterial relatedness monitoring
@@ -23,7 +23,7 @@ This program is free software: you can redistribute it and/or modify
 it under the terms of the MIT License as published
 by the Free Software Foundation.  See <https://opensource.org/licenses/MIT>, and the LICENSE file.
 
- 
+
 """
 import bson  # type: ignore
 from datetime import datetime, timedelta, date
@@ -669,8 +669,8 @@ class fn3persistence_r:
 
                 # if execution continues here, the session works
                 return tls
-
             except Exception as e1:
+                self.engine.dispose()
                 logging.info(
                     "Failed to connect on trial {0}/{1}; error raised was {2}".format(
                         n_retries - tries, n_retries, e1
@@ -830,9 +830,14 @@ class fn3persistence_r:
                 while len(loadvar) > 0:
                     if self.show_bar:
                         bar.update(start_n - len(loadvar))
-                    cursor.executemany(sql_statement, loadvar[0:max_batch])
-                    loadvar = loadvar[max_batch:]
-                    conn.commit()
+                    try:
+
+                        cursor.executemany(sql_statement, loadvar[0:max_batch])
+                        loadvar = loadvar[max_batch:]
+                        conn.commit()
+                    except Exception:
+                        conn.rollback()
+                        raise
 
             if self.show_bar:
                 bar.finish()
@@ -871,13 +876,17 @@ class fn3persistence_r:
 
     def delete_server_monitoring_entries(self, before_seconds: int) -> None:
         """deletes server monitoring entries more than before_seconds ago"""
-        tls = self.thread_local_session()
-        earliest_allowed = datetime.now() - timedelta(seconds=before_seconds)
-        tls.query(ServerMonitoring).filter(
-            ServerMonitoring.upload_date < earliest_allowed
-        ).delete()
-        tls.commit()
-        # finished
+        try:
+            tls = self.thread_local_session()
+            earliest_allowed = datetime.now() - timedelta(seconds=before_seconds)
+            tls.query(ServerMonitoring).filter(
+                ServerMonitoring.upload_date < earliest_allowed
+            ).delete()
+            tls.commit()
+            # finished
+        except Exception:
+            tls.rollback()
+            raise
 
     def summarise_stored_items(self) -> Dict[str, Any]:
         """counts how many sequences exist of various types"""
@@ -899,28 +908,37 @@ class fn3persistence_r:
 
     def _delete_existing_data(self) -> None:
         """deletes existing data from the databases"""
+        try:
+            tls = self.thread_local_session()
 
-        tls = self.thread_local_session()
-
-        tls.query(Config).delete()
-        tls.query(Edge).delete()
-        tls.query(RefCompressedSeq).delete()
-        tls.query(Monitor).delete()
-        tls.query(ServerMonitoring).delete()
-        tls.query(BulkLoadTest).delete()
-        tls.query(Cluster).delete()
-        tls.query(MSA).delete()
-        tls.query(TreeStorage).delete()
-        tls.query(FNLock).delete()
-        tls.commit()
-        # finished
+            tls.query(Config).delete()
+            tls.query(Edge).delete()
+            tls.query(RefCompressedSeq).delete()
+            tls.query(Monitor).delete()
+            tls.query(ServerMonitoring).delete()
+            tls.query(BulkLoadTest).delete()
+            tls.query(Cluster).delete()
+            tls.query(MSA).delete()
+            tls.query(TreeStorage).delete()
+            tls.query(FNLock).delete()
+            tls.commit()
+            # finished
+        except Exception:
+            tls.rollback()
 
     def _delete_existing_clustering_data(self) -> None:
         """deletes any clustering data from the databases"""
-        tls = self.thread_local_session()
-        tls.query(Cluster).delete()
-        tls.query(MSA).delete()
-        tls.query(TreeStorage).delete()
+
+        try:
+            tls = self.thread_local_session()
+            tls.query(Cluster).delete()
+            tls.query(MSA).delete()
+            tls.query(TreeStorage).delete()
+            tls.commit()
+            # finished
+        except Exception:
+            tls.rollback()
+            raise
 
     def first_run(self) -> bool:
         """if there is no config entry, it is a first-run situation"""
@@ -954,13 +972,17 @@ class fn3persistence_r:
         if row := tls.query(Config).filter_by(config_key=key).first():
             row.config_value = json.dumps(object, cls=NPEncoder).encode("utf-8")
         else:
-            row = Config(
-                config_key=key,
-                config_value=json.dumps(object, cls=NPEncoder).encode("utf-8"),
-            )
-            tls.add(row)
-        tls.commit()
-        # finished
+            try:
+                row = Config(
+                    config_key=key,
+                    config_value=json.dumps(object, cls=NPEncoder).encode("utf-8"),
+                )
+                tls.add(row)
+                tls.commit()
+                # finished
+            except Exception:
+                tls.rollback()
+                raise
 
     def config_read(self, key: str) -> Any:
         """loads object from config.
@@ -1083,18 +1105,22 @@ class fn3persistence_r:
                 write_content = True
 
         if write_content:
-            json_now = json.dumps(now).encode("utf-8")
-            row = ServerMonitoring(
-                sm_id=hashlib.sha1(json_now).hexdigest(),
-                upload_date=current_time,
-                content=json_now,
-            )
-            tls.add(row)
-            self.previous_server_monitoring_time = current_time
-            self.previous_server_monitoring_data = now
-            tls.commit()
-            # finished
-            return True
+            try:
+                json_now = json.dumps(now).encode("utf-8")
+                row = ServerMonitoring(
+                    sm_id=hashlib.sha1(json_now).hexdigest(),
+                    upload_date=current_time,
+                    content=json_now,
+                )
+                tls.add(row)
+                self.previous_server_monitoring_time = current_time
+                self.previous_server_monitoring_data = now
+                tls.commit()
+                # finished
+                return True
+            except Exception:
+                tls.rollback()
+                raise
         else:
             return False
 
@@ -1105,13 +1131,16 @@ class fn3persistence_r:
 
         if not isinstance(html, str):
             raise TypeError("Can only store string objects, not {0}".format(type(html)))
-        tls = self.thread_local_session()
-        tls.query(Monitor).filter_by(mo_id=monitoring_id).delete()
+        try:
+            tls = self.thread_local_session()
+            tls.query(Monitor).filter_by(mo_id=monitoring_id).delete()
 
-        row = Monitor(mo_id=monitoring_id, content=html.encode("utf-8"))
-        tls.add(row)
-        tls.commit()
-        # finished
+            row = Monitor(mo_id=monitoring_id, content=html.encode("utf-8"))
+            tls.add(row)
+            tls.commit()
+            # finished
+        except Exception:
+            tls.rollback()
 
     def monitor_read(self, monitoring_id: str) -> Optional[str]:
         """loads stored string (e.g. html object) from the monitor collection."""
@@ -1132,14 +1161,17 @@ class fn3persistence_r:
 
         # we don't replace.  These entries are write once.
         if tls.query(MSA).filter_by(msa_id=msa_token).one_or_none() is None:
-
-            res = MSA(
-                msa_id=msa_token,
-                upload_date=datetime.now(),
-                content=json.dumps(msa).encode("utf-8"),
-            )
-            tls.add(res)
-            tls.commit()
+            try:
+                res = MSA(
+                    msa_id=msa_token,
+                    upload_date=datetime.now(),
+                    content=json.dumps(msa).encode("utf-8"),
+                )
+                tls.add(res)
+                tls.commit()
+            except Exception:
+                tls.rollback()
+                raise
 
     def msa_read(self, msa_token: str) -> Optional[dict]:
         """loads object from msa collection.
@@ -1151,11 +1183,15 @@ class fn3persistence_r:
             return None
 
     def msa_delete(self, msa_token: str) -> None:
-        """deletes the msa with token msa_token"""
-        tls = self.thread_local_session()
-        tls.query(MSA).filter_by(msa_id=msa_token).delete()
-        tls.commit()
-        # finished
+        try:
+            """deletes the msa with token msa_token"""
+            tls = self.thread_local_session()
+            tls.query(MSA).filter_by(msa_id=msa_token).delete()
+            tls.commit()
+            # finished
+        except Exception:
+            tls.rollback()
+            raise
 
     def msa_stored_ids(self) -> List[str]:
         """returns a list of msa tokens of all objects stored"""
@@ -1163,14 +1199,17 @@ class fn3persistence_r:
         return [res.msa_id for res in tls.query(MSA)]
 
     def msa_delete_unless_whitelisted(self, whitelist: Iterable[str]) -> None:
-        """deletes the msa unless the id is in whitelist"""
-        tls = self.thread_local_session()
-        tls.query(MSA).filter(MSA.msa_id.not_in(whitelist)).delete()
-        tls.commit()
-        # finished
+        try:
+            """deletes the msa unless the id is in whitelist"""
+            tls = self.thread_local_session()
+            tls.query(MSA).filter(MSA.msa_id.not_in(whitelist)).delete()
+            tls.commit()
+            # finished
+        except Exception:
+            tls.rollback()
+            raise
 
     # methods for trees
-
     def tree_store(self, tree_token: str, tree: dict) -> Optional[str]:
         """stores the tree object tree under token tree_token.
 
@@ -1184,13 +1223,17 @@ class fn3persistence_r:
         tls = self.thread_local_session()
 
         if tls.query(TreeStorage).filter_by(ts_id=tree_token).one_or_none() is None:
-            row = TreeStorage(
-                ts_id=tree_token,
-                upload_date=datetime.now(),
-                content=json.dumps(tree).encode("utf-8"),
-            )
-            tls.add(row)
-            tls.commit()
+            try:
+                row = TreeStorage(
+                    ts_id=tree_token,
+                    upload_date=datetime.now(),
+                    content=json.dumps(tree).encode("utf-8"),
+                )
+                tls.add(row)
+                tls.commit()
+            except Exception:
+                tls.rollback()
+                raise
 
     def tree_read(self, tree_token: str) -> Optional[dict]:
         """loads object from tree collection.
@@ -1202,10 +1245,14 @@ class fn3persistence_r:
             return None
 
     def tree_delete(self, tree_token: str) -> None:
-        """deletes the tree with token tree_token"""
-        tls = self.thread_local_session()
-        tls.query(TreeStorage).filter_by(ts_id=tree_token).delete()
-        tls.commit()
+        try:
+            """deletes the tree with token tree_token"""
+            tls = self.thread_local_session()
+            tls.query(TreeStorage).filter_by(ts_id=tree_token).delete()
+            tls.commit()
+        except Exception:
+            tls.rollback()
+            raise
 
     def tree_stored_ids(self) -> List[str]:
         """returns a list of tree tokens of all objects stored"""
@@ -1213,11 +1260,15 @@ class fn3persistence_r:
         return [res.ts_id for res in tls.query(TreeStorage)]
 
     def tree_delete_unless_whitelisted(self, whitelist: Iterable[str]) -> None:
-        """deletes the tree unless the id is in whitelist"""
-        tls = self.thread_local_session()
-        tls.query(TreeStorage).filter(TreeStorage.ts_id.not_in(whitelist)).delete()
-        tls.commit()
-        # finished
+        try:
+            """deletes the tree unless the id is in whitelist"""
+            tls = self.thread_local_session()
+            tls.query(TreeStorage).filter(TreeStorage.ts_id.not_in(whitelist)).delete()
+            tls.commit()
+            # finished
+        except Exception:
+            tls.rollback()
+            raise
 
     # methods for clusters
     def cluster_store(self, clustering_key: str, obj: dict) -> int:
@@ -1236,16 +1287,20 @@ class fn3persistence_r:
         if not isinstance(obj, dict):
             raise TypeError(f"Can only store dictionary objects, not {type(obj)}")
 
-        json_repr = json.dumps(obj, cls=NPEncoder).encode("utf-8")
-        cluster = Cluster(
-            cluster_build_id=clustering_key,
-            upload_date=datetime.now(),
-            content=json_repr,
-        )
-        tls.add(cluster)
-        tls.commit()
-        # finished
-        return cluster.cl_int_id
+        try:
+            json_repr = json.dumps(obj, cls=NPEncoder).encode("utf-8")
+            cluster = Cluster(
+                cluster_build_id=clustering_key,
+                upload_date=datetime.now(),
+                content=json_repr,
+            )
+            tls.add(cluster)
+            tls.commit()
+            # finished
+            return cluster.cl_int_id
+        except Exception:
+            tls.rollback()
+            raise
 
     def cluster_read(self, clustering_key: str) -> Optional[dict]:
         """loads object from clusters collection corresponding to the most recent version of
@@ -1345,10 +1400,17 @@ class fn3persistence_r:
 
     def cluster_delete_all(self, clustering_key: str) -> None:
         """delete all clustering objects, including the latest version, stored under clustering_key"""
-        tls = self.thread_local_session()
-        tls.query(Cluster).filter(Cluster.cluster_build_id == clustering_key).delete()
-        tls.commit()
-        # finished
+        try:
+
+            tls = self.thread_local_session()
+            tls.query(Cluster).filter(
+                Cluster.cluster_build_id == clustering_key
+            ).delete()
+            tls.commit()
+            # finished
+        except Exception:
+            tls.rollback()
+            raise
 
     def cluster_delete_legacy_by_key(self, clustering_key: str) -> None:
         """delete all clustering objects, except latest version, stored with key clustering_key"""
@@ -1365,8 +1427,12 @@ class fn3persistence_r:
             for this_cl_int_id in cl_int_ids:
                 if not this_cl_int_id == latest_cl_int_id:
                     tls.query(Cluster).filter_by(cl_int_id=this_cl_int_id).delete()
-        tls.commit()
-        # finished
+        try:
+            tls.commit()
+            # finished
+        except Exception:
+            tls.rollback()
+            raise
 
     def cluster_delete_legacy(self, clustering_name: str) -> None:
         """delete all clustering objects, except latest version, stored with  clustering_name"""
@@ -1414,7 +1480,12 @@ class fn3persistence_r:
                     annotations=json.dumps({}),
                 )
             )
-            tls.commit()
+            try:
+                tls.commit()
+            except Exception:
+                tls.rollback()
+                raise
+
         else:  # it does exist
             raise FileExistsError("Attempting to overwrite {0}".format(guid))
 
@@ -1475,9 +1546,12 @@ class fn3persistence_r:
         annotations = json.loads(rcs.annotations)  # what's there now
         annotations[nameSpace] = annotDict  # replace or add the new namespace
         rcs.annotations = json.dumps(annotations).encode("utf-8")
-
-        tls.commit()
-        # finished
+        try:
+            tls.commit()
+            # finished
+        except Exception:
+            tls.rollback()
+            raise
 
     def guids(self) -> Set[str]:
         """returns all registered guids"""
@@ -1893,15 +1967,19 @@ class fn3persistence_r:
 
         # if the row doesn't exist, we add it, with the lock not set.
         if lock_row is None:
-            lock_row = FNLock(
-                lock_int_id=lock_int_id,
-                lock_status=0,
-                sequence_id=sequence_id,
-                lock_set_date=datetime.now(),
-                uuid=uuid.uuid4().hex,
-            )
-            tls.add(lock_row)
-            tls.commit()
+            try:
+                lock_row = FNLock(
+                    lock_int_id=lock_int_id,
+                    lock_status=0,
+                    sequence_id=sequence_id,
+                    lock_set_date=datetime.now(),
+                    uuid=uuid.uuid4().hex,
+                )
+                tls.add(lock_row)
+                tls.commit()
+            except Exception:
+                tls.rollback()
+                raise
 
         # analyse the record for this row
         lock_row = (
@@ -1936,9 +2014,12 @@ class fn3persistence_r:
             lock_row.sequence_id = "-NotSpecified-"
             lock_row.uuid = uuid.uuid4().hex
             retval = True
-
-        tls.commit()
-        return retval
+        try:
+            tls.commit()
+            return retval
+        except Exception:
+            tls.rollback()
+            raise
 
     def lock_details(self, lock_int_id):
         """returns details of the lock as a dictionary
