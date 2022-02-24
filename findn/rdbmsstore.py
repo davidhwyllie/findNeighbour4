@@ -671,6 +671,7 @@ class fn3persistence_r:
                 return tls
 
             except Exception as e1:
+                self.engine.dispose() 
                 logging.info(
                     "Failed to connect on trial {0}/{1}; error raised was {2}".format(
                         n_retries - tries, n_retries, e1
