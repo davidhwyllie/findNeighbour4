@@ -18,6 +18,7 @@ from findn.rdbmsstore import (
     RDBMSError,
     RefCompressedSeq,
     Config,
+    Edge,
 )
 
 # skip these tests if the NORDBMSTESTS variable exists
@@ -37,7 +38,9 @@ class Test_Database(unittest.TestCase):
 
         # add additional connection strings to unit test on different databases
         self.engines["Sqlite"] = "sqlite://"  # in memory sqlite
-        # self.engines["mysql"] = "mysql+pymysql://root:root@localhost:3306/test_db"  # NOTE: accessing a database test_db, with user root and password root; known issues, see above.
+
+        # other examples:
+        # self.engines["mysql"] = "mysql+pymysql://root:root@localhost:3306/test_db"  # NOTE: accessing a database test_db, with user root and password root; [not tested], see above.
 
         conn_detail_file = None
 
@@ -277,21 +280,24 @@ class Test_Server_Monitoring_3(Test_Database):
     """checks whether server_monitoring_min_interval_msec control works"""
 
     def runTest(self):
-        # no logging for within 1 secs of another event
-        for pdm in self.pdms(server_monitoring_min_interval_msec=1000):
+        # no logging for within 3 secs of another event
+        for pdm in self.pdms(server_monitoring_min_interval_msec=3000):
             retVal = pdm.server_monitoring_store(message="one")  # should insert
             self.assertEqual(retVal, True)
             res = pdm.recent_server_monitoring(100)
             self.assertEqual(len(res), 1)
             self.assertTrue(isinstance(res, list))
 
-            retVal = pdm.server_monitoring_store(message="two")  # should not insert
+            retVal = pdm.server_monitoring_store(
+                message="two"
+            )  # should not insert as < 1 sec since prior insert
             self.assertEqual(retVal, False)
             res = pdm.recent_server_monitoring(100)
             self.assertEqual(len(res), 1)
             self.assertTrue(isinstance(res, list))
 
-            time.sleep(2)  # seconds
+            time.sleep(4)  # seconds
+
             retVal = pdm.server_monitoring_store(message="three")  # should insert
             self.assertEqual(retVal, True)
             res = pdm.recent_server_monitoring(100)
@@ -304,20 +310,21 @@ class Test_Server_Monitoring_4(Test_Database):
     """checks whether delete_server_monitoring_entries"""
 
     def runTest(self):
-        for pdm in self.pdms():
+        for pdm in self.pdms(server_monitoring_min_interval_msec=3000):
             retVal = pdm.server_monitoring_store(message="one")  # should insert
             self.assertEqual(retVal, True)
             res = pdm.recent_server_monitoring(100)
             self.assertEqual(len(res), 1)
             self.assertTrue(isinstance(res, list))
-            pdm.delete_server_monitoring_entries(1)
+
+            # delete entries > 2 second ago
+            pdm.delete_server_monitoring_entries(2)
             res = pdm.recent_server_monitoring(100)
             self.assertEqual(len(res), 1)
             self.assertTrue(isinstance(res, list))
+            time.sleep(3)  # seconds
 
-            time.sleep(2)  # seconds
-
-            pdm.delete_server_monitoring_entries(1)
+            pdm.delete_server_monitoring_entries(2)
             res = pdm.recent_server_monitoring(100)
             self.assertEqual(len(res), 0)
             self.assertTrue(isinstance(res, list))
@@ -370,15 +377,16 @@ class Test_SeqMeta_singleton(Test_Database):
 
 @rdbms_test
 @unittest.skip(reason="benchmark, rather than unit test")
-class Test_SeqMeta_guid2neighbour_8(Test_Database):
-    """tests adding links at scale"""
+class Test_benchmark(Test_Database):
+    """benchmarks adding links at scale, and their query
+    can be used to assess the impact of the oracle cx_oracle option arraysize"""
 
     def runTest(self):
         for pdm in self.pdms():
-            for guid_id in range(10):
+            for guid_id in range(2):
                 srcguid = "srcguid{0}".format(guid_id)
                 dist_dict = {}
-                for i in range(10000):
+                for i in range(100000):
                     guid2 = "guid{0}".format(i)
                     dist_dict[guid2] = {"dist": i % 20}
 
@@ -387,8 +395,21 @@ class Test_SeqMeta_guid2neighbour_8(Test_Database):
                 t1 = datetime.datetime.now()
                 res1 = pdm.guid2neighbours(srcguid, returned_format=1)
                 t2 = datetime.datetime.now()
-                print(guid_id, "Time to load / read 10k", t1 - t0, t2 - t1)
-                self.assertEqual(10000, len(res1["neighbours"]))
+
+                tls = pdm.Session()  # run custom query to assess timing
+                res2 = tls.query(Edge.edge_int_id).all()
+                t3 = datetime.datetime.now()
+
+                print(
+                    "BENCHMARK:",
+                    guid_id,
+                    "Time to load / read 100k / read all ",
+                    len(res2),
+                    t1 - t0,
+                    t2 - t1,
+                    t3 - t2,
+                )
+                self.assertEqual(100000, len(res1["neighbours"]))
 
 
 @rdbms_test
