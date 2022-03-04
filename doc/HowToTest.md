@@ -24,15 +24,15 @@ Database backend
 ----------------
 You can either use 
 * Mongo 4.4
-* A relational database; only Oracle ADW has been tested to date.
+* A relational database; only Oracle Autonomous database (ATP/ADW) have been tested to date.
 
 ### Mongo
 * Mongo 4.4 (note: tested at very large scale only on this version)
 [These instructions](mongoinstall.md) describe installation of mongodb.
 This server has been tested both with a local mongodb database and with a free cloud instance of mongodb, Mongo Atlas.
 
-### Oracle ADW
-* For details of how to set up an Oracle Autonomous datawarehouse, please see Oracle's cloud documentation.
+### Oracle Autonomous Transactional Processor (ATP)
+* For details of how to set up an Oracle Autonomous database, please see Oracle's cloud documentation.
 In addition
 * You need to install [dependencies]((https://cx-oracle.readthedocs.io/en/latest/user_guide/initialization.html)) of the python Oracle_cx (database connection) module. 
 * You need to set LD_LIBRARY_PATH in the python virtual environment, see below.

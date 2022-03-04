@@ -1,8 +1,7 @@
 Testing RDBMS storage systems other than Oracle
 ===============================================
 
-It should be possible to use RDBMS other than Oracle ADW with findNeighbour4, but we have not tested this.  
-If you wish to do this, it is easy to do so.
+It should be possible to use RDBMS other than Oracle Autonomous Database with findNeighbour4, but we have not tested this.  If you wish to do this, it is easy to do so.
 
 The script
 ```

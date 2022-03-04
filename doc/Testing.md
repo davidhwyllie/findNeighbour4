@@ -30,7 +30,7 @@ This starts the server using a single threaded gunicorn server.
 
 **Important**: *Debug mode means, amongst other things, that all existing data in the fn3_unittesting database will be wiped on server restart.   This is good for testing, but not in most other situations.  You need to edit the config file (see below) for your needs.*
 
-If you don't want to use mongodb, you need to [configure an RDBMS](database_credentials.md) first.  TO date, we have only tested Oracle ADW.  You will need to edit the config/default_test_config_rdbms.json file so the FNPERSISTENCE_CONNSTRING key in the json file matches your configuration, see above.
+If you don't want to use mongodb, you need to [configure an RDBMS](database_credentials.md) first.  To date, we have only tested Oracle Automous Databases.  You will need to edit the config/default_test_config_rdbms.json file so the FNPERSISTENCE_CONNSTRING key in the json file matches your configuration, see above.
 
 *Note: You cannot use SQLite as a backend for the server, because the server is multithreaded, and SQLite doesn't support connections from more than 1 thread.  Althought the storage engine (findn/rdbmsstore.py) reads / writes to sqlite fine, it isn't suitable for backing a web application.  If you are interested in testing a database backend other than Oracle, please [see here](not_oracle.md).*
 

@@ -1,7 +1,18 @@
-# Configuration an Oracle ADW connection
+# Configuration an Oracle Automatous connection
 
 These notes are about how to configure a findNeighbour4 connection to an [Oracle Autonomous Database](https://blogs.oracle.com/oraclemagazine/getting-started-with-autonomous).
 There are several steps.
+
+### Choose Oracle database
+We have stressed tested findNeighbour4 will up to 2 million records using two types of Oracle cloud database:   
+* [ATP](https://www.oracle.com/uk/autonomous-database/autonomous-transaction-processing/)    
+* [ADW](https://www.oracle.com/uk/autonomous-database/autonomous-data-warehouse/).  
+  
+These are different configurations of the same product, which store data in row-based and column based formats, respectively.  We have only tested cloud databases, not local installations.  
+
+We recomment ATP.  We found this to be somewhat (about 20-50%) faster for this application. However, for fewer than 500k samples there is very little different in performance.
+
+To test the system with > 2 million SARS-CoV-2 genomes we used an ATP database with 3 OCU and 4TB disc space.
 
 ### Install dependencies
 See [instructions](https://cx-oracle.readthedocs.io/en/latest/user_guide/installation.html)
@@ -59,7 +70,7 @@ The content of the config.json file is Oracle provided credentials.  Follow thes
 1. Download your OCI wallet, & unzip it somewhere.  The OCI wallet can be downloaded (if you have sufficient permissions) from the OCI cloud web portal.
 2. Set the TNS_ADMIN entry in the configuration file to point to this directory.  You have to do this - it's not optional; if you've set it globally, when run in a virtual environment, findneighbour4 won't see it.
 3. Edit the WALLET_LOCATION in the sqlnet.ora file to point to the relevant directory pointed to by TNS_ADMIN; e.g. if you've got your wallet in /data/credentials/oci_test, set WALLET_LOCATION = (SOURCE = (METHOD = file) (METHOD_DATA = (DIRECTORY="/data/credentials/oci_test")))
-4. Create a user with relevant privileges via the ADW front end or otherwise (see below)
+4. Create a user with relevant privileges via the Oracle Autonomous front end or otherwise (see below)
 5. Set the ENGINE_NAME env var.  An example of this is as below (parts are redacted)
 oracle+cx_oracle://scott:tigerX22@(description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1522)(host=host.oraclecloud.com))(connect_data=(service_name=redacted))(security=(ssl_server_cert_dn="redacted")))
 
