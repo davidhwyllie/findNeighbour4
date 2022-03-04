@@ -216,7 +216,7 @@ if __name__ == "__main__":
     dfs = []
 
     for j in range(1000):  # replicates
-        # constructs 80 requests of four different types, and send them to the server as fast as possible using asyncio
+        # constructs requests of four different types, and send them to the server as fast as possible using asyncio
         urls = {
             "guids": [],
             "valid_guids": [],
@@ -227,8 +227,7 @@ if __name__ == "__main__":
             "exact_distance": [],
         }
 
-        for i in range(3):
-            for endpoint in ["guids", "invalid_guids"]:
+        for endpoint in ["guids", "invalid_guids"]:
                 urls[endpoint].append("{0}/api/v2/{1}".format(server_url, endpoint))
 
         random.shuffle(random_ordered)
@@ -250,14 +249,17 @@ if __name__ == "__main__":
             if i > 1:
                 break
 
-        for url_type in ["exists", "neighbours", "server_time", "exact_distance"]:
+        for url_type in ["guids", "invalid_guids", "exists", "neighbours", "server_time", "exact_distance"]:
             print(j, url_type)
             results = {}
-            loop.run_until_complete(main(urls[url_type]))
-            for key in results.keys():
-                results[key]["url_type"] = url_type
-                results[key]["replicate"] = j
-            dfs.append(pd.DataFrame.from_dict(results, orient="index"))
+            try:
+                loop.run_until_complete(main(urls[url_type]))
+                for key in results.keys():
+                    results[key]["url_type"] = url_type
+                    results[key]["replicate"] = j
+                dfs.append(pd.DataFrame.from_dict(results, orient="index"))
+            except asyncio.exceptions.TimeoutError:
+                pass
         df = pd.concat(dfs)
     outfile = os.path.join(completedir, "read_benchmarks.txt")
     df.to_csv(outfile)
