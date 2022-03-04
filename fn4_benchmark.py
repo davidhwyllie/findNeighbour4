@@ -228,7 +228,7 @@ if __name__ == "__main__":
         }
 
         for endpoint in ["guids", "invalid_guids"]:
-                urls[endpoint].append("{0}/api/v2/{1}".format(server_url, endpoint))
+            urls[endpoint].append("{0}/api/v2/{1}".format(server_url, endpoint))
 
         random.shuffle(random_ordered)
 
@@ -249,7 +249,14 @@ if __name__ == "__main__":
             if i > 1:
                 break
 
-        for url_type in ["guids", "invalid_guids", "exists", "neighbours", "server_time", "exact_distance"]:
+        for url_type in [
+            "guids",
+            "invalid_guids",
+            "exists",
+            "neighbours",
+            "server_time",
+            "exact_distance",
+        ]:
             print(j, url_type)
             results = {}
             try:
