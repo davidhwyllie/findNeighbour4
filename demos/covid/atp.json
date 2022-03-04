@@ -1,0 +1,21 @@
+{
+"DESCRIPTION":"PHE SARS-CoV-2 genome ATP test",
+"IP":"127.0.0.1",
+"INPUTREF":"reference/nc_045512.fasta",
+"EXCLUDEFILE":"reference/covid-exclude.txt",
+"DEBUGMODE":0,
+"SERVERNAME":"fndev_atptest",
+"FNPERSISTENCE_CONNSTRING":"fndev_atptest",
+"MAXN_STORAGE":5000,
+"MAXN_PROP_DEFAULT":0.70,
+"LISTEN_TO":"0.0.0.0",
+"LOGFILE":"/data/logs/findNeighbour4/fndev_atptest.log",
+"LOGLEVEL":"INFO",
+"SNPCEILING": 3,
+"REST_PORT":5042,
+"PRECOMPARER_PARAMETERS":{"selection_cutoff":3,"uncertain_base":"N_or_M",
+"over_selection_cutoff_ignore_factor":1,
+"catWalk_parameters":{"cw_binary_filepath":"","reference_name":"fndev_atptest",
+"reference_filepath":"reference/nc_045512.fasta","mask_filepath":"reference/covid-exclude.txt", "bind_port":5043, "bind_host":"localhost"}},
+"CLUSTERING":{}
+}
