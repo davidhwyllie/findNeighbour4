@@ -31,6 +31,11 @@ rm version.py -f
 touch version.py
 echo "version = '$VERSION'" > version.py
 
+# test components
+pipenv run pytest test
+
+# now test the server.
+
 # startup the server
 echo "Starting test findNeighbour servers to run tests with; waiting 15 seconds to ensure it has started  .."
 echo "starting mongodb server with gunicorn and 1 workers.  Note you cannot run these unittests with > 1 workers"
@@ -47,8 +52,7 @@ echo "Debug: stopping"
 rm test_startup.sh 
 sleep 15 # wait for them to start
 
-pipenv run pytest test
-#pipenv run python3 -m unittest test/test_server_rdbms.py
+pipenv run pytest test_server
 
 # shut down any running test servers
 echo "Terminating any gunicorn processes used for unit testing"
