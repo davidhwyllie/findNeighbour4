@@ -18,7 +18,8 @@ for pid in $(pgrep -f config/default_test_config_rdbms.json); do
 echo "Terminating $pid"
 kill -9 $pid
 done
-for pid in $(pgrep -f "gunicorn wsgi:app --workers 1 --bind 127.0.0.1:5020"); do 
+echo "Terminating any gunicorn processes used for unit testing"
+for pid in $(pgrep -f "127.0.0.1:5020"); do 
 echo "Terminating $pid"
 kill -9 $pid
 done
@@ -43,7 +44,6 @@ echo "Debug: stopping"
 ./test_startup.sh
 #more test_startup.sh
 
-
 rm test_startup.sh 
 sleep 15 # wait for them to start
 
@@ -51,6 +51,12 @@ pipenv run pytest test
 #pipenv run python3 -m unittest test/test_server_rdbms.py
 
 # shut down any running test servers
+echo "Terminating any gunicorn processes used for unit testing"
+for pid in $(pgrep -f "127.0.0.1:5020"); do
+echo "Terminating $pid"
+kill -9 $pid
+done
+
 echo "Terminating any running findneighbour4 processes"
 for pid in $(pgrep -f config/default_test_config.json); do 
 echo "Terminating $pid"
@@ -61,10 +67,7 @@ for pid in $(pgrep -f CatWalk-PORT-599); do
 echo "$pid"
 kill -9 $pid
 done
-for pid in $(pgrep -f "gunicorn wsgi:app --workers 1 --bind 127.0.0.1:5020"); do 
-echo "Terminating $pid"
-kill -9 $pid
-done
+
 
 # code to test on Oracle server, if access configured
 #rm test_startup.sh -f

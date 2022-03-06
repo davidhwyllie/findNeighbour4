@@ -22,6 +22,7 @@ import datetime
 import pandas as pd
 import markdown
 import codecs
+import uuid
 
 # only used for unit testing
 from Bio import SeqIO
@@ -124,14 +125,13 @@ def render_markdown(md_file):
 
 
 class test_reset(unittest.TestCase):
-    """tests route /api/v2/reset and /guids"""
+    """tests route /api/v2/reset; ensures that guids are removed"""
 
     def runTest(self):
         relpath = "/api/v2/guids"
         res = do_GET(relpath)
-        n_pre = len(json.loads(str(res.text)))  # get all the guids
-
-        guid_to_insert = "guid_r_{0}".format(n_pre + 1)
+        n_pre = len(res.json())   # len(json.loads(str(res.text)))  # get all the guids
+        guid_to_insert = "{0}_{1}".format(n_pre + 1, uuid.uuid4().hex)
 
         inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, "rt") as f:
@@ -139,20 +139,24 @@ class test_reset(unittest.TestCase):
                 seq = str(record.seq)
 
         relpath = "/api/v2/insert"
+        print(res)
+        print(guid_to_insert)
+
         res = do_POST(relpath, payload={"guid": guid_to_insert, "seq": seq})
 
         relpath = "/api/v2/guids"
         res = do_GET(relpath)
-        n_post = len(json.loads(str(res.text)))  # get all the guids
-
+        print(res)
+        n_post = len(res.json())  # get all the guids
+        self.assertTrue(n_post > 0)
+ 
         relpath = "/api/v2/reset"
         res = do_POST(relpath, payload={})
 
         relpath = "/api/v2/guids"
         res = do_GET(relpath)
-        n_post_reset = len(json.loads(str(res.text)))  # get all the guids
+        n_post_reset = len(res.json())  # get all the guids
 
-        self.assertTrue(n_post > 0)
         self.assertTrue(n_post_reset == 0)
 
 

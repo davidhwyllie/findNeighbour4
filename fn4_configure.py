@@ -82,9 +82,9 @@ pipenv run python fn4_configure.py /path/to/config_file.json --set
         help="delete any data in the underlying databases",
     )
     parser.add_argument(
-        "--drop_insert_semaphore",
+        "--drop_locks",
         action="store_true",
-        help="drop the insert semaphore (a flag which prevents insertion of more than one sample at a time, but which could stay raised in some kinds of server crash)",
+        help="drop the insert and catwalk startup locks (these prevents insertion of more than one sample at a time, or startup of > 1 catwalk at a time, but which could stay raised in some rare kinds of server crash)",
     )
     parser.add_argument(
         "--prepopulate_catwalk",
@@ -138,9 +138,10 @@ pipenv run python fn4_configure.py /path/to/config_file.json --set
         )
         ev.save_changes()
 
-    if args.drop_insert_semaphore or args.startup:
-        logging.info("Dropping insert semaphore")
+    if args.drop_locks or args.startup:
+        logging.info("Dropping insert and catwalk startup semaphores")
         PERSIST.unlock(1, force=True)
+        PERSIST.unlock(2, force=True)
 
     if args.prepopulate_catwalk or args.startup:
 

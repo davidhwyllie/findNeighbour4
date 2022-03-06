@@ -524,7 +524,7 @@ class findNeighbour4:
                 in this case, retry later or 
                 (ii) if you are only inserting with one load script synchronously, it may reflect the lock being held because of an error or crash TBD. 
                 The findNeighbour4_lockmonitor should unlock it automatically in 90 seconds.  
-                If needed, you can reset the lock as follows:  fn4_configure <path to config file> --drop_insert_semaphore"""
+                If needed, you can reset the lock as follows:  fn4_configure <path to config file> --drop_locks"""
                 logging.warning("An insert lock prevented insertion {0}".format(guid))
                 logging.info(info_msg)
                 return_status_code, return_text = 409, info_msg

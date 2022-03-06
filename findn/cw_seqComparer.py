@@ -48,8 +48,10 @@ class NoCWParametersProvidedError(Exception):
     def __init__(self):
         pass
 
+
 class CatwalkInsertFailedError(Exception):
     """no catwalk parameters provided"""
+
     def __init__(self, expression, message):
         self.message = message
 
@@ -203,10 +205,14 @@ class cw_seqComparer:
 
         # compute an identity_token as the hash of the reference sequence
         # this ensures that the catwalk instance name is deterministic cf. issue #117
-        self.catWalk_parameters['identity_token'] = hashlib.md5(reference.encode('utf-8')).hexdigest()
+        self.catWalk_parameters["identity_token"] = hashlib.md5(
+            reference.encode("utf-8")
+        ).hexdigest()
 
         # start catwalk
-        self.catWalk = CatWalk(**self.catWalk_parameters, unittesting=unittesting)
+        self.catWalk = CatWalk(
+            **self.catWalk_parameters, unittesting=unittesting, lockmanager=self.PERSIST
+        )
 
         self.repopulate_all()  # reload samples
         logging.info(
@@ -401,7 +407,7 @@ class cw_seqComparer:
                 )  # make a dictionary for catwalk
 
             retVal = self.catWalk.add_sample_from_refcomp(guid, to_catwalk)  # add it
-           
+
         else:
             return 1
 
@@ -412,7 +418,11 @@ class cw_seqComparer:
 
         # check that the Catwalk insertion succeeded
         if not retVal == 201:
-            raise CatwalkInsertFailedError("Catwalk client returned {0} on attempting storage of {1}".format(retVal, guid))
+            raise CatwalkInsertFailedError(
+                "Catwalk client returned {0} on attempting storage of {1}".format(
+                    retVal, guid
+                )
+            )
 
         # add links if the sample is valid and newly inserted
         links = {}
