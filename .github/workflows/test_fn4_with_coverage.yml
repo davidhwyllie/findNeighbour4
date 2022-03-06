@@ -90,7 +90,7 @@ jobs:
         nimble -y build -d:release -d:danger -d:no_serialisation
         echo CW_BINARY_FILEPATH=\"`pwd`/cw_server\" > ../../.env
       
-    - name: Test server with pytest
+    - name: Test server and client
       run: |
         python3 setup.py --version
 
@@ -103,7 +103,7 @@ jobs:
         # shut down server
         ./fn4_shutdown.sh config/default_test_config.json
 
-    - name: Test modules with pytest
+    - name: Test modules
       run: |
         python3 setup.py --version
         pipenv run pytest test --cov=./ --cov-report=xml
