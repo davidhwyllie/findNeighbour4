@@ -98,7 +98,7 @@ jobs:
         chmod +x test_startup.sh
         ./test_startup.sh
         sleep 15 
-        pipenv run pytest test_server --cov=./ --cov-report=xml
+        pipenv run pytest test_server --cov=./ --cov-report=xml --cov-append
         
         # shut down server
         ./fn4_shutdown.sh config/default_test_config.json
@@ -106,7 +106,7 @@ jobs:
     - name: Test modules
       run: |
         python3 setup.py --version
-        pipenv run pytest test --cov=./ --cov-report=xml
+        pipenv run pytest test --cov=./ --cov-report=xml --cov-append
       
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v1
