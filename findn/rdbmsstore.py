@@ -3,7 +3,7 @@
 findneighbour4 system in a RDBMS
 
 Tested with:
-- Oracle ADW (cloud service)
+- Oracle Autonomous (ATP and ADW cloud service)
 - Sqlite (but, sqlite can't be used as a server backend)
 
 Not tested:
@@ -568,7 +568,19 @@ class fn3persistence_r:
         self.show_bar = True  # maybe define a method to switch this off
 
         # create engine
-        self.engine = create_engine(self.engine_name)  # sqlalchemy generic pool manager
+        if self.is_oracle:
+            # it is important to set arraysize, see
+
+            # https://docs.sqlalchemy.org/en/14/dialects/oracle.html
+            # https://cx-oracle.readthedocs.io/en/latest/user_guide/tuning.html#tuningfetch
+
+            # but if you set it too large you can get DPI-1015 (allocated cursor size > 2G) see
+            # https://cx-oracle.readthedocs.io/en/latest/api_manual/cursor.html
+
+            self.engine = create_engine(self.engine_name, arraysize = 1000000)  # fetch results in batches of 1m.  This is fine for this application which pulls only 'small data' in big batches
+        else:
+            # sqlalchemy generic pool manager
+            self.engine = create_engine(self.engine_name)  
 
         # oracle pool manager code
         # use cx_Oracle pool manager
@@ -1092,18 +1104,21 @@ class fn3persistence_r:
         # should we write this data?  We have the option not to log all messages, to prevent the store getting very full.
         write_content = False
         if self.previous_server_monitoring_time is None:
-            write_content = True  # yes if this is the first record written.
+            # yes if this is the first record written.
+            write_content = True  
         else:
             time_since_last_write = (
                 current_time - self.previous_server_monitoring_time
-            )  # yes if it's after the server_moni
+            )  
+            
+            # yes if it's after the previous_server_monitoring_time in milliseconds
             t = (
                 1000 * float(time_since_last_write.seconds)
                 + float(time_since_last_write.microseconds) / 1000
             )
             if t >= self.server_monitoring_min_interval_msec:
                 write_content = True
-
+            
         if write_content:
             try:
                 json_now = json.dumps(now).encode("utf-8")
@@ -1927,6 +1942,7 @@ class fn3persistence_r:
                 )
 
         tls = self.Session()
+
         return {
             "guid": guid,
             "neighbours": [

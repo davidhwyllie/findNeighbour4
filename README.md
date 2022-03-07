@@ -33,7 +33,7 @@ findNeighbour4 is written entirely in python3.
 It operates in Linux only and has only been tested on Ubuntu 20.04.   
 To store the relationship between samples, it can use either
 - Mongodb (tested with v. 4.4.4 +) 
-- A relational database system.  To date we have only tested the Oracle Autonomous Datawarehouse (ADW). [See also Installation details](doc/HowToTest.md) 
+- A relational database system.  To date we have only tested the Oracle Autonomous Transactional Processing (ATP and Datawarehouse (ADW). [See also Installation details](doc/HowToTest.md) 
 
 # Access
 The server can be accessed via RESTful web services from any language.

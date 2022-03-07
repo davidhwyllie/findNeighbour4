@@ -1,19 +1,15 @@
 #!/usr/bin/env python
-""" runs queries against a findneighbour server
+""" extracts insert performance and runs queries against a findneighbour server as part of a benchmark; 
 
 Example usage: 
 ============== 
 # show command line options 
-python covid_querytest.py --help  
+python fn4_benchmark.py --help
 
-# example usage
-# set up server if not already runing
-./fn4_startup.sh demos/covidsim/config_performancetest.json
+# example
+pipenv run python3 fn4_benchmark.py ../fn4_atp_test/demos/covid/atp.json /data/data/test/atp
 
-# load data
-pipenv run python3 demo/fn4_benchmark.py demos/covidsim/config_performancetest.json /data/data/pca/sim/fasta  sim1.fasta 
-
-A component of the findNeighbour4 system for bacterial relatedness monitoring
+Part of the findNeighbour4 system for bacterial relatedness monitoring
 Copyright (C) 2021 David Wyllie david.wyllie@phe.gov.uk
 repo: https://github.com/davidhwyllie/findNeighbour4
 
@@ -55,7 +51,7 @@ async def fetch(session, url):
     """
     tic = time.perf_counter()  # Start timer
     try:
-        response = await session.request(method="GET", url=url, timeout=10)
+        response = await session.request(method="GET", url=url, timeout=30)
         toc = time.perf_counter()  # Stop timer
         time_taken = toc - tic  # Calculate time taken to get response
         response.raise_for_status()
@@ -183,6 +179,27 @@ if __name__ == "__main__":
         server_url
     )  # expects operation on local host; pass baseurl if somewhere else.
 
+    print("Recovering insert rates")
+    df = fn4c.server_memory_usage(nrows=int(3e5))
+    df = df[df["detail"] == "catwalk comparison engine n_samples"]
+    df = df[df["info_message"] == "About to insert"]
+
+    df["delta_usec"] = None
+    prior_ix = None
+    for i, ix in enumerate(df.index):
+        if i > 0:
+            delta = datetime.datetime.fromisoformat(
+                df.at[ix, "event_time"]
+            ) - datetime.datetime.fromisoformat(df.at[prior_ix, "event_time"])
+            df.at[prior_ix, "delta_usec"] = delta.microseconds
+        prior_ix = ix
+    print(df)
+
+    outfile = os.path.join(completedir, "insert_timings.txt")
+    df.to_csv(outfile)
+    print("Data written to ", outfile)
+
+    print("Recovering guids")
     existing_guids = set(fn4c.guids())
     logger.info("There are {0} samples in the server".format(len(existing_guids)))
 
@@ -190,26 +207,6 @@ if __name__ == "__main__":
     one_guid = max(existing_guids)
 
     random_ordered = list(existing_guids)
-    random.shuffle(random_ordered)
-
-    # constructs 80 requests of four different types, and send them to the server as fast as possible using asyncio
-    urls = {"exists": [], "neighbours": [], "server_time": [], "exact_distance": []}
-    for i, guid in enumerate(random_ordered):
-        # add urls; can choose what to use
-        this_url = "{0}/api/v2/{1}/exists".format(server_url, guid)
-        urls["exists"].append(this_url)
-        this_url = "{0}/api/v2/{1}/neighbours_within/4".format(server_url, guid)
-        urls["neighbours"].append(this_url)
-        urls["server_time"].append(
-            "{0}/api/v2/server_time".format(server_url)
-        )  # no database access
-        this_url = "{0}/api/v2/{1}/{2}/exact_distance".format(
-            server_url, one_guid, guid
-        )  # 2 database access needed + a
-
-        urls["exact_distance"].append(this_url)
-        if i > 20:
-            break
 
     # fire them at the server using asyncio
     print("Starting benchmarking")
@@ -217,15 +214,62 @@ if __name__ == "__main__":
     loop = asyncio.get_event_loop()
 
     dfs = []
-    for url_type in ["exists", "neighbours", "server_time", "exact_distance"]:
-        print(url_type)
-        results = {}
-        loop.run_until_complete(main(urls[url_type]))
-        for key in results.keys():
-            results[key]["url_type"] = url_type
 
-        dfs.append(pd.DataFrame.from_dict(results, orient="index"))
-    df = pd.concat(dfs)
-    outfile = os.path.join(completedir, "output.txt")
+    for j in range(1000):  # replicates
+        # constructs requests of four different types, and send them to the server as fast as possible using asyncio
+        urls = {
+            "guids": [],
+            "valid_guids": [],
+            "invalid_guids": [],
+            "exists": [],
+            "neighbours": [],
+            "server_time": [],
+            "exact_distance": [],
+        }
+
+        for endpoint in ["guids", "invalid_guids"]:
+            urls[endpoint].append("{0}/api/v2/{1}".format(server_url, endpoint))
+
+        random.shuffle(random_ordered)
+
+        for i, guid in enumerate(random_ordered):
+            # add urls; can choose what to use
+            this_url = "{0}/api/v2/{1}/exists".format(server_url, guid)
+            urls["exists"].append(this_url)
+            this_url = "{0}/api/v2/{1}/neighbours_within/4".format(server_url, guid)
+            urls["neighbours"].append(this_url)
+            urls["server_time"].append(
+                "{0}/api/v2/server_time".format(server_url)
+            )  # no database access
+            this_url = "{0}/api/v2/{1}/{2}/exact_distance".format(
+                server_url, one_guid, guid
+            )  # 2 database access needed + a
+
+            urls["exact_distance"].append(this_url)
+            if i > 1:
+                break
+
+        for url_type in [
+            "guids",
+            "invalid_guids",
+            "exists",
+            "neighbours",
+            "server_time",
+            "exact_distance",
+        ]:
+            print(j, url_type)
+            results = {}
+            try:
+                loop.run_until_complete(main(urls[url_type]))
+                for key in results.keys():
+                    results[key]["url_type"] = url_type
+                    results[key]["replicate"] = j
+                dfs.append(pd.DataFrame.from_dict(results, orient="index"))
+            except asyncio.exceptions.TimeoutError:
+                pass
+        df = pd.concat(dfs)
+    outfile = os.path.join(completedir, "read_benchmarks.txt")
     df.to_csv(outfile)
     print("Data written to ", outfile)
+
+    loop.close()

@@ -15,6 +15,10 @@ by the Free Software Foundation.  See <https://opensource.org/licenses/MIT>, and
 import unittest
 import requests
 from catwalk.pycw_client import CatWalk
+from findn.mongoStore import fn3persistence
+
+## persistence unit tests
+UNITTEST_MONGOCONN: str = "mongodb://localhost"
 
 # unit tests
 class test_cwclient(unittest.TestCase):
@@ -22,7 +26,6 @@ class test_cwclient(unittest.TestCase):
 
     def setUp(self):
         """cw_binary_filepath must point to the catwalk server and mask & reference files to the relevant data files.
-        Shuts down **any catwalk server** running initially.
 
         Note: requires CW_BINARY_FILEPATH environment variable to point to the catwalk binary."""
         self.cw = CatWalk(
@@ -191,4 +194,98 @@ class test_cwclient_4(test_cwclient):
 
         # add guid2 again
         self.cw.add_sample_from_refcomp("guid2", payload2)
-        self.assertEqual(set(self.cw.sample_names()), set(['guid2']))  # order doesn't matter
+        self.assertEqual(
+            set(self.cw.sample_names()), set(["guid2"])
+        )  # order doesn't matter
+
+
+class test_cwclient_lockmanager(unittest.TestCase):
+    """tests impact of provision of invalid vs. valid lockmanager"""
+
+    def runTest(self):
+        """cw_binary_filepath must point to the catwalk server and mask & reference files to the relevant data files.
+        Shuts down **any catwalk server** running initially.
+
+        Note: requires CW_BINARY_FILEPATH environment variable to point to the catwalk binary."""
+
+        # invalid lock manager: pass an integer instead of a fn3persistence object
+        with self.assertRaises(TypeError):
+            CatWalk(
+                cw_binary_filepath=None,
+                reference_name="H37RV",
+                reference_filepath="reference/TB-ref.fasta",
+                mask_filepath="reference/TB-exclude-adaptive.txt",
+                max_n_positions=130000,
+                bind_host="localhost",
+                bind_port=5999,
+                lockmanager=6,
+            )
+
+        p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
+        CatWalk(
+            cw_binary_filepath=None,
+            reference_name="H37RV",
+            reference_filepath="reference/TB-ref.fasta",
+            mask_filepath="reference/TB-exclude-adaptive.txt",
+            max_n_positions=130000,
+            bind_host="localhost",
+            bind_port=5999,
+            lockmanager=p,
+        )
+
+
+class test_cwclient_p(unittest.TestCase):
+    """starts server, and shuts it down"""
+
+    def setUp(self):
+        """cw_binary_filepath must point to the catwalk server and mask & reference files to the relevant data files.
+
+        Note: requires CW_BINARY_FILEPATH environment variable to point to the catwalk binary."""
+        p = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
+        p.lock(2, "Test")  # test lock
+        print(p.lock_status(2))
+        p.unlock(2, force=True)  # unlock any existing locks
+        print(p.lock_status(2))
+        self.cw = CatWalk(
+            cw_binary_filepath=None,
+            reference_name="H37RV",
+            reference_filepath="reference/TB-ref.fasta",
+            mask_filepath="reference/TB-exclude-adaptive.txt",
+            max_n_positions=130000,
+            bind_host="localhost",
+            bind_port=5999,
+            lockmanager=p,
+        )
+
+        # stop the server if it is running
+        self.cw.stop()
+        self.assertFalse(self.cw.server_is_running())
+
+        self.cw.start()
+        self.assertTrue(self.cw.server_is_running())
+
+    def teardown(self):
+        self.cw.stop()
+        pass
+
+
+class test_cwclient_1p(test_cwclient_p):
+    """tests server startup, shutdown, info(), and the server_is_running method using a lock manager."""
+
+    def runTest(self):
+
+        self.cw.stop()
+        self.assertFalse(self.cw.server_is_running())
+
+        self.cw.start()
+        self.assertTrue(self.cw.server_is_running())
+
+        # try to start another one.  Should refuse to do so, and ignore the request.
+        # if it does not, and 2 are started, server_is_running() will raise an error.
+        self.cw.start()
+        self.assertTrue(self.cw.server_is_running())
+
+        self.assertIsInstance(self.cw.info(), dict)
+
+        self.cw.stop()
+        self.assertFalse(self.cw.server_is_running())

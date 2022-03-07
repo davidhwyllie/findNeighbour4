@@ -27,6 +27,9 @@ import psutil
 import uuid
 import warnings
 
+from findn.rdbmsstore import fn3persistence_r
+from findn.mongoStore import fn3persistence
+
 
 class CatWalkServerInsertError(Exception):
     """insert failed"""
@@ -50,6 +53,13 @@ class CatWalkServerDidNotStartError(Exception):
     def __init__(self, expression, message):
         self.expression = expression
         self.message = message
+
+
+class CatWalkStartupLockNotAcquiredError(Exception):
+    """the acquisition of a lock to prevent race conditions did not succeed"""
+
+    def __init__(self):
+        pass
 
 
 class CatWalkBinaryNotAvailableError(Exception):
@@ -81,22 +91,30 @@ class CatWalk:
         bind_port,
         identity_token=None,
         unittesting=False,
+        lockmanager=None,
     ):
         """
         Start the catwalk process in the background, if it not running.
         Parameters:
-        cw_binary_filepath
-        reference_name
-        reference_filepath
-        mask_filepath
-        max_n_positions
-        bind_host
-        bind_port
+        cw_binary_filepath: where the catwalk binary is
+        reference_name:     parameter passed to catwalk binary;  the name of the catwalk instance
+        reference_filepath: parameter passed to catwalk binary: where there reference fasta file is
+        mask_filepath:      parameter passed to catwalk binary: where the file containing any mask is
+        max_n_positions:    parameter passed to catwalk binary: maximum number of Ns to permit ; sequences with higher numbers are not used in comparisons
+        bind_host:          parameter passed to catwalk binary: the ip on which catwalk is running.  normally 'localhost'
+        bind_port:          parameter passed to catwalk binary: the port on which catwalk is running
 
         identity_token: a string identifying the process.  If not provided, a random guid is generated
         unittesting: if True, will shut down and restart (empty) any catwalk on bind_port on creation
+
+        lockmanager: if None (default) no lockmanager is used during catwalk startup/shutdown operations.  This is appropriate for situations in which only one software is interacting with catwalk; however,
+                     if multiple processes are interacting with catwalk it is possible that race conditions can result such that multiple catwalks can be started, which only one is allowed.
+                     to address this, a lockmanager has to be provided.
+                     at present, the only lockmanager allowed is a findneighbour4 PERSISTENCE object, as instantiated by Persistence.get_storage_object() method.
+                     Please see findn/persistence.py for details about how this should be instantiated.
         """
 
+        # a message used to inform if a catwalk server application could not be found
         no_catwalk_exe_message = """
 The catWalk client could not find a CatWalk server application.  This is because either:
 i) the cw_binary_filepath parameter was None
@@ -142,33 +160,22 @@ in either
             self.instance_stem, self.max_n_positions, identity_token
         )
 
+        # check the lockmanager passed
+        self.PERSIST = lockmanager
+        if self.PERSIST is not None:
+            if not isinstance(self.PERSIST, (fn3persistence, fn3persistence_r)):
+                raise TypeError(
+                    "lockmanager must be either fn3persistence or fn3persistence_r object"
+                )
+
         # start up if not running
 
         # if we are unittesting and a server is running, we shut it down
         if unittesting and self.server_is_running():
             self.stop()  # removes any data from server  and any other running cws
 
-        # if it is not running, start
-
-        # ###########################################################################################
-        # Note:
-        # is this capable of producing a race condition whereby more than one server is operating,
-        # and trying to start a single catwalk instance at the same time?
-        # for example if multiple Catwalk instances are being started up all at the same time
-        # e.g. by gunicorn?
-        # 
-        # in theory, it probably is, but such a problem has never been observed in fn4 testing.
-        # this is likely due to Catwalk being started before the gunicorn processes in findneighbour4
-        # startup; this prevents a race between gunicorn processes.
-        # Therefore, this issue has not been considered further at the moment.
-        # cf. issue #117
-        # ###########################################################################################
-
-        if not self.server_is_running():
-            self.start()
-
-        if not self.server_is_running():  # startup failed
-            raise CatWalkServerDidNotStartError()
+        # try to start up.  Will have no effect if the server is already running.
+        self.start()
 
     def _running_servers(self):
         """returns details of running servers matching the details of this server
@@ -206,40 +213,80 @@ in either
 
     def start(self):
         """starts a catwalk process in the background"""
+
+        # don't startup if it's running
+        if self.server_is_running():
+            return
+
         cw_binary_filepath = shlex.quote(self.cw_binary_filepath)
         instance_name = shlex.quote(self.instance_name)
         reference_filepath = shlex.quote(self.reference_filepath)
         mask_filepath = shlex.quote(self.mask_filepath)
 
-        # note: potential race condition here
-        if not self.server_is_running():
+        # prevent potential race conditions where different processes try to start catwalk
+        n_tries = 0
+        lock_acquired = False
+        if self.PERSIST is not None:
+            while n_tries < 6 and lock_acquired is False:
+                n_tries = n_tries + 1
+                lock_acquired = self.PERSIST.lock(2, "startup_catwalk")
+                if (
+                    lock_acquired is False
+                ):  # true if an catwalk startup lock was acquired
+                    logging.info(
+                        "Catwalk startup lock could not be acquired, try = {0}/6.  Waiting 2 seconds".format(
+                            n_tries
+                        )
+                    )
+                    time.sleep(2)
+
+            if lock_acquired is False:
+                # lock acquisition failed, indicative of a problem as yet unrecognised
+                info_msg = """A lock to prevent race conditions on starting catwalk could not be acquired.
+                    Tried 6 times at 2 second intervals.
+                    This may arise because
+                    (i) some failure of catwalk to start has occurred
+                    (ii) the lock is held inappropriately after a crash. 
+                    The findNeighbour4_lockmonitor should unlock it automatically in 90 seconds.  
+                    If needed, you can reset the lock as follows:  fn4_configure <path to config file> --drop_locks"""
+                logging.warning(info_msg)
+                raise CatWalkStartupLockNotAcquiredError()
+
+        if self.server_is_running() is False:
             cmd = f"nohup {cw_binary_filepath} --instance_name {instance_name}  --bind_host {self.bind_host} --bind_port {self.bind_port} --reference_filepath {reference_filepath}  --mask_filepath {mask_filepath} --max_n_positions {self.max_n_positions} > cw_server_nohup.out &"
             logging.info("Attempting startup of CatWalk server : {0}".format(cmd))
 
-            os.system(cmd)  # synchronous: will return when it has started; runs via nohup
+            os.system(
+                cmd
+            )  # synchronous: will return when it has started; runs via nohup
 
             time.sleep(1)  # short break to ensure it has started
-        
+
         # check there is exactly one running.
         # will raise an error otherwise
         if self.server_is_running() is False:
             raise CatWalkServerDidNotStartError()
-        info = self.info()      # functional test: test responsiveness
+
+        info = self.info()  # functional test: test responsiveness
         if info is None:
             raise CatWalkServerDidNotStartError()
         else:
             logging.info("Catwalk server running: {0}".format(info))
 
+        if self.PERSIST is not None:
+            # release lock
+            self.PERSIST.unlock(2)  # release the lock if it was acquired
+
     def stop(self):
-        """stops a catwalk server launched by with this specification, if running.  
-           The server is not killed by pid, so if a different process (but with the same identifier)
-           is running started by a different program, this will be shut down.
-           
-           If more than one catwalk server with the same id is running (this is an error condition)
-           then all will be shut down.
-           
-           The server process is identified by the instance_stem, which is of the for Catwalk-PORT-XXXX-hash
-           where the hash is the hash on an 'identity token' passed to the constructor, see above."""
+        """stops a catwalk server launched by with this specification, if running.
+        The server is not killed by pid, so if a different process (but with the same identifier)
+        is running started by a different program, this will be shut down.
+
+        If more than one catwalk server with the same id is running (this is an error condition)
+        then all will be shut down.
+
+        The server process is identified by the instance_stem, which is of the for Catwalk-PORT-XXXX-hash
+        where the hash is the hash on an 'identity token' passed to the constructor, see above."""
 
         for proc in psutil.process_iter():
             if "cw_server" in proc.name():
@@ -254,6 +301,9 @@ in either
                     self.instance_stem, self.bind_port
                 )
             )
+        if self.PERSIST is not None:
+            # release lock
+            self.PERSIST.unlock(2)  # release the lock if it was acquired
 
     def stop_all(self):
         """stops all catwalk servers"""
@@ -268,6 +318,9 @@ in either
                     nKilled
                 )
             )
+        if self.PERSIST is not None:
+            # release lock
+            self.PERSIST.unlock(2)  # release the lock if it was acquired
 
     def info(self):
         """

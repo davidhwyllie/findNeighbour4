@@ -14,6 +14,9 @@ However, if the process was inserting before it was killed, this gunicorn initia
 - the insert semaphore remaining set, blocking future inserts
 - depending on at what state the insert failed, catwalk and the underlying database may be in an inconsistent state
 
+- it can also potentially result in a situation where a multiple processes try to start catwalk simultaneously
+- this is rare in production, but is theoretically possible.
+
 This process continuously monitors to check whether such an eventuality has occurred, and if so
 - checks the database and catwalk to ensure it is in a consistent state
 - released the lock
@@ -202,6 +205,35 @@ if __name__ == "__main__":
 
             else:
                 logging.info("Insert Lock status checked; lock is not held")
+
+        except Exception as e:
+            # an error was raised somewhere
+            logging.error(e)
+            sentry_sdk.capture_exception(e)
+
+        # we also check that a catwalk startup lock is not held.
+        try:
+            # get details of the lock
+            lock_details = PERSIST.lock_details(2)
+            current_time = datetime.datetime.now()
+
+            if lock_details is not None:
+                # a lock is in place; determine whether it has been held for > 90 seconds
+                time_difference = current_time - lock_details["lock_set_date"]
+                time_difference_seconds = time_difference.total_seconds()
+                logging.info(
+                    "Catwalk startup lock status checked; lock is held for {0} seconds".format(
+                        time_difference_seconds
+                    )
+                )
+                if time_difference_seconds > args.max_run_time:
+                    logging.warning(
+                        "Releasing lock on {0}".format(lock_details["sequence_id"])
+                    )
+                    PERSIST.unlock(2, force=True)
+
+            else:
+                logging.info("Catwalk startup Lock status checked; lock is not held")
 
         except Exception as e:
             # an error was raised somewhere

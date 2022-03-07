@@ -66,9 +66,9 @@ jobs:
 
         mkdir external_software
         cd external_software
-        wget https://nim-lang.org/download/nim-1.4.8-linux_x64.tar.xz
-        tar -xf nim-1.4.8-linux_x64.tar.xz
-        NIMDIR="`pwd`/nim-1.4.8/bin"
+        wget https://nim-lang.org/download/nim-1.6.4-linux_x64.tar.xz
+        tar -xf nim-1.6.4-linux_x64.tar.xz
+        NIMDIR="`pwd`/nim-1.6.4/bin"
         # Append to PATH
         echo "$NIMDIR" >> $GITHUB_PATH
 
@@ -90,13 +90,24 @@ jobs:
         nimble -y build -d:release -d:danger -d:no_serialisation
         echo CW_BINARY_FILEPATH=\"`pwd`/cw_server\" > ../../.env
       
-    - name: Test with pytest
+    - name: Test server and client
       run: |
         python3 setup.py --version
-        nohup pipenv run python3 findNeighbour4_server.py &
-        sleep 15
-        pipenv run pytest test --cov=./ --cov-report=xml
+
+        pipenv run python3 fn4_configure.py config/default_test_config.json --startup --n_workers 1 > test_startup.sh
+        chmod +x test_startup.sh
+        ./test_startup.sh
+        sleep 15 
+        pipenv run pytest test_server --cov=./ --cov-report=xml --cov-append
         
+        # shut down server
+        ./fn4_shutdown.sh config/default_test_config.json
+
+    - name: Test modules
+      run: |
+        python3 setup.py --version
+        pipenv run pytest test --cov=./ --cov-report=xml --cov-append
+      
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v1
       with:

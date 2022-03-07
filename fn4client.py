@@ -138,7 +138,7 @@ class fn4Client:
 
     def guids(self, timeout=None):
         """ returns all guids in the server """
-        return self._decode(self.getpost("/api/v2/guids", method="GET"))
+        return self._decode(self.getpost("/api/v2/guids", method="GET", timeout=timeout))
 
     def annotations(self, timeout=None):
         """ returns all guids and their annotations as a pandas dataframe"""

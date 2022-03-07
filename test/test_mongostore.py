@@ -1258,7 +1258,7 @@ class Test_rotate_log(unittest.TestCase):
 
 
 @mongo_test
-class Test_lock(unittest.TestCase):
+class Test_lock_1(unittest.TestCase):
     """tests locking.
 
     Note: does not test concurrent operations"""
@@ -1304,7 +1304,12 @@ class Test_lock(unittest.TestCase):
         res = pdm.lock_details(1)
         self.assertIsNone(res)
 
-
+        self.assertTrue(pdm.unlock(2, force=True))
+        self.assertEqual(0, pdm.lock_status(2)["lock_status"])
+        self.assertEqual("-NotSpecified-", pdm.lock_status(2)["sequence_id"])
+        self.assertTrue(pdm.lock(2, "start_catwalk"))
+        self.assertTrue(pdm.unlock(2))
+        
 class test_lockmanager_2(unittest.TestCase):
     """tests whether the lockmanager runs and releases a lock running lock"""
 

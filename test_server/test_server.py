@@ -5,11 +5,11 @@ See documentation for full details of its functionality.
 There are unit tests for the server component.  To run them:
 
 # starting a test RESTFUL server 
-nohup pipenv run python3 findNeighbour4_server.py config/default_test_config_rdbms.json &
-# NOTE: this uses the default testing config file for rdbms at config/default_test_config_rdbms.json, which launches a server on 5021
+# NOTE: this uses the default testing config file at config/default_test_config.json, which launches a server on 5020
+nohup pipenv run python3 findNeighbour4_server.py &
 
 # And then  launching unit tests with
-pipenv run python3 -m unittest test/test_server_rdbms.py         # tests the server running on the rdbms server testing port, 5021
+pipenv run python3 -m unittest test/test_server.py              # tests the server running on the default testing port, 5020
 
 """
 
@@ -22,15 +22,20 @@ import datetime
 import pandas as pd
 import markdown
 import codecs
+import uuid
 
 # only used for unit testing
 from Bio import SeqIO
 import unittest
 from urllib.parse import urljoin as urljoiner
 
-RESTBASEURL = "http://127.0.0.1:5021"
+RESTBASEURL = "http://127.0.0.1:5020"
 
-print("Running unit tests against a server expected to be operational on {0}".format(RESTBASEURL))
+print(
+    "Running unit tests against a server expected to be operational on {0}".format(
+        RESTBASEURL
+    )
+)
 ISDEBUG = True
 LISTEN_TO = "127.0.0.1"  # only local addresses
 
@@ -80,7 +85,7 @@ def do_GET(relpath):
     except UnicodeEncodeError:
         # which is what happens if you try to display a gz file as text, which it isn't
         warnings.warn(
-            "Response cannot be coerced to unicode ? a gz file.  The response content had {0} bytes.".format(
+            "Response cannot be coerced to unicode; is this a gz file?  The response content had {0} bytes.".format(
                 len(response.text)
             )
         )
@@ -120,14 +125,55 @@ def render_markdown(md_file):
 
 
 class test_reset(unittest.TestCase):
-    """tests route /api/v2/reset and /guids"""
+    """tests route /api/v2/reset; ensures that guids are removed"""
+
+    def runTest(self):
+        relpath = "/api/v2/guids"
+        res = do_GET(relpath)
+        n_pre = len(res.json())   # len(json.loads(str(res.text)))  # get all the guids
+        #print("Pre insert guids", res.json())
+
+        guid_to_insert = "{0}_{1}".format(n_pre + 1, uuid.uuid4().hex)
+
+        inputfile = "COMPASS_reference/R39/R00000039.fasta"
+        with open(inputfile, "rt") as f:
+            for record in SeqIO.parse(f, "fasta"):
+                seq = str(record.seq)
+
+        relpath = "/api/v2/insert"
+        #print("inserting", guid_to_insert)
+
+        res = do_POST(relpath, payload={"guid": guid_to_insert, "seq": seq})
+
+        relpath = "/api/v2/guids"
+        res = do_GET(relpath)
+        #print("post-insert guids", res.json())
+        n_post = len(res.json())  # get all the guids
+        self.assertEqual(n_post, n_pre + 1)
+ 
+        relpath = "/api/v2/reset"
+        res = do_POST(relpath, payload={})
+        #print("Reset message:", res.json())
+        self.assertEqual(res.status_code, 200)
+
+        relpath = "/api/v2/guids"
+        res = do_GET(relpath)
+        #print("Post-reset guids", res.json())
+
+        n_post_reset = len(res.json())  # get all the guids
+        #print("number post reset", n_post_reset)
+        self.assertTrue(n_post_reset == 0)
+
+
+class test_guid_name_validity(unittest.TestCase):
+    """tests whether insertion of guids which don't conform to expectations is permitted"""
 
     def runTest(self):
         relpath = "/api/v2/guids"
         res = do_GET(relpath)
         n_pre = len(json.loads(str(res.text)))  # get all the guids
 
-        guid_to_insert = "guid_{0}".format(n_pre + 1)
+        guid_to_insert = "X" * 90  # too long
 
         inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, "rt") as f:
@@ -137,22 +183,13 @@ class test_reset(unittest.TestCase):
         relpath = "/api/v2/insert"
         res = do_POST(relpath, payload={"guid": guid_to_insert, "seq": seq})
 
-        info = json.loads(res.content.decode("utf-8"))
-        self.assertEqual(info, "Guid {0} inserted.".format(guid_to_insert))
+        self.assertEqual(res.status_code, 403)
 
         relpath = "/api/v2/guids"
         res = do_GET(relpath)
         n_post = len(json.loads(str(res.text)))  # get all the guids
 
-        relpath = "/api/v2/reset"
-        res = do_POST(relpath, payload={})
-
-        relpath = "/api/v2/guids"
-        res = do_GET(relpath)
-        n_post_reset = len(json.loads(str(res.text)))  # get all the guids
-
-        self.assertTrue(n_post > 0)
-        self.assertTrue(n_post_reset == 0)
+        self.assertEqual(n_post, n_pre)
 
 
 class test_guids(unittest.TestCase):
@@ -262,10 +299,10 @@ class test_cl2network(unittest.TestCase):
             seq = originalseq
             if i % 2 == 0:
                 is_mixed = True
-                guid_to_insert = "mixed_{0}".format(n_pre + i)
+                guid_to_insert = "mixed_cl2_{0}".format(n_pre + i)
             else:
                 is_mixed = False
-                guid_to_insert = "nomix_{0}".format(n_pre + i)
+                guid_to_insert = "nomix_cl2_{0}".format(n_pre + i)
             # make i mutations at position 500,000
 
             offset = 500000
@@ -288,7 +325,7 @@ class test_cl2network(unittest.TestCase):
 
         # run the clustering engine.
 
-        os.system("pipenv run python3 findNeighbour4_clustering.py config/default_test_config_rdbms.json --run_once")
+        os.system("pipenv run python3 findNeighbour4_clustering.py")
 
         # do tests
         relpath = "/api/v2/clustering/SNV12_ignore/cluster_ids"
@@ -319,6 +356,10 @@ class test_msa_2(unittest.TestCase):
     """tests route /api/v2/multiple_alignment/guids, with additional samples."""
 
     def runTest(self):
+
+        relpath = "/api/v2/reset"
+        res = do_POST(relpath, payload={})
+
         relpath = "/api/v2/guids"
         res = do_GET(relpath)
         n_pre = len(json.loads(str(res.text)))  # get all the guids
@@ -526,7 +567,7 @@ class test_msa_2(unittest.TestCase):
 
         # Do clustering
         # "Doing clustering")
-        os.system("pipenv run python3 findNeighbour4_clustering.py config/default_test_config_rdbms.json --run_once")
+        os.system("pipenv run python3 findNeighbour4_clustering.py")
 
         relpath = "/api/v2/clustering/SNV12_ignore/guids2clusters"
         res = do_GET(relpath)
@@ -672,6 +713,9 @@ class test_server_memory_usage_1(unittest.TestCase):
 
     def runTest(self):
 
+        relpath = "/api/v2/reset"
+        res = do_POST(relpath, payload={})
+
         # default: response should be json
         relpath = "/api/v2/server_memory_usage"
         res = do_GET(relpath)
@@ -696,6 +740,10 @@ class test_server_memory_usage_2(unittest.TestCase):
 
     def runTest(self):
         # default: response should be html
+
+        relpath = "/api/v2/reset"
+        res = do_POST(relpath, payload={})
+
         relpath = "/api/v2/server_memory_usage/1/html"
         res = do_GET(relpath)
         self.assertEqual(res.status_code, 200)
@@ -713,6 +761,9 @@ class test_server_database_usage(unittest.TestCase):
 
     def runTest(self):
 
+        relpath = "/api/v2/reset"
+        res = do_POST(relpath, payload={})
+
         relpath = "/api/v2/server_database_usage"
         res = do_GET(relpath)
         self.assertEqual(res.status_code, 200)
@@ -727,9 +778,11 @@ class test_snpceiling(unittest.TestCase):
     """tests route /api/v2/snpceiling"""
 
     def runTest(self):
-        res = "/api/v2/reset"
-        relpath = "/api/v2/snpceiling"
+
+        relpath = "/api/v2/reset"
         res = do_POST(relpath, payload={})
+
+        relpath = "/api/v2/snpceiling"
 
         res = do_GET(relpath)
         self.assertTrue(isjson(content=res.content))
@@ -742,6 +795,10 @@ class test_server_time(unittest.TestCase):
     """tests route /api/v2/server_time"""
 
     def runTest(self):
+
+        relpath = "/api/v2/reset"
+        res = do_POST(relpath, payload={})
+
         relpath = "/api/v2/server_time"
         res = do_GET(relpath)
         # print(res)
@@ -755,6 +812,9 @@ class test_server_name(unittest.TestCase):
     """tests route /api/v2/server_name"""
 
     def runTest(self):
+        relpath = "/api/v2/reset"
+        res = do_POST(relpath, payload={})
+
         relpath = "/api/v2/server_name"
         res = do_GET(relpath)
 
@@ -815,7 +875,7 @@ class test_get_all_guids_examination_time_1(unittest.TestCase):
         res = do_GET(relpath)
         n_pre = len(json.loads(str(res.text)))  # get all the guids
 
-        guid_to_insert = "guid_{0}".format(n_pre + 1)
+        guid_to_insert = "guid_gaget_{0}".format(n_pre + 1)
 
         inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, "rt") as f:
@@ -929,7 +989,7 @@ class test_clusters_sample(unittest.TestCase):
         res = do_GET(relpath)
         n_pre = len(json.loads(str(res.text)))  # get all the guids
 
-        guid_to_insert = "guid_{0}".format(n_pre + 1)
+        guid_to_insert = "guid_cls_{0}".format(n_pre + 1)
 
         inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, "rt") as f:
@@ -950,7 +1010,6 @@ class test_clusters_sample(unittest.TestCase):
         res = do_GET(relpath)
         guids_loaded = json.loads(res.content.decode("utf-8"))
         n_post = len(guids_loaded)
-        # print("*** GUIDS LOADED ", guids_loaded)
         self.assertEqual(n_pre + 1, n_post)
 
         relpath = "/api/v2/{0}/clusters".format(guid_to_insert)
@@ -960,7 +1019,7 @@ class test_clusters_sample(unittest.TestCase):
         self.assertEqual(info, [])
 
         # Do clustering
-        os.system("pipenv run python3 findNeighbour4_clustering.py config/default_test_config_rdbms.json --run_once")
+        os.system("pipenv run python3 findNeighbour4_clustering.py")
 
         relpath = "/api/v2/guids"
         res = do_GET(relpath)
@@ -1011,7 +1070,7 @@ class test_clusters_what(unittest.TestCase):
         self.assertEqual(info, "Guid {0} inserted.".format(guid_to_insert))
 
         # Do clustering
-        os.system("pipenv run python3 findNeighbour4_clustering.py config/default_test_config_rdbms.json --run_once")
+        os.system("pipenv run python3 findNeighbour4_clustering.py")
 
         # what happens if there is nothing there
         relpath = "/api/v2/non_existent_guid/clusters"
@@ -1066,7 +1125,7 @@ class test_what_tested(unittest.TestCase):
         res = do_GET(relpath)
         n_pre = len(json.loads(str(res.text)))  # get all the guids
 
-        guid_to_insert = "guid_{0}".format(n_pre + 1)
+        guid_to_insert = "guid_wt_{0}".format(n_pre + 1)
 
         inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, "rt") as f:
@@ -1084,7 +1143,7 @@ class test_what_tested(unittest.TestCase):
         self.assertEqual(info, "Guid {0} inserted.".format(guid_to_insert))
 
         # Do clustering
-        os.system("pipenv run python3 findNeighbour4_clustering.py config/default_test_config_rdbms.json --run_once")
+        os.system("pipenv run python3 findNeighbour4_clustering.py")
 
         relpath = "/api/v2/clustering/SNV12_exclude/what_tested"
         res = do_GET(relpath)
@@ -1124,7 +1183,7 @@ class test_g2c(unittest.TestCase):
 
             n_pre = len(json.loads(str(res.text)))  # get all the guids
             res = do_GET(relpath)
-            guid_to_insert = "guid_{0}".format(n_pre + 1)
+            guid_to_insert = "guid_g2c_{0}".format(n_pre + 1)
 
             inputfile = "COMPASS_reference/R39/R00000039.fasta"
             with open(inputfile, "rt") as f:
@@ -1141,7 +1200,7 @@ class test_g2c(unittest.TestCase):
             self.assertEqual(info, "Guid {0} inserted.".format(guid_to_insert))
 
         # Do clustering
-        os.system("pipenv run python3 findNeighbour4_clustering.py config/default_test_config_rdbms.json --run_once")
+        os.system("pipenv run python3 findNeighbour4_clustering.py")
 
         relpath = "/api/v2/clustering/SNV12_ignore/guids2clusters"
         res = do_GET(relpath)
@@ -1175,7 +1234,7 @@ class test_clusters2cnt(unittest.TestCase):
         res = do_GET(relpath)
         n_pre = len(json.loads(str(res.text)))  # get all the guids
 
-        guid_to_insert = "guid_{0}".format(n_pre + 1)
+        guid_to_insert = "guid_c2cnt2_{0}".format(n_pre + 1)
 
         inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, "rt") as f:
@@ -1193,7 +1252,7 @@ class test_clusters2cnt(unittest.TestCase):
         self.assertEqual(info, "Guid {0} inserted.".format(guid_to_insert))
 
         # Do clustering
-        os.system("pipenv run python3 findNeighbour4_clustering.py config/default_test_config_rdbms.json --run_once")
+        os.system("pipenv run python3 findNeighbour4_clustering.py")
 
         relpath = "/api/v2/clustering/SNV12_ignore/clusters"
         res = do_GET(relpath)
@@ -1285,7 +1344,7 @@ class test_g2ca(unittest.TestCase):
         res = do_GET(relpath)
         n_pre = len(json.loads(str(res.text)))  # get all the guids
 
-        guid_to_insert = "guid_{0}".format(n_pre + 1)
+        guid_to_insert = "guid_g2ca_{0}".format(n_pre + 1)
 
         inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, "rt") as f:
@@ -1303,7 +1362,7 @@ class test_g2ca(unittest.TestCase):
         self.assertEqual(info, "Guid {0} inserted.".format(guid_to_insert))
 
         # Do clustering
-        os.system("pipenv run python3 findNeighbour4_clustering.py config/default_test_config_rdbms.json --run_once")
+        os.system("pipenv run python3 findNeighbour4_clustering.py")
 
         relpath = "/api/v2/clustering/SNV12_ignore/guids2clusters"
 
@@ -1407,7 +1466,7 @@ class test_insert_1(unittest.TestCase):
         res = do_GET(relpath)
         n_pre = len(json.loads(str(res.text)))  # get all the guids
 
-        guid_to_insert = "guid_{0}".format(n_pre + 1)
+        guid_to_insert = "guid_i1_{0}".format(n_pre + 1)
 
         inputfile = "COMPASS_reference/R39/R00000039.fasta"
         with open(inputfile, "rt") as f:
@@ -1457,7 +1516,7 @@ class test_insert_10(unittest.TestCase):
                 originalseq = list(str(record.seq))
 
         for i in range(1, 10):
-            guid_to_insert = "guid_{0}".format(n_pre + i)
+            guid_to_insert = "guid_i10_{0}".format(n_pre + i)
 
             seq = originalseq
             # make i mutations at position 500,000
@@ -1513,7 +1572,7 @@ class test_insert_10a(unittest.TestCase):
                 originalseq = list(str(record.seq))
 
         for i in range(1, 10):
-            guid_to_insert = "guid_{0}".format(n_pre + i)
+            guid_to_insert = "guid_10a_{0}".format(n_pre + i)
 
             seq = originalseq
             # make i mutations at position 500,000
@@ -1574,10 +1633,10 @@ class test_insert_60(unittest.TestCase):
             seq = originalseq
             if i % 5 == 0:
                 is_mixed = True
-                guid_to_insert = "mixed_{0}".format(n_pre + i)
+                guid_to_insert = "mixed_60_{0}".format(n_pre + i)
             else:
                 is_mixed = False
-                guid_to_insert = "nomix_{0}".format(n_pre + i)
+                guid_to_insert = "nomix_60_{0}".format(n_pre + i)
             # make i mutations at position 500,000
 
             offset = 500000
@@ -1938,7 +1997,6 @@ class test_sequence_4(unittest.TestCase):
 
         relpath = "/api/v2/guids"
         res = do_GET(relpath)
-        # print(res)
         n_pre = len(json.loads(res.content.decode("utf-8")))  # get all the guids
 
         inputfile = "COMPASS_reference/R39/R00000039.fasta"
@@ -1998,8 +2056,8 @@ class test_sequence_5(unittest.TestCase):
             for record in SeqIO.parse(f, "fasta"):
                 seq2 = str(record.seq)
 
-        guid_to_insert1 = "guid_{0}".format(n_pre + 1)
-        guid_to_insert2 = "guid_{0}".format(n_pre + 2)
+        guid_to_insert1 = "guid_5_{0}".format(n_pre + 1)
+        guid_to_insert2 = "guid_5_{0}".format(n_pre + 2)
 
         seq1 = "R" * 4411532
         # print("Adding TB reference sequence of {0} bytes with {1} Rs".format(len(seq1), seq1.count('R')))
@@ -2046,3 +2104,69 @@ class test_nucleotides_excluded(unittest.TestCase):
         self.assertTrue(isinstance(resDict, dict))
         self.assertEqual(set(resDict.keys()), set(["exclusion_id", "excluded_nt"]))
         self.assertEqual(res.status_code, 200)
+
+
+class test_guids_added_after_sample(unittest.TestCase):
+    """tests route /api/v2/guids_added_after_sample"""
+
+    def runTest(self):
+
+        relpath = "/api/v2/reset"
+        res = do_POST(relpath, payload={})
+
+        relpath = "/api/v2/guids"
+        res = do_GET(relpath)
+        # print(res)
+        n_pre = len(json.loads(res.content.decode("utf-8")))  # get all the guids
+
+        inputfile = "COMPASS_reference/R39/R00000039.fasta"
+        with open(inputfile, "rt") as f:
+            for record in SeqIO.parse(f, "fasta"):
+                seq = str(record.seq)
+
+        guid_to_insert1 = "guid_{0}".format(n_pre + 1)
+        guid_to_insert2 = "guid_{0}".format(n_pre + 2)
+        guid_to_insert3 = "guid_{0}".format(n_pre + 3)
+        guid_to_insert4 = "guid_{0}".format(n_pre + 4)
+
+        relpath = "/api/v2/insert"
+        res = do_POST(relpath, payload={"guid": guid_to_insert1, "seq": seq})
+        self.assertEqual(res.status_code, 200)
+        res = do_POST(relpath, payload={"guid": guid_to_insert2, "seq": seq})
+        self.assertEqual(res.status_code, 200)
+        res = do_POST(relpath, payload={"guid": guid_to_insert3, "seq": seq})
+        self.assertEqual(res.status_code, 200)
+        res = do_POST(relpath, payload={"guid": guid_to_insert4, "seq": seq})
+        self.assertEqual(res.status_code, 200)
+
+        relpath = "/api/v2/guids"
+        res = do_GET(relpath)
+        guids = json.loads(res.content.decode("utf-8"))  # get all the guids
+        self.assertEqual(
+            set(guids),
+            set([guid_to_insert1, guid_to_insert2, guid_to_insert3, guid_to_insert4]),
+        )
+
+        relpath = "/api/v2/guids_added_after_sample/{0}".format("notthere")
+        res = do_GET(relpath)
+        self.assertEqual(res.status_code, 404)
+
+        relpath = "/api/v2/guids_added_after_sample/{0}".format(guid_to_insert1)
+        res = do_GET(relpath)
+        self.assertEqual(res.status_code, 200)
+        info = json.loads(res.content.decode("utf-8"))
+        self.assertEqual(
+            set(info), set([guid_to_insert2, guid_to_insert3, guid_to_insert4])
+        )
+
+        relpath = "/api/v2/guids_added_after_sample/{0}".format(guid_to_insert4)
+        res = do_GET(relpath)
+        self.assertEqual(res.status_code, 200)
+        info = json.loads(res.content.decode("utf-8"))
+        self.assertEqual(info, [])
+
+        relpath = "/api/v2/guids_added_after_sample/{0}".format(guid_to_insert3)
+        res = do_GET(relpath)
+        self.assertEqual(res.status_code, 200)
+        info = json.loads(res.content.decode("utf-8"))
+        self.assertEqual(info, [guid_to_insert4])
