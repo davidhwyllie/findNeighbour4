@@ -36,7 +36,7 @@ class Test_LS_2(unittest.TestCase):
 
         for compression_method in ["lzma", "gzip", "pickle"]:
             # delete any existing test
-            tarfile_name = "unittest_tmp/test.tar"
+            tarfile_name = "unitTest_tmp/test.tar"
             try:
                 os.unlink(tarfile_name)
             except FileNotFoundError:
@@ -45,7 +45,7 @@ class Test_LS_2(unittest.TestCase):
             self.assertEqual(False, os.path.exists(tarfile_name))
             # create the tar file
             js = LocalStore(
-                "unittest_tmp/test.tar",
+                "unitTest_tmp/test.tar",
                 write_batch_size=3,
                 compression_method=compression_method,
             )
@@ -107,7 +107,7 @@ class Test_LS_benchmark(unittest.TestCase):
         for compression_method in ["lzma", "gzip", "pickle"]:
             # delete any existing test
 
-            tarfile_name = "unittest_tmp/test.tar"
+            tarfile_name = "unitTest_tmp/test.tar"
             try:
                 os.unlink(tarfile_name)
             except FileNotFoundError:
