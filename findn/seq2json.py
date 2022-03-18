@@ -1,12 +1,4 @@
-""" contains a class to store the a dictionary of properties,
-    as produced by the VariantMatrix class .model property,
-    as json.
-
-    This is required because of 
-    a) the need to store these dictionaries for unittesting
-    b) the insecurity of pickle
-    c) the fact that pickled data doesn't unpickle properly if the pickle & pandas versions aren't sync'd
-     which cannot be assured in CI environments.
+""" contains a class to store reference compressed sequences as json
 """
 
 import json
@@ -35,8 +27,9 @@ class SeqDictConverter:
     a) the need to serialise store these dictionaries for storage
     b) the insecurity of pickle
 
-    The key barrier here is that internally differences from the reference are stored as sets,
-    but json only support lists
+    The key barrier here is that 
+    - internally differences from the reference are stored as sets, but json only support lists
+    - on back from json, in some case we expect dictionary keys as integers
 
     """
 
@@ -44,7 +37,7 @@ class SeqDictConverter:
         self.bases = ["A", "C", "G", "T", "N"]
 
     def to_json(self, obj):
-        """converts the dictionary to json"""
+        """converts the dictionary to a json string"""
 
         if not isinstance(obj, dict):
             raise TypeError("Must pass a dictionary, not a {0}".format(type(obj)))
@@ -61,7 +54,7 @@ class SeqDictConverter:
         return json.dumps(outputdict)
 
     def from_json(self, jsonobj):
-        """converts the output of to_json back to native types"""
+        """converts the output of to_json ( a string ) back to native types"""
         outputdict = json.loads(jsonobj)
         for key in outputdict.keys():
             if key in self.bases:

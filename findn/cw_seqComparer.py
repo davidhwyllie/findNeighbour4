@@ -27,6 +27,7 @@ from findn.persistence import Persistence
 from findn.mongoStore import fn3persistence
 from findn.rdbmsstore import fn3persistence_r
 from findn.msa import MSAResult
+from localstore.localstoreutils import LocalStore
 from catwalk.pycw_client import CatWalk
 
 
@@ -67,6 +68,8 @@ class cw_seqComparer:
         PERSIST=UNITTEST_MONGOCONN,
         unittesting=False,
         disable_insertion=False,
+        localstore=None,
+        update_localstore_only=False
     ):
 
         """a module for determining relatedness between two sequences.
@@ -125,9 +128,18 @@ class cw_seqComparer:
 
          disable_insertion:  catwalk is not used; can only access data already present in the database.
 
+         local_store: a LocalStore object, which is used to allow fast repopulation of catwalk without database access
+
+         update_localstore_only:  (default FALSE)  update the localstore from the database without loading catwalk 
          - to run unit tests, do
          pipenv run python3 -m unittest cw_seqComparer
         """
+
+        # check that localstore is of valid type
+        if localstore is not None:
+            if not isinstance(localstore, LocalStore):
+                raise TypeError("localstore must be either None or a LocalStore object")
+        self.localstore = localstore
 
         # reference based compression relative to reference 'compressed_sequence' have keys as follows:
         self.distances_are_exact = (
@@ -193,6 +205,11 @@ class cw_seqComparer:
         if self.disable_insertion:
             logging.info("cw_seqComparer is running in read-only mode")
 
+        # make localstore if instructed to do so
+        if update_localstore_only:
+            self.update_localstore()
+            return
+
         # start catwalk
         if "catWalk_parameters" not in preComparer_parameters.keys():
             raise NoCWParametersProvidedError()
@@ -235,6 +252,34 @@ class cw_seqComparer:
         """returns samples in the catwalk object"""
         return self.catWalk.sample_names()
 
+    def update_localstore(self):
+        """ensures localstore contains data in database"""
+
+        if self.localstore is None:
+            return  # nothing to do
+
+        # eheck what needs to be added
+        guids = self.PERSIST.guids()
+        already_added = self.localstore.sequence_ids()
+        to_add = set(guids) - set(already_added)
+
+        logging.info(
+            "Updating localstore from database.  Already present: {0}; remaining {1}".format(
+                len(already_added), len(to_add)
+            )
+        )
+        i = 0
+        bar = progressbar.ProgressBar(max_value=len(to_add))
+
+        for guid in to_add:
+            i = i + 1
+            rcs = self.PERSIST.refcompressedsequence_read(guid)
+            self.localstore.store(guid, rcs)
+            bar.update(i)
+        bar.finish()
+
+        self.localstore.flush()  # write anythgin in the buffer
+
     def repopulate_all(self):
         """repopulates catwalk with all samples from database
         Note: will not add a sample twice"""
@@ -244,9 +289,39 @@ class cw_seqComparer:
         already_added = self.catWalk.sample_names()
         to_add = set(guids) - set(already_added)
 
+        # if we have details of a local cache of sequence data, then we try to add samples from this
+        if self.localstore is not None:
+
+            # add the samples from the localstore
+            in_localstore = set(self.localstore.sequence_ids())
+            to_add_from_localstore = in_localstore.intersection(to_add)
+
+            bar = progressbar.ProgressBar(max_value=len(to_add_from_localstore))
+            logging.info(
+                "Repopulating catwalk from localstore.  Already present: {0}; remaining to add from localstore {1}".format(
+                    len(already_added), len(to_add_from_localstore)
+                )
+            )
+            i = 0
+            for (sequence_id, rcs) in self.localstore.read_many(
+                select_sequence_ids=to_add_from_localstore
+            ):
+                if sequence_id is None:
+                    break
+                else:
+                    self.catWalk.add_sample_from_refcomp(sequence_id, rcs)
+                    i = i + 1
+                    bar.update(i)
+            bar.finish()
+
+            # we add anything remaining from the database
+            # reassess what remains
+            already_added = self.catWalk.sample_names()
+            to_add = set(guids) - set(already_added)
+
         bar = progressbar.ProgressBar(max_value=len(to_add))
         logging.info(
-            "Repopulating catwalk.  Already present: {0}; remaining {1}".format(
+            "Repopulating catwalk from database  Already present: {0}; remaining to add from database {1}".format(
                 len(already_added), len(to_add)
             )
         )

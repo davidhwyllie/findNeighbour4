@@ -19,13 +19,8 @@ the default port on local host.  As a rough guide to the amount of space require
 about 0.5MB of database is used per sequence, or about 2,000 sequences per GB.
 
 All internal modules, and the restful API, are covered by unit testing.
-Unit testing can be achieved by:
-
-# starting a test RESTFUL server
-python3 findNeighbour4_server.py
-
-# And then (e.g. in a different terminal) launching unit tests with
-python3 -m unittest findNeighbour4_server
+For unit testing details, please see
+run_tests.sh
 
 A component of the findNeighbour4 system for bacterial relatedness monitoring
 Copyright (C) 2021 David Wyllie david.wyllie@phe.gov.uk

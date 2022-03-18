@@ -30,6 +30,13 @@ import warnings
 from findn.rdbmsstore import fn3persistence_r
 from findn.mongoStore import fn3persistence
 
+class CatWalkNoneSequenceError(Exception):
+    """sequence is None; this cannot be loaded"""
+
+    def __init__(self, expression, message):
+        self.expression = expression
+        self.message = message
+
 
 class CatWalkServerInsertError(Exception):
     """insert failed"""
@@ -363,8 +370,8 @@ in either
         # note particular way of creating json, but catwalk accepts this (refcomp has to be in '')
         # cannot json serialise sets; use lists instead
         if refcomp is None:
-            # issue warning, return
-            logging.warning(
+            # raise error
+            raise CatWalkNoneSequenceError(
                 "Asked to reload catwalk with {0} but the refcomp was None".format(name)
             )
 
