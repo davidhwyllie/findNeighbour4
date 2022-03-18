@@ -1197,6 +1197,53 @@ class Test_refcompressedseq_store(Test_Database):
 
 
 @rdbms_test
+class Test_refcompressedseq_read_many(Test_Database):
+    """tests read_many method for referencecompressed sequences"""
+
+    def runTest(self):
+
+        # define a sequence object for testing
+        seqobj1 = {
+            "A": set([1]),
+            "C": set([6]),
+            "T": set([4]),
+            "G": set([5]),
+            "M": {11: "Y", 12: "k"},
+            "invalid": 0,
+        }
+        seqobj2 = {
+            "A": set([1, 2]),
+            "C": set([6]),
+            "T": set([4]),
+            "G": set([5]),
+            "M": {11: "Y", 12: "k"},
+            "invalid": 0,
+        }
+        # define a sequence object for testing
+        seqobj3 = {
+            "A": set([1, 2, 3]),
+            "C": set([6]),
+            "T": set([4]),
+            "G": set([5]),
+            "M": {11: "Y", 12: "k"},
+            "invalid": 0,
+        }
+
+        payloads = {"guid1": seqobj1, "guid2": seqobj2, "guid3": seqobj3}
+        for pdm in self.pdms():
+            for guid in payloads.keys():
+                pdm.refcompressedseq_store(guid, payloads[guid])
+
+            i = 0
+            for guid, rcs in pdm.refcompressedsequence_read_many(["guid1", "guid3"]):
+                self.assertEqual(rcs, payloads[guid])
+                self.assertTrue(guid in ["guid1", "guid3"])
+                i += 1
+
+            self.assertEqual(i, 2)
+
+
+@rdbms_test
 class Test_guid2items(Test_Database):
     """this is mostly tested by other test cases, just test the edge cases"""
 

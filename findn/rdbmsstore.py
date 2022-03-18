@@ -577,10 +577,12 @@ class fn3persistence_r:
             # but if you set it too large you can get DPI-1015 (allocated cursor size > 2G) see
             # https://cx-oracle.readthedocs.io/en/latest/api_manual/cursor.html
 
-            self.engine = create_engine(self.engine_name, arraysize = 1000000)  # fetch results in batches of 1m.  This is fine for this application which pulls only 'small data' in big batches
+            self.engine = create_engine(
+                self.engine_name, arraysize=1000000
+            )  # fetch results in batches of 1m.  This is fine for this application which pulls only 'small data' in big batches
         else:
             # sqlalchemy generic pool manager
-            self.engine = create_engine(self.engine_name)  
+            self.engine = create_engine(self.engine_name)
 
         # oracle pool manager code
         # use cx_Oracle pool manager
@@ -1105,12 +1107,10 @@ class fn3persistence_r:
         write_content = False
         if self.previous_server_monitoring_time is None:
             # yes if this is the first record written.
-            write_content = True  
+            write_content = True
         else:
-            time_since_last_write = (
-                current_time - self.previous_server_monitoring_time
-            )  
-            
+            time_since_last_write = current_time - self.previous_server_monitoring_time
+
             # yes if it's after the previous_server_monitoring_time in milliseconds
             t = (
                 1000 * float(time_since_last_write.seconds)
@@ -1118,7 +1118,7 @@ class fn3persistence_r:
             )
             if t >= self.server_monitoring_min_interval_msec:
                 write_content = True
-            
+
         if write_content:
             try:
                 json_now = json.dumps(now).encode("utf-8")
@@ -1508,7 +1508,11 @@ class fn3persistence_r:
 
     def refcompressedsequence_read(self, guid: str) -> Any:
         """loads object from refcompressedseq collection.
-        It is assumed object stored is a dictionary"""
+        the object loaded is identified by guid.
+        It is assumed object stored is a dictionary
+
+        returns:
+        dictionary containing referencecompressed sequences"""
         tls = self.thread_local_session()
         if (
             rcs := tls.query(RefCompressedSeq.content)
@@ -1518,6 +1522,32 @@ class fn3persistence_r:
             return self.sjc.from_json(rcs.content)
         else:
             return None
+
+    def refcompressedsequence_read_many(self, guids: Iterable) -> Any:
+        """loads object from refcompressedseq collection.
+        The objects loaded are guids.
+        It is assumed object stored is a dictionary
+
+        returns:
+        generator, which yields a tuple
+        (guid, referencecompressedsequence)
+
+        raises:
+        ValueError, if length of guids is > 1000
+        """
+
+        if len(guids) > 1000:
+            raise ValueError("Maximum number of samples which can be sought is 1000")
+
+        tls = self.thread_local_session()
+        results = (
+            tls.query(RefCompressedSeq.sequence_id, RefCompressedSeq.content)
+            .filter(RefCompressedSeq.sequence_id.in_(guids))
+            .all()
+        )
+
+        for result in results:
+            yield (result.sequence_id, self.sjc.from_json(result.content))
 
     def refcompressedsequence_guids(self) -> Set[str]:
         """loads guids from refcompressedseq collection."""

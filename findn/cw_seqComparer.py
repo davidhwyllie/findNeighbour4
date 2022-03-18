@@ -262,23 +262,42 @@ class cw_seqComparer:
         guids = self.PERSIST.guids()
         already_added = self.localstore.sequence_ids()
         to_add = set(guids) - set(already_added)
-
+        n_added = 0
         logging.info(
             "Updating localstore from database.  Already present: {0}; remaining {1}".format(
                 len(already_added), len(to_add)
             )
         )
-        i = 0
-        bar = progressbar.ProgressBar(max_value=len(to_add))
+  
+        logging.info("Building batches for bulk queries")
+        bar = progressbar.ProgressBar(max_value=len(to_add))    
+        batches_to_add = []
+        batch_size = 1000
+        this_batch = None
+        for i, guid in enumerate(to_add):
+            if i % batch_size == 0:
+                if this_batch is not None:
+                    batches_to_add.append(this_batch)
+                this_batch = []
+            this_batch.append(guid)
+        if this_batch is not None:
+            if len(this_batch)>0:
+                batches_to_add.append(this_batch)
 
-        for guid in to_add:
-            i = i + 1
-            rcs = self.PERSIST.refcompressedsequence_read(guid)
-            self.localstore.store(guid, rcs)
-            bar.update(i)
+        logging.info("Searching database for {0} batches of {1} samples.".format(len(batches_to_add), batch_size))
+        for this_batch in batches_to_add:
+            
+            for guid, rcs in self.PERSIST.refcompressedsequence_read_many(this_batch):
+                n_added = n_added + 1
+                bar.update(n_added)
+                self.localstore.store(guid, rcs)
+
+        self.localstore.flush()  # write anythgin in the buffer   
         bar.finish()
 
-        self.localstore.flush()  # write anythgin in the buffer
+        logging.info(
+            "Localstore updated; added in total {0}".format(len(to_add))
+        )
 
     def repopulate_all(self):
         """repopulates catwalk with all samples from database
@@ -319,16 +338,37 @@ class cw_seqComparer:
             already_added = self.catWalk.sample_names()
             to_add = set(guids) - set(already_added)
 
+        # load from database, in batches of up to 1000 to increase query speeds        
         bar = progressbar.ProgressBar(max_value=len(to_add))
+        n_added = 0 
         logging.info(
             "Repopulating catwalk from database  Already present: {0}; remaining to add from database {1}".format(
                 len(already_added), len(to_add)
             )
         )
+        logging.info("Building batches for bulk queries")
+       
+        batches_to_add = []
+        batch_size = 1000
+        this_batch = None
         for i, guid in enumerate(to_add):
-            bar.update(i)
-            self.repopulate(guid)
+            if i % batch_size == 0:
+                if this_batch is not None:
+                    batches_to_add.append(this_batch)
+                this_batch = []
+            this_batch.append(guid)
+        if this_batch is not None:
+            if len(this_batch)>0:
+                batches_to_add.append(this_batch)
 
+        logging.info("Searching database for {0} batches of {1} samples.".format(len(batches_to_add), batch_size))
+        for this_batch in batches_to_add:
+             
+            for guid, rcs in self.PERSIST.refcompressedsequence_read_many(this_batch):
+                n_added = n_added + 1
+                bar.update(n_added)
+                self.catWalk.add_sample_from_refcomp(guid, rcs)
+            
         bar.finish()
         logging.info(
             "Repopulation of catwalk complete; added in total {0}".format(len(to_add))

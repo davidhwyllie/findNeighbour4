@@ -1309,7 +1309,8 @@ class Test_lock_1(unittest.TestCase):
         self.assertEqual("-NotSpecified-", pdm.lock_status(2)["sequence_id"])
         self.assertTrue(pdm.lock(2, "start_catwalk"))
         self.assertTrue(pdm.unlock(2))
-        
+
+
 class test_lockmanager_2(unittest.TestCase):
     """tests whether the lockmanager runs and releases a lock running lock"""
 
@@ -1360,3 +1361,51 @@ class test_lockmanager_2(unittest.TestCase):
         # there is no lock
         lock_details = pdm.lock_details(1)
         self.assertIsNone(lock_details)
+
+
+class Test_refcompressedseq_read_many(unittest.TestCase):
+    """tests read_many method for referencecompressed sequences"""
+
+    def runTest(self):
+
+        # define a sequence object for testing
+        seqobj1 = {
+            "A": set([1]),
+            "C": set([6]),
+            "T": set([4]),
+            "G": set([5]),
+            "M": {11: "Y", 12: "k"},
+            "invalid": 0,
+        }
+        seqobj2 = {
+            "A": set([1, 2]),
+            "C": set([6]),
+            "T": set([4]),
+            "G": set([5]),
+            "M": {11: "Y", 12: "k"},
+            "invalid": 0,
+        }
+        # define a sequence object for testing
+        seqobj3 = {
+            "A": set([1, 2, 3]),
+            "C": set([6]),
+            "T": set([4]),
+            "G": set([5]),
+            "M": {11: "Y", 12: "k"},
+            "invalid": 0,
+        }
+
+        payloads = {"guid1": seqobj1, "guid2": seqobj2, "guid3": seqobj3}
+
+        pdm = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
+
+        for guid in payloads.keys():
+            pdm.refcompressedseq_store(guid, payloads[guid])
+
+        i = 0
+        for guid, rcs in pdm.refcompressedsequence_read_many(["guid1", "guid3"]):
+            self.assertEqual(rcs, payloads[guid])
+            self.assertTrue(guid in ["guid1", "guid3"])
+            i += 1
+
+        self.assertEqual(i, 2)
