@@ -645,12 +645,6 @@ class fn3persistence_r:
         # )
         # self.engine = create_engine("oracle://", creator = self.oracle_pool.acquire, poolclass = NullPool)
 
-    def _recreate_engine(self):
-        """deletes any engine and recreates it"""
-        logging.info("Destroying existing SQLAlchemy Engine and recreating it.")
-        self.closedown()  # destroy any existing engine
-        self._create_engine()
-
     def closedown(self):
         """closes the session(s) & disposes of any engine.
         Is required for unit testing"""
@@ -729,14 +723,15 @@ class fn3persistence_r:
 
                 # try to remove the failing session, if it has been constructed properly
                 try:
-                    tls.remove()
+                    self.engine.dispose()
+                    tls.close()
                 except Exception:
-                    logging.info("Failed to remove session")
+                    logging.info("Failed to remove session and dispose of engine")
 
-                self._recreate_engine()  # remake a connection
-
-        # could not connect.
-        self._recreate_engine()  # remake a connection
+                # succeeded in disposing of existing engine; try reconnecting
+                self._create_engine()
+       
+        # could not connect despite multiple attempts.
         raise RDBMSError(
             "Could not connect to database.  Tried {0} times with different sessions despite recreating database connection".format(
                 n_retries
