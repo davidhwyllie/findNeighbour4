@@ -232,7 +232,7 @@ in either
 
         # prevent potential race conditions where different processes try to start catwalk
         n_tries = 0
-        max_tries = 6
+        max_tries = 15
         lock_acquired = False
         if self.PERSIST is not None:
             while n_tries < max_tries and lock_acquired is False:
@@ -246,17 +246,17 @@ in either
                             n_tries, max_tries
                         )
                     )
-                    time.sleep(5)
+                    time.sleep(2)
 
             if lock_acquired is False:
                 # lock acquisition failed, indicative of a problem as yet unrecognised
                 info_msg = """A lock to prevent race conditions on starting catwalk could not be acquired.
-                    Tried 6 times at 2 second intervals.
+                    Tried {0} times at 2 second intervals.
                     This may arise because
                     (i) some failure of catwalk to start has occurred
                     (ii) the lock is held inappropriately after a crash. 
                     The findNeighbour4_lockmonitor should unlock it automatically in 90 seconds.  
-                    If needed, you can reset the lock as follows:  fn4_configure <path to config file> --drop_locks"""
+                    If needed, you can reset the lock as follows:  fn4_configure <path to config file> --drop_locks""".format(max_tries)
                 logging.warning(info_msg)
                 raise CatWalkStartupLockNotAcquiredError()
 

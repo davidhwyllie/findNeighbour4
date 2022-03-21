@@ -201,7 +201,7 @@ pipenv run python fn4_configure.py /path/to/config_file.json --set
             ),
         )
 
-        startup_cmd = "nohup pipenv run gunicorn wsgi:app --bind {1}:{2} --log-level info  --workers {0} --error-logfile {3} --access-logfile {4} --timeout 90  > {5} &".format(
+        startup_cmd = "nohup pipenv run gunicorn wsgi:app --bind {1}:{2} --log-level info  --workers {0} --error-logfile {3} --access-logfile {4} --timeout 150  > {5} &".format(
             args.n_workers,
             LISTEN_TO,
             CONFIG["REST_PORT"],

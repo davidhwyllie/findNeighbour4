@@ -137,7 +137,7 @@ nohup pipenv run python3 findNeighbour4_clustering.py $1 > $CLUSTLOG &
 sleep 0.5
 
 echo "Starting localstore manager"
-nohup pipenv run python3 findNeighbour4_lsmanager.py --path_to_config_file $1 --max_run_time 90 > $MANLOG &
+nohup pipenv run python3 findNeighbour4_lsmanager.py --path_to_config_file $1 --max_run_time 150 > $MANLOG &
 
 echo "Startup complete.  Output files containing STDOUT and STDERR output are being written to $LOGDIR."
 echo "Server processes making their own log in the database. Nohup output is going to the following locations:"

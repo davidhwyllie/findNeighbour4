@@ -320,7 +320,7 @@ nohup pipenv run python3 fn4_load_multifasta.py http://localhost:5035 /data/data
                                     i, nSkipped, sr
                                 )
                             )
-                            # ratio of records containing neighbours to those containing samples - target is 1:1
+                            # ratio of records containing neighbours to those containing samples - target is 1:1; only applies to mongodb
                             while sr > 100:
                                 logger.warning(
                                     "Waiting 6 minutes to allow repacking operations.  Will resume when fragmentation, which is now {0:.1f}, is < 100.".format(
@@ -332,7 +332,8 @@ nohup pipenv run python3 fn4_load_multifasta.py http://localhost:5035 /data/data
                     # capture any errors which inherit from RequestException
                     except requests.exceptions.RequestException as e:
                         sentry_sdk.capture_exception(e)
-                        logger.warning("Server connection failed .. waiting {0} seconds; error is logged next".format(timeout))
+                        
+                        logger.warning("Server connection failed when trying to insert {0}; waiting {1} seconds; error is logged next".format(guid, timeout))
                         logger.error(e)
                         time.sleep(timeout)  # it will reconnect
                 else:

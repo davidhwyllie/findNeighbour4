@@ -604,8 +604,6 @@ class fn3persistence_r:
 
     def _create_engine(self):
         """create database connection engine"""
-        self.closedown()        # destroy any existing engine
-
         if self.is_oracle:
             # it is important to set arraysize, see
 
@@ -649,7 +647,7 @@ class fn3persistence_r:
     def _recreate_engine(self):
         """deletes any engine and recreates it"""
         logging.info("Destroying existing SQLAlchemy Engine and recreating it.")
-
+        self.closedown()        # destroy any existing engine
         self._create_engine()
 
     def closedown(self):
