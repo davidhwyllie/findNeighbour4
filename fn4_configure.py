@@ -27,8 +27,9 @@ import logging
 import argparse
 import multiprocessing
 from findn.persistence import Persistence
-from findNeighbour4_server import findNeighbour4
+from findn.cw_seqComparer import cw_seqComparer
 from findn.common_utils import ConfigManager, EnvWriter
+from localstore.localstoreutils import LocalStore
 
 if __name__ == "__main__":
     # command line usage.  Pass the location of a config file as a single argument.
@@ -144,9 +145,26 @@ pipenv run python fn4_configure.py /path/to/config_file.json --set
         PERSIST.unlock(2, force=True)
 
     if args.prepopulate_catwalk or args.startup:
+        tarfilename = os.path.join(cfm.rcscache, "rcs.tar")
+        logging.info("Opening localstore in {0}".format(tarfilename))
+        
+        # create tar file connection
+        localstore = LocalStore(
+            tarfilename
+        )
 
-        fn4 = findNeighbour4(CONFIG, PERSIST)
-        fn4.prepopulate_catwalk()
+        # create catwalk connection; this will synchronise catwalk using localstore and/or database
+        hc = cw_seqComparer(
+            reference=CONFIG["reference"],
+            maxNs=CONFIG["MAXN_STORAGE"],
+            snpCeiling=CONFIG["SNPCEILING"],
+            excludePositions=set(CONFIG["excludePositions"]),
+            preComparer_parameters=CONFIG["PRECOMPARER_PARAMETERS"],
+            PERSIST=PERSIST,
+            unittesting=False,
+            disable_insertion=True,
+            localstore= localstore
+        )
 
     if args.remove_data_as_part_of_debugging:
         logging.warning("Deleting any data in underlying server databases")
@@ -192,11 +210,11 @@ pipenv run python fn4_configure.py /path/to/config_file.json --set
             nohup_output_file,
         )
         logging.info(
-            "Configure finished.  Startup command returned to STDOUT {0}".format(
+            "Configure finished.  Startup command returned to STDOUT: {0}".format(
                 startup_cmd
             )
         )
-        print(startup_cmd)
+        print(startup_cmd)      # returned to STDOUT
 
     if args.shutdown:
         shutdown_cmd = (

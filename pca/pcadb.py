@@ -1396,13 +1396,21 @@ class PCADatabaseManager:
         if isinstance(date_end, datetime.datetime):
             date_end_dt = date_end.date()
         n_after_date_end = 0
+        n_invalid = 0
         for ix in cogdf.index:
-            if datetime.date.fromisoformat(cogdf.at[ix, "sample_date"]) <= date_end_dt:
+            is_valid = False        # if we cannot ensure the date provided is valid, we skip it
+            try:
+                is_valid = datetime.date.fromisoformat(cogdf.at[ix, "sample_date"]) <= date_end_dt
+            except TypeError:
+                logging.warning("Skipped row {0} sample {1} because date {2} is not string".format(ix, cogdf.at[ix, "sample_id"], cogdf.at[ix, "sample_date"]))
+                n_invalid += 1
+
+            if is_valid:
                 n_added += 1
                 if n_added % 50000 == 0:
                     logging.info(
-                        "Parsing cog-uk data file; added n={0}, skipped {1}. ".format(
-                            n_added, n_after_date_end
+                        "Parsing cog-uk data file; added n={0}, skipped as outside date range specified {1}. Skipped as invalid: {2}".format(
+                            n_added, n_after_date_end, n_invalid
                         )
                     )
 

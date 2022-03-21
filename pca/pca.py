@@ -85,6 +85,7 @@ class PersistenceTest:
         # check there are no samples in sample_ids which are not present in seqs
         # sample_ids are allowed to be a subset of seqs, but
         # no samples should exists in sample_ids which aren't in seqs
+
         missing = self.sample_ids - set(self.seqs.keys())
         if len(missing) > 0:
             raise KeyError(
@@ -102,7 +103,10 @@ class PersistenceTest:
             return None
         return self.seqs[guid]
 
-
+    def refcompressedsequence_read_all(self):
+        """reads all sequences, returning a generator"""
+        for guid in self.sample_ids:
+            yield guid, self.seqs[guid]
 class MNStats:
     """computes the number of M and N bases in a reference compressed object"""
 
@@ -330,7 +334,13 @@ class VariantMatrix:
         Parameters:
         CONFIG: a configuration dictionary, as produced by findn.common_utils.ConfigManager.read_config()
         PERSIST: a persistence object providing access to stored sequence data.
-                Either a findn.mongoStore.fn3persistence object, or a PersistenceTest object, the latter being useful for unit testing.
+                 Any of the following will work:
+
+                 findn.mongoStore.fn3persistence object, or 
+                 findn.rdbmstore.fn3persistence, or
+                 localstore.localstoreutils.LocalStore object (fast access from a local tar file - preferred for large datasets), or
+                 PersistenceTest object, the latter being useful for unit testing.
+
         show_bar: whether or not to show a progress bar
 
         """
@@ -356,10 +366,8 @@ class VariantMatrix:
         self.validation_data = None
 
     def guids(self):
-        """returns list of guids currently in the findNeighbour4 database"""
-        return sorted(
-            self.PERSIST.refcompressedsequence_guids()
-        )  # sorting is not essential, but makes more deterministic for testing
+        """returns list of guids currently in the persistence object"""
+        return self.PERSIST.refcompressedsequence_guids()
 
     def _column_name(self, pos, base):
         """given a base at a position, returns a position:base string suitable for use as a pandas column name"""
@@ -386,25 +394,26 @@ class VariantMatrix:
         guids_analysed = set()
         if self.show_bar:
             bar = progressbar.ProgressBar(max_value=len(guids))
-        for num_loaded, guid in enumerate(guids):
-            if self.show_bar:
-                bar.update(num_loaded)
-            refcompressed_sample = self.PERSIST.refcompressedsequence_read(
-                guid
-            )  # ref compressed sequence
 
-            if refcompressed_sample["invalid"] != 1:
-                guids_analysed.add(guid)
-                # for definite calls, compute variation at each position
-                for base in ["A", "C", "G", "T"]:
-                    var_positions = refcompressed_sample.get(base, [])
-                    for var_pos in var_positions:
-                        vmodel[var_pos] += 1
-                # compute missingness/gaps if it's mixed (M) or N
-                for base in ["M", "N"]:  # compute missingness/gaps if it's mixed or N
-                    missingness_positions = refcompressed_sample.get(base, [])
-                    for missingness_pos in missingness_positions:
-                        mmodel[missingness_pos] += 1
+        num_loaded = 0
+        for guid, refcompressed_sample in self.PERSIST.refcompressedsequence_read_all():
+            if guid in guids:
+                num_loaded +=1
+                if self.show_bar:
+                    bar.update(num_loaded)
+                
+                if refcompressed_sample["invalid"] == 0:
+                    guids_analysed.add(guid)
+                    # for definite calls, compute variation at each position
+                    for base in ["A", "C", "G", "T"]:
+                        var_positions = refcompressed_sample.get(base, [])
+                        for var_pos in var_positions:
+                            vmodel[var_pos] += 1
+                    # compute missingness/gaps if it's mixed (M) or N
+                    for base in ["M", "N"]:  # compute missingness/gaps if it's mixed or N
+                        missingness_positions = refcompressed_sample.get(base, [])
+                        for missingness_pos in missingness_positions:
+                            mmodel[missingness_pos] += 1
 
         if self.show_bar:
             bar.finish()
@@ -564,30 +573,30 @@ class VariantMatrix:
             bar = progressbar.ProgressBar(max_value=len(guids_analysed_stage1))
 
         guid2missing = {}
-        for nLoaded, guid in enumerate(guids_analysed_stage1):
-            if self.show_bar:
-                bar.update(nLoaded)
-            obj = self.PERSIST.refcompressedsequence_read(
-                guid
-            )  # ref compressed sequence
-            for base in [
-                "M",
-                "N",
-            ]:  # compute how many bases in this position are either M or N
-                # examine all missing (N/M) sites, adding to a missingness model
-                try:
-                    for pos in obj[base]:
-                        if pos in select_positions:
-                            try:
-                                mmodel[pos] = mmodel[pos] + 1
-                            except KeyError:
-                                if pos not in vmodel.keys():
-                                    mmodel[pos] = 1  # first occurrence at this position
-                except KeyError:
-                    pass  # if there are no M,N then we can ignore these
+        nLoaded = 0
+        for guid, obj in self.PERSIST.refcompressedsequence_read_all():
+            if guid in guids_analysed_stage1:
+                nLoaded +=1
+                if self.show_bar:
+                    bar.update(nLoaded)
+                for base in [
+                    "M",
+                    "N",
+                ]:  # compute how many bases in this position are either M or N
+                    # examine all missing (N/M) sites, adding to a missingness model
+                    try:
+                        for pos in obj[base]:
+                            if pos in select_positions:
+                                try:
+                                    mmodel[pos] = mmodel[pos] + 1
+                                except KeyError:
+                                    if pos not in vmodel.keys():
+                                        mmodel[pos] = 1  # first occurrence at this position
+                    except KeyError:
+                        pass  # if there are no M,N then we can ignore these
 
-            ## do binomial test for unexpectedly high missingness in the variant sites, as well as an n/m count
-            guid2missing[guid] = self.mns.examine(obj)
+                ## do binomial test for unexpectedly high missingness in the variant sites, as well as an n/m count
+                guid2missing[guid] = self.mns.examine(obj)
         if self.show_bar:
             bar.finish()
 
@@ -636,35 +645,31 @@ class VariantMatrix:
             bar = progressbar.ProgressBar(max_value=len(guids_analysed_stage2))
 
         self.model["sample_id"] = []
-        for guid in guids_analysed_stage2:
-            nLoaded += 1
+        for guid, obj in self.PERSIST.refcompressedsequence_read_all():
+            if guid in guids_analysed_stage2:
+                nLoaded += 1
 
-            if self.show_bar:
-                bar.update(nLoaded)
+                if self.show_bar:
+                    bar.update(nLoaded)
 
-            obj = self.PERSIST.refcompressedsequence_read(
-                guid
-            )  # ref compressed sequence
-            # for definite calls, compute variation at each position
+                # for invalid samples, compute nothing
+                if obj["invalid"] == 1:
+                    self._invalid.add(guid)
+                else:
+                    # compute a variation model - a list of bases and variants where variation occurs
+                    variants = {}  # variation for this guid
 
-            # for invalid samples, compute nothing
-            if obj["invalid"] == 1:
-                self._invalid.add(guid)
-            else:
-                # compute a variation model - a list of bases and variants where variation occurs
-                variants = {}  # variation for this guid
+                    # for definite calls, compute variation at each position
+                    # positions of variation where a call was made
+                    for base in set(["A", "C", "G", "T"]).intersection(obj.keys()):
+                        target_positions = select_positions.intersection(obj[base])
+                        called_positions = dict(
+                            (self._column_name(pos, base), 1) for pos in target_positions
+                        )
 
-                # for definite calls, compute variation at each position
-                # positions of variation where a call was made
-                for base in set(["A", "C", "G", "T"]).intersection(obj.keys()):
-                    target_positions = select_positions.intersection(obj[base])
-                    called_positions = dict(
-                        (self._column_name(pos, base), 1) for pos in target_positions
-                    )
+                        variants = {**variants, **called_positions}
 
-                    variants = {**variants, **called_positions}
-
-                vmodel[guid] = variants
+                    vmodel[guid] = variants
         if self.show_bar:
             bar.finish()
 

@@ -7,6 +7,8 @@ import tarfile
 import lzma
 import gzip
 import pickle
+import progressbar
+import datetime
 from findn.seq2json import SeqDictConverter
 
 
@@ -70,7 +72,14 @@ class LocalStore:
 
     def __del__(self):
         """destructor"""
-        self._write()  # ensure everything is written
+        try:
+            self._write()  # ensure everything is written
+        except Exception:
+            pass            # various exceptions occur if the tarfile object has already been destroyed
+
+    def refcompressedsequence_guids(self):
+        """ synonym for sequence_ids, but returns a set"""
+        return set(self.sequence_ids())
 
     def sequence_ids(self):
         """returns a list of sequence_ids stored in the tarfile"""
@@ -112,8 +121,65 @@ class LocalStore:
             compressed_bytes = buf.read()
             return (sequence_id, self._decompress(compressed_bytes))
 
+    def read_benchmark(self, restrict_to_first_n = None):
+        """ measures read rate from tar file
+        For sars-cov-2 genomes, read rate is about 750k per minute
+
+        returns: dictionary containing filename, number read, and rate per 1000 samples
+        """
+
+        i = 0 
+        t0 = datetime.datetime.now()       
+        bar = progressbar.ProgressBar()
+        for sequence_id, rcs in self.read_all():
+            i = i +1
+            bar.update(i)
+            if restrict_to_first_n is not None:
+                if i >= restrict_to_first_n:
+                    break
+        bar.finish()
+        t1 = datetime.datetime.now()
+        time_difference = t1 - t0
+        time_difference_seconds = time_difference.total_seconds()
+        time_difference_microseconds = time_difference_seconds * 1e6
+
+        return {'file': self.tarfile_name, 'n': i, 'rate_microsec_per_sample': time_difference_microseconds / i}
+
+    def refcompressedsequence_read_all(self):
+        """ synonym for read_all"""
+        return self.read_all()
+
+    def read_all(self):
+        """reads all items in the tar file
+        Returns:
+        a generator which provides tuples
+            (sequence_id, reference compressed object)
+        """
+
+        # iterate over the tarfile, returning all objects
+        with tarfile.TarFile(self.tarfile_name, "r") as tar:
+
+            this_item = 'first'     # not none; forces to enter the loop the first time.
+
+            while this_item is not None:
+                try:
+                    this_item = tar.next()
+                except OSError:     # issued if you try to read against a file with no content
+                    this_item = None
+                    
+                if this_item is None:
+                    yield None, None
+                    break
+                else:        
+                    compressed_bytes = tar.extractfile(this_item).read()
+                    yield this_item.name, self._decompress(compressed_bytes)
+     
+    def refcompressedsequence_read_many(self, select_sequence_ids=None):
+        """ synonym for read_many """
+        return self.read_many(select_sequence_ids = select_sequence_ids)
+
     def read_many(self, select_sequence_ids=None):
-        """reads items in the tar file
+        """reads selected items in the tar file
 
         Parameters:
         select_sequence_ids: either a set of sequence_ids to find, or None (in which case all samples are loaded)
@@ -123,13 +189,14 @@ class LocalStore:
             (sequence_id, reference compressed object)
             
         Note:
-        if select_sequence_ids is None, will read all samples """
+        if select_sequence_ids is None, will read all samples.  
+        read_all is a much faster method of doing this. """
 
         all_sequence_ids = self.sequence_ids()
 
         # find the ones we need, in the order they are in the tar file
         if select_sequence_ids is not None:
-            select_sequence_ids = select_sequence_ids.intersection(set(all_sequence_ids))
+            select_sequence_ids = set(select_sequence_ids).intersection(set(all_sequence_ids))
             sequence_ids = [x for x in all_sequence_ids if x in select_sequence_ids]
         else:
             sequence_ids = all_sequence_ids

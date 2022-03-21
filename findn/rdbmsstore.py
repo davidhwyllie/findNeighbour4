@@ -25,6 +25,7 @@ by the Free Software Foundation.  See <https://opensource.org/licenses/MIT>, and
 
 
 """
+#import gc
 import bson  # type: ignore
 from datetime import datetime, timedelta, date
 import hashlib
@@ -55,6 +56,7 @@ from sqlalchemy import (
     create_engine,
     inspect,
 )
+#from sqlalchemy.pool import NullPool
 from findn.seq2json import SeqDictConverter
 from sqlalchemy.sql.expression import desc
 from sqlalchemy.orm import (
@@ -567,36 +569,7 @@ class fn3persistence_r:
         self.is_sqlite = "sqlite://" in self.engine_name
         self.show_bar = True  # maybe define a method to switch this off
 
-        # create engine
-        if self.is_oracle:
-            # it is important to set arraysize, see
-
-            # https://docs.sqlalchemy.org/en/14/dialects/oracle.html
-            # https://cx-oracle.readthedocs.io/en/latest/user_guide/tuning.html#tuningfetch
-
-            # but if you set it too large you can get DPI-1015 (allocated cursor size > 2G) see
-            # https://cx-oracle.readthedocs.io/en/latest/api_manual/cursor.html
-
-            self.engine = create_engine(
-                self.engine_name, arraysize=1000000
-            )  # fetch results in batches of 1m.  This is fine for this application which pulls only 'small data' in big batches
-        else:
-            # sqlalchemy generic pool manager
-            self.engine = create_engine(self.engine_name)
-
-        # oracle pool manager code
-        # use cx_Oracle pool manager
-        # u, p, dsn = self.oracle_connstring_parts(self.engine_name)
-        # self.oracle_pool = cx_Oracle.SessionPool(
-        #    user = u,
-        #    password = p,
-        #    dsn = dsn,
-        #    min = 4,
-        #    max = 4,
-        #    encoding="UTF-8",
-        #    nencoding="UTF-8"
-        # )
-        # self.engine = create_engine("oracle://", creator = self.oracle_pool.acquire, poolclass = NullPool)
+        self._create_engine()
 
         self.logger.info(
             "DatabaseManager: Database connection made; there are {0} tables.  Oracle database = {1}".format(
@@ -629,13 +602,65 @@ class fn3persistence_r:
         else:
             self.logger.info("Using stored data in rdbms")
 
+    def _create_engine(self):
+        """create database connection engine"""
+        self.closedown()        # destroy any existing engine
+
+        if self.is_oracle:
+            # it is important to set arraysize, see
+
+            # https://docs.sqlalchemy.org/en/14/dialects/oracle.html
+            # https://cx-oracle.readthedocs.io/en/latest/user_guide/tuning.html#tuningfetch
+
+            # but if you set it too large you can get DPI-1015 (allocated cursor size > 2G) see
+            # https://cx-oracle.readthedocs.io/en/latest/api_manual/cursor.html
+
+            # to disable connection pooling
+            # https://docs.sqlalchemy.org/en/14/core/pooling.html#switching-pool-implementations
+            
+            #self.engine = create_engine(
+            #    self.engine_name, arraysize=1000000,
+            #    poolclass=NullPool
+            #)  # fetch results in batches of 1m.
+
+            self.engine = create_engine(
+                self.engine_name, arraysize=1000000
+            )  # fetch results in batches of 1m.
+
+            logging.info("Created engine connecting to Oracle database")
+        else:
+            # sqlalchemy generic pool manager, for non-Oracle databases
+            self.engine = create_engine(self.engine_name)
+
+        # oracle pool manager code
+        # use cx_Oracle pool manager
+        # u, p, dsn = self.oracle_connstring_parts(self.engine_name)
+        # self.oracle_pool = cx_Oracle.SessionPool(
+        #    user = u,
+        #    password = p,
+        #    dsn = dsn,
+        #    min = 4,
+        #    max = 4,
+        #    encoding="UTF-8",
+        #    nencoding="UTF-8"
+        # )
+        # self.engine = create_engine("oracle://", creator = self.oracle_pool.acquire, poolclass = NullPool)
+
+    def _recreate_engine(self):
+        """deletes any engine and recreates it"""
+        logging.info("Destroying existing SQLAlchemy Engine and recreating it.")
+
+        self._create_engine()
+
     def closedown(self):
         """closes the session(s) & disposes of any engine.
         Is required for unit testing"""
         try:
             self.engine.dispose()
-        except Exception:
-            pass  # KeyError and other errors can occur if dispose() has already been called automatically
+        except AttributeError:
+            pass  # the first time, the class has not engine object attached
+        self.engine = None
+        #gc.collect()        # forces removal of the old engine, provided no references to it remain
 
     def no_progressbar(self):
         """don't use progress bars"""
@@ -683,10 +708,10 @@ class fn3persistence_r:
 
                 # if execution continues here, the session works
                 return tls
+
             except Exception as e1:
-                self.engine.dispose()
                 logging.info(
-                    "Failed to connect on trial {0}/{1}; error raised was {2}".format(
+                    "Failed to connect on trial {0}/{1}; error raised was {2}.  Recreating engine".format(
                         n_retries - tries, n_retries, e1
                     )
                 )
@@ -701,8 +726,12 @@ class fn3persistence_r:
                 except Exception:
                     logging.info("Failed to remove session")
 
+                self._recreate_engine()  # remake a connection
+
+        # could not connect.
+        self._recreate_engine()  # remake a connection
         raise RDBMSError(
-            "Could not connect to database.  Tried {0} times with different sessions".format(
+            "Could not connect to database.  Tried {0} times with different sessions despite recreating database connection".format(
                 n_retries
             )
         )
@@ -1524,8 +1553,7 @@ class fn3persistence_r:
             return None
 
     def refcompressedsequence_read_many(self, guids: Iterable) -> Any:
-        """loads object from refcompressedseq collection.
-        The objects loaded are guids.
+        """loads objects identified by all members of guids from refcompressedseq collection.
         It is assumed object stored is a dictionary
 
         returns:
@@ -1548,6 +1576,52 @@ class fn3persistence_r:
 
         for result in results:
             yield (result.sequence_id, self.sjc.from_json(result.content))
+
+    def refcompressedsequence_read_all(self, internal_batch_size=5000) -> Any:
+        """loads objects identified by all members of guids from refcompressedseq collection.
+        It is assumed object stored is a dictionary
+
+        parameters:
+        internal_batch_size: how many samples are loaded into ram at a time.  Default should be fine unless low memory
+
+        returns:
+        generator, which yields a tuple
+        (guid, referencecompressedsequence)
+        """
+
+        # sanity check
+        if internal_batch_size < 1:
+            raise ValueError("Internal batch size must be >= 1")
+
+        tls = self.thread_local_session()
+        seq_int_ids = [
+            seq_int_id
+            for seq_int_id, in tls.query(RefCompressedSeq.seq_int_id)
+            .order_by(RefCompressedSeq.seq_int_id)
+            .all()
+        ]
+
+        start_position = 0
+        while start_position < len(seq_int_ids):
+            end_position = internal_batch_size + start_position - 1
+            if end_position >= len(seq_int_ids):
+                end_position = len(seq_int_ids) - 1
+            start_seq_int_id = seq_int_ids[start_position]
+            end_seq_int_id = seq_int_ids[end_position]
+
+            # load batch
+            results = (
+                tls.query(RefCompressedSeq.sequence_id, RefCompressedSeq.content)
+                .filter(RefCompressedSeq.seq_int_id >= start_seq_int_id)
+                .filter(RefCompressedSeq.seq_int_id <= end_seq_int_id)
+                .all()
+            )
+
+            for result in results:
+                yield (result.sequence_id, self.sjc.from_json(result.content))
+
+            # next batch
+            start_position = end_position + 1
 
     def refcompressedsequence_guids(self) -> Set[str]:
         """loads guids from refcompressedseq collection."""

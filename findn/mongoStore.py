@@ -801,8 +801,7 @@ class fn3persistence:
         return pickle.loads(res.read())
 
     def refcompressedsequence_read_many(self, guids: Iterable) -> Any:
-        """loads object from refcompressedseq collection.
-        The objects loaded are guids.
+        """loads objects identified by any of guids from refcompressedseq collection.
         It is assumed object stored is a dictionary
 
         returns:
@@ -819,6 +818,42 @@ class fn3persistence:
         results = self.rcs.find({"_id": {"$in": guids}})
         for result in results:
             yield (result._id, pickle.loads(result.read()))
+
+    def refcompressedsequence_read_all(self, internal_batch_size = 1000) -> Any:
+        """loads object from refcompressedseq collection.
+        The objects loaded are guids.
+        It is assumed object stored is a dictionary
+
+        parameters: 
+        internal_batch_size: how many samples are loaded into ram at a time.  Default should be fine unless low memory
+
+        returns:
+        generator, which yields a tuple
+        (guid, referencecompressedsequence)
+
+        """
+
+        # sanity check
+        if internal_batch_size < 1:
+            raise ValueError("Internal batch size must be >= 1")
+
+        all_guids = self.refcompressedsequence_guids()
+
+        batches = []
+        this_batch = []
+
+        for i, guid in enumerate(all_guids):
+            if i % internal_batch_size == 0 and i > 0:      
+                batches.append(this_batch)
+                this_batch = []
+            this_batch.append(guid)
+        if len(this_batch) > 0:
+            batches.append(this_batch)
+
+        for this_batch in batches:
+            results = self.rcs.find({"_id": {"$in": this_batch}})
+            for result in results:
+                yield (result._id, pickle.loads(result.read()))
 
     def refcompressedsequence_guids(self) -> Set[str]:
         """loads guids from refcompressedseq collection."""

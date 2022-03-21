@@ -32,20 +32,19 @@ class setup_ref(unittest.TestCase):
         if self.refSeq is None:
             raise ValueError("did not read reference sequence")
 
-class test_cw_seqComparer_fr_0(setup_ref):
-    """test type checking by cw_seqComparer """
+
+class test_cw_seqComparer_fr_0a(setup_ref):
+    """test fast restart of cw_seqComparer from tar file and rdbms"""
 
     def runTest(self):
 
-        # create a list of 5 sequences 
+        # create a list of 5 sequences
         seq_list = []
         expected_sequence_ids = []
         for i in range(5):
             sequence_id = "SEQ_{0}".format(i)
             expected_sequence_ids.append(sequence_id)
-            seq_list.append(
-                (sequence_id, self.refSeq)
-            )
+            seq_list.append((sequence_id, self.refSeq))
         # create a tar archive
         tarfile_name = "unittest_tmp/test.tar"
         try:
@@ -56,12 +55,9 @@ class test_cw_seqComparer_fr_0(setup_ref):
         self.assertEqual(False, os.path.exists(tarfile_name))
 
         # create the local data store
-        ls = LocalStore(
-            "unittest_tmp/test.tar",
-            write_batch_size=3
-        )
+        ls = LocalStore("unittest_tmp/test.tar", write_batch_size=3)
 
-        # test different localstore information
+        # start up catwalk using various different localstore configurations
         cw_seqComparer(
             PERSIST=UNITTEST_RDBMSCONN,
             maxNs=1e8,
@@ -101,11 +97,11 @@ class test_cw_seqComparer_fr_0(setup_ref):
                     "mask_filepath": "reference/TB-exclude-adaptive.txt",
                 },
             },
-            localstore =None,
+            localstore=None,
             unittesting=True,
         )
 
-        cw_seqComparer(
+        c1 = cw_seqComparer(
             PERSIST=UNITTEST_RDBMSCONN,
             maxNs=1e8,
             reference=self.refSeq,
@@ -123,9 +119,12 @@ class test_cw_seqComparer_fr_0(setup_ref):
                     "mask_filepath": "reference/TB-exclude-adaptive.txt",
                 },
             },
-            localstore =ls,
+            localstore=ls,
             unittesting=True,
         )
+
+        # nothing should get added because none of the samples in the tar file are in the database
+        self.assertEqual(set(c1.catWalk.sample_names()), set([]))
 
         with self.assertRaises(TypeError):
             cw_seqComparer(
@@ -146,27 +145,23 @@ class test_cw_seqComparer_fr_0(setup_ref):
                         "mask_filepath": "reference/TB-exclude-adaptive.txt",
                     },
                 },
-                localstore ="a string",
+                localstore="a string",
                 unittesting=True,
             )
-        
 
-class test_cw_seqComparer_fr_1(setup_ref):
-    """loads 5 sequences into cw_seqComparer """
+
+class test_cw_seqComparer_fr_0b(setup_ref):
+    """test fast restart of cw_seqComparer from tar file and mongo"""
 
     def runTest(self):
 
-        # create a list of 5 sequences 
+        # create a list of 5 sequences
         seq_list = []
         expected_sequence_ids = []
-
-        test_size = 10
-        for i in range(test_size):
+        for i in range(5):
             sequence_id = "SEQ_{0}".format(i)
             expected_sequence_ids.append(sequence_id)
-            seq_list.append(
-                (sequence_id, self.refSeq)
-            )
+            seq_list.append((sequence_id, self.refSeq))
         # create a tar archive
         tarfile_name = "unittest_tmp/test.tar"
         try:
@@ -177,10 +172,164 @@ class test_cw_seqComparer_fr_1(setup_ref):
         self.assertEqual(False, os.path.exists(tarfile_name))
 
         # create the local data store
-        ls = LocalStore(
-            "unittest_tmp/test.tar",
-            write_batch_size=3
+        ls = LocalStore("unittest_tmp/test.tar", write_batch_size=3)
+
+        # start up catwalk using various different localstore configurations
+        cw_seqComparer(
+            PERSIST=UNITTEST_MONGOCONN,
+            maxNs=1e8,
+            reference=self.refSeq,
+            snpCeiling=10,
+            preComparer_parameters={
+                "selection_cutoff": 20,
+                "uncertain_base": "M",
+                "over_selection_cutoff_ignore_factor": 5,
+                "catWalk_parameters": {
+                    "bind_port": 5999,
+                    "bind_host": "localhost",
+                    "cw_binary_filepath": None,
+                    "reference_name": "H37RV",
+                    "reference_filepath": self.inputfile,
+                    "mask_filepath": "reference/TB-exclude-adaptive.txt",
+                },
+            },
+            unittesting=True,
         )
+
+        cw_seqComparer(
+            PERSIST=UNITTEST_MONGOCONN,
+            maxNs=1e8,
+            reference=self.refSeq,
+            snpCeiling=10,
+            preComparer_parameters={
+                "selection_cutoff": 20,
+                "uncertain_base": "M",
+                "over_selection_cutoff_ignore_factor": 5,
+                "catWalk_parameters": {
+                    "bind_port": 5999,
+                    "bind_host": "localhost",
+                    "cw_binary_filepath": None,
+                    "reference_name": "H37RV",
+                    "reference_filepath": self.inputfile,
+                    "mask_filepath": "reference/TB-exclude-adaptive.txt",
+                },
+            },
+            localstore=None,
+            unittesting=True,
+        )
+
+        cw_seqComparer(
+            PERSIST=UNITTEST_MONGOCONN,
+            maxNs=1e8,
+            reference=self.refSeq,
+            snpCeiling=10,
+            preComparer_parameters={
+                "selection_cutoff": 20,
+                "uncertain_base": "M",
+                "over_selection_cutoff_ignore_factor": 5,
+                "catWalk_parameters": {
+                    "bind_port": 5999,
+                    "bind_host": "localhost",
+                    "cw_binary_filepath": None,
+                    "reference_name": "H37RV",
+                    "reference_filepath": self.inputfile,
+                    "mask_filepath": "reference/TB-exclude-adaptive.txt",
+                },
+            },
+            localstore=ls,
+            unittesting=True,
+        )
+
+        with self.assertRaises(TypeError):
+            cw_seqComparer(
+                PERSIST=UNITTEST_MONGOCONN,
+                maxNs=1e8,
+                reference=self.refSeq,
+                snpCeiling=10,
+                preComparer_parameters={
+                    "selection_cutoff": 20,
+                    "uncertain_base": "M",
+                    "over_selection_cutoff_ignore_factor": 5,
+                    "catWalk_parameters": {
+                        "bind_port": 5999,
+                        "bind_host": "localhost",
+                        "cw_binary_filepath": None,
+                        "reference_name": "H37RV",
+                        "reference_filepath": self.inputfile,
+                        "mask_filepath": "reference/TB-exclude-adaptive.txt",
+                    },
+                },
+                localstore="a string",
+                unittesting=True,
+            )
+
+
+class test_cw_seqComparer_fr_1(setup_ref):
+    """test fast restart of cw_seqComparer from empty tar file"""
+
+    def runTest(self):
+
+        # create a tar archive
+        tarfile_name = "unittest_tmp/test.tar"
+        try:
+            os.unlink(tarfile_name)
+        except FileNotFoundError:
+            pass
+
+        self.assertEqual(False, os.path.exists(tarfile_name))
+
+        # create the local data store
+        ls = LocalStore("unittest_tmp/test.tar", write_batch_size=3)
+
+        # start up catwalk using various different localstore configurations
+        cw_seqComparer(
+            PERSIST=UNITTEST_RDBMSCONN,
+            maxNs=1e8,
+            reference=self.refSeq,
+            snpCeiling=10,
+            preComparer_parameters={
+                "selection_cutoff": 20,
+                "uncertain_base": "M",
+                "over_selection_cutoff_ignore_factor": 5,
+                "catWalk_parameters": {
+                    "bind_port": 5999,
+                    "bind_host": "localhost",
+                    "cw_binary_filepath": None,
+                    "reference_name": "H37RV",
+                    "reference_filepath": self.inputfile,
+                    "mask_filepath": "reference/TB-exclude-adaptive.txt",
+                },
+            },
+            localstore=ls,
+            unittesting=True,
+        )
+
+
+class test_cw_seqComparer_fr_2(setup_ref):
+    """loads 5 sequences into cw_seqComparer"""
+
+    def runTest(self):
+
+        # create a list of 5 sequences
+        seq_list = []
+        expected_sequence_ids = []
+
+        test_size = 10
+        for i in range(test_size):
+            sequence_id = "SEQ_{0}".format(i)
+            expected_sequence_ids.append(sequence_id)
+            seq_list.append((sequence_id, self.refSeq))
+        # create a tar archive
+        tarfile_name = "unittest_tmp/test.tar"
+        try:
+            os.unlink(tarfile_name)
+        except FileNotFoundError:
+            pass
+
+        self.assertEqual(False, os.path.exists(tarfile_name))
+
+        # create the local data store
+        ls = LocalStore("unittest_tmp/test.tar", write_batch_size=3)
 
         # empty database
         sc = cw_seqComparer(
@@ -201,7 +350,7 @@ class test_cw_seqComparer_fr_1(setup_ref):
                     "mask_filepath": "reference/TB-exclude-adaptive.txt",
                 },
             },
-            localstore =ls,
+            localstore=ls,
             unittesting=True,
         )
 
@@ -224,7 +373,7 @@ class test_cw_seqComparer_fr_1(setup_ref):
                     "mask_filepath": "reference/TB-exclude-adaptive.txt",
                 },
             },
-            localstore =ls,
+            localstore=ls,
             unittesting=False,
         )
 
@@ -238,10 +387,10 @@ class test_cw_seqComparer_fr_1(setup_ref):
         print("Adding samples")
         i = 0
         for (sequence_id, sequence) in seq_list:
-            i += 1 
+            i += 1
             if i % 50 == 0:
                 print("Loaded ", i)
-            
+
             cs = sc.compress(self.refSeq)
             sc.persist(cs, sequence_id)
 
@@ -260,10 +409,8 @@ class test_cw_seqComparer_fr_1(setup_ref):
         # forcibly terminate catwalk
         sc.catWalk.stop()
 
-        # open another localstore
-        ls = LocalStore(
-            "unittest_tmp/test.tar"
-        )
+        # open another localstore instance of the same file
+        ls = LocalStore("unittest_tmp/test.tar")
 
         # check there are samples in the localstore
         self.assertEqual(len(ls.sequence_ids()), test_size)
@@ -287,7 +434,7 @@ class test_cw_seqComparer_fr_1(setup_ref):
                     "mask_filepath": "reference/TB-exclude-adaptive.txt",
                 },
             },
-            localstore =ls,
+            localstore=ls,
             unittesting=False,
         )
 

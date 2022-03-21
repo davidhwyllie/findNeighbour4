@@ -328,7 +328,7 @@ class findNeighbour4:
     def prepopulate_catwalk(self):
         """initialise cw_seqComparer, which interfaces with catwalk were necessary
 
-        If self.debugMode == 2 (a unittesting setting)  the catwalk is emptied on startup"""
+         If self.debugMode == 2 (a unittesting setting)  the catwalk is emptied on startup"""
         self.hc = cw_seqComparer(
             reference=self.reference,
             maxNs=self.maxNs,
@@ -337,6 +337,7 @@ class findNeighbour4:
             preComparer_parameters=self.preComparer_parameters,
             PERSIST=self.PERSIST,
             unittesting=(self.debugMode == 2),
+            localstore=None
         )
 
     def prepopulate_clustering(self):

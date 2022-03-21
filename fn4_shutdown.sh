@@ -37,7 +37,7 @@ ps -x | grep ".[p]y $1"
 ps -x | grep "path_to_config_file $1"
 echo "--------------------"
 
-echo  "Stopping dbmanagers"
+echo  "Stopping database managers"
 pkill -f "findNeighbour4_dbmanager.py --recompress_subset 01 $1" 
 pkill -f "findNeighbour4_dbmanager.py --recompress_subset 23 $1" 
 pkill -f "findNeighbour4_dbmanager.py --recompress_subset 45 $1" 
@@ -58,6 +58,9 @@ pkill -f "findNeighbour4_clustering.py $1"
 
 echo "Stopping lockmanager"
 pkill -f "findNeighbour4_lockmanager.py --path_to_config_file $1" 
+
+echo "Stopping local store manager"
+pkill -f "findNeighbour4_lsmanager.py --path_to_config_file $1" 
 
 echo "Shutdown attempted.  see below: there should be no findNeighbour processes running "
 echo "Targeted processes still running are as follows:"

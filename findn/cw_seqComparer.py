@@ -16,6 +16,7 @@ import hashlib
 import json
 import copy
 import random
+from sqlite3 import IntegrityError
 import numpy as np
 from scipy.stats import binom_test
 import pandas as pd
@@ -258,6 +259,9 @@ class cw_seqComparer:
         if self.localstore is None:
             return  # nothing to do
 
+        # max samples in ram
+        internal_batch_size = 1000
+
         # eheck what needs to be added
         guids = self.PERSIST.guids()
         already_added = self.localstore.sequence_ids()
@@ -268,32 +272,32 @@ class cw_seqComparer:
                 len(already_added), len(to_add)
             )
         )
-  
-        logging.info("Building batches for bulk queries")
-        bar = progressbar.ProgressBar(max_value=len(to_add))    
-        batches_to_add = []
-        batch_size = 1000
-        this_batch = None
-        for i, guid in enumerate(to_add):
-            if i % batch_size == 0:
-                if this_batch is not None:
-                    batches_to_add.append(this_batch)
-                this_batch = []
-            this_batch.append(guid)
-        if this_batch is not None:
-            if len(this_batch)>0:
-                batches_to_add.append(this_batch)
 
-        logging.info("Searching database for {0} batches of {1} samples.".format(len(batches_to_add), batch_size))
-        for this_batch in batches_to_add:
-            
-            for guid, rcs in self.PERSIST.refcompressedsequence_read_many(this_batch):
-                n_added = n_added + 1
-                bar.update(n_added)
-                self.localstore.store(guid, rcs)
+        if len(to_add) > 0:
 
-        self.localstore.flush()  # write anythgin in the buffer   
-        bar.finish()
+            logging.info("Building batches for bulk queries")            
+            batches = []
+            this_batch = []
+            i = 0
+            for i, guid in enumerate(to_add):
+                if i % internal_batch_size == 0 and i > 0:      
+                    batches.append(this_batch)
+                    this_batch = []
+                this_batch.append(guid)
+            if len(this_batch) > 0:
+                batches.append(this_batch)
+
+            logging.info("Searching database for {0} batches of {1} samples.".format(len(batches), internal_batch_size))
+            bar = progressbar.ProgressBar(max_value=len(to_add))    
+            for this_batch in batches:
+                
+                for guid, rcs in self.PERSIST.refcompressedsequence_read_many(this_batch):
+                    n_added = n_added + 1
+                    bar.update(n_added)
+                    self.localstore.store(guid, rcs)
+
+            self.localstore.flush()  # write anythgin in the buffer   
+            bar.finish()
 
         logging.info(
             "Localstore updated; added in total {0}".format(len(to_add))
@@ -304,33 +308,47 @@ class cw_seqComparer:
         Note: will not add a sample twice"""
 
         # eheck what needs to be done
+        all_guids = self.PERSIST.guids()
         guids = self.PERSIST.guids_valid()
-        already_added = self.catWalk.sample_names()
-        to_add = set(guids) - set(already_added)
+        already_added = set(self.catWalk.sample_names())
+        to_add = guids - set(already_added)
 
         # if we have details of a local cache of sequence data, then we try to add samples from this
-        if self.localstore is not None:
+        if self.localstore is not None and len(to_add) > 0:
 
-            # add the samples from the localstore
-            in_localstore = set(self.localstore.sequence_ids())
-            to_add_from_localstore = in_localstore.intersection(to_add)
+            # run an integrity check.  All the samples in the localstore should be in guids
+            # if this is not the case, the tar file is corrupt
+            logging.info("Running integrity check on tar file")
+            in_localstore = self.localstore.sequence_ids()
+            in_tar_not_in_db = set(in_localstore) - all_guids
+            if len(in_tar_not_in_db) > 0:
+                raise IntegrityError("Samples are the tar file which are not in database.  Delete the tar file {1}  It will be regenerated.  The following are unexpected: {0}".format(
+                    in_tar_not_in_db, self.localstore.tarfile_name))
 
-            bar = progressbar.ProgressBar(max_value=len(to_add_from_localstore))
             logging.info(
-                "Repopulating catwalk from localstore.  Already present: {0}; remaining to add from localstore {1}".format(
-                    len(already_added), len(to_add_from_localstore)
+                "Integrity check passed.  Repopulating catwalk from localstore which contains {0} items.".format(
+                    len(in_localstore)
                 )
             )
+            logging.info(
+                "Check passed.  Repopulating catwalk from localstore.  Already present in catwalk: {0}; scanning localstore".format(
+                    len(already_added)
+                )
+            )
+
+            # add the samples from the localstore
+            bar = progressbar.ProgressBar(max_value = len(guids))
+            
             i = 0
-            for (sequence_id, rcs) in self.localstore.read_many(
-                select_sequence_ids=to_add_from_localstore
+            for (sequence_id, rcs) in self.localstore.read_all(
             ):
                 if sequence_id is None:
                     break
                 else:
-                    self.catWalk.add_sample_from_refcomp(sequence_id, rcs)
-                    i = i + 1
-                    bar.update(i)
+                    if rcs['invalid'] == 0:     # valid sample
+                        self.catWalk.add_sample_from_refcomp(sequence_id, rcs)
+                        i = i + 1
+                        bar.update(i)
             bar.finish()
 
             # we add anything remaining from the database
@@ -338,38 +356,23 @@ class cw_seqComparer:
             already_added = self.catWalk.sample_names()
             to_add = set(guids) - set(already_added)
 
-        # load from database, in batches of up to 1000 to increase query speeds        
-        bar = progressbar.ProgressBar(max_value=len(to_add))
-        n_added = 0 
-        logging.info(
-            "Repopulating catwalk from database  Already present: {0}; remaining to add from database {1}".format(
-                len(already_added), len(to_add)
+        # load from database, in batches of up to 1000 to increase query speeds 
+        if len(to_add) > 0:     
+            bar = progressbar.ProgressBar(max_value=len(to_add))
+            n_added = 0 
+            logging.info(
+                "Repopulating catwalk from database  Already present: {0}; remaining to add from database {1}".format(
+                    len(already_added), len(to_add)
+                )
             )
-        )
-        logging.info("Building batches for bulk queries")
-       
-        batches_to_add = []
-        batch_size = 1000
-        this_batch = None
-        for i, guid in enumerate(to_add):
-            if i % batch_size == 0:
-                if this_batch is not None:
-                    batches_to_add.append(this_batch)
-                this_batch = []
-            this_batch.append(guid)
-        if this_batch is not None:
-            if len(this_batch)>0:
-                batches_to_add.append(this_batch)
-
-        logging.info("Searching database for {0} batches of {1} samples.".format(len(batches_to_add), batch_size))
-        for this_batch in batches_to_add:
-             
-            for guid, rcs in self.PERSIST.refcompressedsequence_read_many(this_batch):
-                n_added = n_added + 1
-                bar.update(n_added)
-                self.catWalk.add_sample_from_refcomp(guid, rcs)
-            
-        bar.finish()
+        
+            for guid, rcs in self.PERSIST.refcompressedsequence_read_all():
+                if guid in to_add:
+                    n_added = n_added + 1
+                    bar.update(n_added)
+                    self.catWalk.add_sample_from_refcomp(guid, rcs)
+                
+            bar.finish()
         logging.info(
             "Repopulation of catwalk complete; added in total {0}".format(len(to_add))
         )

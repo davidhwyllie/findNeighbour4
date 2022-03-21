@@ -144,8 +144,9 @@ if __name__ == "__main__":
     while True:
 
         tarfilename = os.path.join(cfm.rcscache, "rcs.tar")
-        logging.info("Creating localstore in {0}".format(tarfilename))
+
         # create database connection
+        logging.info("Opening database connection.")
         pm = Persistence()
         PERSIST = pm.get_storage_object(
             dbname=CONFIG["SERVERNAME"],
@@ -157,11 +158,17 @@ if __name__ == "__main__":
             verbose=True,
         )
 
+        logging.info("Creating localstore in {0}".format(tarfilename))
         # create tar file connection
         localstore = LocalStore(
             tarfilename
         )
-
+        
+        # read benchmark
+        #logging.info("Read benchmark")
+        res = localstore.read_benchmark()
+        print(res)
+        exit()
         # create catwalk connection
         hc = cw_seqComparer(
             reference=CONFIG["reference"],

@@ -1409,3 +1409,68 @@ class Test_refcompressedseq_read_many(unittest.TestCase):
             i += 1
 
         self.assertEqual(i, 2)
+
+
+class Test_refcompressedseq_read_all(unittest.TestCase):
+    """tests read_all method for referencecompressed sequences"""
+
+    def runTest(self):
+
+        # define a sequence object for testing
+        seqobj1 = {
+            "A": set([1]),
+            "C": set([6]),
+            "T": set([4]),
+            "G": set([5]),
+            "M": {11: "Y", 12: "k"},
+            "invalid": 0,
+        }
+        seqobj2 = {
+            "A": set([1, 2]),
+            "C": set([6]),
+            "T": set([4]),
+            "G": set([5]),
+            "M": {11: "Y", 12: "k"},
+            "invalid": 0,
+        }
+        # define a sequence object for testing
+        seqobj3 = {
+            "A": set([1, 2, 3]),
+            "C": set([6]),
+            "T": set([4]),
+            "G": set([5]),
+            "M": {11: "Y", 12: "k"},
+            "invalid": 0,
+        }
+
+        payloads = {"guid1": seqobj1, "guid2": seqobj2, "guid3": seqobj3}
+        pdm = fn3persistence(connString=UNITTEST_MONGOCONN, debug=2)
+
+        for guid in payloads.keys():
+            print("STORING", guid)
+            pdm.refcompressedseq_store(guid, payloads[guid])
+
+        i = 0
+        for guid, rcs in pdm.refcompressedsequence_read_all(internal_batch_size=1):
+            self.assertEqual(rcs, payloads[guid])
+            self.assertTrue(guid in ["guid1", "guid2", "guid3"])
+            i += 1
+        self.assertEqual(i, 3)
+        i = 0
+        for guid, rcs in pdm.refcompressedsequence_read_all(internal_batch_size=2):
+            self.assertEqual(rcs, payloads[guid])
+            self.assertTrue(guid in ["guid1", "guid2", "guid3"])
+            i += 1
+        self.assertEqual(i, 3)
+        i = 0
+        for guid, rcs in pdm.refcompressedsequence_read_all(internal_batch_size=3):
+            self.assertEqual(rcs, payloads[guid])
+            self.assertTrue(guid in ["guid1", "guid2", "guid3"])
+            i += 1
+        self.assertEqual(i, 3)
+        i = 0
+        for guid, rcs in pdm.refcompressedsequence_read_all(internal_batch_size=4):
+            self.assertEqual(rcs, payloads[guid])
+            self.assertTrue(guid in ["guid1", "guid2", "guid3"])
+            i += 1
+        self.assertEqual(i, 3)
