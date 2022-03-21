@@ -25,7 +25,7 @@ by the Free Software Foundation.  See <https://opensource.org/licenses/MIT>, and
 
 
 """
-#import gc
+# import gc
 import bson  # type: ignore
 from datetime import datetime, timedelta, date
 import hashlib
@@ -56,7 +56,8 @@ from sqlalchemy import (
     create_engine,
     inspect,
 )
-#from sqlalchemy.pool import NullPool
+
+# from sqlalchemy.pool import NullPool
 from findn.seq2json import SeqDictConverter
 from sqlalchemy.sql.expression import desc
 from sqlalchemy.orm import (
@@ -615,11 +616,11 @@ class fn3persistence_r:
 
             # to disable connection pooling
             # https://docs.sqlalchemy.org/en/14/core/pooling.html#switching-pool-implementations
-            
-            #self.engine = create_engine(
+
+            # self.engine = create_engine(
             #    self.engine_name, arraysize=1000000,
             #    poolclass=NullPool
-            #)  # fetch results in batches of 1m.
+            # )  # fetch results in batches of 1m.
 
             self.engine = create_engine(
                 self.engine_name, arraysize=1000000
@@ -647,7 +648,7 @@ class fn3persistence_r:
     def _recreate_engine(self):
         """deletes any engine and recreates it"""
         logging.info("Destroying existing SQLAlchemy Engine and recreating it.")
-        self.closedown()        # destroy any existing engine
+        self.closedown()  # destroy any existing engine
         self._create_engine()
 
     def closedown(self):
@@ -656,13 +657,17 @@ class fn3persistence_r:
         try:
             self.engine.dispose()
         except AttributeError as e:
-            pass  #  the class may not have an engine object attached
-            logging.info("Failed to dispose of engine during closedown().  AttributeError logged to sentry")
+            #  the class may not have an engine object attached, generates an AttributeError
+            pass  
+            logging.info(
+                "Failed to dispose of engine during closedown().  AttributeError logged to sentry"
+            )
             capture_exception(e)
-        except Exception:
-            logging.warning("Failed to dispose of engine during closedown().  Error logged to sentry")
-            capture_exception()
-
+        except Exception as e1:
+            logging.warning(
+                "Failed to dispose of engine during closedown().  Error logged to sentry"
+            )
+            capture_exception(e1)
 
     def no_progressbar(self):
         """don't use progress bars"""
