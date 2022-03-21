@@ -19,13 +19,8 @@ the default port on local host.  As a rough guide to the amount of space require
 about 0.5MB of database is used per sequence, or about 2,000 sequences per GB.
 
 All internal modules, and the restful API, are covered by unit testing.
-Unit testing can be achieved by:
-
-# starting a test RESTFUL server
-python3 findNeighbour4_server.py
-
-# And then (e.g. in a different terminal) launching unit tests with
-python3 -m unittest findNeighbour4_server
+For unit testing details, please see
+run_tests.sh
 
 A component of the findNeighbour4 system for bacterial relatedness monitoring
 Copyright (C) 2021 David Wyllie david.wyllie@phe.gov.uk
@@ -180,7 +175,7 @@ class findNeighbour4:
 
 
         {
-        "DESCRIPTION":"A test server operating in ../unittest_tmp, only suitable for testing",
+        "DESCRIPTION":"A test server operating in ../unitTest_tmp, only suitable for testing",
         "IP":"127.0.0.1",
         "INPUTREF":"reference/TB-ref.fasta",
         "EXCLUDEFILE":"reference/TB-exclude.txt",
@@ -190,7 +185,7 @@ class findNeighbour4:
         "MAXN_STORAGE":100000,
         "MAXN_PROP_DEFAULT":0.70,
         "PRECOMPARER_PARAMETERS":{},
-        "LOGFILE":"../unittest_tmp/logfile.log",
+        "LOGFILE":"../unitTest_tmp/logfile.log",
         "LOGLEVEL":"INFO",
         "SNPCEILING": 20,
         "SERVER_MONITORING_MIN_INTERVAL_MSEC":0,
@@ -333,7 +328,7 @@ class findNeighbour4:
     def prepopulate_catwalk(self):
         """initialise cw_seqComparer, which interfaces with catwalk were necessary
 
-        If self.debugMode == 2 (a unittesting setting)  the catwalk is emptied on startup"""
+         If self.debugMode == 2 (a unittesting setting)  the catwalk is emptied on startup"""
         self.hc = cw_seqComparer(
             reference=self.reference,
             maxNs=self.maxNs,
@@ -342,6 +337,7 @@ class findNeighbour4:
             preComparer_parameters=self.preComparer_parameters,
             PERSIST=self.PERSIST,
             unittesting=(self.debugMode == 2),
+            localstore=None
         )
 
     def prepopulate_clustering(self):

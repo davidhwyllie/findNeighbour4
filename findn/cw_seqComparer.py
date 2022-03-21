@@ -16,6 +16,7 @@ import hashlib
 import json
 import copy
 import random
+from sqlite3 import IntegrityError
 import numpy as np
 from scipy.stats import binom_test
 import pandas as pd
@@ -27,6 +28,7 @@ from findn.persistence import Persistence
 from findn.mongoStore import fn3persistence
 from findn.rdbmsstore import fn3persistence_r
 from findn.msa import MSAResult
+from localstore.localstoreutils import LocalStore
 from catwalk.pycw_client import CatWalk
 
 
@@ -67,6 +69,8 @@ class cw_seqComparer:
         PERSIST=UNITTEST_MONGOCONN,
         unittesting=False,
         disable_insertion=False,
+        localstore=None,
+        update_localstore_only=False
     ):
 
         """a module for determining relatedness between two sequences.
@@ -125,9 +129,18 @@ class cw_seqComparer:
 
          disable_insertion:  catwalk is not used; can only access data already present in the database.
 
+         local_store: a LocalStore object, which is used to allow fast repopulation of catwalk without database access
+
+         update_localstore_only:  (default FALSE)  update the localstore from the database without loading catwalk 
          - to run unit tests, do
          pipenv run python3 -m unittest cw_seqComparer
         """
+
+        # check that localstore is of valid type
+        if localstore is not None:
+            if not isinstance(localstore, LocalStore):
+                raise TypeError("localstore must be either None or a LocalStore object")
+        self.localstore = localstore
 
         # reference based compression relative to reference 'compressed_sequence' have keys as follows:
         self.distances_are_exact = (
@@ -193,6 +206,11 @@ class cw_seqComparer:
         if self.disable_insertion:
             logging.info("cw_seqComparer is running in read-only mode")
 
+        # make localstore if instructed to do so
+        if update_localstore_only:
+            self.update_localstore()
+            return
+
         # start catwalk
         if "catWalk_parameters" not in preComparer_parameters.keys():
             raise NoCWParametersProvidedError()
@@ -235,26 +253,126 @@ class cw_seqComparer:
         """returns samples in the catwalk object"""
         return self.catWalk.sample_names()
 
+    def update_localstore(self):
+        """ensures localstore contains data in database"""
+
+        if self.localstore is None:
+            return  # nothing to do
+
+        # max samples in ram
+        internal_batch_size = 1000
+
+        # eheck what needs to be added
+        guids = self.PERSIST.guids()
+        already_added = self.localstore.sequence_ids()
+        to_add = set(guids) - set(already_added)
+        n_added = 0
+        logging.info(
+            "Updating localstore from database.  Already present: {0}; remaining {1}".format(
+                len(already_added), len(to_add)
+            )
+        )
+
+        if len(to_add) > 0:
+
+            logging.info("Building batches for bulk queries")            
+            batches = []
+            this_batch = []
+            i = 0
+            for i, guid in enumerate(to_add):
+                if i % internal_batch_size == 0 and i > 0:      
+                    batches.append(this_batch)
+                    this_batch = []
+                this_batch.append(guid)
+            if len(this_batch) > 0:
+                batches.append(this_batch)
+
+            logging.info("Searching database for {0} batches of {1} samples.".format(len(batches), internal_batch_size))
+            bar = progressbar.ProgressBar(max_value=len(to_add))    
+            for this_batch in batches:
+                
+                for guid, rcs in self.PERSIST.refcompressedsequence_read_many(this_batch):
+                    n_added = n_added + 1
+                    bar.update(n_added)
+                    self.localstore.store(guid, rcs)
+
+            self.localstore.flush()  # write anythgin in the buffer   
+            bar.finish()
+
+        logging.info(
+            "Localstore updated; added in total {0}".format(len(to_add))
+        )
+
     def repopulate_all(self):
         """repopulates catwalk with all samples from database
         Note: will not add a sample twice"""
 
         # eheck what needs to be done
+        all_guids = self.PERSIST.guids()
         guids = self.PERSIST.guids_valid()
-        already_added = self.catWalk.sample_names()
-        to_add = set(guids) - set(already_added)
+        already_added = set(self.catWalk.sample_names())
+        to_add = guids - set(already_added)
 
-        bar = progressbar.ProgressBar(max_value=len(to_add))
-        logging.info(
-            "Repopulating catwalk.  Already present: {0}; remaining {1}".format(
-                len(already_added), len(to_add)
+        # if we have details of a local cache of sequence data, then we try to add samples from this
+        if self.localstore is not None and len(to_add) > 0:
+
+            # run an integrity check.  All the samples in the localstore should be in guids
+            # if this is not the case, the tar file is corrupt
+            logging.info("Running integrity check on tar file")
+            in_localstore = self.localstore.sequence_ids()
+            in_tar_not_in_db = set(in_localstore) - all_guids
+            if len(in_tar_not_in_db) > 0:
+                raise IntegrityError("Samples are the tar file which are not in database.  Delete the tar file {1}  It will be regenerated.  The following are unexpected: {0}".format(
+                    in_tar_not_in_db, self.localstore.tarfile_name))
+
+            logging.info(
+                "Integrity check passed.  Repopulating catwalk from localstore which contains {0} items.".format(
+                    len(in_localstore)
+                )
             )
-        )
-        for i, guid in enumerate(to_add):
-            bar.update(i)
-            self.repopulate(guid)
+            logging.info(
+                "Check passed.  Repopulating catwalk from localstore.  Already present in catwalk: {0}; scanning localstore".format(
+                    len(already_added)
+                )
+            )
 
-        bar.finish()
+            # add the samples from the localstore
+            bar = progressbar.ProgressBar(max_value = len(guids))
+            
+            i = 0
+            for (sequence_id, rcs) in self.localstore.read_all(
+            ):
+                if sequence_id is None:
+                    break
+                else:
+                    if rcs['invalid'] == 0:     # valid sample
+                        self.catWalk.add_sample_from_refcomp(sequence_id, rcs)
+                        i = i + 1
+                        bar.update(i)
+            bar.finish()
+
+            # we add anything remaining from the database
+            # reassess what remains
+            already_added = self.catWalk.sample_names()
+            to_add = set(guids) - set(already_added)
+
+        # load from database, in batches of up to 1000 to increase query speeds 
+        if len(to_add) > 0:     
+            bar = progressbar.ProgressBar(max_value=len(to_add))
+            n_added = 0 
+            logging.info(
+                "Repopulating catwalk from database  Already present: {0}; remaining to add from database {1}".format(
+                    len(already_added), len(to_add)
+                )
+            )
+        
+            for guid, rcs in self.PERSIST.refcompressedsequence_read_all():
+                if guid in to_add:
+                    n_added = n_added + 1
+                    bar.update(n_added)
+                    self.catWalk.add_sample_from_refcomp(guid, rcs)
+                
+            bar.finish()
         logging.info(
             "Repopulation of catwalk complete; added in total {0}".format(len(to_add))
         )

@@ -78,13 +78,13 @@ class ConfigManager:
 
     Background
     ==========
-    CONFIG files are json files with fomrat similar to the below:
+    CONFIG files are json files with format similar to the below:
 
 
     An example CONFIG is below:
 
     {
-    "DESCRIPTION":"A test server operating in ../unittest_tmp, only suitable for testing",
+    "DESCRIPTION":"A test server operating in ../unitTest_tmp, only suitable for testing",
     "IP":"127.0.0.1",
     "INPUTREF":"reference/TB-ref.fasta",
     "EXCLUDEFILE":"reference/TB-exclude.txt",
@@ -94,7 +94,7 @@ class ConfigManager:
     "MAXN_STORAGE":100000,
     "MAXN_PROP_DEFAULT":0.70,
     "PRECOMPARER_PARAMETERS":{},
-    "LOGFILE":"../unittest_tmp/logfile.log",
+    "LOGFILE":"../unitTest_tmp/logfile.log",
     "LOGLEVEL":"INFO",
     "SNPCEILING": 20,
     "SERVER_MONITORING_MIN_INTERVAL_MSEC":0,
@@ -239,9 +239,16 @@ class ConfigManager:
         if not os.path.exists(self.logdir):
             raise FileNotFoundError("Logdir does not exist at {0}.  You must create this directory".format(self.logdir))
         
-        # create a storage directory; check it is writeable
-        self.catwalk_backupdir = os.path.join(self.logdir, 'catwalk_fast_restart', self.CONFIG['SERVERNAME'])
-        os.makedirs(self.catwalk_backupdir, exist_ok=True)
+        # create a storage directory; check it is writeable.
+        # two subdirectories exist for multisequence fasta files (mfa) and 
+        # reference compressed directories (rcs)
+        self.localcache = os.path.join(self.logdir, 'localcache', self.CONFIG['SERVERNAME'])
+        self.mfacache = os.path.join(self.localcache, 'mfa')
+        self.rcscache = os.path.join(self.localcache, 'rcs')
+        
+        os.makedirs(self.localcache, exist_ok=True)
+        os.makedirs(self.mfacache, exist_ok=True)
+        os.makedirs(self.rcscache, exist_ok=True)
 
         return self.CONFIG
 
@@ -257,7 +264,7 @@ class ConfigManager:
         )
 
         # delete the contents of any catwalk backupdir
-        for cw_backup_file in glob.glob(os.path.join(self.catwalk_backupdir, "rc_*.tar")):
+        for cw_backup_file in glob.glob(os.path.join(self.localcache, "rc_*.tar")):
             os.unlink(cw_backup_file)
 
     def _first_run(self, do_not_persist_keys):

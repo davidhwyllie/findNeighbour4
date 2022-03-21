@@ -12,7 +12,7 @@
 "GC_ON_RECOMPRESS":0,
 "SNPCOMPRESSIONCEILING":250,
 "MAXN_PROP_DEFAULT":0.85,
-"LOGFILE":"../unittest_tmp/logfile_unittesting.log",
+"LOGFILE":"../unitTest_tmp/logfile_unittesting.log",
 "LOGLEVEL":"INFO",	
 "SNPCEILING": 100000,
 "REST_PORT":5020,

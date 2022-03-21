@@ -31,12 +31,12 @@ class Test_RC_1(unittest.TestCase):
         res = rc.read_config()
         self.assertTrue(isinstance(res, dict))
 
-        # check catwalk_backupdir set and exists
-        if not os.path.exists(rc.catwalk_backupdir):
-            self.fail("ConfigManager.catwalk_backupdir does not exist")
+        # check localcache set and exists
+        if not os.path.exists(rc.localcache):
+            self.fail("ConfigManager.localcache does not exist")
 
         # create a file in the backupdir
-        backupfile = os.path.join(rc.catwalk_backupdir, 'rc_test.tar')
+        backupfile = os.path.join(rc.localcache, 'rc_test.tar')
         pathlib.Path(backupfile).touch()
         self.assertTrue(os.path.exists(backupfile))
 

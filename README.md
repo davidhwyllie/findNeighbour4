@@ -29,7 +29,7 @@ Note that the findNeighbour4 startup script (fn4_startup.sh) does not startup th
 ![findNeighbour4 monitor example page](https://davidhwyllie.github.io/FNMFINDNEIGHBOUR3/img/startup.PNG)  
 
 # Implementation and Requirements
-findNeighbour4 is written entirely in python3.  
+findNeighbour4 is written entirely in python, but relies on a compiled component, catwalk   
 It operates in Linux only and has only been tested on Ubuntu 20.04.   
 To store the relationship between samples, it can use either
 - Mongodb (tested with v. 4.4.4 +) 
@@ -44,13 +44,21 @@ The server runs multiple workers, using gunicorn.  The maximum query rate suppor
 
 # Memory usage
 This depends on the kind of sequences stored.  
-RAM requirements with 810,000 SARS-CoV-2 genomes were about 2GB.  
+RAM requirements with 2 million SARS-CoV-2 genomes were about 4GB.  
 With ~ 50,000 *M. tuberculosis* genomes, about 10G RAM was used.
 
+This estimate excludes any memory usage by the database.  In production, you would use a database on a different machine (or in the cloud) to the server.  If you only have one machine, or are testing, you can run mongodb on the same machine as the server.  Be aware, as configured by default, mongodb will consume half the RAM of the machine.  
+
 # Disc usage
-This also depends on the kind of sequences stored.  
+This also depends on the kind of sequences stored and the database used.
+
+In production, you would use a database on a different machine (or in the cloud) to the server.
+If you only have one machine, you can run mongodb on the same machine as the server.  
+
 A mongodb database holding links between 630,000 SARS-CoV-2 genomes was about 100GB.  
 A similar database holding links between ~ 50,000 *M. tuberculosis* genomes, was about 50G.
+
+Findneighbour4 also by default [keeps a cache of sequence data](doc/localstorage.md) on the local server disk.  This may be up to 2 x the size of the uncompressed fasta files loaded.  This cache does not need to be backed up, as it will be restored from the database if needed.
 
 # More information
 [Set up and unit testing](doc/HowToTest.md)  

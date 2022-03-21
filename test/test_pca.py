@@ -2,11 +2,13 @@
 
 """
 
+import os
 import unittest
 import pandas as pd
 from findn import DEFAULT_CONFIG_FILE
 from pca.pca import PersistenceTest, MNStats, VariantMatrix, PCARunner
 from findn.common_utils import ConfigManager
+from localstore.localstoreutils import LocalStore
 
 class Test_PersistenceTest_1(unittest.TestCase):
     """tests the PersistenceTest class"""
@@ -27,6 +29,12 @@ class Test_PersistenceTest_1(unittest.TestCase):
         res = tp.refcompressedsequence_read(guids[0])
         self.assertIsInstance(res, dict)
 
+        n = 0
+        for guid, rcs in tp.refcompressedsequence_read_all():
+            n = n + 1
+            self.assertTrue(guid in guids)
+            self.assertIsInstance(rcs, dict)
+        self.assertEqual(n, 5000)
 
 class Test_MNStats_1(unittest.TestCase):
     """tests the MNStats class"""
@@ -91,8 +99,78 @@ class Test_MNStats_1(unittest.TestCase):
         self.assertEqual(res["m_total"], 0)
 
 
-class Test_VariantMatrix_1(unittest.TestCase):
-    """tests the VariantMatrix and PCARunner classes"""
+class Test_VariantMatrix_1a(unittest.TestCase):
+    """tests the VariantMatrix and PCARunner classes using a PersistenceTest object as a sequence provider"""
+
+    def runTest(self):
+
+        # local json test data n=5000
+        TPERSIST = PersistenceTest(connstring="thing", number_samples=251)
+        TPERSIST.load_data(
+            sample_ids_file="testdata/pca/seqs_5000test_ids.json",
+            sequences_file="testdata/pca/seqs_5000test.json",
+        )
+
+        tarfile_name = "unitTest_tmp/test.tar"
+        try:
+            os.unlink(tarfile_name)
+        except FileNotFoundError:
+            pass
+
+        self.assertEqual(False, os.path.exists(tarfile_name))
+        # create the tar file
+        LPERSIST = LocalStore(
+            "unitTest_tmp/test.tar"
+        )
+        # store data in tar file
+        
+        for i, guid in enumerate(TPERSIST.refcompressedsequence_guids()):
+            LPERSIST.store(
+                guid,
+                TPERSIST.refcompressedsequence_read(guid)
+            )
+        LPERSIST.flush()
+        self.assertEqual(i, 5000 - 1)
+
+        self.assertEqual(LPERSIST.refcompressedsequence_guids(), TPERSIST.refcompressedsequence_guids())
+
+        cfm = ConfigManager(DEFAULT_CONFIG_FILE)
+        CONFIG = cfm.read_config()
+
+        # start testing
+        v = VariantMatrix(CONFIG, LPERSIST, show_bar=False)
+
+        # test guids() method
+        self.assertEqual(set(v.guids()), set(LPERSIST.refcompressedsequence_guids()))
+
+        # test get_position_counts
+        guids, vmodel, mmodel = v.get_position_counts()
+        self.assertEqual(guids, set(LPERSIST.refcompressedsequence_guids()))
+        self.assertIsInstance(vmodel, dict)
+        self.assertIsInstance(mmodel, dict)
+
+        # test get_missingness_cutoff
+        m = v.get_missingness_cutoff(
+            positions=vmodel.keys(), mmodel=mmodel
+        )  # the missingness model
+
+        self.assertEqual(m, 27)
+
+        # test build
+        v.build()
+        self.assertIsInstance(v.vm["variant_matrix"], pd.DataFrame)
+
+        # test run
+        pcr = PCARunner(v)
+        pcr.run(n_components=10, pca_parameters={})
+
+        # test cluster
+        v = pcr.cluster()
+
+        v.to_sqlite("unitTest_tmp")
+
+class Test_VariantMatrix_1b(unittest.TestCase):
+    """tests the VariantMatrix and PCARunner classes using a  PersistenceTest object as a sequence provider"""
 
     def runTest(self):
 
@@ -132,7 +210,7 @@ class Test_VariantMatrix_1(unittest.TestCase):
         # test cluster
         v = pcr.cluster()
 
-        v.to_sqlite("unittest_tmp")
+        v.to_sqlite("unitTest_tmp")
 
 
 class Test_VariantMatrix_2(unittest.TestCase):

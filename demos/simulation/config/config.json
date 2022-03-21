@@ -11,7 +11,7 @@
 "GC_ON_RECOMPRESS":0,
 "SNPCOMPRESSIONCEILING":250,
 "MAXN_PROP_DEFAULT":0.80,
-"LOGFILE":"unittest_tmp/logfile_unittesting.log",
+"LOGFILE":"unitTest_tmp/logfile_unittesting.log",
 "LOGLEVEL":"DEBUG",
 "REPACK_FREQUENCY":0,	
 "SNPCEILING": 100,

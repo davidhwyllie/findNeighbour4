@@ -59,6 +59,7 @@ from findn.cw_seqComparer import cw_seqComparer
 from pca.pca import VariantMatrix, PCARunner
 from pca.pcadb import PCADatabaseManager
 from pca.fittrend import ModelCounts
+from localstore.localstoreutils import LocalStore
 from tree.tree_utils import IQTree, ManipulateTree, DepictTree
 
 
@@ -67,7 +68,10 @@ def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawTextHelpFormatter,
         description="""Runs findneighbour4_pca, which extract pcs from a sequence collection
-                                     
+
+If provided with a COG-UK format sequence file, will estimates rates of change of different sequence components as new variant detection
+technology.
+
 Example usage: 
 ============== 
 # show command line options 
@@ -78,10 +82,11 @@ python fn4_pca.py
 
 # run using settings in myConfigFile.json.  
 
-# example with sqlite
+# example with data written sqlite
 pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json sqlite:////data/data/pca/fn4_pca3/2020-06-01.sqlite --n_components 100 --focus_on_most_recent_n_days 60 --compute_slope_over 30 --analysis_dir /data/data/pca/fn4_pca3 --analysis_date 2020-06-01 --remove_existing_data
+pipenv run python3 fn4_pca.py demos/covid/atp.json sqlite:////data/data/pca/fn4_pca3/2020-06-01TEST.sqlite --n_components 100 --focus_on_most_recent_n_days 60 --compute_slope_over 30 --analysis_dir /data/data/pca/fn4_pca3 --analysis_date 2020-06-01 --remove_existing_data
 
-# example with oracle database identified by 'prod'
+# example with data written to oracle database identified by 'prod'
 pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_components 100 --focus_on_most_recent_n_days 60 --compute_slope_over 30 --analysis_dir /data/data/pca/fn4_pca3 --analysis_date 2020-06-01 --remove_existing_data
 
 ########## End of old examples
@@ -157,7 +162,7 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
         type=str,
         action="store",
         nargs="?",
-        help="the name of the cog-uk data file to load.",
+        help="the name of the cog-uk format data file to load.",
         default="/data/data/inputfasta/cog_metadata.csv",
     )
     parser.add_argument(
@@ -191,6 +196,7 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
     fdr = args.fdr
     if fdr < 0 or fdr > 1:
         raise ValueError("FDR must be between 0 and 1 not {0}".format(fdr))
+
     logging.info("findNeighbour4 PCA modelling .. reading configuration file.")
 
     config_file = args.path_to_config_file
@@ -215,7 +221,7 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
     else:
         logging.info("Using mongodb connection string from configuration file.")
 
-    # determine whether a FN_SENTRY_URLenvironment variable is present,
+    # determine whether a FN_SENTRY_URL environment variable is present,
     # if so, the value of this will take precedence over any values in the config file.
     # This allows 'secret' connstrings involving passwords etc to be specified without the values going into a configuraton file.
     if os.environ.get("FN_SENTRY_URL") is not None:
@@ -270,7 +276,7 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
         logger.info("Launching logger")
         sentry_sdk.init(CONFIG["SENTRY_URL"], release=version)
 
-    # prepare to connection
+    # prepare connection to database
     logging.info("Connecting to backend data store")
     pm = Persistence()
     PERSIST = pm.get_storage_object(
@@ -279,6 +285,15 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
         debug=CONFIG["DEBUGMODE"],
         verbose=True)
 
+    # determine whether there is a localstore (tar file) of sequence data available.  If there is we will use it because it's faster
+    tarfile_name = os.path.join(cfm.rcscache, "rcs.tar")
+    if os.path.exists(tarfile_name):
+        SPERSIST = LocalStore(tarfile_name)
+        logging.info("Using local sequence store {0} as a source of sequence data ".format(tarfile_name))
+    else:
+        SPERSIST = PERSIST          # use database connection
+        logging.info("Using database as a source of sequence data, as local tar file not found")
+ 
     if args.remove_existing_data:
         logging.info("fn4_pca is set to remove all existing data from database")
     else:
@@ -289,10 +304,12 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
 
     logging.info("Connecting to database")
     pdm = PCADatabaseManager(
-        connection_config=args.connection_config, debug=args.remove_existing_data
+        connection_config=args.connection_config, 
+        debug=args.remove_existing_data
     )
 
     logging.info("Setting up a cw_seqComparer object for sequence data access")
+    # this is used for multisequence alignments
     hc = cw_seqComparer(
         reference=CONFIG["reference"],
         maxNs=CONFIG["MAXN_STORAGE"],
@@ -311,7 +328,7 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
 
         # instantiate builder for PCA object
         try:
-            var_matrix = VariantMatrix(CONFIG, PERSIST)
+            var_matrix = VariantMatrix(CONFIG, SPERSIST)
         except Exception:
             logging.info("Error raised on instantiating Variant Matrix object")
             raise

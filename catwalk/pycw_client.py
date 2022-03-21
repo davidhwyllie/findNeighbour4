@@ -30,6 +30,13 @@ import warnings
 from findn.rdbmsstore import fn3persistence_r
 from findn.mongoStore import fn3persistence
 
+class CatWalkNoneSequenceError(Exception):
+    """sequence is None; this cannot be loaded"""
+
+    def __init__(self, expression, message):
+        self.expression = expression
+        self.message = message
+
 
 class CatWalkServerInsertError(Exception):
     """insert failed"""
@@ -225,17 +232,18 @@ in either
 
         # prevent potential race conditions where different processes try to start catwalk
         n_tries = 0
+        max_tries = 15
         lock_acquired = False
         if self.PERSIST is not None:
-            while n_tries < 6 and lock_acquired is False:
+            while n_tries < max_tries and lock_acquired is False:
                 n_tries = n_tries + 1
                 lock_acquired = self.PERSIST.lock(2, "startup_catwalk")
                 if (
                     lock_acquired is False
                 ):  # true if an catwalk startup lock was acquired
                     logging.info(
-                        "Catwalk startup lock could not be acquired, try = {0}/6.  Waiting 2 seconds".format(
-                            n_tries
+                        "Catwalk startup lock could not be acquired, try = {0}/{1}.  Waiting 2 seconds".format(
+                            n_tries, max_tries
                         )
                     )
                     time.sleep(2)
@@ -243,12 +251,12 @@ in either
             if lock_acquired is False:
                 # lock acquisition failed, indicative of a problem as yet unrecognised
                 info_msg = """A lock to prevent race conditions on starting catwalk could not be acquired.
-                    Tried 6 times at 2 second intervals.
+                    Tried {0} times at 2 second intervals.
                     This may arise because
                     (i) some failure of catwalk to start has occurred
                     (ii) the lock is held inappropriately after a crash. 
                     The findNeighbour4_lockmonitor should unlock it automatically in 90 seconds.  
-                    If needed, you can reset the lock as follows:  fn4_configure <path to config file> --drop_locks"""
+                    If needed, you can reset the lock as follows:  fn4_configure <path to config file> --drop_locks""".format(max_tries)
                 logging.warning(info_msg)
                 raise CatWalkStartupLockNotAcquiredError()
 
@@ -363,8 +371,8 @@ in either
         # note particular way of creating json, but catwalk accepts this (refcomp has to be in '')
         # cannot json serialise sets; use lists instead
         if refcomp is None:
-            # issue warning, return
-            logging.warning(
+            # raise error
+            raise CatWalkNoneSequenceError(
                 "Asked to reload catwalk with {0} but the refcomp was None".format(name)
             )
 

@@ -17,6 +17,8 @@
 #MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #GNU Affero General Public License for more details.
 
+set -e      # terminate if errors
+
 # set version
 echo "Setting software version from git repo."
 VERSION=`python3 setup.py --version`
@@ -133,6 +135,9 @@ echo "Starting monitor [disabled until issue #71 is resolved]"
 echo "Starting clustering"
 nohup pipenv run python3 findNeighbour4_clustering.py $1 > $CLUSTLOG &
 sleep 0.5
+
+echo "Starting localstore manager"
+nohup pipenv run python3 findNeighbour4_lsmanager.py --path_to_config_file $1 --max_run_time 150 > $MANLOG &
 
 echo "Startup complete.  Output files containing STDOUT and STDERR output are being written to $LOGDIR."
 echo "Server processes making their own log in the database. Nohup output is going to the following locations:"

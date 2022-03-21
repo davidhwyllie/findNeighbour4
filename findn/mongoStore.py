@@ -800,6 +800,61 @@ class fn3persistence:
 
         return pickle.loads(res.read())
 
+    def refcompressedsequence_read_many(self, guids: Iterable) -> Any:
+        """loads objects identified by any of guids from refcompressedseq collection.
+        It is assumed object stored is a dictionary
+
+        returns:
+        generator, which yields a tuple
+        (guid, referencecompressedsequence)
+
+        raises:
+        ValueError, if length of guids is > 1000
+        """
+
+        if len(guids) > 1000:
+            raise ValueError("Maximum number of samples which can be sought is 1000")
+
+        results = self.rcs.find({"_id": {"$in": guids}})
+        for result in results:
+            yield (result._id, pickle.loads(result.read()))
+
+    def refcompressedsequence_read_all(self, internal_batch_size = 1000) -> Any:
+        """loads object from refcompressedseq collection.
+        The objects loaded are guids.
+        It is assumed object stored is a dictionary
+
+        parameters: 
+        internal_batch_size: how many samples are loaded into ram at a time.  Default should be fine unless low memory
+
+        returns:
+        generator, which yields a tuple
+        (guid, referencecompressedsequence)
+
+        """
+
+        # sanity check
+        if internal_batch_size < 1:
+            raise ValueError("Internal batch size must be >= 1")
+
+        all_guids = self.refcompressedsequence_guids()
+
+        batches = []
+        this_batch = []
+
+        for i, guid in enumerate(all_guids):
+            if i % internal_batch_size == 0 and i > 0:      
+                batches.append(this_batch)
+                this_batch = []
+            this_batch.append(guid)
+        if len(this_batch) > 0:
+            batches.append(this_batch)
+
+        for this_batch in batches:
+            results = self.rcs.find({"_id": {"$in": this_batch}})
+            for result in results:
+                yield (result._id, pickle.loads(result.read()))
+
     def refcompressedsequence_guids(self) -> Set[str]:
         """loads guids from refcompressedseq collection."""
 
@@ -853,13 +908,13 @@ class fn3persistence:
         return set(retVal)
 
     def guids_added_after_sample(self, guid: str) -> Set[str]:
-        """ returns all guids added after a sample"""
+        """returns all guids added after a sample"""
         print("*** SEARCHING FOR ", guid)
         this_examination_time = self.guid_examination_time(guid)
         if this_examination_time is None:
             return None
 
-        return self.guids_considered_after(addition_datetime = this_examination_time)
+        return self.guids_considered_after(addition_datetime=this_examination_time)
 
     def guids_considered_after(self, addition_datetime: datetime.datetime) -> Set[str]:
         """returns all registered guid added after addition_datetime
@@ -871,7 +926,7 @@ class fn3persistence:
                     type(addition_datetime), addition_datetime
                 )
             )
-            
+
         retVal = [
             x["_id"]
             for x in self.db.guid2meta.find(
@@ -1708,7 +1763,7 @@ class fn3persistence:
         # recover the guids
         return {"guid": guid, "neighbours": retVal}
 
-    def _set_lock_status(self, lock_int_id, lock_status, sequence_id='-NotSpecified-'):
+    def _set_lock_status(self, lock_int_id, lock_status, sequence_id="-NotSpecified-"):
         """locks or unlocks resources identified by lock_int_id, allowing cross- process sequential processing (e.g. insertion)
 
         To lock, set lock_status =1 ; to unlock, set lock_status =0
@@ -1737,7 +1792,7 @@ class fn3persistence:
                 _id=lock_int_id,
                 lock_status=0,
                 lock_set_date=datetime.datetime.now(),
-                sequence_id = sequence_id,
+                sequence_id=sequence_id,
                 uuid=uuid.uuid4().hex,
             )
             self.db.fnlock.insert_one(lock_row)
@@ -1762,15 +1817,15 @@ class fn3persistence:
             elif lock_row["lock_status"] == 0 and lock_status == 1:
                 # it's already unlocked, we can lock
                 lock_row["lock_status"] = 1
-                lock_row['sequence_id'] = sequence_id
+                lock_row["sequence_id"] = sequence_id
                 lock_row["lock_set_date"] = datetime.datetime.now()
                 lock_row["uuid"] = uuid.uuid4().hex
-               
+
                 self.db.fnlock.replace_one({"_id": lock_int_id}, lock_row)
                 retval = True
 
             elif lock_row["lock_status"] == 1 and lock_status == 0:
-                lock_row['sequence_id'] = '-NotSpecified-'
+                lock_row["sequence_id"] = "-NotSpecified-"
                 lock_row["lock_status"] = 0
                 lock_row["lock_set_date"] = datetime.datetime.now()
                 lock_row["uuid"] = uuid.uuid4().hex
@@ -1780,23 +1835,24 @@ class fn3persistence:
             return retval
 
     def lock_details(self, lock_int_id):
-        """ returns details of the lock as a dictionary 
+        """returns details of the lock as a dictionary
 
         Parameters:
         lock_int_id: an integer identifier to the lock of interest
 
         Returns:
-        None if there is no lock, 
-        or a dictionary containing details of the lock held including sequence_id, lock_status, lock_set_date, and uuid """ 
+        None if there is no lock,
+        or a dictionary containing details of the lock held including sequence_id, lock_status, lock_set_date, and uuid"""
         res = self.lock_status(lock_int_id)
 
-        if res['lock_status'] == 0:     # no lock held
+        if res["lock_status"] == 0:  # no lock held
             return None
         else:
             return dict(
-                sequence_id = res['sequence_id'],
-                lock_set_date = res['lock_set_date'],
-                uuid = res['uuid'])
+                sequence_id=res["sequence_id"],
+                lock_set_date=res["lock_set_date"],
+                uuid=res["uuid"],
+            )
 
     def lock_status(self, lock_int_id):
         """determine whether a database-based lock is open (0) or closed (1).
@@ -1805,7 +1861,7 @@ class fn3persistence:
         lock_int_id: an integer identifier to the lock of interest
 
         Returns:
-        a dictionary containing details of the lock """
+        a dictionary containing details of the lock"""
 
         return self._set_lock_status(lock_int_id, None)
 
