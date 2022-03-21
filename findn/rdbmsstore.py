@@ -655,10 +655,14 @@ class fn3persistence_r:
         Is required for unit testing"""
         try:
             self.engine.dispose()
-        except AttributeError:
-            pass  # the first time, the class has not engine object attached
-        self.engine = None
-        #gc.collect()        # forces removal of the old engine, provided no references to it remain
+        except AttributeError as e:
+            pass  #  the class may not have an engine object attached
+            logging.info("Failed to dispose of engine during closedown().  AttributeError logged to sentry")
+            capture_exception(e)
+        except Exception:
+            logging.warning("Failed to dispose of engine during closedown().  Error logged to sentry")
+            capture_exception()
+
 
     def no_progressbar(self):
         """don't use progress bars"""
