@@ -232,20 +232,21 @@ in either
 
         # prevent potential race conditions where different processes try to start catwalk
         n_tries = 0
+        max_tries = 6
         lock_acquired = False
         if self.PERSIST is not None:
-            while n_tries < 6 and lock_acquired is False:
+            while n_tries < max_tries and lock_acquired is False:
                 n_tries = n_tries + 1
                 lock_acquired = self.PERSIST.lock(2, "startup_catwalk")
                 if (
                     lock_acquired is False
                 ):  # true if an catwalk startup lock was acquired
                     logging.info(
-                        "Catwalk startup lock could not be acquired, try = {0}/6.  Waiting 2 seconds".format(
-                            n_tries
+                        "Catwalk startup lock could not be acquired, try = {0}/{1}.  Waiting 2 seconds".format(
+                            n_tries, max_tries
                         )
                     )
-                    time.sleep(2)
+                    time.sleep(5)
 
             if lock_acquired is False:
                 # lock acquisition failed, indicative of a problem as yet unrecognised
