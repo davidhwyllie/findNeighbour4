@@ -46,7 +46,7 @@ class test_cw_seqComparer_fr_0a(setup_ref):
             expected_sequence_ids.append(sequence_id)
             seq_list.append((sequence_id, self.refSeq))
         # create a tar archive
-        tarfile_name = "unittest_tmp/test.tar"
+        tarfile_name = "unitTest_tmp/test.tar"
         try:
             os.unlink(tarfile_name)
         except FileNotFoundError:
@@ -55,7 +55,7 @@ class test_cw_seqComparer_fr_0a(setup_ref):
         self.assertEqual(False, os.path.exists(tarfile_name))
 
         # create the local data store
-        ls = LocalStore("unittest_tmp/test.tar", write_batch_size=3)
+        ls = LocalStore("unitTest_tmp/test.tar", write_batch_size=3)
 
         # start up catwalk using various different localstore configurations
         cw_seqComparer(
@@ -163,7 +163,7 @@ class test_cw_seqComparer_fr_0b(setup_ref):
             expected_sequence_ids.append(sequence_id)
             seq_list.append((sequence_id, self.refSeq))
         # create a tar archive
-        tarfile_name = "unittest_tmp/test.tar"
+        tarfile_name = "unitTest_tmp/test.tar"
         try:
             os.unlink(tarfile_name)
         except FileNotFoundError:
@@ -172,7 +172,7 @@ class test_cw_seqComparer_fr_0b(setup_ref):
         self.assertEqual(False, os.path.exists(tarfile_name))
 
         # create the local data store
-        ls = LocalStore("unittest_tmp/test.tar", write_batch_size=3)
+        ls = LocalStore("unitTest_tmp/test.tar", write_batch_size=3)
 
         # start up catwalk using various different localstore configurations
         cw_seqComparer(
@@ -270,7 +270,7 @@ class test_cw_seqComparer_fr_1(setup_ref):
     def runTest(self):
 
         # create a tar archive
-        tarfile_name = "unittest_tmp/test.tar"
+        tarfile_name = "unitTest_tmp/test.tar"
         try:
             os.unlink(tarfile_name)
         except FileNotFoundError:
@@ -279,7 +279,7 @@ class test_cw_seqComparer_fr_1(setup_ref):
         self.assertEqual(False, os.path.exists(tarfile_name))
 
         # create the local data store
-        ls = LocalStore("unittest_tmp/test.tar", write_batch_size=3)
+        ls = LocalStore("unitTest_tmp/test.tar", write_batch_size=3)
 
         # start up catwalk using various different localstore configurations
         cw_seqComparer(
@@ -320,7 +320,7 @@ class test_cw_seqComparer_fr_2(setup_ref):
             expected_sequence_ids.append(sequence_id)
             seq_list.append((sequence_id, self.refSeq))
         # create a tar archive
-        tarfile_name = "unittest_tmp/test.tar"
+        tarfile_name = "unitTest_tmp/test.tar"
         try:
             os.unlink(tarfile_name)
         except FileNotFoundError:
@@ -329,7 +329,7 @@ class test_cw_seqComparer_fr_2(setup_ref):
         self.assertEqual(False, os.path.exists(tarfile_name))
 
         # create the local data store
-        ls = LocalStore("unittest_tmp/test.tar", write_batch_size=3)
+        ls = LocalStore("unitTest_tmp/test.tar", write_batch_size=3)
 
         # empty database
         sc = cw_seqComparer(
@@ -410,7 +410,7 @@ class test_cw_seqComparer_fr_2(setup_ref):
         sc.catWalk.stop()
 
         # open another localstore instance of the same file
-        ls = LocalStore("unittest_tmp/test.tar")
+        ls = LocalStore("unitTest_tmp/test.tar")
 
         # check there are samples in the localstore
         self.assertEqual(len(ls.sequence_ids()), test_size)

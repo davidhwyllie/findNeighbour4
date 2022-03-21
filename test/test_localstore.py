@@ -19,7 +19,7 @@ class Test_LS_1(unittest.TestCase):
             "invalid": 1,
         }
 
-        js = LocalStore("unittest_tmp/test.tar")
+        js = LocalStore("unitTest_tmp/test.tar")
 
         res = js._compress(input)
         self.assertIsInstance(res, bytes)

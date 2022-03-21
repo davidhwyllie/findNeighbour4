@@ -167,7 +167,7 @@ class Test_VariantMatrix_1a(unittest.TestCase):
         # test cluster
         v = pcr.cluster()
 
-        v.to_sqlite("unittest_tmp")
+        v.to_sqlite("unitTest_tmp")
 
 class Test_VariantMatrix_1b(unittest.TestCase):
     """tests the VariantMatrix and PCARunner classes using a  PersistenceTest object as a sequence provider"""
@@ -210,7 +210,7 @@ class Test_VariantMatrix_1b(unittest.TestCase):
         # test cluster
         v = pcr.cluster()
 
-        v.to_sqlite("unittest_tmp")
+        v.to_sqlite("unitTest_tmp")
 
 
 class Test_VariantMatrix_2(unittest.TestCase):

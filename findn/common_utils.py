@@ -84,7 +84,7 @@ class ConfigManager:
     An example CONFIG is below:
 
     {
-    "DESCRIPTION":"A test server operating in ../unittest_tmp, only suitable for testing",
+    "DESCRIPTION":"A test server operating in ../unitTest_tmp, only suitable for testing",
     "IP":"127.0.0.1",
     "INPUTREF":"reference/TB-ref.fasta",
     "EXCLUDEFILE":"reference/TB-exclude.txt",
@@ -94,7 +94,7 @@ class ConfigManager:
     "MAXN_STORAGE":100000,
     "MAXN_PROP_DEFAULT":0.70,
     "PRECOMPARER_PARAMETERS":{},
-    "LOGFILE":"../unittest_tmp/logfile.log",
+    "LOGFILE":"../unitTest_tmp/logfile.log",
     "LOGLEVEL":"INFO",
     "SNPCEILING": 20,
     "SERVER_MONITORING_MIN_INTERVAL_MSEC":0,

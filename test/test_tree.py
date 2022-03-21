@@ -28,7 +28,7 @@ class Test_iqTree_1(unittest.TestCase):
 
         with self.assertRaises(TypeError):
             iqt.build(
-                inputstring, 2, "unittest_tmp/iqtree_test"
+                inputstring, 2, "unitTest_tmp/iqtree_test"
             )  # cnt must be a dictionary
 
         # empty the target directory
@@ -72,7 +72,7 @@ class Test_iqTree_2(unittest.TestCase):
             inputstring = f.read()
 
         res = iqt.build(
-            inputstring, 2, "unittest_tmp/iqtree_test"
+            inputstring, 2, "unitTest_tmp/iqtree_test"
         )  # cnt must be a dictionary
         self.assertIsNone(res)
 
@@ -120,7 +120,7 @@ class Test_DepictTree_1(unittest.TestCase):
         metadata = pd.read_json(json_str)
 
         mt = DepictTree(treetxt, metadata)
-        mt.render("unittest_tmp/test.png")  # svg output causes github actions to fail
+        mt.render("unitTest_tmp/test.png")  # svg output causes github actions to fail
 
 
 class Test_DepictTree_2(unittest.TestCase):
