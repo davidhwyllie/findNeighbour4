@@ -166,10 +166,12 @@ if __name__ == "__main__":
         
         # read benchmark
         #logging.info("Read benchmark")
-        res = localstore.read_benchmark()
-        print(res)
-        exit()
-        # create catwalk connection
+        #res = localstore.read_benchmark()
+        #print(res)
+        #exit()
+
+        # create database and catwalk connections and update the localstore using them
+        logging.info("Updating localstore with any new samples")
         hc = cw_seqComparer(
             reference=CONFIG["reference"],
             maxNs=CONFIG["MAXN_STORAGE"],
@@ -187,4 +189,5 @@ if __name__ == "__main__":
             logger.info("Exiting as run_once_only specified")
             exit(0)
 
+        logging.info("Update complete.  Rechecking in 1 hour.")
         time.sleep(3600)  # rerun in 1 hour
