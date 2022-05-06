@@ -13,10 +13,12 @@ from findn.seq2json import SeqDictConverter
 
 
 class LocalStore:
-    """methods to store json sequence objects, identified by a guid, in a
+    """methods designed to store json sequence objects, identified by a guid, in a
     tar file.
 
-    Transparent compression of the json object occurs.
+    Can store any pickleable object using Pickle, or json objects using pickle, lzma or gzip.
+
+    Transparent compression of the json or other object occurs.
     """
 
     def __init__(
@@ -231,11 +233,17 @@ class LocalStore:
         returning a bytes object
 
         Parameters:
-        obj: a python object, serialisable to json
+        obj: a python object, either 
+                a dictionary serialisable to json (if self.compression_method is lzma or gzip methods are used), or
+                serialisable using pickle, (if self.compression_method is pickle)
 
         Returns:
-        bytes object, a json serialised, LZMA compressed string"""
+        bytes object, a json serialised, LZMA compressed string
 
+        Raises: 
+            TypeError if self.compression_method is lzma or gzip, AND obj is not a dictionary
+        
+        """
         if self.compression_method == "pickle":
             to_compress = pickle.dumps(obj)
             return to_compress

@@ -2,10 +2,11 @@
 import unittest
 import datetime
 import os
+import numpy as np
 from localstore.localstoreutils import LocalStore
 
 
-class Test_LS_1(unittest.TestCase):
+class Test_LS_1a(unittest.TestCase):
     """tests storage of json data for testing"""
 
     def runTest(self):
@@ -27,7 +28,31 @@ class Test_LS_1(unittest.TestCase):
 
         self.assertEqual(input, recycled)
 
+class Test_LS_1b(unittest.TestCase):
+    """tests storage of a numpy array testing"""
 
+    def runTest(self):
+
+        # test whether a reference compressed data structure can be recovered from json
+        input = np.array([1, 2, 3, 4])
+
+        js = LocalStore("unitTest_tmp/test.tar", compression_method = 'pickle')
+
+        res = js._compress(input)
+        self.assertIsInstance(res, bytes)
+        recycled = js._decompress(res)
+
+        self.assertTrue(np.array_equal(input, recycled))
+
+
+        # should fail with gzip or lzma methods
+        js = LocalStore("unitTest_tmp/test.tar", compression_method = 'lzma')
+        with self.assertRaises(TypeError):
+            res = js._compress(input)
+        js = LocalStore("unitTest_tmp/test.tar", compression_method = 'gzip')
+        with self.assertRaises(TypeError):
+            res = js._compress(input)
+        
 class Test_LS_2(unittest.TestCase):
     """tests creation of a tarfile,
     including addition of items and reading them"""
