@@ -534,7 +534,7 @@ class VariantMatrix:
                 modelled_allelic_sites
             ]  # and subpositions representing the variation
 
-            nvariation = result["ns"].toarray()[0]  # total Ns
+            nvariation = result["ns"].toarray()[0]  #  total Ns
             modelled_nvariation = nvariation[modelled_variation_sites]
 
             self.matrix_sequence_properties[sequence_id] = dict(
