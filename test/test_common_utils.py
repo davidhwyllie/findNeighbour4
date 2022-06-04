@@ -36,7 +36,7 @@ class Test_RC_1(unittest.TestCase):
             self.fail("ConfigManager.localcache does not exist")
 
         # create a file in the backupdir
-        backupfile = os.path.join(rc.localcache, 'rc_test.tar')
+        backupfile = os.path.join(rc.localcache, "rc_test.tar")
         pathlib.Path(backupfile).touch()
         self.assertTrue(os.path.exists(backupfile))
 

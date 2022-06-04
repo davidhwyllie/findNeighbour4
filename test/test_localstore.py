@@ -3,6 +3,7 @@ import unittest
 import datetime
 import os
 import numpy as np
+from scipy import sparse as sp
 from localstore.localstoreutils import LocalStore
 
 
@@ -28,15 +29,16 @@ class Test_LS_1a(unittest.TestCase):
 
         self.assertEqual(input, recycled)
 
+
 class Test_LS_1b(unittest.TestCase):
-    """tests storage of a numpy array testing"""
+    """tests storage of a numpy array using pickle"""
 
     def runTest(self):
 
         # test whether a reference compressed data structure can be recovered from json
         input = np.array([1, 2, 3, 4])
 
-        js = LocalStore("unitTest_tmp/test.tar", compression_method = 'pickle')
+        js = LocalStore("unitTest_tmp/test.tar", compression_method="pickle")
 
         res = js._compress(input)
         self.assertIsInstance(res, bytes)
@@ -44,15 +46,63 @@ class Test_LS_1b(unittest.TestCase):
 
         self.assertTrue(np.array_equal(input, recycled))
 
+        # should fail with gzip or lzma methods
+        js = LocalStore("unitTest_tmp/test.tar", compression_method="lzma")
+        with self.assertRaises(TypeError):
+            res = js._compress(input)
+        js = LocalStore("unitTest_tmp/test.tar", compression_method="gzip")
+        with self.assertRaises(TypeError):
+            res = js._compress(input)
+
+
+class Test_LS_1c(unittest.TestCase):
+    """tests storage of a scipy bsr sparse array"""
+
+    def runTest(self):
+
+        input = sp.bsr_array(sp.identity(10))
+
+        js = LocalStore("unitTest_tmp/test.tar", compression_method="pickle")
+
+        res = js._compress(input)
+        self.assertIsInstance(res, bytes)
+        recycled = js._decompress(res)
+
+        self.assertTrue(np.array_equal(input.toarray(), recycled.toarray()))
 
         # should fail with gzip or lzma methods
-        js = LocalStore("unitTest_tmp/test.tar", compression_method = 'lzma')
+        js = LocalStore("unitTest_tmp/test.tar", compression_method="lzma")
         with self.assertRaises(TypeError):
             res = js._compress(input)
-        js = LocalStore("unitTest_tmp/test.tar", compression_method = 'gzip')
+        js = LocalStore("unitTest_tmp/test.tar", compression_method="gzip")
         with self.assertRaises(TypeError):
             res = js._compress(input)
-        
+
+
+class Test_LS_1d(unittest.TestCase):
+    """tests storage of a scipy coo sparse array"""
+
+    def runTest(self):
+
+        input = sp.coo_array(sp.identity(10))
+
+        js = LocalStore("unitTest_tmp/test.tar", compression_method="pickle")
+
+        res = js._compress(input)
+        self.assertIsInstance(res, bytes)
+        recycled = js._decompress(res)
+
+        self.assertTrue(np.array_equal(input.toarray(), recycled.toarray()))
+
+        # should fail with gzip or lzma methods
+        js = LocalStore("unitTest_tmp/test.tar", compression_method="lzma")
+        with self.assertRaises(TypeError):
+            res = js._compress(input)
+        js = LocalStore("unitTest_tmp/test.tar", compression_method="gzip")
+        with self.assertRaises(TypeError):
+            res = js._compress(input)
+
+
 class Test_LS_2(unittest.TestCase):
     """tests creation of a tarfile,
     including addition of items and reading them"""
@@ -192,7 +242,9 @@ class Test_LS_2a(unittest.TestCase):
                 expected_sequence_ids.append(sequence_id)
             js.flush()
 
-            self.assertEqual(set(expected_sequence_ids), js.refcompressedsequence_guids())
+            self.assertEqual(
+                set(expected_sequence_ids), js.refcompressedsequence_guids()
+            )
 
             # check we can read back the right thing by name
             for i, sequence_id in enumerate(expected_sequence_ids):

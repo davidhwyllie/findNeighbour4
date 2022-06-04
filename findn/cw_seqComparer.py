@@ -296,7 +296,7 @@ class cw_seqComparer:
                     bar.update(n_added)
                     self.localstore.store(guid, rcs)
 
-            self.localstore.flush()  # write anythgin in the buffer   
+            self.localstore.flush()  # write anything in the buffer   
             bar.finish()
 
         logging.info(

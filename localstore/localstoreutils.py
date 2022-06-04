@@ -9,6 +9,7 @@ import gzip
 import pickle
 import progressbar
 import datetime
+import logging
 from findn.seq2json import SeqDictConverter
 
 
@@ -30,7 +31,7 @@ class LocalStore:
         tarfile_name:
                     the tarfile to use.  Tarfile will be created if it does
                     not exist
-                    
+
         write_batch_size:
                     how many sequences are held in ram before writing to tar file
                     (higher values speed writes but use more RAM)
@@ -77,16 +78,22 @@ class LocalStore:
         try:
             self._write()  # ensure everything is written
         except Exception:
-            pass            # various exceptions occur if the tarfile object has already been destroyed
+            pass  # various exceptions occur if the tarfile object has already been destroyed
 
     def refcompressedsequence_guids(self):
-        """ synonym for sequence_ids, but returns a set"""
+        """synonym for sequence_ids, but returns a set"""
         return set(self.sequence_ids())
 
     def sequence_ids(self):
-        """returns a list of sequence_ids stored in the tarfile"""
+        """returns a list of sequence_ids stored in the tarfile
+
+        # equivalent of tar -tf  filename.tar
+        """
+        logging.info("Reading the names of tar file entries ..")
+
         with tarfile.TarFile(self.tarfile_name, "r") as tar:
             sequence_ids = tar.getnames()
+
         return sequence_ids
 
     def store(self, sequence_id, obj):
@@ -123,18 +130,18 @@ class LocalStore:
             compressed_bytes = buf.read()
             return (sequence_id, self._decompress(compressed_bytes))
 
-    def read_benchmark(self, restrict_to_first_n = None):
-        """ measures read rate from tar file
+    def read_benchmark(self, restrict_to_first_n=None):
+        """measures read rate from tar file
         For sars-cov-2 genomes, read rate is about 750k per minute
 
         returns: dictionary containing filename, number read, and rate per 1000 samples
         """
 
-        i = 0 
-        t0 = datetime.datetime.now()       
+        i = 0
+        t0 = datetime.datetime.now()
         bar = progressbar.ProgressBar()
         for sequence_id, rcs in self.read_all():
-            i = i +1
+            i = i + 1
             bar.update(i)
             if restrict_to_first_n is not None:
                 if i >= restrict_to_first_n:
@@ -145,10 +152,14 @@ class LocalStore:
         time_difference_seconds = time_difference.total_seconds()
         time_difference_microseconds = time_difference_seconds * 1e6
 
-        return {'file': self.tarfile_name, 'n': i, 'rate_microsec_per_sample': time_difference_microseconds / i}
+        return {
+            "file": self.tarfile_name,
+            "n": i,
+            "rate_microsec_per_sample": time_difference_microseconds / i,
+        }
 
     def refcompressedsequence_read_all(self):
-        """ synonym for read_all"""
+        """synonym for read_all"""
         return self.read_all()
 
     def read_all(self):
@@ -161,24 +172,24 @@ class LocalStore:
         # iterate over the tarfile, returning all objects
         with tarfile.TarFile(self.tarfile_name, "r") as tar:
 
-            this_item = 'first'     # not none; forces to enter the loop the first time.
+            this_item = "first"  # not none; forces to enter the loop the first time.
 
             while this_item is not None:
                 try:
                     this_item = tar.next()
-                except OSError:     # issued if you try to read against a file with no content
+                except OSError:  # issued if you try to read against a file with no content
                     this_item = None
-                    
+
                 if this_item is None:
                     yield None, None
                     break
-                else:        
+                else:
                     compressed_bytes = tar.extractfile(this_item).read()
                     yield this_item.name, self._decompress(compressed_bytes)
-     
+
     def refcompressedsequence_read_many(self, select_sequence_ids=None):
-        """ synonym for read_many """
-        return self.read_many(select_sequence_ids = select_sequence_ids)
+        """synonym for read_many"""
+        return self.read_many(select_sequence_ids=select_sequence_ids)
 
     def read_many(self, select_sequence_ids=None):
         """reads selected items in the tar file
@@ -189,35 +200,45 @@ class LocalStore:
         Returns:
         a generator which provides tuples
             (sequence_id, reference compressed object)
-            
+
         Note:
-        if select_sequence_ids is None, will read all samples.  
-        read_all is a much faster method of doing this. """
-
-        all_sequence_ids = self.sequence_ids()
-
-        # find the ones we need, in the order they are in the tar file
-        if select_sequence_ids is not None:
-            select_sequence_ids = set(select_sequence_ids).intersection(set(all_sequence_ids))
-            sequence_ids = [x for x in all_sequence_ids if x in select_sequence_ids]
-        else:
-            sequence_ids = all_sequence_ids
+        if select_sequence_ids is None, will read all samples.
+        read_all is a much faster method of doing this."""
 
         # iterate over the tarfile, returning all objects
+        if select_sequence_ids is not None:
+            select_sequence_ids = set(select_sequence_ids)
+
         with tarfile.TarFile(self.tarfile_name, "r") as tar:
-            for sequence_id in sequence_ids:
-                buf = tar.extractfile(sequence_id)
-                compressed_bytes = buf.read()
-                yield (sequence_id, self._decompress(compressed_bytes))
+
+            this_item = "first"  # not none; forces to enter the loop the first time.
+
+            while this_item is not None:
+                try:
+                    this_item = tar.next()
+                except OSError:  # issued if you try to read against a file with no content
+                    this_item = None
+
+                if this_item is None:
+                    yield None, None
+                    break
+                else:
+                    report_this = False
+                    if select_sequence_ids is None:
+                        report_this = True
+                    else:
+                        if this_item.name in select_sequence_ids:
+                            report_this = True
+                    if report_this:
+                        compressed_bytes = tar.extractfile(this_item).read()
+                        yield this_item.name, self._decompress(compressed_bytes)
 
     def _write(self):
         """writes the contents of self._to_store, a list of reference compressed sequences,
         to the tarfile at self.tarfile_name"""
         with tarfile.TarFile(self.tarfile_name, "a") as tar:
             for sequence_id, compressed_bytes in self._to_store:
-                info = tarfile.TarInfo(
-                    name=sequence_id
-                )
+                info = tarfile.TarInfo(name=sequence_id)
                 info.size = len(compressed_bytes)
                 uid = os.getuid()
                 gid = os.getgid()
@@ -233,16 +254,16 @@ class LocalStore:
         returning a bytes object
 
         Parameters:
-        obj: a python object, either 
+        obj: a python object, either
                 a dictionary serialisable to json (if self.compression_method is lzma or gzip methods are used), or
                 serialisable using pickle, (if self.compression_method is pickle)
 
         Returns:
         bytes object, a json serialised, LZMA compressed string
 
-        Raises: 
+        Raises:
             TypeError if self.compression_method is lzma or gzip, AND obj is not a dictionary
-        
+
         """
         if self.compression_method == "pickle":
             to_compress = pickle.dumps(obj)

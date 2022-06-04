@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 """ 
-A component of a findNeighbour4 server which provides relatedness information for bacterial genomes.
 Provides a persistence layer for the output of PCA, including modelling of category frequencies over time.
 
 Copyright (C) 2021 David Wyllie david.wyllie@phe.gov.uk
@@ -49,7 +48,7 @@ from sqlalchemy.ext.declarative import declarative_base
 import statsmodels.stats.multitest as mt
 import statsmodels.api as sm
 import cx_Oracle
-from pca.pca import VariationModel
+from pca.pca_scalable import VariationModel
 
 # global: definition of database structure
 # classes mapping to persistence database inherit from this
@@ -458,7 +457,7 @@ class ContributingPos(db_pc):
 
 
 class EigenVector(db_pc):
-    """weights at each positions used compute transformed coordinates"""
+    """weights at each positions used to compute transformed coordinates"""
 
     __tablename__ = "eigenvector"
     ev_int_id = Column(Integer, Identity(start=1), primary_key=True)
@@ -468,7 +467,7 @@ class EigenVector(db_pc):
     allele = Column(String(8), comment="the allele associated")
     col = Column(String(8))
     weight = Column(Float)
-    outside_3mad = Column(Boolean)
+    outside_5mad = Column(Boolean, comment="whether this is at least 5 median absolute deviations from median")
 
 
 class ExplainedVarianceRatio(db_pc):
@@ -514,23 +513,12 @@ class Sample(db_pc):
     sample_int_id = Column(Integer, Identity(start=1), primary_key=True)
     build_int_id = Column(Integer, ForeignKey(Build.build_int_id), index=True)
     sample_id = Column(String(38), index=True)
-    m_in_model = Column(Integer)
-    n_in_model = Column(Integer)
-    model_positions = Column(Integer)
-    reference_positions = Column(Integer)
-
-    m_total = Column(Integer)
-    m_expected_proportion = Column(Float)
-    m_observed_proportion = Column(Float)
-    m_p_value = Column(Float)
-
-    n_total = Column(Integer)
-    n_expected_proportion = Column(Float)
-    n_observed_proportion = Column(Float)
-    n_p_value = Column(Float)
+    n_in_model = Column(Integer, nullable = True)
+    model_positions = Column(Integer, nullable = True)
+    non_reference_positions = Column(Integer, nullable = True)
 
     used_in_pca = Column(Boolean, index=True)
-    suspect_quality = Column(Boolean)
+    suspect_quality = Column(Boolean, nullable = True)
     tcc = relationship("TransformedCoordinateCategory", backref="Build")
 
 
@@ -785,11 +773,11 @@ class PCADatabaseManager:
         -----------
         connection_config:
         One of
-        1. a key to a dictionary containing one or more database configuration details: (e.g. 'prod', 'test')
+        1. a key to a dictionary containing one or more database configuration details: (e.g. 'prod', 'test').  See also below.
         2. a valid sqlalchemy database connection string (if this is sufficient for connections)  e.g. 'pyodbc+mssql://myserver'
-        3. None.  This is considered to mean 'sqlite://' i.e. an in memory sqlite database, which is not persisted when the program stops.
+        3. None.  This is considered to mean 'sqlite://' i.e. an in memory sqlite database, which is not persisted when the program stops.  This is only useful for unit testing.
 
-        if it is not none, a variable called PCA_CONNECTION_CONFIG_FILE must be present.  This must point to a file containing credentials.
+        In scenario (1), variable called PCA_CONNECTION_CONFIG_FILE must be present.  This must point to a file containing credentials.
         the name of an environment variable containing (in json format) a dictionary, or None if it is not required.
         An example of such a dictionary is as below:
         {
@@ -962,7 +950,7 @@ class PCADatabaseManager:
 
         # now we can start
         self.Base = db_pc
-        logging.info("PCADatabaseManager: Connecting to database")
+        logging.info("PCADatabaseManager: Connecting to database used for PCA result storage")
         self.engine = create_engine(self.engine_name)
         self.is_oracle = "oracle+cx" in self.engine_name
         self.is_sqlite = "sqlite://" in self.engine_name
@@ -1256,22 +1244,22 @@ class PCADatabaseManager:
         logging.info("Loading transformed_coordinate_categories")
         tcc_df = vm.model["transformed_coordinate_categories"]
 
-        # load sample mixture data
-        sample_df = vm.model["mix_quality_info"]
+        # load sample mixture data - disabled as not currently computed or stored
+        sample_df = vm.model["sample_info"]
         sample_df["build_int_id"] = this_build.build_int_id
-        sample_df["sample_id"] = vm.model["mix_quality_info"].index
+        sample_df["sample_id"] = sample_df.index
 
         # -- some databases (Oracle) won't store very small numbers, code them as zero
         # -- oracle yields DPI-1044: value cannot be represented as an Oracle number
-        small_N_p = sample_df.index[sample_df["n_p_value"] < 1e-30]
-        sample_df.loc[small_N_p, "n_p_value"] = 0
-        small_M_p = sample_df.index[sample_df["m_p_value"] < 1e-30]
-        sample_df.loc[small_M_p, "m_p_value"] = 0
+        #small_N_p = sample_df.index[sample_df["n_p_value"] < 1e-30]
+        #sample_df.loc[small_N_p, "n_p_value"] = 0
+        #small_M_p = sample_df.index[sample_df["m_p_value"] < 1e-30]
+        #sample_df.loc[small_M_p, "m_p_value"] = 0
 
-        sample_df["used_in_pca"] = sample_df.index.isin(vm.model["sample_id"])
-        sample_df["suspect_quality"] = sample_df.index.isin(
-            vm.model["suspect_quality_seqs"].index
-        )
+        #sample_df["used_in_pca"] = sample_df.index.isin(vm.model["sample_id"])
+        #sample_df["suspect_quality"] = sample_df.index.isin(
+        #    vm.model["suspect_quality_seqs"].index
+        #)
 
         self._bulk_load(sample_df, "analysed_sample")
 
@@ -1315,27 +1303,14 @@ class PCADatabaseManager:
         date_end=datetime.datetime.today(),
         replace_all=False,
         mutations=[
-            "e484k",
-            "t1001i",
-            "d614g",
-            "p323l",
-            "del_21765_6",
-            "a222v",
-            "p681h",
-            "q27stop",
-            "n501y",
-            "n439k",
-            "y453f",
-            "del_1605_3",
         ],
     ):
-        """extracts data from cog-uk format metadata files and imports them into RDBMS
+        """extracts data from cog-uk format metadata files and imports them into RDBMS using bulk upload 
 
         cogfile: the cog-uk metadata file.
         date_end: a date or datetime value.  don't add information with specimen dates after this date
-        replace_all: if True, then deletes all stored metadata and replaces.  If False, will only add new files.
-        mutations: the mutation columns to add as features
-        uses bulk uploads
+        replace_all: if True, then deletes all stored metadata and replaces.  If False, will only add new samples (faster).
+        mutations: the mutation columns to add as features, e.g. e484k
 
         Note: this is a custom function, but should be readily modifiable for data formats other than that produced by cog-uk
 
@@ -1402,7 +1377,7 @@ class PCADatabaseManager:
             try:
                 is_valid = datetime.date.fromisoformat(cogdf.at[ix, "sample_date"]) <= date_end_dt
             except TypeError:
-                logging.warning("Skipped row {0} sample {1} because date {2} is not string".format(ix, cogdf.at[ix, "sample_id"], cogdf.at[ix, "sample_date"]))
+                logging.warning("Skipped row {0} sample {1} because date {2} is not convertable from {3}, or incomparable with end date".format(ix, cogdf.at[ix, "sample_id"], cogdf.at[ix, "sample_date"], type(cogdf.at[ix, "sample_date"])))
                 n_invalid += 1
 
             if is_valid:

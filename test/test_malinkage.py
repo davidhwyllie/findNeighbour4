@@ -33,15 +33,16 @@ from snpclusters.ma_linkage import (
 UNITTEST_MONGOCONN: str = "mongodb://localhost"
 UNITTEST_RDBMSCONN: str = "sqlite://"
 
+
 class MixtureCheckerTest(MixtureChecker):
-    """ a class which implements a MixtureChecker which sets guids as mixed if they begin with a number """
+    """a class which implements a MixtureChecker which sets guids as mixed if they begin with a number"""
 
     def __init__(self):
-        """ does nothing """
+        """does nothing"""
         self.info = "Test check"
 
     def is_mixed(self, guid):
-        """ does not check for mixtures """
+        """does not check for mixtures"""
         return {"mix_check_method": self.info, "is_mixed": guid[0] in ["0", "1", "2"]}
 
 
@@ -58,12 +59,12 @@ class MockPersistence:
     """
 
     def cluster_delete_legacy(self, name):
-        """ delete any legacy data in the mock persistence store """
+        """delete any legacy data in the mock persistence store"""
         pass
         return
 
     def __init__(self, n_guids: int):
-        """ starts up a MockPersistence object; generates a set of pairwise links compatible with n_guids being part of a set of similar sequences. """
+        """starts up a MockPersistence object; generates a set of pairwise links compatible with n_guids being part of a set of similar sequences."""
         self.latest_version = 0
         self.latest_version_behaviour = "increment"
 
@@ -73,7 +74,9 @@ class MockPersistence:
         self.node2clusterid = {}
         self._guid2neighbours = {}
         self.store = {}
-        self.g = nk.generators.ClusteredRandomGraphGenerator(n_guids, int(n_guids / 2), 1, 0).generate()
+        self.g = nk.generators.ClusteredRandomGraphGenerator(
+            n_guids, int(n_guids / 2), 1, 0
+        ).generate()
         for x in self.g.iterNodes():
             new_guid = str(uuid.uuid4())
             self.node2name[x] = new_guid
@@ -97,17 +100,17 @@ class MockPersistence:
             self._guid2neighbours[guid2].append([guid1, snv])
 
     def cluster_latest_version(self, clustering_version):
-        """ returns fake version information; increments if latest_version_behaviour is 'increment' """
+        """returns fake version information; increments if latest_version_behaviour is 'increment'"""
         if self.latest_version_behaviour == "increment":
             self.latest_version += 1
         return self.latest_version
 
     def guids(self):
-        """ returns all guids (sequence identifiers) in the network """
+        """returns all guids (sequence identifiers) in the network"""
         return set(self.name2node.keys())
 
     def guids_valid(self):
-        """ returns all guids (sequence identifiers) in the network , which are assumed to be valid"""
+        """returns all guids (sequence identifiers) in the network , which are assumed to be valid"""
         return set(self.name2node.keys())
 
     def guid2neighbours(self, guid: str, returned_format: int = 1) -> dict:
@@ -128,7 +131,7 @@ class MockPersistence:
         return {"guid": guid, "neighbours": self._guid2neighbours[guid]}
 
     def cluster_store(self, key, serialisation):
-        """ stores serialisation in a dictionary using key """
+        """stores serialisation in a dictionary using key"""
         self.store[key] = serialisation
         return None
 

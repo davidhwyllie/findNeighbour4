@@ -20,6 +20,7 @@ findn/*.pyc
 .env_test
 *.snippet
 flake8*
+*old
 Pipfile.lock
 fn4server_launch*.sh
 start_script.sh

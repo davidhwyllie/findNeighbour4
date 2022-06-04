@@ -56,7 +56,7 @@ from findn.persistence import Persistence
 from findn import DEFAULT_CONFIG_FILE
 from findn.common_utils import ConfigManager
 from findn.cw_seqComparer import cw_seqComparer
-from pca.pca import VariantMatrix, PCARunner
+from pca.pca_scalable import VariantMatrix, PCARunner
 from pca.pcadb import PCADatabaseManager
 from pca.fittrend import ModelCounts
 from localstore.localstoreutils import LocalStore
@@ -80,14 +80,13 @@ python fn4_pca.py --help
 # run with debug settings; only do this for unit testing.
 python fn4_pca.py     
 
-# run using settings in myConfigFile.json.  
+# run using settings in a configuration file
 
 # example with data written sqlite
-pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json sqlite:////data/data/pca/fn4_pca3/2020-06-01.sqlite --n_components 100 --focus_on_most_recent_n_days 60 --compute_slope_over 30 --analysis_dir /data/data/pca/fn4_pca3 --analysis_date 2020-06-01 --remove_existing_data
-pipenv run python3 fn4_pca.py demos/covid/atp.json sqlite:////data/data/pca/fn4_pca3/2020-06-01TEST.sqlite --n_components 100 --focus_on_most_recent_n_days 60 --compute_slope_over 30 --analysis_dir /data/data/pca/fn4_pca3 --analysis_date 2020-06-01 --remove_existing_data
+pipenv run python3 fn4_pca.py demos/covid/atp.json sqlite:////data/data/pca/fn4_pca3/2020-06-01TEST.sqlite /data/logs/findNeighbour4/localcache/fndev_atptest/pca --n_components 100 --focus_on_most_recent_n_days 60 --compute_slope_over 30 --analysis_dir /data/data/pca/fn4_pca3 --analysis_date 2020-06-01 --remove_existing_data
 
 # example with data written to oracle database identified by 'prod'
-pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_components 100 --focus_on_most_recent_n_days 60 --compute_slope_over 30 --analysis_dir /data/data/pca/fn4_pca3 --analysis_date 2020-06-01 --remove_existing_data
+pipenv run python3 fn4_pca.py demos/covid/atp.json prod /data/logs/findNeighbour4/localcache/fndev_atptest/pca --n_components 100 --focus_on_most_recent_n_days 60 --compute_slope_over 30 --analysis_dir /data/data/pca/fn4_pca3 --analysis_date 2020-06-01 --remove_existing_data
 
 ########## End of old examples
 
@@ -108,6 +107,11 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
         action="store",
         nargs="?",
         help="the key in the database credentials found in the json file at PCA_CONNECTION_CONFIG_FILE. OR a database configuration string e.g. sqlite:///mydb",
+    )
+    parser.add_argument(
+        "storage_dir",
+        action="store",
+        help="a directory to store pre-processed sequences in.",
     )
     parser.add_argument(
         "--analysis_date",
@@ -285,7 +289,7 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
         debug=CONFIG["DEBUGMODE"],
         verbose=True)
 
-    # determine whether there is a localstore (tar file) of sequence data available.  If there is we will use it because it's faster
+    # determine whether there is a localstore (tar file) of sequence data available.  If there is a localstore will use it because it's faster
     tarfile_name = os.path.join(cfm.rcscache, "rcs.tar")
     if os.path.exists(tarfile_name):
         SPERSIST = LocalStore(tarfile_name)
@@ -309,7 +313,7 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
     )
 
     logging.info("Setting up a cw_seqComparer object for sequence data access")
-    # this is used for multisequence alignments
+    # this is used for multisequence alignments late in the process
     hc = cw_seqComparer(
         reference=CONFIG["reference"],
         maxNs=CONFIG["MAXN_STORAGE"],
@@ -321,27 +325,32 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
     )
 
     if args.only_produce_tree_output is False:
-        logger.info("Loading cog-uk metadata")
+        samples_added = None
+        logger.info("Loading cog-uk metadata") 
         samples_added = pdm.store_cog_metadata(
             cogfile=args.cogfile, date_end=analysis_date
         )
 
-        # instantiate builder for PCA object
         try:
-            var_matrix = VariantMatrix(CONFIG, SPERSIST)
+            var_matrix = VariantMatrix(CONFIG, SPERSIST, args.storage_dir, show_bar=True)
         except Exception:
             logging.info("Error raised on instantiating Variant Matrix object")
             raise
 
-        logging.info("Building snp matrix")
-        var_matrix.build(num_train_on=args.num_train_on, select_from=samples_added)
+        logging.info("Preparing matrix-format sequence data pre-analysis")
+        var_matrix.prepare_to_analyse()
+
         logging.info("Running PCA on snp matrix")
         pca_runner = PCARunner(var_matrix)
-        pca_runner.run(n_components=args.n_components, pca_parameters={})
-        vm = pca_runner.cluster()
+        pca_runner.run(
+            n_components=args.n_components, 
+            select_from = samples_added,
+            pca_parameters={})
+
+        pca_runner.cluster()
 
         logging.info("Storing variation model and PCA")
-        pdm.store_variation_model(vm)
+        pdm.store_variation_model(pca_runner.vm.vm)
 
         logging.info("Building contingency tables, relating Lineage to pc_cat")
         pdm.make_contingency_tables(
@@ -418,10 +427,10 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
     logging.info(trending_details["population_meta"])
 
     # for each trending population, build a tree
+    # optional depictions
     logging.info("Generation depictions for each population")
 
     iq = IQTree(genome_length=len(CONFIG["reference"]))
-
     # within each population, we get examples of the expanding samples, and controls
     for population_id in trending_details["population_annotations"].keys():
         population_id = int(population_id)  # not np.int64
