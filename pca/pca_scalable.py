@@ -37,6 +37,19 @@ GNU Affero General Public License for more details.
 """
 
 # import libraries
+# due to current scikit-learn/ open blas limitations, with very large matrices, various issues can arise related to
+# OPENBLAS / MKL libraries used by scipy.
+
+# need to ensure that too many jobs are not started
+# https://github.com/scikit-learn/scikit-learn/issues/20539; crashes if > 64 cpus
+
+# https://stackoverflow.com/questions/55531880/does-partial-fit-runs-in-parallel-in-sklearn-decomposition-incrementalpca
+# need to do this before loading numpy
+# cf also https://github.com/scipy/scipy/issues/10337
+
+# import os
+# os.environ['OPENBLAS_NUM_THREADS']='64'
+
 import logging
 import datetime
 from typing import Tuple, Set
@@ -230,10 +243,10 @@ class VariantMatrix:
             allelemodel (positions of variation, and the associated base)
         """
         if guids is None:
-            logging.info("Summarising variation model for all samples")
+            logging.info("Summarising variation for all samples")
             return self.PCASEQSTORE.summarise_all()
         else:
-            logging.info("Summarising variation model for selected samples")
+            logging.info("Summarising variation for selected samples")
             return self.PCASEQSTORE.summarise_many(
                 select_sequence_ids=guids, starting_result=starting_result
             )
@@ -272,21 +285,23 @@ class VariantMatrix:
         num_train_on=None,
         select_from=None,
         exclude_positions_with_missingness_fold_over_median=10,
-        target_matrix_size=10000,
-        min_matrix_size=1000,
+        target_matrix_size=None,
+        min_matrix_size=None,
     ):
         """
         Prepares to build a matrix, returning a series of chunks, for PCA
         To recover the matrix, call matrix_in_blocks()
 
         input:
-            min_variant_freq: the minimum proportion of samples with variation at that site for the site to be included.  If none, is set to 3/train_on, i.e. each variant has to appear 3 times to be considered
+            min_variant_freq: the minimum proportion of samples with variation at that site for the site to be included.  Used as is if >0 and <1.
+                              If none, is set to 3/train_on, i.e. each variant has to appear 3 times to be considered
+                              If an integer >= 1, regarded as a minimum count and converted to a minimum frequency.
             num_train_on: only compute PCA on a subset of train_on samples.  Set to None for all samples.
             deterministic:  if num_train on is not None, setting deterministic = True (default) ensures the same samples are analysed each time.  If num_train_on is None, has no effect.
             select_from: only build a model from the sample_ids in the list provided. If None, has no effect
             exclude_positions_with_missingness_fold_over_median: exclude any positions of variation if they have more than this number of times the median missingness
-            target_matrix_size: the target number of rows in each block of rows which are returned by the generator
-            min_matrix_size: the minimum number of rows in each matrix returned by the generator
+            target_matrix_size: the target number of rows in each block of rows which are returned by the generator.  If None, set to 5x number of features
+            min_matrix_size: the minimum number of rows in each matrix returned by the generator.  If None, set to 5x number of features
         output:
             guids, a list of sample_ids (guids) in the matrix
 
@@ -349,9 +364,16 @@ class VariantMatrix:
         #########################################################################################################
 
         #########################################################################################################
-        # if minimum variation is not set, only analyse variants seen at least 2 times.
+        # if minimum variation is not set, only analyse variants seen at least 3 times.
+        # or if an integer is provided, we use this as a minimum
         if min_variant_freq is None:
-            min_variant_freq = 2 / num_train_on
+            min_variant_freq = 3 / num_train_on
+        elif min_variant_freq < 0:
+            raise ValueError("Minimum variant frequency must be more than 0")
+        elif min_variant_freq >= 1:
+            min_variant_freq = min_variant_freq / num_train_on
+
+        # otherwise it is between 0 and 1 and we use as it as supplied
         #########################################################################################################
 
         #########################################################################################################
@@ -396,7 +418,7 @@ class VariantMatrix:
 
         if len(select_alleles) == 0:
             raise ValueError(
-                "No variation found above cutoff. normally this is because you ran the PCA operation against an empty database; this is what happens if you omit a config file parameter, when a test database is examined by default.   Cannot continue"
+                "No variation found above cutoff. normally this is because you ran the PCA operation against an empty database, or because min_variant_freq is too high.  This error can arise if you omit a config file parameter, when a test database is examined by default.   Cannot continue"
             )
 
         self.set_variationmodel_attribute(
@@ -451,6 +473,31 @@ class VariantMatrix:
             f"There remain {len(self.select_alleles)} alleles which vary at frequencies more than {min_variant_freq} and pass the missingness cutoff."
         )
 
+        if self.target_matrix_size is None:
+            self.target_matrix_size = 3 * len(self.select_alleles)
+            logging.info(
+                "Autoset target batch size for incremental PCA to {0}".format(
+                    self.target_matrix_size
+                )
+            )
+
+        if self.min_matrix_size is None:
+            self.min_matrix_size = 3 * len(self.select_alleles)
+            logging.info(
+                "Autoset min batch size for incremental PCA to {0}".format(
+                    self.min_matrix_size
+                )
+            )
+
+        logging.info(
+            "Target batch size for incremental PCA is {0}".format(
+                self.target_matrix_size
+            )
+        )
+        logging.info(
+            "Min batch size for incremental PCA is {0}".format(self.min_matrix_size)
+        )
+
         # store model parameters
         self.set_variationmodel_attribute(
             "allele_positions_ok_missingness", sorted(list(include_alleles))
@@ -472,11 +519,13 @@ class VariantMatrix:
         # call self.matrix_in_blocks(guids) to return result
         return guids
 
-    def matrix_in_blocks(self, guids):
+    def matrix_in_blocks(self, guids, max_N_proportion=0.05):
         """returns the variation matrix, in blocks
 
         Parameters:
         guids: the sample identifiers with which to build the matrix
+
+        max_N_proportion: do not include samples in the matrix if the proportion of Ns in the matrix exceeds this.
 
         Yields:
         tuples, consisting of matrix_row_names, which are guids, and a variation matrix
@@ -495,7 +544,7 @@ class VariantMatrix:
 
         # build a variation matrix for variant sites which pass, and samples which pass
         logging.info(
-            "Constructing matrices of {1} rows from {0} samples".format(
+            "Processing matrices of {1} rows from {0} samples".format(
                 len(guids), self.target_matrix_size
             )
         )
@@ -510,6 +559,8 @@ class VariantMatrix:
 
         n_loaded = 0
         n_this_block = 0
+        n_low_quality = 0
+
         matrix_rows = []
         matrix_row_names = []
         if self.show_bar:
@@ -525,7 +576,6 @@ class VariantMatrix:
             guids
         ):  # read sparse matrices describing sequence
             n_loaded += 1
-            n_this_block += 1
 
             allelicvariation = result["variants"].toarray()[
                 0
@@ -534,20 +584,37 @@ class VariantMatrix:
                 modelled_allelic_sites
             ]  # and subpositions representing the variation
 
-            nvariation = result["ns"].toarray()[0]  #  total Ns
+            nvariation = result["ns"].toarray()[0]
             modelled_nvariation = nvariation[modelled_variation_sites]
+
+            model_positions = len(modelled_variation_sites)
+            n_in_model = sum(modelled_nvariation)
+            N_proportion = float(n_in_model) / float(model_positions)
+            # print(N_proportion, n_in_model, model_positions)
+            if N_proportion > max_N_proportion:
+                used_in_PCA = False
+                suspect_quality = True
+                n_low_quality += 1
+
+            else:
+                used_in_PCA = True
+                suspect_quality = False
+                n_this_block += 1
 
             self.matrix_sequence_properties[sequence_id] = dict(
                 sample_id=sequence_id,
-                model_positions=len(modelled_variation_sites),
+                model_positions=model_positions,
                 non_reference_positions=sum(modelled_allelicvariation),
-                n_in_model=sum(modelled_nvariation),
-                used_in_pca=True,
-                suspect_quality=False,
+                n_in_model=n_in_model,
+                used_in_pca=used_in_PCA,
+                suspect_quality=suspect_quality,
             )
-            matrix_rows.append(modelled_allelicvariation)
-            matrix_row_names.append(sequence_id)
-            self.matrix_sequence_id_order.append(sequence_id)
+
+            if used_in_PCA:
+                matrix_rows.append(modelled_allelicvariation)
+                matrix_row_names.append(sequence_id)
+                self.matrix_sequence_id_order.append(sequence_id)
+
             if self.show_bar:
                 bar.update(n_loaded)
 
@@ -564,7 +631,11 @@ class VariantMatrix:
         self.matrix_sequence_properties = pd.DataFrame.from_dict(
             self.matrix_sequence_properties, orient="index"
         )
-        logging.info("Matrix construction complete.")
+        logging.info(
+            "Matrix construction complete. {0} sequences were omitted due to prop. N in model exceeding {1}".format(
+                n_low_quality, max_N_proportion
+            )
+        )
 
 
 class PCARunner:
@@ -578,9 +649,11 @@ class PCARunner:
     def run(
         self,
         n_components,
+        min_variant_freq=None,
         select_from=None,
         pca_parameters={},
-        target_matrix_size=10000,
+        target_matrix_size=None,
+        min_matrix_size=None,
         exclude_positions_with_missingness_fold_over_median=12,
     ) -> VariationModel:
         """conducts pca on a snp_matrix, storing the results in the snp_matrix's VariantModel object.
@@ -590,8 +663,11 @@ class PCARunner:
             select_from: an iterable of sample identifiers.  If None, all samples are analysed
             pca_parameters: a dictionary of parameters passed to the scikit-learn PCA command
                             The contents of the dictionary are passed as-is to the PCA command, without any checking.
-            target_matrix_size: the target number of rows in each block of rows which are processed each time.  Parameter passed to VariantMatrix.build()
-            min_matrix_size: the minimum number of rows in each matrix returned by the generator. Parameter passed to VariantMatrix.build()
+            min_variant_freq: the minimum proportion of samples with variation at that site for the site to be included.  Used as is if >0 and <1.
+                              If none, is set to 3/train_on, i.e. each variant has to appear 3 times to be considered
+                              If an integer >= 1, regarded as a minimum count and converted to a minimum frequency.
+            target_matrix_size: the target number of rows in each block of rows which are processed each time.  Parameter passed to VariantMatrix.build().  If None, will set to 5x number of features.
+            min_matrix_size: the minimum number of rows in each matrix returned by the generator. Parameter passed to VariantMatrix.build().  If None, will set to 5x number of features.
             exclude_positions_with_missingness_fold_over_median : criterion for excluding positions.  Parameter passed to VariantMatrix.build()
 
         returns:
@@ -601,10 +677,6 @@ class PCARunner:
         logging.info("Performing pca, extracting {0} components".format(n_components))
         self.vm.set_variationmodel_attribute("n_pca_components", n_components)
 
-        min_matrix_size = (
-            3 * n_components
-        )  # target.  If matrix_size < n_components, won't fit
-
         # performs incremental PCA allowing essentially unlimited sample size
         # see https://stackoverflow.com/questions/31428581/incremental-pca-on-big-data
         t0 = datetime.datetime.now()
@@ -613,6 +685,7 @@ class PCARunner:
             select_from=select_from,
             target_matrix_size=target_matrix_size,
             min_matrix_size=min_matrix_size,
+            min_variant_freq=min_variant_freq,
             exclude_positions_with_missingness_fold_over_median=exclude_positions_with_missingness_fold_over_median,
         )
         blocks_fitted = 0
@@ -623,7 +696,9 @@ class PCARunner:
                     blocks_fitted, len(variantmatrix)
                 )
             )
-            pca.partial_fit(variantmatrix)
+            pca.partial_fit(
+                variantmatrix
+            )  # on large scale use, fails with munmap_chunk(): invalid pointer
         self.vm.set_variationmodel_attribute(
             "sample_id", self.vm.matrix_sequence_id_order
         )  # note guids responsible
@@ -805,6 +880,7 @@ class PCARunner:
             # convert to arrays to fit
             to_fit = this_tc["transformed_coordinate"].to_numpy().reshape(-1, 1)
             centres = cats["mean"].to_numpy().reshape(-1, 1)
+
             km = KMeans(n_clusters=len(cats.index), n_init=1, init=centres).fit(to_fit)
             this_tc["cat"] = km.labels_
             this_tc["sample_id"] = this_tc.index

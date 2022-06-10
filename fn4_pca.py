@@ -38,18 +38,31 @@ cronta --
 
 """
 
-# import libraries
+#
+# due to current scikit-learn/ open blas limitations,
+# need to ensure that too many jobs are not started
+# https://github.com/scikit-learn/scikit-learn/issues/20539; crashes if > 64 cpus
+# unless set OMP_NUM_THREADS=64.  One test machine we tried has 104 cores.
+# https://stackoverflow.com/questions/55531880/does-partial-fit-runs-in-parallel-in-sklearn-decomposition-incrementalpca
+# need to do this before loading numpy
 import os
+
+# os.environ['OMP_NUM_THREADS']='64'
+# os.environ['OPENBLAS_NUM_THREADS']='64'
+
+# import libraries
 import logging
 import logging.handlers
 import warnings
 import datetime
 from pathlib import Path
 import sentry_sdk
+import numpy as np
 from version import version
 import argparse
 import shutil
 import progressbar
+import platform
 
 # reference based compression storage and clustering modules
 from findn.persistence import Persistence
@@ -122,6 +135,14 @@ pipenv run python3 fn4_pca.py demos/covid/atp.json prod /data/logs/findNeighbour
         default=datetime.date.today().isoformat(),
     )
     parser.add_argument(
+        "--analysis_window_start_date",
+        type=str,
+        action="store",
+        nargs="?",
+        help="the samples earlier than this are not considered ",
+        default=datetime.date(2020, 1, 1),
+    )
+    parser.add_argument(
         "--num_train_on",
         type=int,
         action="store",
@@ -136,6 +157,14 @@ pipenv run python3 fn4_pca.py demos/covid/atp.json prod /data/logs/findNeighbour
         nargs="?",
         help="the number of pcs to extract.  If this is smaller than the numbers of samples trained_on, instability is likely.  Default 200",
         default=200,
+    )
+    parser.add_argument(
+        "--min_variant_frequency",
+        type=float,
+        action="store",
+        nargs="?",
+        help="the minimum variant frequency observed to include in models.  If an integer, is assumed to be the minimum variant count acceptable.",
+        default=10,
     )
     parser.add_argument(
         "--focus_on_most_recent_n_days",
@@ -201,7 +230,15 @@ pipenv run python3 fn4_pca.py demos/covid/atp.json prod /data/logs/findNeighbour
     if fdr < 0 or fdr > 1:
         raise ValueError("FDR must be between 0 and 1 not {0}".format(fdr))
 
-    logging.info("findNeighbour4 PCA modelling .. reading configuration file.")
+    logging.info("findNeighbour4 PCA modelling .. system info.")
+    logging.info(platform.platform())
+    logging.info(platform.machine())
+    logging.info(platform.processor())
+    logging.info(platform.python_version())
+    logging.info("Numpy config:")
+    logging.info(np.show_config())
+
+    logging.info("reading findneighbour configuration file.")
 
     config_file = args.path_to_config_file
     if config_file is None:
@@ -287,17 +324,24 @@ pipenv run python3 fn4_pca.py demos/covid/atp.json prod /data/logs/findNeighbour
         dbname=CONFIG["SERVERNAME"],
         connString=CONFIG["FNPERSISTENCE_CONNSTRING"],
         debug=CONFIG["DEBUGMODE"],
-        verbose=True)
+        verbose=True,
+    )
 
     # determine whether there is a localstore (tar file) of sequence data available.  If there is a localstore will use it because it's faster
     tarfile_name = os.path.join(cfm.rcscache, "rcs.tar")
     if os.path.exists(tarfile_name):
         SPERSIST = LocalStore(tarfile_name)
-        logging.info("Using local sequence store {0} as a source of sequence data ".format(tarfile_name))
+        logging.info(
+            "Using local sequence store {0} as a source of sequence data ".format(
+                tarfile_name
+            )
+        )
     else:
-        SPERSIST = PERSIST          # use database connection
-        logging.info("Using database as a source of sequence data, as local tar file not found")
- 
+        SPERSIST = PERSIST  # use database connection
+        logging.info(
+            "Using database as a source of sequence data, as local tar file not found"
+        )
+
     if args.remove_existing_data:
         logging.info("fn4_pca is set to remove all existing data from database")
     else:
@@ -305,11 +349,13 @@ pipenv run python3 fn4_pca.py demos/covid/atp.json prod /data/logs/findNeighbour
 
     # note today's date.  Used for sample selection & poisson modelling
     analysis_date = datetime.date.fromisoformat(args.analysis_date)
+    analysis_window_start_date = datetime.date.fromisoformat(
+        args.analysis_window_start_date
+    )
 
     logging.info("Connecting to database")
     pdm = PCADatabaseManager(
-        connection_config=args.connection_config, 
-        debug=args.remove_existing_data
+        connection_config=args.connection_config, debug=args.remove_existing_data
     )
 
     logging.info("Setting up a cw_seqComparer object for sequence data access")
@@ -326,13 +372,17 @@ pipenv run python3 fn4_pca.py demos/covid/atp.json prod /data/logs/findNeighbour
 
     if args.only_produce_tree_output is False:
         samples_added = None
-        logger.info("Loading cog-uk metadata") 
+        logger.info("Loading cog-uk metadata")
         samples_added = pdm.store_cog_metadata(
-            cogfile=args.cogfile, date_end=analysis_date
+            cogfile=args.cogfile,
+            date_start=analysis_window_start_date,
+            date_end=analysis_date,
         )
 
         try:
-            var_matrix = VariantMatrix(CONFIG, SPERSIST, args.storage_dir, show_bar=True)
+            var_matrix = VariantMatrix(
+                CONFIG, SPERSIST, args.storage_dir, show_bar=True
+            )
         except Exception:
             logging.info("Error raised on instantiating Variant Matrix object")
             raise
@@ -343,9 +393,11 @@ pipenv run python3 fn4_pca.py demos/covid/atp.json prod /data/logs/findNeighbour
         logging.info("Running PCA on snp matrix")
         pca_runner = PCARunner(var_matrix)
         pca_runner.run(
-            n_components=args.n_components, 
-            select_from = samples_added,
-            pca_parameters={})
+            n_components=args.n_components,
+            select_from=samples_added,
+            min_variant_freq=args.min_variant_frequency,
+            pca_parameters={},
+        )
 
         pca_runner.cluster()
 

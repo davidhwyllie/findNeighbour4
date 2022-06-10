@@ -467,7 +467,10 @@ class EigenVector(db_pc):
     allele = Column(String(8), comment="the allele associated")
     col = Column(String(8))
     weight = Column(Float)
-    outside_5mad = Column(Boolean, comment="whether this is at least 5 median absolute deviations from median")
+    outside_5mad = Column(
+        Boolean,
+        comment="whether this is at least 5 median absolute deviations from median",
+    )
 
 
 class ExplainedVarianceRatio(db_pc):
@@ -513,12 +516,12 @@ class Sample(db_pc):
     sample_int_id = Column(Integer, Identity(start=1), primary_key=True)
     build_int_id = Column(Integer, ForeignKey(Build.build_int_id), index=True)
     sample_id = Column(String(38), index=True)
-    n_in_model = Column(Integer, nullable = True)
-    model_positions = Column(Integer, nullable = True)
-    non_reference_positions = Column(Integer, nullable = True)
+    n_in_model = Column(Integer, nullable=True)
+    model_positions = Column(Integer, nullable=True)
+    non_reference_positions = Column(Integer, nullable=True)
 
     used_in_pca = Column(Boolean, index=True)
-    suspect_quality = Column(Boolean, nullable = True)
+    suspect_quality = Column(Boolean, nullable=True)
     tcc = relationship("TransformedCoordinateCategory", backref="Build")
 
 
@@ -950,7 +953,9 @@ class PCADatabaseManager:
 
         # now we can start
         self.Base = db_pc
-        logging.info("PCADatabaseManager: Connecting to database used for PCA result storage")
+        logging.info(
+            "PCADatabaseManager: Connecting to database used for PCA result storage"
+        )
         self.engine = create_engine(self.engine_name)
         self.is_oracle = "oracle+cx" in self.engine_name
         self.is_sqlite = "sqlite://" in self.engine_name
@@ -1251,15 +1256,15 @@ class PCADatabaseManager:
 
         # -- some databases (Oracle) won't store very small numbers, code them as zero
         # -- oracle yields DPI-1044: value cannot be represented as an Oracle number
-        #small_N_p = sample_df.index[sample_df["n_p_value"] < 1e-30]
-        #sample_df.loc[small_N_p, "n_p_value"] = 0
-        #small_M_p = sample_df.index[sample_df["m_p_value"] < 1e-30]
-        #sample_df.loc[small_M_p, "m_p_value"] = 0
+        # small_N_p = sample_df.index[sample_df["n_p_value"] < 1e-30]
+        # sample_df.loc[small_N_p, "n_p_value"] = 0
+        # small_M_p = sample_df.index[sample_df["m_p_value"] < 1e-30]
+        # sample_df.loc[small_M_p, "m_p_value"] = 0
 
-        #sample_df["used_in_pca"] = sample_df.index.isin(vm.model["sample_id"])
-        #sample_df["suspect_quality"] = sample_df.index.isin(
+        # sample_df["used_in_pca"] = sample_df.index.isin(vm.model["sample_id"])
+        # sample_df["suspect_quality"] = sample_df.index.isin(
         #    vm.model["suspect_quality_seqs"].index
-        #)
+        # )
 
         self._bulk_load(sample_df, "analysed_sample")
 
@@ -1300,12 +1305,12 @@ class PCADatabaseManager:
     def store_cog_metadata(
         self,
         cogfile,
+        date_start=datetime.date(2020, 1, 1),
         date_end=datetime.datetime.today(),
         replace_all=False,
-        mutations=[
-        ],
+        mutations=[],
     ):
-        """extracts data from cog-uk format metadata files and imports them into RDBMS using bulk upload 
+        """extracts data from cog-uk format metadata files and imports them into RDBMS using bulk upload
 
         cogfile: the cog-uk metadata file.
         date_end: a date or datetime value.  don't add information with specimen dates after this date
@@ -1370,14 +1375,33 @@ class PCADatabaseManager:
         date_end_dt = date_end
         if isinstance(date_end, datetime.datetime):
             date_end_dt = date_end.date()
+        date_start_dt = date_start
+        if isinstance(date_start, datetime.datetime):
+            date_start_dt = date_start.date()
+        logging.info(
+            "Selecting samples between {0} and {1}".format(date_start_dt, date_end_dt)
+        )
+
         n_after_date_end = 0
         n_invalid = 0
         for ix in cogdf.index:
-            is_valid = False        # if we cannot ensure the date provided is valid, we skip it
+            is_valid = (
+                False  # if we cannot ensure the date provided is valid, we skip it
+            )
+
             try:
-                is_valid = datetime.date.fromisoformat(cogdf.at[ix, "sample_date"]) <= date_end_dt
+                sample_date = datetime.date.fromisoformat(cogdf.at[ix, "sample_date"])
+                is_valid = date_start_dt <= sample_date and sample_date <= date_end_dt
+
             except TypeError:
-                logging.warning("Skipped row {0} sample {1} because date {2} is not convertable from {3}, or incomparable with end date".format(ix, cogdf.at[ix, "sample_id"], cogdf.at[ix, "sample_date"], type(cogdf.at[ix, "sample_date"])))
+                logging.warning(
+                    "Skipped row {0} sample {1} because date >{2}< is not convertable from {3}".format(
+                        ix,
+                        cogdf.at[ix, "sample_id"],
+                        cogdf.at[ix, "sample_date"],
+                        type(cogdf.at[ix, "sample_date"]),
+                    )
+                )
                 n_invalid += 1
 
             if is_valid:

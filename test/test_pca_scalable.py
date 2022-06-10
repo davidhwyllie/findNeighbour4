@@ -1,6 +1,5 @@
 """ tests pca_scalable.py - software to do PCA
 """
-
 import os
 import shutil
 import uuid
@@ -52,6 +51,7 @@ class Test_VariantMatrix_1a(Test_PCAScalable):
 
         expected_sequences = []
         for sequence_id, rcs in LPERSIST.read_all():
+
             if rcs is not None:
                 if rcs["invalid"] == 0:
                     expected_sequences.append(sequence_id)
@@ -94,8 +94,15 @@ class Test_VariantMatrix_1a(Test_PCAScalable):
             for sequence_id in sequence_ids:
                 analysed_sequence_ids.add(sequence_id)
 
-        self.assertEqual(analysed_sequence_ids, set(expected_sequences))
-        self.assertEqual(i, 57)
+        df = v.matrix_sequence_properties
+        df = df[df["used_in_pca"]]
+        analysed_sequence_ids = set(df.index)
+        self.assertEqual(len(df.index), len(analysed_sequence_ids))
+        # missing = set(expected_sequences) - set(analysed_sequence_ids)
+
+        # analysed sequence ids will be smaller than expected sequences because no
+        # i is the number of blocks
+        self.assertEqual(i, 53)
 
 
 class Test_VariantMatrix_1b(Test_PCAScalable):
@@ -135,6 +142,7 @@ class Test_VariantMatrix_1b(Test_PCAScalable):
             select_from=to_analyse,
             pca_parameters={},
             target_matrix_size=1000,
+            min_matrix_size=1000,
         )
 
         # test cluster
@@ -142,7 +150,66 @@ class Test_VariantMatrix_1b(Test_PCAScalable):
 
         cl = pcr.vm.get_variationmodel_attribute("transformed_coordinate_categories")
 
+        # 5300 samples * 10 coord
         self.assertIsInstance(cl, pd.DataFrame)  # it's a dataframe
+        self.assertEqual(len(cl.index), 53000)
+
+
+class Test_VariantMatrix_1c(Test_PCAScalable):
+    """tests the VariantMatrix and PCARunner classes using a LocalStore object as a sequence provider
+    with automatic batch size selection"""
+
+    def runTest(self):
+
+        # local json test data n=6000
+        LPERSIST = LocalStore("testdata/pca_scalable/test.tar")
+        self.assertEqual(6000, len(LPERSIST.sequence_ids()))
+
+        expected_sequences = []
+        for sequence_id, rcs in LPERSIST.read_all():
+            if rcs is not None:
+                if rcs["invalid"] == 0:
+                    expected_sequences.append(sequence_id)
+
+        self.assertEqual(5710, len(set(expected_sequences)))
         self.assertEqual(
-            set(cl["sample_id"]), set(to_analyse)
-        )  # all sequences are clustered
+            len(expected_sequences), len(set(expected_sequences))
+        )  # no duplicates
+
+        cfm = ConfigManager("testdata/pca/config.json")
+        CONFIG = cfm.read_config()
+
+        # start testing
+        v = VariantMatrix(CONFIG, LPERSIST, self.tmpdir, show_bar=False)
+
+        # print("Preparing to analyse 5,710 valid sequences")
+        v.prepare_to_analyse()
+
+        # valid samples should be in v.PCASEQSTORE
+        self.assertEqual(set(v.PCASEQSTORE.sequence_ids), set(expected_sequences))
+
+        # now compute a variation model
+        # print("Analysing variation")
+        res = v.get_position_counts()
+        self.assertIsInstance(res, dict)
+
+        print("Building matrix")
+        i = 0
+        analysed_sequence_ids = set()
+        guids = v.prepare(exclude_positions_with_missingness_fold_over_median=12)
+
+        self.assertEqual(len(guids), len(expected_sequences))
+
+        for sequence_ids, mat in v.matrix_in_blocks(guids):
+            i += 1
+            for sequence_id in sequence_ids:
+                analysed_sequence_ids.add(sequence_id)
+
+        df = v.matrix_sequence_properties
+        df = df[df["used_in_pca"]]
+        analysed_sequence_ids = set(df.index)
+        # missing = set(expected_sequences) - set(analysed_sequence_ids)
+
+        # analysed sequence ids will be smaller than expected sequences because no
+        self.assertEqual(len(analysed_sequence_ids), 5300)
+        self.assertEqual(i, 1)
