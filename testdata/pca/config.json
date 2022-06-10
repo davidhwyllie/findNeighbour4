@@ -9,7 +9,7 @@
 "MAXN_STORAGE":20000,
 "MAXN_PROP_DEFAULT":0.70,
 "LISTEN_TO":"0.0.0.0",
-"LOGFILE":"/data/logs/findNeighbour4/phe_covid_pt.log",
+"LOGFILE":"/tmp/pca_unittest.log",
 "LOGLEVEL":"INFO",
 "SNPCEILING": 3,
 "REST_PORT":5901,
