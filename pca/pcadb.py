@@ -817,6 +817,18 @@ class PCADatabaseManager:
         NOTE:
         This software has been tested with
         (i) Sqlite 3.3.2+
+        In general this works very well.
+        For very large databases (>500k records), Sqlite can use substantial amounts of temporary disc space.
+        Typically it uses /var/tmp or /tmp for storage on linux systems.
+        If this runs out, it can yield the obscure
+        sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) database or disk is full
+        when in fact the temporary space is full, not the volume containing the sqlite file.
+
+        See
+        https://www.sqlite.org/tempfiles.html section 5.
+        Setting SQLITE_TMPDIR to a location with lots of space will solve this.
+        Do this by modifying the .env file.
+
         (ii) Oracle Autonomous Database (cloud)
         https://blogs.oracle.com/oraclemagazine/getting-started-with-autonomous
 
@@ -961,6 +973,13 @@ class PCADatabaseManager:
         self.is_sqlite = "sqlite://" in self.engine_name
         self.show_bar = show_bar
 
+        # display a warning notice about sqlite temporary files
+        sqlite_tmpdir = os.environ.get("SQLITE_TMPDIR")
+        if sqlite_tmpdir is None:
+            logging.info("Using SQLite.  No location for sqlite temporary files provided, so will use system default")
+        else:
+            logging.info("Using Sqlite. Temporary files going to custom location {0}".format(sqlite_tmpdir))
+        
         logging.info(
             "PCADatabaseManager: Database connection made; there are {0} tables.  Oracle database = {1}".format(
                 len(self._table_names()), self.is_oracle
@@ -1058,6 +1077,12 @@ class PCADatabaseManager:
 
         The maximum size that can be transmitted to the Oracle server is 2G.  If htis happens, a cx_Oracle.DatabaseError
         is raised with result DPI-1015.  Reduce the max_batch
+
+        - TODO: for sqlite, consider produce optimising insert speeds, cf
+        https://sqlite.org/forum/info/f832398c19d30a4a. Reported max insert speeds are much faster than those achieved by this code:
+        loads about 50M records/ hr, whereas others report similar insert rates per minute.
+        Use of pandas to write may be behind this difference.  Consider using to_sql 'chunksize' option rather than
+        iterating over blocks
 
         """
 
@@ -2900,7 +2925,7 @@ class PCADatabaseManager:
         sigfits = sigfits[sigfits["n"] < max_size_of_trending_pc_cat]
 
         # for each trending sequence population, recover the sequences responsible
-        logging.info("Recovering sequences of each trending pca_cat")
+        logging.info("Recovering sequences of each trending pc_cat")
         members = {}
         trending_pcs = sigfits["pcas_int_id"]
         if self.show_bar:

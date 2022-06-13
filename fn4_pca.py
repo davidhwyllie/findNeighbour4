@@ -46,10 +46,6 @@ cronta --
 # https://stackoverflow.com/questions/55531880/does-partial-fit-runs-in-parallel-in-sklearn-decomposition-incrementalpca
 # need to do this before loading numpy
 import os
-
-# os.environ['OMP_NUM_THREADS']='64'
-# os.environ['OPENBLAS_NUM_THREADS']='64'
-
 # import libraries
 import logging
 import logging.handlers
@@ -57,7 +53,6 @@ import warnings
 import datetime
 from pathlib import Path
 import sentry_sdk
-import numpy as np
 from version import version
 import argparse
 import shutil
@@ -65,6 +60,7 @@ import progressbar
 import platform
 
 # reference based compression storage and clustering modules
+import numpy as np
 from findn.persistence import Persistence
 from findn import DEFAULT_CONFIG_FILE
 from findn.common_utils import ConfigManager
@@ -74,6 +70,8 @@ from pca.pcadb import PCADatabaseManager
 from pca.fittrend import ModelCounts
 from localstore.localstoreutils import LocalStore
 from tree.tree_utils import IQTree, ManipulateTree, DepictTree
+
+os.environ['OMP_NUM_THREADS']='64'          # required for KMeans with large numbers of samples, otherwise OpenBLAS crashes
 
 
 def main():
