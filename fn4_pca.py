@@ -27,7 +27,7 @@ nohup pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod  --n_c
 see also main()
 
 A component of the findNeighbour4 system for bacterial relatedness monitoring
-Copyright (C) 2021 David Wyllie david.wyllie@phe.gov.uk
+Copyright (C) 2021 David Wyllie david.wyllie@ukhsa.gov.uk
 repo: https://github.com/davidhwyllie/findNeighbour4
 
 This program is free software: you can redistribute it and/or modify
@@ -44,9 +44,8 @@ cronta --
 # https://github.com/scikit-learn/scikit-learn/issues/20539; crashes if > 64 cpus
 # unless set OMP_NUM_THREADS=64.  One test machine we tried has 104 cores.
 # https://stackoverflow.com/questions/55531880/does-partial-fit-runs-in-parallel-in-sklearn-decomposition-incrementalpca
-# need to do this before loading numpy
+# need to do this before loading numpy.  Set it in the .env file
 import os
-# import libraries
 import logging
 import logging.handlers
 import warnings
@@ -71,7 +70,7 @@ from pca.fittrend import ModelCounts
 from localstore.localstoreutils import LocalStore
 from tree.tree_utils import IQTree, ManipulateTree, DepictTree
 
-os.environ['OMP_NUM_THREADS']='64'          # required for KMeans with large numbers of samples, otherwise OpenBLAS crashes
+#os.environ['OMP_NUM_THREADS']='64'          # required for KMeans with large numbers of samples, otherwise OpenBLAS crashes
 
 
 def main():

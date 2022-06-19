@@ -16,7 +16,7 @@ MySQL - the issue is with storage of character large objects in TEXT fields.  Th
       - tested with MySQL 8 on Ubuntu 20.  Connection string was "mysql://root:root@localhost:3306/test_db" with user/password root
 
 A component of the findNeighbour4 system for bacterial relatedness monitoring
-Copyright (C) 2021 David Wyllie david.wyllie@phe.gov.uk
+Copyright (C) 2021 David Wyllie david.wyllie@ukhsa.gov.uk
 repo: https://github.com/davidhwyllie/findNeighbour4
 
 This program is free software: you can redistribute it and/or modify

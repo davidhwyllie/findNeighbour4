@@ -17,7 +17,7 @@ Unit testing is facilitated by a
 without then need to access a real fn3persistence data store.
 
 A component of the findNeighbour4 system for bacterial relatedness monitoring
-Copyright (C) 2021 David Wyllie david.wyllie@phe.gov.uk
+Copyright (C) 2021 David Wyllie david.wyllie@ukhsa.gov.uk
 repo: https://github.com/davidhwyllie/findNeighbour4
 
 This program is free software: you can redistribute it and/or modify
@@ -26,8 +26,7 @@ by the Free Software Foundation.  See <https://opensource.org/licenses/MIT>, and
 bu
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without tcen the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Affero General Public License for more details.
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
 """
 
 # import libraries

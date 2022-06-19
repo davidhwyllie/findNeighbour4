@@ -2,7 +2,7 @@
 """ 
 Provides a persistence layer for the output of PCA, including modelling of category frequencies over time.
 
-Copyright (C) 2021 David Wyllie david.wyllie@phe.gov.uk
+Copyright (C) 2022 David Wyllie david.wyllie@ukhsa.gov.uk
 repo: https://github.com/davidhwyllie/findNeighbour4
 
 This program is free software: you can redistribute it and/or modify
@@ -10,9 +10,8 @@ it under the terms of the MIT License as published
 by the Free Software Foundation.  See <https://opensource.org/licenses/MIT>, and the LICENSE file.
 
 This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without tcen the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Affero General Public License for more details.
+but WITHOUT ANY WARRANTY; without then the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
 """
 
 import os
@@ -1064,7 +1063,7 @@ class PCADatabaseManager:
 
         upload_df: a pandas dataframe.  Names **much match** the table target_table
         target_table: the name of the table to upload into
-        (note: this is not the name of the class in the table definition, it's the name of the table in the SQL)
+        (note: this is not the name of the class in the SQLalchemy table definition, it's the name of the table in the SQL database)
 
         Returns:
         number of items uploaded (integer)
@@ -1081,8 +1080,6 @@ class PCADatabaseManager:
         - TODO: for sqlite, consider produce optimising insert speeds, cf
         https://sqlite.org/forum/info/f832398c19d30a4a. Reported max insert speeds are much faster than those achieved by this code:
         loads about 50M records/ hr, whereas others report similar insert rates per minute.
-        Use of pandas to write may be behind this difference.  Consider using to_sql 'chunksize' option rather than
-        iterating over blocks
 
         """
 
@@ -1121,6 +1118,8 @@ class PCADatabaseManager:
             logging.info(
                 "Autoset max_batch to {0}, as running SQLite".format(max_batch)
             )
+
+            # TODO: test whether this is an insertion into an empty table; if so, we can likely use fast file based inserts
 
         if self.is_oracle:
             # ************* commit via cx_Oracle bulk upload syntax ****************
@@ -1176,6 +1175,7 @@ class PCADatabaseManager:
             # *****************************  ALL DATABASES OTHER THAN ORACLE ************************
             # note: there may be limits to the complexity of the statement permitted: a maximum number of parameters.
             # therefore, we do this in batches as well.
+
             start_n = len(upload_df.index)
             if self.show_bar:
                 bar = progressbar.ProgressBar(max_value=start_n)

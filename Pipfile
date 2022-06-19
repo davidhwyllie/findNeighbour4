@@ -52,5 +52,6 @@ black = "*"
 scipy = "*"
 scikit-learn = "*"
 numpy = "*"
+joblib = "*"
 
 [requires]

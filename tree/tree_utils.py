@@ -6,7 +6,7 @@ import subprocess
 import shutil
 import datetime
 import copy
-
+import pickle
 # import pandas as pd
 
 
@@ -138,18 +138,35 @@ class DepictTree:
     """depicts a newick phylogenetic tree, attaching metadata"""
 
     def __init__(
-        self, treestring, metadata, title=["Default title"], genome_length=29903
+        self, 
+        treestring, 
+        metadata, 
+        title=["Default title"], 
+        genome_length=29903,
+        output_method = 'pickle'
     ):
         """constructs a DepictTree object starting with a Newick string and metadata
 
         parameters:
         treestring: a newick tree in a character string
         metadata: a pandas dataframe, where the index are the nodes and the columns are for depiction.
+        title: title applied to the exported item
+        genome_length: the length of the genome mapped to (used for distance/SNV conversions)
+        output_method:  whether the tree is written to pickle format, or to a file (e.g. in svg format)
+                        We have noted intermittent errors on some linux machines with the loading of QT5 plugins
+                        https://github.com/davidhwyllie/findNeighbour4/issues/127
+                        Acceptable values: 'pickle', 'render_graphics'
+                        The option to pickle the ete3 output is a workaround until this intermittent error is resolved
 
         returns: none
         """
 
         self._refresh()
+
+        if output_method not in ['pickle','render_graphics']:
+            raise ValueError("output_method must be one of pickle or render_graphics, not {0}".format(output_method))
+
+        self.output_method = output_method
         self.genome_length = genome_length
         self.tree = ete3.Tree(treestring)
 
@@ -317,8 +334,18 @@ class DepictTree:
                 node_list.append(x.name)
         return node_list
 
-    def render(self, outputfile, mode):
-        """render the tree to file"""
+    def render(self, outputfile, mode='r'):
+        """either render the tree to file or pickle the tree, depending on the value of self.output_method"""
+        if self.output_method == 'pickle':
+            outputfile = outputfile+".pickle"
+            with open(outputfile, 'wb') as f:
+                pickle.dump(self.tree, f)
+        elif self.output_method == 'render_graphics':
+            self._render_file(outputfile, mode)
+        else:
+            raise ValueError("Invalid output_method, got {0}".format(self.output_method))
+
+    def _render_file(self, outputfile, mode):
         if mode not in ['c', 'r']:
             raise ValueError("Mode must be either c or r (circular or radial)")
         

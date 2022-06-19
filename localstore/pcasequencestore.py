@@ -4,7 +4,7 @@ Stores reference compressed sequence data, in a sparse-array format suitable for
 rapid construction of on-hot distance matrices, in a local directory.
 
 A component of the findNeighbour4 system for bacterial relatedness monitoring
-Copyright (C) 2021 David Wyllie david.wyllie@phe.gov.uk
+Copyright (C) 2021 David Wyllie david.wyllie@ukhsa.gov.uk
 repo: https://github.com/davidhwyllie/findNeighbour4
 
 This program is free software: you can redistribute it and/or modify
@@ -13,8 +13,7 @@ by the Free Software Foundation.  See <https://opensource.org/licenses/MIT>, and
 bu
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without tcen the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Affero General Public License for more details.
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  S
 """
 
 # import libraries
@@ -435,9 +434,12 @@ class PCASequenceStore:
         # iterate over the tarfile, returning all objects
         if self.show_bar:
             if select_sequence_ids is not None:
-                bar = progressbar.ProgressBar(max_value=len(select_sequence_ids))
+                max_value=len(select_sequence_ids)
+
             else:
-                bar = progressbar.ProgressBar(max_value=len(self.sequence_ids))
+                max_value=len(self.sequence_ids)
+
+            bar = progressbar.ProgressBar(max_value=max_value)
 
         num_loaded = 0
         for sequence_id, obj in self.localstore.read_many(select_sequence_ids):
@@ -445,7 +447,11 @@ class PCASequenceStore:
                 break
             num_loaded += 1
             if self.show_bar:
-                bar.update(num_loaded)
+                if num_loaded <= max_value:
+                    bar.update(num_loaded)
+                else:
+                    # this is an error condition, one explanation for which is that the .tar file has been updated
+                    logging.warning("Unexpectedly high number of samples encountered {0} vs {1}".format(num_loaded, max_value))
 
             if sequence_id not in sequence_ids:
                 sequence_ids.add(sequence_id)
