@@ -46,7 +46,6 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 # need to do this before loading numpy
 # cf also https://github.com/scipy/scipy/issues/10337
 
-import os
 import logging
 import datetime
 from typing import Tuple, Set
@@ -878,7 +877,7 @@ class PCARunner:
             to_fit = this_tc["transformed_coordinate"].to_numpy().reshape(-1, 1)
             centres = cats["mean"].to_numpy().reshape(-1, 1)
 
-            with parallel_backend('threading',n_jobs=1):
+            with parallel_backend('threading', n_jobs=1):
                 km = KMeans(n_clusters=len(cats.index), n_init=1, init=centres).fit(to_fit)
             this_tc["cat"] = km.labels_
             this_tc["sample_id"] = this_tc.index

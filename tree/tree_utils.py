@@ -163,7 +163,7 @@ class DepictTree:
 
         self._refresh()
 
-        if output_method not in ['pickle','render_graphics']:
+        if output_method not in ['pickle', 'render_graphics']:
             raise ValueError("output_method must be one of pickle or render_graphics, not {0}".format(output_method))
 
         self.output_method = output_method
@@ -337,7 +337,7 @@ class DepictTree:
     def render(self, outputfile, mode='r'):
         """either render the tree to file or pickle the tree, depending on the value of self.output_method"""
         if self.output_method == 'pickle':
-            outputfile = outputfile+".pickle"
+            outputfile = outputfile + ".pickle"
             with open(outputfile, 'wb') as f:
                 pickle.dump(self.tree, f)
         elif self.output_method == 'render_graphics':
