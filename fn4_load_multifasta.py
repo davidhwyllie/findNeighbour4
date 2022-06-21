@@ -14,7 +14,7 @@ python3 fn4_load_multifasta.py [server_url] [directory to look for fastas in] [f
 pipenv run python3 fn4_load_multifasta.py http://localhost:5023 /srv/data/covid COVID_MSA*.fasta
 
 A component of the findNeighbour4 system for bacterial relatedness monitoring
-Copyright (C) 2021 David Wyllie david.wyllie@phe.gov.uk
+Copyright (C) 2021 David Wyllie david.wyllie@ukhsa.gov.uk
 repo: https://github.com/davidhwyllie/findNeighbour4
 
 This program is free software: you can redistribute it and/or modify

@@ -1,7 +1,7 @@
 """ runs unittest for common_utils
 
 A component of the findNeighbour4 system for bacterial relatedness monitoring
-Copyright (C) 2021 David Wyllie david.wyllie@phe.gov.uk
+Copyright (C) 2021 David Wyllie david.wyllie@ukhsa.gov.uk
 repo: https://github.com/davidhwyllie/findNeighbour4
 
 This program is free software: you can redistribute it and/or modify
@@ -36,7 +36,7 @@ class Test_RC_1(unittest.TestCase):
             self.fail("ConfigManager.localcache does not exist")
 
         # create a file in the backupdir
-        backupfile = os.path.join(rc.localcache, 'rc_test.tar')
+        backupfile = os.path.join(rc.localcache, "rc_test.tar")
         pathlib.Path(backupfile).touch()
         self.assertTrue(os.path.exists(backupfile))
 

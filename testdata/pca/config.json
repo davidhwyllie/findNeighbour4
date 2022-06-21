@@ -1,0 +1,21 @@
+{
+"DESCRIPTION":"test mode server",
+"IP":"127.0.0.1",
+"INPUTREF":"reference/nc_045512.fasta",
+"EXCLUDEFILE":"reference/covid-exclude.txt",
+"DEBUGMODE":0,
+"SERVERNAME":"covidsim_pca",
+"FNPERSISTENCE_CONNSTRING":"mongodb://localhost",
+"MAXN_STORAGE":20000,
+"MAXN_PROP_DEFAULT":0.70,
+"LISTEN_TO":"0.0.0.0",
+"LOGFILE":"/tmp/pca_unittest.log",
+"LOGLEVEL":"INFO",
+"SNPCEILING": 3,
+"REST_PORT":5901,
+"PRECOMPARER_PARAMETERS":{"selection_cutoff":3,"uncertain_base":"N_or_M",
+"over_selection_cutoff_ignore_factor":1,
+"catWalk_parameters":{"cw_binary_filepath":"","reference_name":"covidtest",
+"reference_filepath":"reference/nc_045512.fasta","mask_filepath":"reference/covid-exclude.txt", "bind_port":5900, "bind_host":"localhost"}},
+"CLUSTERING":{}
+}

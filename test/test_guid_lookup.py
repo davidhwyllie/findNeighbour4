@@ -1,7 +1,7 @@
 """ runs unittest for guidLookup
 
 A component of the findNeighbour4 system for bacterial relatedness monitoring
-Copyright (C) 2021 David Wyllie david.wyllie@phe.gov.uk
+Copyright (C) 2021 David Wyllie david.wyllie@ukhsa.gov.uk
 repo: https://github.com/davidhwyllie/findNeighbour4
 
 This program is free software: you can redistribute it and/or modify
@@ -123,7 +123,7 @@ class Test_Base1t(unittest.TestCase):
     def setUp(self):
 
         pm = Persistence()
-        
+
         self.t = pm.get_storage_object(connString=UNITTEST_MONGOCONN, debug=2)
         self.t._delete_existing_data()
         dna = NucleicAcid()

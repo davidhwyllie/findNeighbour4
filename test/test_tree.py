@@ -106,9 +106,10 @@ class Test_ManipulateTree(unittest.TestCase):
 
 
 @unittest.skip(
-    "causes core dump in gitlab actions environment. runs in standard environment. reason requires investigation."
+    """causes core dump in gitlab actions environment. runs in standard environment. reason requires investigation.
+       probably to do with QT5 not being installed in github actions environment"""
 )
-class Test_DepictTree_1(unittest.TestCase):
+class Test_DepictTree_1a(unittest.TestCase):
     """tests the DepictTree class"""
 
     def runTest(self):
@@ -119,9 +120,29 @@ class Test_DepictTree_1(unittest.TestCase):
             json_str = f.read()
         metadata = pd.read_json(json_str)
 
-        mt = DepictTree(treetxt, metadata)
+        mt = DepictTree(treetxt, metadata, output_method = 'render_graphics')
         mt.render("unitTest_tmp/test.png")  # svg output causes github actions to fail
 
+
+class Test_DepictTree_1b(unittest.TestCase):
+    """tests the DepictTree class"""
+
+    def runTest(self):
+
+        with open("testdata/ete3/test18.nwk", "rt") as f:
+            treetxt = f.read()
+        with open("testdata/ete3/test18.json", "rt") as f:
+            json_str = f.read()
+        metadata = pd.read_json(json_str)
+
+        outputfile = "unitTest_tmp/test.pickle"
+        if os.path.exists(outputfile):
+            os.unlink(outputfile)
+
+        mt = DepictTree(treetxt, metadata)
+        mt.render("unitTest_tmp/test")  # svg output causes github actions to fail
+
+        self.assertTrue(os.path.exists(outputfile))
 
 class Test_DepictTree_2(unittest.TestCase):
     """tests the DepictTree class"""

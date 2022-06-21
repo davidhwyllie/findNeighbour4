@@ -1242,6 +1242,7 @@ class Test_refcompressedseq_read_many(Test_Database):
 
             self.assertEqual(i, 2)
 
+
 @rdbms_test
 class Test_refcompressedseq_read_all(Test_Database):
     """tests read_all method for referencecompressed sequences"""
@@ -1304,6 +1305,8 @@ class Test_refcompressedseq_read_all(Test_Database):
                 self.assertTrue(guid in ["guid1", "guid2", "guid3"])
                 i += 1
             self.assertEqual(i, 3)
+
+
 @rdbms_test
 class Test_guid2items(Test_Database):
     """this is mostly tested by other test cases, just test the edge cases"""

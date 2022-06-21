@@ -47,7 +47,7 @@ This directory can contain large amounts of data, so you should ensure there is 
 
 
 A component of the findNeighbour4 system for bacterial relatedness monitoring
-Copyright (C) 2021 David Wyllie david.wyllie@phe.gov.uk
+Copyright (C) 2021 David Wyllie david.wyllie@ukhsa.gov.uk
 repo: https://github.com/davidhwyllie/findNeighbour4
 
 This program is free software: you can redistribute it and/or modify
@@ -90,10 +90,15 @@ if __name__ == "__main__":
         action="store_true",
         help="run once; do not keep running.  Default False.  Mainly useful for unit testing.",
     )
+    parser.add_argument(
+        "--output_file_stem",
+        action="store",
+        default='rcs',
+        help="run once; do not keep running.  Default False.  Mainly useful for unit testing.",
+    )
     args = parser.parse_args()
 
     ############################ LOAD CONFIG ######################################
-
     config_file = args.path_to_config_file
     if config_file is None:
         config_file = os.path.join("config", "default_test_config.json")
@@ -143,7 +148,7 @@ if __name__ == "__main__":
 
     while True:
 
-        tarfilename = os.path.join(cfm.rcscache, "rcs.tar")
+        tarfilename = os.path.join(cfm.rcscache, "{0}.tar".format(args.output_file_stem))
 
         # create database connection
         logging.info("Opening database connection.")

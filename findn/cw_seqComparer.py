@@ -2,7 +2,7 @@
 """ compares bacterial sequences using catwalk (an external distance provider)
 
 A component of the findNeighbour4 system for bacterial relatedness monitoring
-Copyright (C) 2021 David Wyllie david.wyllie@phe.gov.uk
+Copyright (C) 2021 David Wyllie david.wyllie@ukhsa.gov.uk
 repo: https://github.com/davidhwyllie/findNeighbour4
 
 This program is free software: you can redistribute it and/or modify
@@ -296,7 +296,7 @@ class cw_seqComparer:
                     bar.update(n_added)
                     self.localstore.store(guid, rcs)
 
-            self.localstore.flush()  # write anythgin in the buffer   
+            self.localstore.flush()  # write anything in the buffer   
             bar.finish()
 
         logging.info(

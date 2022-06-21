@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 """ 
-A component of a findNeighbour4 server which provides relatedness information for bacterial genomes.
 Provides a persistence layer for the output of PCA, including modelling of category frequencies over time.
 
-Copyright (C) 2021 David Wyllie david.wyllie@phe.gov.uk
+Copyright (C) 2022 David Wyllie david.wyllie@ukhsa.gov.uk
 repo: https://github.com/davidhwyllie/findNeighbour4
 
 This program is free software: you can redistribute it and/or modify
@@ -11,9 +10,8 @@ it under the terms of the MIT License as published
 by the Free Software Foundation.  See <https://opensource.org/licenses/MIT>, and the LICENSE file.
 
 This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without tcen the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Affero General Public License for more details.
+but WITHOUT ANY WARRANTY; without then the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
 """
 
 import os
@@ -49,7 +47,7 @@ from sqlalchemy.ext.declarative import declarative_base
 import statsmodels.stats.multitest as mt
 import statsmodels.api as sm
 import cx_Oracle
-from pca.pca import VariationModel
+from pca.pca_scalable import VariationModel
 
 # global: definition of database structure
 # classes mapping to persistence database inherit from this
@@ -458,7 +456,7 @@ class ContributingPos(db_pc):
 
 
 class EigenVector(db_pc):
-    """weights at each positions used compute transformed coordinates"""
+    """weights at each positions used to compute transformed coordinates"""
 
     __tablename__ = "eigenvector"
     ev_int_id = Column(Integer, Identity(start=1), primary_key=True)
@@ -468,7 +466,10 @@ class EigenVector(db_pc):
     allele = Column(String(8), comment="the allele associated")
     col = Column(String(8))
     weight = Column(Float)
-    outside_3mad = Column(Boolean)
+    outside_5mad = Column(
+        Boolean,
+        comment="whether this is at least 5 median absolute deviations from median",
+    )
 
 
 class ExplainedVarianceRatio(db_pc):
@@ -514,23 +515,12 @@ class Sample(db_pc):
     sample_int_id = Column(Integer, Identity(start=1), primary_key=True)
     build_int_id = Column(Integer, ForeignKey(Build.build_int_id), index=True)
     sample_id = Column(String(38), index=True)
-    m_in_model = Column(Integer)
-    n_in_model = Column(Integer)
-    model_positions = Column(Integer)
-    reference_positions = Column(Integer)
-
-    m_total = Column(Integer)
-    m_expected_proportion = Column(Float)
-    m_observed_proportion = Column(Float)
-    m_p_value = Column(Float)
-
-    n_total = Column(Integer)
-    n_expected_proportion = Column(Float)
-    n_observed_proportion = Column(Float)
-    n_p_value = Column(Float)
+    n_in_model = Column(Integer, nullable=True)
+    model_positions = Column(Integer, nullable=True)
+    non_reference_positions = Column(Integer, nullable=True)
 
     used_in_pca = Column(Boolean, index=True)
-    suspect_quality = Column(Boolean)
+    suspect_quality = Column(Boolean, nullable=True)
     tcc = relationship("TransformedCoordinateCategory", backref="Build")
 
 
@@ -785,11 +775,11 @@ class PCADatabaseManager:
         -----------
         connection_config:
         One of
-        1. a key to a dictionary containing one or more database configuration details: (e.g. 'prod', 'test')
+        1. a key to a dictionary containing one or more database configuration details: (e.g. 'prod', 'test').  See also below.
         2. a valid sqlalchemy database connection string (if this is sufficient for connections)  e.g. 'pyodbc+mssql://myserver'
-        3. None.  This is considered to mean 'sqlite://' i.e. an in memory sqlite database, which is not persisted when the program stops.
+        3. None.  This is considered to mean 'sqlite://' i.e. an in memory sqlite database, which is not persisted when the program stops.  This is only useful for unit testing.
 
-        if it is not none, a variable called PCA_CONNECTION_CONFIG_FILE must be present.  This must point to a file containing credentials.
+        In scenario (1), variable called PCA_CONNECTION_CONFIG_FILE must be present.  This must point to a file containing credentials.
         the name of an environment variable containing (in json format) a dictionary, or None if it is not required.
         An example of such a dictionary is as below:
         {
@@ -826,6 +816,18 @@ class PCADatabaseManager:
         NOTE:
         This software has been tested with
         (i) Sqlite 3.3.2+
+        In general this works very well.
+        For very large databases (>500k records), Sqlite can use substantial amounts of temporary disc space.
+        Typically it uses /var/tmp or /tmp for storage on linux systems.
+        If this runs out, it can yield the obscure
+        sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) database or disk is full
+        when in fact the temporary space is full, not the volume containing the sqlite file.
+
+        See
+        https://www.sqlite.org/tempfiles.html section 5.
+        Setting SQLITE_TMPDIR to a location with lots of space will solve this.
+        Do this by modifying the .env file.
+
         (ii) Oracle Autonomous Database (cloud)
         https://blogs.oracle.com/oraclemagazine/getting-started-with-autonomous
 
@@ -962,12 +964,21 @@ class PCADatabaseManager:
 
         # now we can start
         self.Base = db_pc
-        logging.info("PCADatabaseManager: Connecting to database")
+        logging.info(
+            "PCADatabaseManager: Connecting to database used for PCA result storage"
+        )
         self.engine = create_engine(self.engine_name)
         self.is_oracle = "oracle+cx" in self.engine_name
         self.is_sqlite = "sqlite://" in self.engine_name
         self.show_bar = show_bar
 
+        # display a warning notice about sqlite temporary files
+        sqlite_tmpdir = os.environ.get("SQLITE_TMPDIR")
+        if sqlite_tmpdir is None:
+            logging.info("Using SQLite.  No location for sqlite temporary files provided, so will use system default")
+        else:
+            logging.info("Using Sqlite. Temporary files going to custom location {0}".format(sqlite_tmpdir))
+        
         logging.info(
             "PCADatabaseManager: Database connection made; there are {0} tables.  Oracle database = {1}".format(
                 len(self._table_names()), self.is_oracle
@@ -1052,7 +1063,7 @@ class PCADatabaseManager:
 
         upload_df: a pandas dataframe.  Names **much match** the table target_table
         target_table: the name of the table to upload into
-        (note: this is not the name of the class in the table definition, it's the name of the table in the SQL)
+        (note: this is not the name of the class in the SQLalchemy table definition, it's the name of the table in the SQL database)
 
         Returns:
         number of items uploaded (integer)
@@ -1065,6 +1076,10 @@ class PCADatabaseManager:
 
         The maximum size that can be transmitted to the Oracle server is 2G.  If htis happens, a cx_Oracle.DatabaseError
         is raised with result DPI-1015.  Reduce the max_batch
+
+        - TODO: for sqlite, consider produce optimising insert speeds, cf
+        https://sqlite.org/forum/info/f832398c19d30a4a. Reported max insert speeds are much faster than those achieved by this code:
+        loads about 50M records/ hr, whereas others report similar insert rates per minute.
 
         """
 
@@ -1103,6 +1118,8 @@ class PCADatabaseManager:
             logging.info(
                 "Autoset max_batch to {0}, as running SQLite".format(max_batch)
             )
+
+            # TODO: test whether this is an insertion into an empty table; if so, we can likely use fast file based inserts
 
         if self.is_oracle:
             # ************* commit via cx_Oracle bulk upload syntax ****************
@@ -1158,6 +1175,7 @@ class PCADatabaseManager:
             # *****************************  ALL DATABASES OTHER THAN ORACLE ************************
             # note: there may be limits to the complexity of the statement permitted: a maximum number of parameters.
             # therefore, we do this in batches as well.
+
             start_n = len(upload_df.index)
             if self.show_bar:
                 bar = progressbar.ProgressBar(max_value=start_n)
@@ -1256,22 +1274,22 @@ class PCADatabaseManager:
         logging.info("Loading transformed_coordinate_categories")
         tcc_df = vm.model["transformed_coordinate_categories"]
 
-        # load sample mixture data
-        sample_df = vm.model["mix_quality_info"]
+        # load sample mixture data - disabled as not currently computed or stored
+        sample_df = vm.model["sample_info"]
         sample_df["build_int_id"] = this_build.build_int_id
-        sample_df["sample_id"] = vm.model["mix_quality_info"].index
+        sample_df["sample_id"] = sample_df.index
 
         # -- some databases (Oracle) won't store very small numbers, code them as zero
         # -- oracle yields DPI-1044: value cannot be represented as an Oracle number
-        small_N_p = sample_df.index[sample_df["n_p_value"] < 1e-30]
-        sample_df.loc[small_N_p, "n_p_value"] = 0
-        small_M_p = sample_df.index[sample_df["m_p_value"] < 1e-30]
-        sample_df.loc[small_M_p, "m_p_value"] = 0
+        # small_N_p = sample_df.index[sample_df["n_p_value"] < 1e-30]
+        # sample_df.loc[small_N_p, "n_p_value"] = 0
+        # small_M_p = sample_df.index[sample_df["m_p_value"] < 1e-30]
+        # sample_df.loc[small_M_p, "m_p_value"] = 0
 
-        sample_df["used_in_pca"] = sample_df.index.isin(vm.model["sample_id"])
-        sample_df["suspect_quality"] = sample_df.index.isin(
-            vm.model["suspect_quality_seqs"].index
-        )
+        # sample_df["used_in_pca"] = sample_df.index.isin(vm.model["sample_id"])
+        # sample_df["suspect_quality"] = sample_df.index.isin(
+        #    vm.model["suspect_quality_seqs"].index
+        # )
 
         self._bulk_load(sample_df, "analysed_sample")
 
@@ -1312,30 +1330,17 @@ class PCADatabaseManager:
     def store_cog_metadata(
         self,
         cogfile,
+        date_start=datetime.date(2020, 1, 1),
         date_end=datetime.datetime.today(),
         replace_all=False,
-        mutations=[
-            "e484k",
-            "t1001i",
-            "d614g",
-            "p323l",
-            "del_21765_6",
-            "a222v",
-            "p681h",
-            "q27stop",
-            "n501y",
-            "n439k",
-            "y453f",
-            "del_1605_3",
-        ],
+        mutations=[],
     ):
-        """extracts data from cog-uk format metadata files and imports them into RDBMS
+        """extracts data from cog-uk format metadata files and imports them into RDBMS using bulk upload
 
         cogfile: the cog-uk metadata file.
         date_end: a date or datetime value.  don't add information with specimen dates after this date
-        replace_all: if True, then deletes all stored metadata and replaces.  If False, will only add new files.
-        mutations: the mutation columns to add as features
-        uses bulk uploads
+        replace_all: if True, then deletes all stored metadata and replaces.  If False, will only add new samples (faster).
+        mutations: the mutation columns to add as features, e.g. e484k
 
         Note: this is a custom function, but should be readily modifiable for data formats other than that produced by cog-uk
 
@@ -1395,14 +1400,33 @@ class PCADatabaseManager:
         date_end_dt = date_end
         if isinstance(date_end, datetime.datetime):
             date_end_dt = date_end.date()
+        date_start_dt = date_start
+        if isinstance(date_start, datetime.datetime):
+            date_start_dt = date_start.date()
+        logging.info(
+            "Selecting samples between {0} and {1}".format(date_start_dt, date_end_dt)
+        )
+
         n_after_date_end = 0
         n_invalid = 0
         for ix in cogdf.index:
-            is_valid = False        # if we cannot ensure the date provided is valid, we skip it
+            is_valid = (
+                False  # if we cannot ensure the date provided is valid, we skip it
+            )
+
             try:
-                is_valid = datetime.date.fromisoformat(cogdf.at[ix, "sample_date"]) <= date_end_dt
+                sample_date = datetime.date.fromisoformat(cogdf.at[ix, "sample_date"])
+                is_valid = date_start_dt <= sample_date and sample_date <= date_end_dt
+
             except TypeError:
-                logging.warning("Skipped row {0} sample {1} because date {2} is not string".format(ix, cogdf.at[ix, "sample_id"], cogdf.at[ix, "sample_date"]))
+                logging.warning(
+                    "Skipped row {0} sample {1} because date >{2}< is not convertable from {3}".format(
+                        ix,
+                        cogdf.at[ix, "sample_id"],
+                        cogdf.at[ix, "sample_date"],
+                        type(cogdf.at[ix, "sample_date"]),
+                    )
+                )
                 n_invalid += 1
 
             if is_valid:
@@ -2901,7 +2925,7 @@ class PCADatabaseManager:
         sigfits = sigfits[sigfits["n"] < max_size_of_trending_pc_cat]
 
         # for each trending sequence population, recover the sequences responsible
-        logging.info("Recovering sequences of each trending pca_cat")
+        logging.info("Recovering sequences of each trending pc_cat")
         members = {}
         trending_pcs = sigfits["pcas_int_id"]
         if self.show_bar:

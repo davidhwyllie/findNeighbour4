@@ -27,7 +27,7 @@ nohup pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod  --n_c
 see also main()
 
 A component of the findNeighbour4 system for bacterial relatedness monitoring
-Copyright (C) 2021 David Wyllie david.wyllie@phe.gov.uk
+Copyright (C) 2021 David Wyllie david.wyllie@ukhsa.gov.uk
 repo: https://github.com/davidhwyllie/findNeighbour4
 
 This program is free software: you can redistribute it and/or modify
@@ -38,7 +38,13 @@ cronta --
 
 """
 
-# import libraries
+#
+# due to current scikit-learn/ open blas limitations,
+# need to ensure that too many jobs are not started
+# https://github.com/scikit-learn/scikit-learn/issues/20539; crashes if > 64 cpus
+# unless set OMP_NUM_THREADS=64.  One test machine we tried has 104 cores.
+# https://stackoverflow.com/questions/55531880/does-partial-fit-runs-in-parallel-in-sklearn-decomposition-incrementalpca
+# need to do this before loading numpy.  Set it in the .env file
 import os
 import logging
 import logging.handlers
@@ -50,17 +56,100 @@ from version import version
 import argparse
 import shutil
 import progressbar
+import platform
 
 # reference based compression storage and clustering modules
+import numpy as np
 from findn.persistence import Persistence
 from findn import DEFAULT_CONFIG_FILE
 from findn.common_utils import ConfigManager
 from findn.cw_seqComparer import cw_seqComparer
-from pca.pca import VariantMatrix, PCARunner
+from pca.pca_scalable import VariantMatrix, PCARunner
 from pca.pcadb import PCADatabaseManager
 from pca.fittrend import ModelCounts
 from localstore.localstoreutils import LocalStore
 from tree.tree_utils import IQTree, ManipulateTree, DepictTree
+
+# os.environ['OMP_NUM_THREADS']='64'          # required for KMeans with large numbers of samples, otherwise OpenBLAS crashes; set this in .env
+
+
+def export_trees(metadata, target_dir, mt, pdm, has_controls, population_id, newick_tree):
+    """export trees to database and file
+    metadata: a pandas dataframe containing output data
+    target_dir: where to write to
+    mt: a ManipulateTree object
+    pdm: a PCA data manager object
+    has_controls: whether controls are included.  Either + or -
+    population_id: integer reflecting population in database
+    newick_tree: newick format tree
+    """
+
+    # output and write to database
+    targetfile = os.path.join(target_dir, "rectangular.svg")
+    mt.render(targetfile, mode="r")
+
+    add_infos = []
+
+    if os.path.exists(targetfile):
+        with open(targetfile, "rt") as f:
+            svgfile_content_r = f.read()
+        add_infos.append(
+            dict(
+                pop_int_id=population_id,
+                info_tag=has_controls + "r_svg",
+                info_description="A tree including trending samples in a population in radial svg format.  Not rooted",
+                mime_type="image/svg+xml",
+                info_class="svg",
+                info=svgfile_content_r,
+            )
+        )
+
+    targetfile = os.path.join(target_dir, "circular.svg")
+    mt.render(targetfile, mode="c")
+    if os.path.exists(targetfile):
+        with open(targetfile, "rt") as f:
+            svgfile_content_c = f.read()
+            add_infos.append(
+                dict(
+                    pop_int_id=population_id,
+                    info_tag=has_controls + "c_svg",
+                    info_description="A tree including trending samples in a population in radial svg format. Not rooted",
+                    mime_type="image/svg+xml",
+                    info_class="svg",
+                    info=svgfile_content_c,
+                )
+            )
+
+    # write data to database
+    targetfile = os.path.join(target_dir, "meta.csv")
+    with open(targetfile, "wt") as f:
+        metadata.to_csv(f, index=True, index_label="sample_id")
+    with open(targetfile, "rt") as f:
+        csvfile_content = f.read()
+
+    add_infos.append(
+        dict(
+            pop_int_id=population_id,
+            info_tag=has_controls + "c_newick",
+            info_description="A tree including all the trending samples in a population in newick format.  Not rooted",
+            mime_type="text/x-nh",
+            info_class="newick",
+            info=newick_tree,
+        )
+    )
+    add_infos.append(
+        dict(
+            pop_int_id=population_id,
+            info_tag=has_controls + "c_metadata",
+            info_description="Metadata on all the trending samples in a population.  Not rooted",
+            mime_type="text/csv",
+            info_class="csv",
+            info=csvfile_content,
+        )
+    )
+
+    for add_info in add_infos:
+        pdm.add_PopulationStudiedExtraInfo(**add_info)
 
 
 def main():
@@ -80,14 +169,13 @@ python fn4_pca.py --help
 # run with debug settings; only do this for unit testing.
 python fn4_pca.py     
 
-# run using settings in myConfigFile.json.  
+# run using settings in a configuration file
 
 # example with data written sqlite
-pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json sqlite:////data/data/pca/fn4_pca3/2020-06-01.sqlite --n_components 100 --focus_on_most_recent_n_days 60 --compute_slope_over 30 --analysis_dir /data/data/pca/fn4_pca3 --analysis_date 2020-06-01 --remove_existing_data
-pipenv run python3 fn4_pca.py demos/covid/atp.json sqlite:////data/data/pca/fn4_pca3/2020-06-01TEST.sqlite --n_components 100 --focus_on_most_recent_n_days 60 --compute_slope_over 30 --analysis_dir /data/data/pca/fn4_pca3 --analysis_date 2020-06-01 --remove_existing_data
+pipenv run python3 fn4_pca.py demos/covid/atp.json sqlite:////data/data/pca/fn4_pca3/2020-06-01TEST.sqlite /data/logs/findNeighbour4/localcache/fndev_atptest/pca --n_components 100 --focus_on_most_recent_n_days 60 --compute_slope_over 30 --analysis_dir /data/data/pca/fn4_pca3 --analysis_date 2020-06-01 --remove_existing_data
 
 # example with data written to oracle database identified by 'prod'
-pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_components 100 --focus_on_most_recent_n_days 60 --compute_slope_over 30 --analysis_dir /data/data/pca/fn4_pca3 --analysis_date 2020-06-01 --remove_existing_data
+pipenv run python3 fn4_pca.py demos/covid/atp.json prod /data/logs/findNeighbour4/localcache/fndev_atptest/pca --n_components 100 --focus_on_most_recent_n_days 60 --compute_slope_over 30 --analysis_dir /data/data/pca/fn4_pca3 --analysis_date 2020-06-01 --remove_existing_data
 
 ########## End of old examples
 
@@ -110,12 +198,25 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
         help="the key in the database credentials found in the json file at PCA_CONNECTION_CONFIG_FILE. OR a database configuration string e.g. sqlite:///mydb",
     )
     parser.add_argument(
+        "storage_dir",
+        action="store",
+        help="a directory to store pre-processed sequences in.",
+    )
+    parser.add_argument(
         "--analysis_date",
         type=str,
         action="store",
         nargs="?",
         help="the date of the analysis.  Later samples are not considered ",
         default=datetime.date.today().isoformat(),
+    )
+    parser.add_argument(
+        "--analysis_window_start_date",
+        type=str,
+        action="store",
+        nargs="?",
+        help="the samples earlier than this are not considered ",
+        default=datetime.date(2020, 1, 1),
     )
     parser.add_argument(
         "--num_train_on",
@@ -132,6 +233,14 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
         nargs="?",
         help="the number of pcs to extract.  If this is smaller than the numbers of samples trained_on, instability is likely.  Default 200",
         default=200,
+    )
+    parser.add_argument(
+        "--min_variant_frequency",
+        type=float,
+        action="store",
+        nargs="?",
+        help="the minimum variant frequency observed to include in models.  If an integer, is assumed to be the minimum variant count acceptable.",
+        default=10,
     )
     parser.add_argument(
         "--focus_on_most_recent_n_days",
@@ -197,7 +306,15 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
     if fdr < 0 or fdr > 1:
         raise ValueError("FDR must be between 0 and 1 not {0}".format(fdr))
 
-    logging.info("findNeighbour4 PCA modelling .. reading configuration file.")
+    logging.info("findNeighbour4 PCA modelling .. system info.")
+    logging.info(platform.platform())
+    logging.info(platform.machine())
+    logging.info(platform.processor())
+    logging.info(platform.python_version())
+    logging.info("Numpy config:")
+    logging.info(np.show_config())
+
+    logging.info("reading findneighbour configuration file.")
 
     config_file = args.path_to_config_file
     if config_file is None:
@@ -283,17 +400,24 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
         dbname=CONFIG["SERVERNAME"],
         connString=CONFIG["FNPERSISTENCE_CONNSTRING"],
         debug=CONFIG["DEBUGMODE"],
-        verbose=True)
+        verbose=True,
+    )
 
-    # determine whether there is a localstore (tar file) of sequence data available.  If there is we will use it because it's faster
+    # determine whether there is a localstore (tar file) of sequence data available.  If there is a localstore will use it because it's faster
     tarfile_name = os.path.join(cfm.rcscache, "rcs.tar")
     if os.path.exists(tarfile_name):
         SPERSIST = LocalStore(tarfile_name)
-        logging.info("Using local sequence store {0} as a source of sequence data ".format(tarfile_name))
+        logging.info(
+            "Using local sequence store {0} as a source of sequence data ".format(
+                tarfile_name
+            )
+        )
     else:
-        SPERSIST = PERSIST          # use database connection
-        logging.info("Using database as a source of sequence data, as local tar file not found")
- 
+        SPERSIST = PERSIST  # use database connection
+        logging.info(
+            "Using database as a source of sequence data, as local tar file not found"
+        )
+
     if args.remove_existing_data:
         logging.info("fn4_pca is set to remove all existing data from database")
     else:
@@ -301,15 +425,17 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
 
     # note today's date.  Used for sample selection & poisson modelling
     analysis_date = datetime.date.fromisoformat(args.analysis_date)
+    analysis_window_start_date = datetime.date.fromisoformat(
+        args.analysis_window_start_date
+    )
 
     logging.info("Connecting to database")
     pdm = PCADatabaseManager(
-        connection_config=args.connection_config, 
-        debug=args.remove_existing_data
+        connection_config=args.connection_config, debug=args.remove_existing_data
     )
 
     logging.info("Setting up a cw_seqComparer object for sequence data access")
-    # this is used for multisequence alignments
+    # this is used for multisequence alignments late in the process
     hc = cw_seqComparer(
         reference=CONFIG["reference"],
         maxNs=CONFIG["MAXN_STORAGE"],
@@ -321,27 +447,38 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
     )
 
     if args.only_produce_tree_output is False:
+        samples_added = None
         logger.info("Loading cog-uk metadata")
         samples_added = pdm.store_cog_metadata(
-            cogfile=args.cogfile, date_end=analysis_date
+            cogfile=args.cogfile,
+            date_start=analysis_window_start_date,
+            date_end=analysis_date,
         )
 
-        # instantiate builder for PCA object
         try:
-            var_matrix = VariantMatrix(CONFIG, SPERSIST)
+            var_matrix = VariantMatrix(
+                CONFIG, SPERSIST, args.storage_dir, show_bar=True
+            )
         except Exception:
             logging.info("Error raised on instantiating Variant Matrix object")
             raise
 
-        logging.info("Building snp matrix")
-        var_matrix.build(num_train_on=args.num_train_on, select_from=samples_added)
+        logging.info("Preparing matrix-format sequence data pre-analysis")
+        var_matrix.prepare_to_analyse()
+
         logging.info("Running PCA on snp matrix")
         pca_runner = PCARunner(var_matrix)
-        pca_runner.run(n_components=args.n_components, pca_parameters={})
-        vm = pca_runner.cluster()
+        pca_runner.run(
+            n_components=args.n_components,
+            select_from=samples_added,
+            min_variant_freq=args.min_variant_frequency,
+            pca_parameters={},
+        )
+
+        pca_runner.cluster()
 
         logging.info("Storing variation model and PCA")
-        pdm.store_variation_model(vm)
+        pdm.store_variation_model(pca_runner.vm.vm)
 
         logging.info("Building contingency tables, relating Lineage to pc_cat")
         pdm.make_contingency_tables(
@@ -418,10 +555,10 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
     logging.info(trending_details["population_meta"])
 
     # for each trending population, build a tree
+    # optional depictions
     logging.info("Generation depictions for each population")
 
     iq = IQTree(genome_length=len(CONFIG["reference"]))
-
     # within each population, we get examples of the expanding samples, and controls
     for population_id in trending_details["population_annotations"].keys():
         population_id = int(population_id)  # not np.int64
@@ -481,60 +618,17 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
             title=[title_info],
             genome_length=len(CONFIG["reference"]),
         )
-        targetfile = os.path.join(target_dir, "rectangular.svg")
-        mt.render(targetfile, mode="r")
-        with open(targetfile, "rt") as f:
-            svgfile_content_r = f.read()
-        targetfile = os.path.join(target_dir, "circular.svg")
-        mt.render(targetfile, mode="c")
-        with open(targetfile, "rt") as f:
-            svgfile_content_c = f.read()
 
-        # write data to database
-        targetfile = os.path.join(target_dir, "meta.csv")
-        with open(targetfile, "wt") as f:
-            exp_only.to_csv(f, index=True, index_label="sample_id")
-        with open(targetfile, "rt") as f:
-            csvfile_content = f.read()
-
-        add_infos = [
-            dict(
-                pop_int_id=population_id,
-                info_tag="-c_svg",
-                info_description="A tree including trending samples in a population in circular svg format.  Not rooted",
-                mime_type="image/svg+xml",
-                info_class="svg",
-                info=svgfile_content_c,
-            ),
-            dict(
-                pop_int_id=population_id,
-                info_tag="-c_svg",
-                info_description="A tree including trending samples in a population in radial svg format. Not rooted",
-                mime_type="image/svg+xml",
-                info_class="svg",
-                info=svgfile_content_r,
-            ),
-            dict(
-                pop_int_id=population_id,
-                info_tag="-c_newick",
-                info_description="A tree including all the trending samples in a population in newick format.  Not rooted",
-                mime_type="text/x-nh",
-                info_class="newick",
-                info=newick_tree,
-            ),
-            dict(
-                pop_int_id=population_id,
-                info_tag="-c_metadata",
-                info_description="Metadata on all the trending samples in a population.  Not rooted",
-                mime_type="text/csv",
-                info_class="csv",
-                info=csvfile_content,
-            ),
-        ]
-
-        for add_info in add_infos:
-            pdm.add_PopulationStudiedExtraInfo(**add_info)
-
+        # export
+        export_trees(
+            metadata=exp_only, 
+            target_dir = target_dir, 
+            mt= mt, 
+            pdm = pdm, 
+            has_controls="-",
+            population_id = population_id, 
+            newick_tree= newick_tree)
+        
         ## include controls as well
         print(
             "**************************************************************************************"
@@ -601,66 +695,21 @@ pipenv run python3 fn4_pca.py demos/covid/covid_config_v3.json prod --n_componen
             title=[title_info],
             genome_length=len(CONFIG["reference"]),
         )
-        targetfile = os.path.join(target_dir, "rectangular.svg")
-        mt.render(targetfile, mode="r")
-        with open(targetfile, "rt") as f:
-            svgfile_content_r = f.read()
-        targetfile = os.path.join(target_dir, "circular.svg")
-        mt.render(targetfile, mode="c")
-        with open(targetfile, "rt") as f:
-            svgfile_content_c = f.read()
-
-        # write data to database
-        targetfile = os.path.join(target_dir, "meta.csv")
-        with open(targetfile, "wt") as f:
-            exp_and_control.to_csv(f, index=True, index_label="sample_id")
-        with open(targetfile, "rt") as f:
-            csvfile_content = f.read()
-
-        add_infos = [
-            dict(
-                pop_int_id=population_id,
-                info_tag="+c_svg",
-                info_description="A tree including all the trending samples in a population, and control samples which are not, in circular svg format",
-                mime_type="image/svg+xml",
-                info_class="svg",
-                info=svgfile_content_c,
-            ),
-            dict(
-                pop_int_id=population_id,
-                info_tag="+c_svg",
-                info_description="A tree including all the trending samples in a population, and control samples which are not, in radial svg format",
-                mime_type="image/svg+xml",
-                info_class="svg",
-                info=svgfile_content_r,
-            ),
-            dict(
-                pop_int_id=population_id,
-                info_tag="+c_newick",
-                info_description="A tree including all the trending samples in a population, and control samples which are not, in newick format",
-                mime_type="text/x-nh",
-                info_class="newick",
-                info=newick_tree,
-            ),
-            dict(
-                pop_int_id=population_id,
-                info_tag="+c_metadata",
-                info_description="Metadata on all the trending samples in a population, and control samples which are not, in csv format",
-                mime_type="text/csv",
-                info_class="csv",
-                info=csvfile_content,
-            ),
-        ]
-
-        for add_info in add_infos:
-            pdm.add_PopulationStudiedExtraInfo(**add_info)
+        export_trees(
+            metadata=exp_and_control, 
+            target_dir = target_dir, 
+            mt= mt, 
+            pdm = pdm, 
+            has_controls="+",
+            population_id = population_id,
+            newick_tree = newick_tree)
 
         # cleanup
         if args.remove_temporary_trees:
             print("Deleting temporary files")
             shutil.rmtree(analysis_dir)  # is this vulnerable to symlink attack? TBD
 
-    logging.info("Build finished.  Results are in database.")
+    logging.info("Build finished.  Results are in database.  Software will terminate shortly, but may take 1-2 minutes to run .tar file validity checking first.")
 
 
 # startup
