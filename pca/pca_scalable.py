@@ -206,8 +206,10 @@ class VariantMatrix:
             if rcs["invalid"] == 0:
                 self.PCASEQSTORE.store_rcs(sequence_id, rcs)
                 if self.show_bar:
-                    bar.update(num_loaded)
-
+                    try:
+                        bar.update(num_loaded)
+                    except ValueError:
+                        logging.warning("Bar exceeded max length")
         self.PCASEQSTORE.flush()  # flush any in-memory buffered items to file
 
         if self.show_bar:
@@ -612,7 +614,10 @@ class VariantMatrix:
                 self.matrix_sequence_id_order.append(sequence_id)
 
             if self.show_bar:
-                bar.update(n_loaded)
+                try:
+                    bar.update(n_loaded)
+                except ValueError:
+                    logging.warning("Bar exceeded max length")
 
             # if we have accrued enough samples, or we are within min_matrix_size of the last sample
             if n_this_block >= self.target_matrix_size and n_loaded < near_end:

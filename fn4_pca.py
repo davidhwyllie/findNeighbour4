@@ -70,7 +70,86 @@ from pca.fittrend import ModelCounts
 from localstore.localstoreutils import LocalStore
 from tree.tree_utils import IQTree, ManipulateTree, DepictTree
 
-#os.environ['OMP_NUM_THREADS']='64'          # required for KMeans with large numbers of samples, otherwise OpenBLAS crashes
+# os.environ['OMP_NUM_THREADS']='64'          # required for KMeans with large numbers of samples, otherwise OpenBLAS crashes; set this in .env
+
+
+def export_trees(metadata, target_dir, mt, pdm, has_controls, population_id, newick_tree):
+    """export trees to database and file
+    metadata: a pandas dataframe containing output data
+    target_dir: where to write to
+    mt: a ManipulateTree object
+    pdm: a PCA data manager object
+    has_controls: whether controls are included.  Either + or -
+    population_id: integer reflecting population in database
+    newick_tree: newick format tree
+    """
+
+    # output and write to database
+    targetfile = os.path.join(target_dir, "rectangular.svg")
+    mt.render(targetfile, mode="r")
+
+    add_infos = []
+
+    if os.path.exists(targetfile):
+        with open(targetfile, "rt") as f:
+            svgfile_content_r = f.read()
+        add_infos.append(
+            dict(
+                pop_int_id=population_id,
+                info_tag=has_controls + "r_svg",
+                info_description="A tree including trending samples in a population in radial svg format.  Not rooted",
+                mime_type="image/svg+xml",
+                info_class="svg",
+                info=svgfile_content_r,
+            )
+        )
+
+    targetfile = os.path.join(target_dir, "circular.svg")
+    mt.render(targetfile, mode="c")
+    if os.path.exists(targetfile):
+        with open(targetfile, "rt") as f:
+            svgfile_content_c = f.read()
+            add_infos.append(
+                dict(
+                    pop_int_id=population_id,
+                    info_tag=has_controls + "c_svg",
+                    info_description="A tree including trending samples in a population in radial svg format. Not rooted",
+                    mime_type="image/svg+xml",
+                    info_class="svg",
+                    info=svgfile_content_c,
+                )
+            )
+
+    # write data to database
+    targetfile = os.path.join(target_dir, "meta.csv")
+    with open(targetfile, "wt") as f:
+        metadata.to_csv(f, index=True, index_label="sample_id")
+    with open(targetfile, "rt") as f:
+        csvfile_content = f.read()
+
+    add_infos.append(
+        dict(
+            pop_int_id=population_id,
+            info_tag=has_controls + "c_newick",
+            info_description="A tree including all the trending samples in a population in newick format.  Not rooted",
+            mime_type="text/x-nh",
+            info_class="newick",
+            info=newick_tree,
+        )
+    )
+    add_infos.append(
+        dict(
+            pop_int_id=population_id,
+            info_tag=has_controls + "c_metadata",
+            info_description="Metadata on all the trending samples in a population.  Not rooted",
+            mime_type="text/csv",
+            info_class="csv",
+            info=csvfile_content,
+        )
+    )
+
+    for add_info in add_infos:
+        pdm.add_PopulationStudiedExtraInfo(**add_info)
 
 
 def main():
@@ -539,60 +618,17 @@ pipenv run python3 fn4_pca.py demos/covid/atp.json prod /data/logs/findNeighbour
             title=[title_info],
             genome_length=len(CONFIG["reference"]),
         )
-        targetfile = os.path.join(target_dir, "rectangular.svg")
-        mt.render(targetfile, mode="r")
-        with open(targetfile, "rt") as f:
-            svgfile_content_r = f.read()
-        targetfile = os.path.join(target_dir, "circular.svg")
-        mt.render(targetfile, mode="c")
-        with open(targetfile, "rt") as f:
-            svgfile_content_c = f.read()
 
-        # write data to database
-        targetfile = os.path.join(target_dir, "meta.csv")
-        with open(targetfile, "wt") as f:
-            exp_only.to_csv(f, index=True, index_label="sample_id")
-        with open(targetfile, "rt") as f:
-            csvfile_content = f.read()
-
-        add_infos = [
-            dict(
-                pop_int_id=population_id,
-                info_tag="-c_svg",
-                info_description="A tree including trending samples in a population in circular svg format.  Not rooted",
-                mime_type="image/svg+xml",
-                info_class="svg",
-                info=svgfile_content_c,
-            ),
-            dict(
-                pop_int_id=population_id,
-                info_tag="-c_svg",
-                info_description="A tree including trending samples in a population in radial svg format. Not rooted",
-                mime_type="image/svg+xml",
-                info_class="svg",
-                info=svgfile_content_r,
-            ),
-            dict(
-                pop_int_id=population_id,
-                info_tag="-c_newick",
-                info_description="A tree including all the trending samples in a population in newick format.  Not rooted",
-                mime_type="text/x-nh",
-                info_class="newick",
-                info=newick_tree,
-            ),
-            dict(
-                pop_int_id=population_id,
-                info_tag="-c_metadata",
-                info_description="Metadata on all the trending samples in a population.  Not rooted",
-                mime_type="text/csv",
-                info_class="csv",
-                info=csvfile_content,
-            ),
-        ]
-
-        for add_info in add_infos:
-            pdm.add_PopulationStudiedExtraInfo(**add_info)
-
+        # export
+        export_trees(
+            metadata=exp_only, 
+            target_dir = target_dir, 
+            mt= mt, 
+            pdm = pdm, 
+            has_controls="-",
+            population_id = population_id, 
+            newick_tree= newick_tree)
+        
         ## include controls as well
         print(
             "**************************************************************************************"
@@ -659,66 +695,21 @@ pipenv run python3 fn4_pca.py demos/covid/atp.json prod /data/logs/findNeighbour
             title=[title_info],
             genome_length=len(CONFIG["reference"]),
         )
-        targetfile = os.path.join(target_dir, "rectangular.svg")
-        mt.render(targetfile, mode="r")
-        with open(targetfile, "rt") as f:
-            svgfile_content_r = f.read()
-        targetfile = os.path.join(target_dir, "circular.svg")
-        mt.render(targetfile, mode="c")
-        with open(targetfile, "rt") as f:
-            svgfile_content_c = f.read()
-
-        # write data to database
-        targetfile = os.path.join(target_dir, "meta.csv")
-        with open(targetfile, "wt") as f:
-            exp_and_control.to_csv(f, index=True, index_label="sample_id")
-        with open(targetfile, "rt") as f:
-            csvfile_content = f.read()
-
-        add_infos = [
-            dict(
-                pop_int_id=population_id,
-                info_tag="+c_svg",
-                info_description="A tree including all the trending samples in a population, and control samples which are not, in circular svg format",
-                mime_type="image/svg+xml",
-                info_class="svg",
-                info=svgfile_content_c,
-            ),
-            dict(
-                pop_int_id=population_id,
-                info_tag="+c_svg",
-                info_description="A tree including all the trending samples in a population, and control samples which are not, in radial svg format",
-                mime_type="image/svg+xml",
-                info_class="svg",
-                info=svgfile_content_r,
-            ),
-            dict(
-                pop_int_id=population_id,
-                info_tag="+c_newick",
-                info_description="A tree including all the trending samples in a population, and control samples which are not, in newick format",
-                mime_type="text/x-nh",
-                info_class="newick",
-                info=newick_tree,
-            ),
-            dict(
-                pop_int_id=population_id,
-                info_tag="+c_metadata",
-                info_description="Metadata on all the trending samples in a population, and control samples which are not, in csv format",
-                mime_type="text/csv",
-                info_class="csv",
-                info=csvfile_content,
-            ),
-        ]
-
-        for add_info in add_infos:
-            pdm.add_PopulationStudiedExtraInfo(**add_info)
+        export_trees(
+            metadata=exp_and_control, 
+            target_dir = target_dir, 
+            mt= mt, 
+            pdm = pdm, 
+            has_controls="+",
+            population_id = population_id,
+            newick_tree = newick_tree)
 
         # cleanup
         if args.remove_temporary_trees:
             print("Deleting temporary files")
             shutil.rmtree(analysis_dir)  # is this vulnerable to symlink attack? TBD
 
-    logging.info("Build finished.  Results are in database.")
+    logging.info("Build finished.  Results are in database.  Software will terminate shortly, but may take 1-2 minutes to run .tar file validity checking first.")
 
 
 # startup
